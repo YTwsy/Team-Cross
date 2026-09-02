@@ -161,7 +161,8 @@ class ClaudeRun implements AgentRun {
     this.descriptor = {
       runId: options.runId,
       provider: "claude",
-      sessionId: `claude-pending-${options.runId}`,
+      // No native identity exists until the SDK reports system/init.
+      sessionId: "",
       worktree: options.worktree,
       networkEnabled: options.networkEnabled,
       ...(options.model === undefined ? {} : { model: options.model }),
@@ -343,7 +344,12 @@ class ClaudeRun implements AgentRun {
   private onMessage(message: unknown): void {
     if (!isRecord(message)) return;
     const sessionId = stringField(message, "session_id");
-    if (sessionId) this.descriptor.sessionId = sessionId;
+    if (message.type === "system" && message.subtype === "init" && sessionId) {
+      if (this.descriptor.sessionId && this.descriptor.sessionId !== sessionId) {
+        throw new Error("Claude reported a different native Session identity");
+      }
+      this.descriptor.sessionId = sessionId;
+    }
     const turnId = this.activeTurnId;
     for (const mapped of mapClaudeMessage(message, turnId, this.tools)) {
       this.emit(mapped.type, mapped);

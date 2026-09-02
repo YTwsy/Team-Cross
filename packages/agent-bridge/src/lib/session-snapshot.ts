@@ -6,6 +6,61 @@ type RecordValue = Record<string, unknown>;
 const MAX_ENTRY_TEXT = 64_000;
 const MAX_TOTAL_TEXT = 2_000_000;
 export const DEFAULT_SNAPSHOT_LIMIT = 2_000;
+// Leave ample room for the JSON-RPC envelope below Core's 8 MiB line limit.
+// Character limits alone do not bound UTF-8 or JSON control-character escapes.
+export const MAX_REVIEW_RESULT_BYTES = 6 * 1024 * 1024;
+
+interface ReviewResult {
+  entries: SessionEntry[];
+  truncated: boolean;
+  warnings: string[];
+  gaps?: string[];
+}
+
+/** Bound the actual wire representation while retaining the newest context. */
+export function boundReviewResult<T extends ReviewResult>(result: T): T {
+  if (jsonSize(result) <= MAX_REVIEW_RESULT_BYTES) return result;
+  const note = "Review transport byte limit reached; older entries or text were omitted. This checkpoint is partial.";
+  const bounded = {
+    ...result, entries: [] as SessionEntry[], truncated: true,
+    warnings: [note, ...result.warnings.filter((warning) => warning !== note)].slice(0, 100),
+    ...(result.gaps ? { gaps: [note, ...result.gaps.filter((gap) => gap !== note)].slice(0, 20) } : {}),
+  };
+  let remaining = MAX_REVIEW_RESULT_BYTES - jsonSize(bounded);
+  // Source identity is never silently shortened. A small RPC error is safer
+  // than an oversized JSONL line that terminates every request on the Bridge.
+  if (remaining < 0) throw new Error("Review metadata exceeds the transport byte limit");
+  for (const entry of [...result.entries].reverse()) {
+    const separator = bounded.entries.length > 0 ? 1 : 0;
+    const size = jsonSize(entry);
+    if (size + separator <= remaining) {
+      bounded.entries.unshift(entry);
+      remaining -= size + separator;
+      continue;
+    }
+    const suffix = "\n[Text truncated to fit review transport]";
+    const partial = { ...entry, text: suffix };
+    const budget = remaining - separator;
+    if (jsonSize(partial) <= budget) {
+      let low = 0;
+      let high = entry.text.length;
+      while (low < high) {
+        const middle = Math.ceil((low + high) / 2);
+        partial.text = entry.text.slice(0, middle) + suffix;
+        if (jsonSize(partial) <= budget) low = middle;
+        else high = middle - 1;
+      }
+      // Do not create a dangling surrogate when cutting a non-BMP character.
+      if (low > 0 && /[\uD800-\uDBFF]/.test(entry.text[low - 1]!)) low--;
+      partial.text = entry.text.slice(0, low) + suffix;
+      bounded.entries.unshift(partial);
+    }
+    break;
+  }
+  return bounded;
+}
+
+function jsonSize(value: unknown): number { return Buffer.byteLength(JSON.stringify(value)); }
 
 /** Read success does not prove passive subscription, precise native navigation or exclusive writing. */
 export function reviewCapabilities(provider: SessionRef["provider"]): SessionCapabilities {
@@ -181,7 +236,7 @@ class SnapshotBuilder {
   }
 
   finish(): SessionSnapshot {
-    return { source: this.source, capturedAt: this.capturedAt, entries: this.entries, truncated: this.truncated, warnings: [...this.warnings], capabilities: reviewCapabilities(this.source.provider) };
+    return boundReviewResult({ source: this.source, capturedAt: this.capturedAt, entries: this.entries, truncated: this.truncated, warnings: [...this.warnings], capabilities: reviewCapabilities(this.source.provider) });
   }
 
   private warn(text: string): void {

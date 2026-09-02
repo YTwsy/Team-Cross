@@ -44,6 +44,27 @@ export interface SessionSnapshot {
   capabilities: SessionCapabilities;
 }
 
+export interface SessionsPollParams {
+  provider: Exclude<AgentProvider, "mock">;
+  sessionId: string;
+  cursor?: string;
+  limit?: number;
+}
+
+/** Technical read-only polling result, not proof of native Follow acceptance. */
+export interface SessionPollResult {
+  source: SessionRef;
+  capturedAt: string;
+  /** Stable-ID upserts, never a claim to contain the complete history. */
+  entries: SessionEntry[];
+  cursor: string;
+  /** Replace only the mutable Follow view; immutable captures remain intact. */
+  reset: boolean;
+  gaps: string[];
+  truncated: boolean;
+  warnings: string[];
+}
+
 export const bridgeEventTypes = [
   "run.started",
   "run.status",
@@ -162,6 +183,7 @@ export type BridgeMethod =
   | "sessions.listStored"
   | "sessions.readStored"
   | "sessions.snapshot"
+  | "sessions.poll"
   | "runs.create"
   | "runs.importContext"
   | "runs.send"

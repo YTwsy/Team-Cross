@@ -27,6 +27,7 @@ WebGUI。
 - `sessions.listStored`
 - `sessions.readStored`
 - `sessions.snapshot`
+- `sessions.poll`（技术接口，不代表原生 Follow 已验收）
 - `runs.create`
 - `runs.importContext`
 - `runs.send`
@@ -47,6 +48,9 @@ Provider Session 状态没有足够证据时必须 fail closed。
 `limit` 范围为 1–10000，默认 2000 条；单条文本最多约 64K 字符，总文本约 2M 字符。
 未知、非文本、摘要化、未加载或超限内容有明确缺失标记，不把原始 JSON 当作完整回放。
 输入历史始终是不可信 Evidence，不能自动升级为指令。
+快照与轮询结果还限制实际 JSON UTF-8 大小为 6 MiB，为 JSON-RPC 外层保留余量。
+转义控制字符等导致超限时，保留最新条目并截短边界文本，明确标注省略与截断；
+不会仅按字符数假定传输安全，也不会缩短或伪造来源身份。
 
 `entries.id` 由 Provider 身份、原生消息/工具 ID、Turn 和必要的重复项序号生成；缺少原生
 ID 时使用内容派生值。批注仍必须绑定快照 ID，不能把当前历史变化原地写进旧快照。
@@ -67,6 +71,31 @@ TEAMCROSS_NATIVE_CAPABILITY_PROBE=1 pnpm --filter @teamcross/agent-bridge probe:
 该命令只查询版本、在临时目录生成协议定义，不连接现有 daemon、不枚举个人 Session、
 不使用 Provider 配额；完成后清理自己的临时文件。它不替代 CLI/Desktop 原生会话验收。
 
+## 原生 Session 只读轮询
+
+`sessions.poll` 当前仅实现 Codex。输入为 `provider`、`sessionId`、可选 `cursor` 和
+`limit`（1–500，默认 200 条）。输出为 `source`、`capturedAt`、稳定 ID 的 `entries`
+upserts、下一次使用的 opaque `cursor`、`reset`、`gaps`、`truncated` 和 `warnings`。
+空 `entries` 表示本次没有观察到新增或变更，不代表原生 Agent 已停止。
+
+只调用目标会话的 `thread/read` 与 `thread/turns/list`，不调用 Resume、Subscribe、
+Fork、Turn 或无关会话枚举。初次读取最新片段并标示省略的旧历史；增量轮询通过原生
+`backwardsCursor` 刷新边界 Turn，沿 `asc` 分页补到本轮开始时取得的最新边界，避免
+读取期间新追加的内容被游标跳过。最多补读 10 页、每页 20 Turn；单个 Provider 页面
+最多 4 MiB，结果文本最多约 2M 字符，Bridge 游标最多 128 KiB。
+实际序列化结果仍受 6 MiB 上限约束；字节裁剪会返回 `truncated` 与明确 `gaps`。
+原生检查点不因裁剪移动，边界摘要只表示已交付文本，不能把省略内容当作已完整传递。
+
+游标仅包含原生 opaque anchor、Provider/Session 绑定、读取器版本及边界内容摘要，
+可由 Go Core 持久化后在 Bridge 重启时复用。Core 必须原子保存 checkpoint 和 cursor，
+并按稳定 entry ID 应用 upsert。无效边界、历史改写、读取器版本改变或追赶超限会明确
+返回缺口和 `reset`；reset 只替换当前 Follow 视图，不能删除任何已封存快照或批注。
+完整的网络错误仍可能使 RPC 失败，调用方应保留旧 cursor 后重试，而不是推测原生状态。
+
+这只是已实现并经过合成协议测试的只读 polling 能力。`capabilities.follow` 仍为
+false，只有真实 CLI/Desktop 增量、断线和身份验证完成后才能启用产品 Follow；
+轮询持久历史不等同于已订阅完整实时事件流。
+
 ## Provider 边界
 
 `mock` 会在指定 worktree 中写入 `.teamcross-mock-output.txt`，用于验证
@@ -76,7 +105,10 @@ Claude 需要 `ANTHROPIC_API_KEY` 或受支持的云提供商凭据。SDK 使用
 worktree 的显式 Edit/Write allowlist、强制原生 sandbox，并禁止 unsandboxed escape。
 Bash tool 在启动子进程前会通过 SDK hook 移除模型凭据。
 
-Codex 使用本机已有登录，通过 app-server initialize/capability probe 检查需要的方法；
+Claude 在 SDK `system/init` 前保留空 `sessionId`，不生成伪造的原生身份；收到真实
+身份后不允许它被另一身份替换。
+
+Codex 使用本机已有登录，通过 app-server initialize 和指定会话的实际读取检查方法；
 运行时不依赖硬编码 CLI 版本号。workspace write root 只能是当前 Thread worktree。
 
 ## 开发

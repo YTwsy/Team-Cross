@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ClaudeAdapter } from "../src/adapters/claude.js";
 import { CodexAdapter } from "../src/adapters/codex.js";
 import type { JsonlRpcProcess } from "../src/lib/jsonl-rpc-client.js";
-import { normalizeClaudeSnapshot, normalizeCodexSnapshot } from "../src/lib/session-snapshot.js";
+import { MAX_REVIEW_RESULT_BYTES, normalizeClaudeSnapshot, normalizeCodexSnapshot } from "../src/lib/session-snapshot.js";
 import { BridgeServer } from "../src/server.js";
 import type { SessionSnapshot } from "../src/protocol.js";
 
@@ -99,10 +99,32 @@ describe("native history review snapshots", () => {
     expect(snapshot.truncated).toBe(true);
     expect(JSON.stringify(snapshot)).not.toContain("PRIVATE");
   });
+
+  it.each(["codex", "claude"])("bounds %s snapshot JSON bytes and clearly marks omitted escaped text", (provider) => {
+    const text = "\u0000".repeat(50_000);
+    const snapshot = provider === "codex"
+      ? normalizeCodexSnapshot(codexHistory(Array.from({ length: 40 }, (_, index) => ({ type: "commandExecution", id: `tool-${index}`, aggregatedOutput: text }))), "conversation-a")
+      : normalizeClaudeSnapshot(Array.from({ length: 40 }, (_, index) => ({ type: "user", uuid: `tool-${index}`, message: { content: [{ type: "tool_result", content: text }] } })), "conversation-a");
+    expect(Buffer.byteLength(JSON.stringify(snapshot))).toBeLessThanOrEqual(MAX_REVIEW_RESULT_BYTES);
+    expect(snapshot.truncated).toBe(true);
+    expect(snapshot.warnings.join(" ")).toContain("transport byte limit");
+    expect(snapshot.entries.length).toBeLessThan(40);
+    expect(snapshot.entries[0]?.text).toContain("truncated to fit review transport");
+    expect(snapshot.entries.at(-1)).toMatchObject({ sourceId: "tool-39", text });
+    expect(snapshot.source.sessionId).toBe("conversation-a");
+    expect(snapshot.capabilities).toMatchObject({ follow: false, resume: false, takeControl: false });
+  });
+
+  it("rejects unrepresentable metadata without changing its native identity", () => {
+    const input = codexHistory([]);
+    input.thread.name = "\u0000".repeat(MAX_REVIEW_RESULT_BYTES / 6 + 1);
+    expect(() => normalizeCodexSnapshot(input, "conversation-a")).toThrow("metadata exceeds the transport byte limit");
+    expect(input.thread.id).toBe("conversation-a");
+  });
 });
 
 describe("snapshot RPC is zero execution", () => {
-  it("Codex snapshot calls only initialize, read-only probe and thread/read", async () => {
+  it("Codex snapshot calls only initialize and targeted thread/read", async () => {
     const calls: Array<{ method: string; params: unknown }> = [];
     const fake = {
       start() {}, notify() {}, async close() {},
@@ -117,7 +139,7 @@ describe("snapshot RPC is zero execution", () => {
     const adapter = new CodexAdapter({ clientFactory: () => fake as unknown as JsonlRpcProcess });
     const server = new BridgeServer({ adapters: { codex: adapter } });
     const snapshot = await server.handle("sessions.snapshot", { provider: "codex", sessionId: "conversation-a" }) as SessionSnapshot;
-    expect(calls.map((call) => call.method)).toEqual(["initialize", "thread/list", "thread/read", "thread/read"]);
+    expect(calls.map((call) => call.method)).toEqual(["initialize", "thread/read", "thread/read"]);
     expect(calls.at(-1)?.params).toEqual({ threadId: "conversation-a", includeTurns: true });
     expect(snapshot.source.providerVersion).toBe("codex-test");
     const stored = await adapter.listStored({ provider: "codex" });
@@ -150,7 +172,7 @@ describe("snapshot RPC is zero execution", () => {
     };
     const adapter = new CodexAdapter({ clientFactory: () => fake as unknown as JsonlRpcProcess });
     const snapshot = await adapter.snapshot({ provider: "codex", sessionId: "conversation-a" });
-    expect(calls).toEqual(["initialize", "thread/list", "thread/read", "thread/turns/list", "thread/turns/list"]);
+    expect(calls).toEqual(["initialize", "thread/read", "thread/turns/list", "thread/turns/list"]);
     expect(snapshot.entries.filter((entry) => entry.kind === "message")).toHaveLength(1);
     expect(snapshot.truncated).toBe(true);
     await adapter.shutdown();

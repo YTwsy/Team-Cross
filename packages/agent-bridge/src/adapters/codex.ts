@@ -8,7 +8,10 @@ import {
   type SessionsReadStoredParams,
   type StoredSession,
   type SessionSnapshot,
+  type SessionsPollParams,
+  type SessionPollResult,
 } from "../protocol.js";
+import { pollCodexSession } from "../lib/codex-poll.js";
 import { codexSurface, DEFAULT_SNAPSHOT_LIMIT, normalizeCodexSnapshot } from "../lib/session-snapshot.js";
 import {
   JsonlRpcProcess,
@@ -141,6 +144,13 @@ export class CodexAdapter implements AgentAdapter {
     });
   }
 
+  async poll(params: SessionsPollParams): Promise<SessionPollResult> {
+    return await pollCodexSession(async (method, input) => {
+      const client = await this.ensureClient();
+      return await client.request(method, input);
+    }, params, () => this.providerVersion ?? "unknown");
+  }
+
   async createRun(
     params: Parameters<AgentAdapter["createRun"]>[0],
     emit: EventSink,
@@ -233,8 +243,8 @@ export class CodexAdapter implements AgentAdapter {
     }
     client.notify("initialized");
     this.providerVersion = initialize.userAgent;
-    // A side-effect-free method probe catches app-server builds that predate the APIs we need.
-    await client.request("thread/list", { limit: 1, useStateDbOnly: true });
+    // Probe only the explicitly selected history operation; initialization must
+    // not enumerate unrelated personal Sessions as a compatibility check.
     this.options.onDiagnostic?.(`[codex] initialized ${initialize.userAgent}`);
     return client;
   }

@@ -4,6 +4,7 @@ import { realpath, stat } from "node:fs/promises";
 import { ClaudeAdapter } from "./adapters/claude.js";
 import { CodexAdapter } from "./adapters/codex.js";
 import { MockAdapter } from "./adapters/mock.js";
+import { MAX_POLL_CURSOR_BYTES, MAX_POLL_ENTRIES } from "./lib/codex-poll.js";
 import type { AgentAdapter, AgentRun, EventSink } from "./adapters/types.js";
 import {
   BRIDGE_PROTOCOL_VERSION,
@@ -67,6 +68,7 @@ export class BridgeServer {
             "sessions.listStored",
             "sessions.readStored",
             "sessions.snapshot",
+            "sessions.poll",
             "runs.create",
             "runs.importContext",
             "runs.send",
@@ -107,6 +109,23 @@ export class BridgeServer {
           sessionId: requiredString(params.sessionId, "sessionId"),
           ...(optionalString(params.cwd) ? { cwd: optionalString(params.cwd) } : {}),
           ...(params.limit === undefined ? {} : { limit: snapshotLimit(params.limit) }),
+        });
+      }
+      case "sessions.poll": {
+        const provider = storedProvider(params.provider);
+        const adapter = this.adapters[provider];
+        if (!adapter.poll) throw new BridgeRpcError(-32601, `${provider} does not implement read-only polling`);
+        const sessionId = requiredString(params.sessionId, "sessionId");
+        if (sessionId.length > 256) throw new BridgeRpcError(-32602, "sessionId exceeds 256 characters");
+        if (params.cursor !== undefined && (typeof params.cursor !== "string" || Buffer.byteLength(params.cursor) > MAX_POLL_CURSOR_BYTES)) {
+          throw new BridgeRpcError(-32602, "invalid or oversized poll cursor");
+        }
+        if (params.limit !== undefined && (typeof params.limit !== "number" || !Number.isInteger(params.limit) || params.limit < 1 || params.limit > MAX_POLL_ENTRIES)) {
+          throw new BridgeRpcError(-32602, `poll limit must be between 1 and ${MAX_POLL_ENTRIES}`);
+        }
+        return await adapter.poll({ provider, sessionId,
+          ...(params.cursor === undefined ? {} : { cursor: params.cursor as string }),
+          ...(params.limit === undefined ? {} : { limit: params.limit as number }),
         });
       }
       case "runs.create":

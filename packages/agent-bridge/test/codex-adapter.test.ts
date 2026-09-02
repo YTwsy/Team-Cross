@@ -5,7 +5,7 @@ import type { AgentAdapter } from "../src/adapters/types.js";
 import type { JsonlRpcProcess } from "../src/lib/jsonl-rpc-client.js";
 
 describe("Codex adapter requests", () => {
-  it("probes capabilities and constrains each turn to the worktree", async () => {
+  it("initializes without listing history and constrains each turn to the worktree", async () => {
     const calls: Array<{ method: string; params: unknown }> = [];
     const fake = {
       start() {},
@@ -37,7 +37,6 @@ describe("Codex adapter requests", () => {
 
     expect(calls.map((call) => call.method)).toEqual([
       "initialize",
-      "thread/list",
       "thread/start",
       "turn/start",
     ]);
