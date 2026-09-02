@@ -101,3 +101,41 @@ Tailcat 初始化不算通过。
 只对应首个提交候选树；后续结论必须记录新的日期、提交或工作树身份与实际命令范围。
 
 当这些状态变化时，更新本节或拆分新的带日期验证 source；不要把一次性完整日志写入 Wiki。
+
+## 2026-09-03 Session-first 实现工作树
+
+以下结论针对基于 `0b70ae4` 的 M1/M2/离线 Fork 实现工作树，不代表 M1–M4 全部验收。
+
+已运行并通过：
+
+- Go 全量 `go test ./...`、`go vet ./...`；
+- `go test -race` 覆盖 `cmd/teamcross`、`internal/bridgeclient`、
+  `internal/gitstate`、`internal/server`、`internal/storage`、
+  `internal/share`、`internal/transfer`；
+- Web TypeScript check、40 项 Vitest、production build，嵌入资源已刷新；
+- Bridge TypeScript check、20 项 Vitest、编译及编译产物的
+  `bridge.ping`/`bridge.info` JSONL readiness；
+- 包含新 Web 资源的 Go binary build 和 version 启动；
+- 文档本地链接与 `git diff --check`。
+
+新增测试覆盖零执行导入、不可变锚点、详情/列表/下载/SSE 的分享范围、只读 Share 禁止
+控制、重复请求、历史 Round Fork、worktree 漂移、初始化失败保留旧 Run、迁移旧数据、
+未来 schema 拒绝及 SQL 故障注入回滚。独立审查还覆盖 Git filter/textconv 执行、
+symlink 链、大小写/Unicode 冲突、补丁中间树、gitlink、对象闭包、copy/binary 膨胀。
+
+本机行为证据：
+
+- 真实 Go Core + 合成历史 Bridge 的浏览器流程完成 Session 选择、预览、只读创建、
+  精确批注和反馈；最终只有一个 Thread/Snapshot/Annotation，Agent Run 为零。
+  重启后历史与批注恢复，测试来源仓库未改变。
+- 实际编译的 Mock Adapter 完成新 Session、隔离目录写入和新 Round 封存。
+- 使用真实临时 Git 仓库验证 staged/unstaged/binary/untracked/受限 symlink；
+  来源仓库删除后，导入副本仍可还原和导出 patch。
+
+验证使用现有 Go 1.27 工具链、Node 24 与已安装依赖；没有把全新机器的依赖安装记为
+通过。浏览器检查使用合成 Session，不读取用户个人对话，不启动真实模型 Turn。
+
+尚未验收：两台真实 Mac 的分享批注/网络路径、真实接收机器上的发送方离线继续、
+真实 Codex/Claude Turn，以及 CLI/Desktop 各自的原生 Follow/Open、同 ID Resume、
+旧 Writer 失效和交还。高级原生能力因此保持禁用；静态检查与后续 opt-in 要求见
+[原生能力门槛](native-capability-gates.md)。

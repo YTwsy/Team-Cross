@@ -12,16 +12,27 @@ Agent Session 入手，为具体的一次工作增加共同视图、可定位批
 
 > 它是否从一个具体 Session 出发，并帮助另一个人理解、审阅、控制或继续这次工作？
 
-当前仓库实现的是 macOS-first、本地优先的 v0 原型：它捕获真实的 Git 基线与工作区改动，
-在隔离 worktree 中运行 Team Cross 托管的 Codex 或 Claude Session，并向另一位协作者提供
-受限的查看、批注和 Agent 控制能力。外部 Native Session 当前仍只能作为有来源、
-不可信的 evidence 导入，尚不能被原地恢复或热接管。
+当前仓库实现的是 macOS-first、本地优先的 v0 原型：可以从已有 Native Session 创建
+只读审阅 Thread，选择内容分享、精准批注并导出反馈；也可以捕获 Git 基线，在隔离
+worktree 中显式创建新的 managed Session，或从封存 Round 独立 Fork。外部 Native
+Session 仍只作为有来源、不可信的上下文导入，尚不能被实时 Follow、原地恢复或接管。
 
 原始 checkout 永远不会被 Team Cross 自动应用 patch、提交或 cherry-pick。
 
 ## 原型工作流
 
-`capture → 隔离 worktree → Share → join → 批注或控制 Agent → 新 Round → patch export`
+`选择 Session → 预览 → 只读导入 → 选择分享范围 → join → 批注 → Markdown 反馈`
+
+读取、预览、导入和分享都不会创建 Run、发送模型指令或恢复原生会话。Session-first
+入口不使用原生 cwd 自动抓取代码：没有经用户明确捕获的 Git 基线也能审阅，但这样的
+只读 Thread 不能执行 Agent。当前代码状态不是历史 Session 当时的代码状态。
+
+需要执行时，先捕获 Git 创建可执行 Thread，再导入参考 Session：
+
+`capture → 导入参考 Session → 选择 Round → 确认新 Session → 隔离执行 → 新 Round → patch export`
+
+从历史 Round 继续会创建新 Thread；最新 Round 只有在 worktree 与封存状态一致时才能
+原 Thread 顺序继续。若有后来修改，选择 Fork，不覆盖或回退当前 worktree。
 
 完整的产品闭环、技术分层和实时协作时序见
 [产品与架构图解](docs/architecture.md)。
@@ -72,13 +83,18 @@ Node Agent Bridge 运行。
 
 - 预览并捕获 staged、unstaged、binary 与用户选定的 untracked 改动；
 - 为 Thread 创建一个 detached 隔离 worktree；
+- 选择 Codex/Claude 历史，预览结构化消息、工具结果与缺失标记，创建只读审阅 Thread；
+- 将 Session 快照追加到已有 Thread，绑定消息、工具结果、Evidence 或 Round 批注，
+  复制或下载带引用的 Markdown 反馈，由 Owner 自己带回原生 UI；
 - 启动 Mock、Codex 或 Claude managed Session，并在 Provider 之间切换；
 - 通过可重放 SSE 展示消息、工具事件、文件变化与运行状态；
 - 展示 Agent input request，并允许 Owner 或当前 Controller 回答；
 - 查看和导出相对 Thread 基线的当前 binary patch；
 - 附加、查看和下载文本、日志或文件证据；
 - 创建普通批注或精确到文件行号的批注；
-- 创建或撤销默认一小时有效的 Share。
+- 选择快照记录、Evidence、封存代码与实时 managed 输出，创建或撤销默认一小时有效的 Share；
+- 从 Round 显式创建新 Session，或 Fork 独立 Thread；
+- 导出和导入版本化 `.tcx.json` 离线交接包；导入本身不执行 Agent。
 
 前端开发模式：
 
@@ -113,6 +129,10 @@ TCP 建立后仍必须通过邀请中的 Ed25519 证书 SPKI pin 和 Share hands
 ## 多人协作模型
 
 - 同一个 Share 可以有多个 Observer，他们都能查看和批注。
+- 新 Share 默认只有 `view`、`annotate`，控制需要 Owner 单独启用，且明确共享
+  封存代码与 managed Agent 实时输出。已分享快照不会因后续导入、封存或本机编辑而扩大。
+- 内容范围由服务端统一执行，覆盖列表、详情、Evidence 下载、patch、批注与 SSE。
+  改变范围或权限需要撤销旧 Share 并重新创建；隐藏内容不能通过其他路由绕过。
 - 同时只有一个远端参与者可以持有 60 秒 Controller 租约。
 - WebGUI 每 20 秒续约一次 Controller 租约。
 - Agent 写命令携带 `commandId`、`expectedRevision` 和 `leaseEpoch`；SQLite
@@ -138,6 +158,26 @@ Streaming Input 模式、`dontAsk`、显式工具 allowlist、强制原生 sandb
 Session，并读取 context manifest。导入的原生 Session 只作为带来源的、不可信 evidence，
 Team Cross 不恢复或热接管外部 Session ID。
 
+Adapter 分别报告读取、Follow、准确打开原生会话、Resume 和接管能力。读取历史成功或
+Provider 提供 `thread/resume` 都不意味着单 Writer 已被证明；未验证能力保持关闭。
+CLI/Desktop 的独立验收要求见
+[原生能力门槛](docs/agent-wiki/sources/validation/native-capability-gates.md)。
+
+## 离线交接
+
+有 Git 基线的 Thread 可以在 WebGUI 选择 Round 和允许导出的上下文，确认后下载
+`.tcx.json`。接收者在自己的主机导入，得到带来源 Thread/Round 引用的新 Thread 和
+独立 Git 对象库。包接收完成后不再依赖发送方在线；继续工作使用接收者自己的 Provider
+凭据，且必须再次显式创建新 Session。
+
+交接包包含 baseline 可达 Git 历史与所选代码快照，不是仅含当前 diff；选择导出的
+Evidence/Session 快照也会成为不可撤回的副本。分享撤销不会删除接收者已保存的数据。
+包不转移凭据、Share secret、租约、进程或本机配置；双方不会自动同步或合并后续历史。
+
+v1 有大小与路径限制，不支持 submodule、包含父目录跳转的 symlink 或完整环境复刻。
+详细范围与失败语义见
+[审阅与接力契约](docs/agent-wiki/sources/decisions/session-review-and-continuation.md)。
+
 ## 数据目录
 
 macOS 上的持久化状态位于：
@@ -155,6 +195,9 @@ macOS 上的持久化状态位于：
 SQLite 启用 WAL、foreign keys、busy timeout、单调事件序号、不可变 Round 和带 fencing
 的控制租约。大 payload 按 SHA-256 在对象存储中去重。untracked capture 的上限为单文件
 5 MiB、单 Round 20 MiB；超限内容只保留元数据。
+
+数据库通过版本化迁移保留旧 Thread/Round，新增不可变 SessionSnapshot、批注锚点、
+Share 内容投影及 Run 来源/Writer/能力绑定。升级前应备份数据目录；不支持降级打开新 schema。
 
 主机重启会主动使所有临时 Share runtime 失效，但 Thread、Round、worktree、evidence、
 annotation 和 event 会继续保留。
@@ -187,6 +230,8 @@ Claude 凭据、Tailscale LocalAPI 和临时 Tailcat 初始化。缺少 Tailscal
 - [协议 v1](docs/protocol.md)：邀请、Share API、幂等和 SSE wire contract。
 - [Agent Wiki](docs/agent-wiki/README.md)：稳定决策、事实来源和任务上下文。
 - [Agent Bridge](packages/agent-bridge/README.md)：本地 Bridge 的组件边界与调试入口。
+- [Session 审阅与接力](docs/agent-wiki/wiki/concepts/session-review-and-continuation.md)：
+  只读导入、范围分享、新 Session、Fork 和离线包的实现边界。
 
 本仓库的 Markdown 文档默认使用简体中文；协议字段、API、命令、代码标识符和固定
 wire value 保持英文原样。
@@ -194,5 +239,7 @@ wire value 保持英文原样。
 ## v0 暂不实现
 
 当前原型不提供账户、长期身份、云端 rendezvous、外部活跃 Session 的 Attach、实时
-Follow、Resume 或热接管、原生 Session 跨 cwd 迁移、自动 apply/commit/cherry-pick、
-完整环境复刻、离线 `.tcx` bundle、MCP/Skill 包装或菜单栏 App。
+Follow、准确的 Open in Provider、Resume 或热接管、原生 Session 跨 cwd 迁移、
+自动 apply/commit/cherry-pick、完整环境复刻、同 Thread 离线双主同步、
+MCP/Skill 包装或菜单栏 App。M3/M4 原生控制仍待真实能力验证，不能用本机 Mock 或
+Fork 新 Session 代替同一原生会话接管验收。

@@ -8,7 +8,9 @@ import {
   type SessionsListStoredParams,
   type SessionsReadStoredParams,
   type StoredSession,
+  type SessionSnapshot,
 } from "../protocol.js";
+import { DEFAULT_SNAPSHOT_LIMIT, normalizeClaudeSnapshot } from "../lib/session-snapshot.js";
 import type { AgentAdapter, AgentRun, EventSink } from "./types.js";
 import { serializeImportedContext } from "./types.js";
 
@@ -23,6 +25,7 @@ interface ClaudeSdk {
   query(input: { prompt: AsyncIterable<unknown>; options: JsonRecord }): ClaudeQuery;
   listSessions(options?: JsonRecord): Promise<unknown[]>;
   getSessionMessages(sessionId: string, options?: JsonRecord): Promise<unknown[]>;
+  getSessionInfo?(sessionId: string, options?: JsonRecord): Promise<unknown>;
 }
 
 export interface ClaudeAdapterOptions {
@@ -39,6 +42,8 @@ export class ClaudeAdapter implements AgentAdapter {
   constructor(private readonly options: ClaudeAdapterOptions = {}) {}
 
   async listStored(params: SessionsListStoredParams): Promise<StoredSession[]> {
+    // SDK history metadata does not establish whether a session originated in CLI or Desktop.
+    if (params.surface !== undefined && params.surface !== "unknown") return [];
     const sdk = await this.loadSdk();
     const sessions = await sdk.listSessions({
       ...(params.cwd === undefined ? {} : { dir: params.cwd }),
@@ -52,6 +57,8 @@ export class ClaudeAdapter implements AgentAdapter {
       return [{
         provider: "claude",
         sessionId,
+        identityKind: "sessionId",
+        surface: "unknown",
         ...(stringField(value, "summary") ? { title: stringField(value, "summary") } : {}),
         ...(stringField(value, "cwd") ? { cwd: stringField(value, "cwd") } : {}),
         ...(epochMillisToIso(numberField(value, "createdAt"))
@@ -78,6 +85,21 @@ export class ClaudeAdapter implements AgentAdapter {
       ...(params.limit === undefined ? {} : { limit: params.limit }),
     });
     return { sessionId: params.sessionId, messages };
+  }
+
+  async snapshot(params: SessionsReadStoredParams): Promise<SessionSnapshot> {
+    const sdk = await this.loadSdk();
+    const limit = params.limit ?? DEFAULT_SNAPSHOT_LIMIT;
+    const directory = params.cwd === undefined ? {} : { dir: params.cwd };
+    // One extra message detects truncation without enumerating unrelated sessions or starting a query.
+    const messages = await sdk.getSessionMessages(params.sessionId, {
+      ...directory, limit: limit + 1, includeSystemMessages: true,
+    });
+    const metadata = await sdk.getSessionInfo?.(params.sessionId, directory);
+    return normalizeClaudeSnapshot(messages.slice(0, limit), params.sessionId, {
+      limit, metadata, providerTruncated: messages.length > limit,
+      ...(params.cwd === undefined ? {} : { cwd: params.cwd }),
+    });
   }
 
   async createRun(

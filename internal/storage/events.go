@@ -122,11 +122,11 @@ func (s *Store) CreateAnnotation(ctx context.Context, annotation domain.Annotati
 	}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO annotations(
-		  id, thread_id, round_id, participant_id, path, start_line, end_line, body, created_at
-		) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  id, thread_id, round_id, participant_id, path, start_line, end_line, body, created_at, target
+		) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		annotation.ID, annotation.ThreadID, nullString(annotation.RoundID),
 		nullString(annotation.ParticipantID), annotation.Path, annotation.StartLine,
-		annotation.EndLine, annotation.Body, millis(annotation.CreatedAt))
+		annotation.EndLine, annotation.Body, millis(annotation.CreatedAt), targetBytes(annotation.Target))
 	if err != nil {
 		return domain.Annotation{}, fmt.Errorf("create annotation: %w", err)
 	}
@@ -169,11 +169,11 @@ func (s *Store) CreateAnnotationExpected(ctx context.Context, annotation domain.
 	}
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO annotations(
-		  id, thread_id, round_id, participant_id, path, start_line, end_line, body, created_at
-		) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  id, thread_id, round_id, participant_id, path, start_line, end_line, body, created_at, target
+		) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		annotation.ID, annotation.ThreadID, nullString(annotation.RoundID),
 		nullString(annotation.ParticipantID), annotation.Path, annotation.StartLine,
-		annotation.EndLine, annotation.Body, millis(annotation.CreatedAt)); err != nil {
+		annotation.EndLine, annotation.Body, millis(annotation.CreatedAt), targetBytes(annotation.Target)); err != nil {
 		return domain.Annotation{}, domain.Event{}, fmt.Errorf("create annotation: %w", err)
 	}
 	payload, err := json.Marshal(annotation)
@@ -231,7 +231,7 @@ func eventPayloadWithRevision(payload []byte, revision int64) ([]byte, error) {
 
 func (s *Store) ListAnnotations(ctx context.Context, threadID string) ([]domain.Annotation, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, thread_id, round_id, participant_id, path, start_line, end_line, body, created_at
+		SELECT id, thread_id, round_id, participant_id, path, start_line, end_line, body, created_at, target
 		FROM annotations WHERE thread_id = ? ORDER BY created_at, id`, threadID)
 	if err != nil {
 		return nil, fmt.Errorf("list annotations: %w", err)
@@ -242,13 +242,19 @@ func (s *Store) ListAnnotations(ctx context.Context, threadID string) ([]domain.
 		var a domain.Annotation
 		var roundID, participantID sql.NullString
 		var created int64
+		var target []byte
 		if err := rows.Scan(&a.ID, &a.ThreadID, &roundID, &participantID,
-			&a.Path, &a.StartLine, &a.EndLine, &a.Body, &created); err != nil {
+			&a.Path, &a.StartLine, &a.EndLine, &a.Body, &created, &target); err != nil {
 			return nil, err
 		}
 		a.RoundID = roundID.String
 		a.ParticipantID = participantID.String
 		a.CreatedAt = fromMillis(created)
+		if len(target) > 0 {
+			if err := json.Unmarshal(target, &a.Target); err != nil {
+				return nil, err
+			}
+		}
 		annotations = append(annotations, a)
 	}
 	return annotations, rows.Err()

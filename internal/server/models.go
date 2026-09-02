@@ -1,6 +1,9 @@
 package server
 
-import "time"
+import (
+	"teamcross/internal/domain"
+	"time"
+)
 
 type doctorCheck struct {
 	Key      string `json:"key"`
@@ -55,12 +58,14 @@ type eventView struct {
 }
 
 type annotationView struct {
-	ID        string    `json:"id"`
-	Author    string    `json:"author"`
-	Body      string    `json:"body"`
-	File      string    `json:"file,omitempty"`
-	Line      int       `json:"line,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	SourceShareID string                   `json:"-"`
+	Target        *domain.AnnotationTarget `json:"target,omitempty"`
+	ID            string                   `json:"id"`
+	Author        string                   `json:"author"`
+	Body          string                   `json:"body"`
+	File          string                   `json:"file,omitempty"`
+	Line          int                      `json:"line,omitempty"`
+	CreatedAt     time.Time                `json:"createdAt"`
 }
 
 type evidenceView struct {
@@ -91,11 +96,13 @@ type participantView struct {
 }
 
 type shareView struct {
-	ID         string    `json:"id"`
-	Invite     string    `json:"invite"`
-	ExpiresAt  time.Time `json:"expiresAt"`
-	Status     string    `json:"status"`
-	Transports []string  `json:"transports"`
+	AllowControl bool               `json:"allowControl"`
+	Scope        *domain.ShareScope `json:"scope,omitempty"`
+	ID           string             `json:"id"`
+	Invite       string             `json:"invite"`
+	ExpiresAt    time.Time          `json:"expiresAt"`
+	Status       string             `json:"status"`
+	Transports   []string           `json:"transports"`
 }
 
 type leaseView struct {
@@ -116,22 +123,24 @@ type threadSummary struct {
 
 type threadDetail struct {
 	threadSummary
-	Revision     int64             `json:"revision"`
-	Worktree     string            `json:"worktree"`
-	Goal         string            `json:"goal"`
-	Progress     string            `json:"progress"`
-	Blocker      string            `json:"blocker"`
-	Tried        string            `json:"tried"`
-	Questions    string            `json:"questions"`
-	Git          gitView           `json:"git"`
-	Rounds       []roundView       `json:"rounds"`
-	Events       []eventView       `json:"events"`
-	Annotations  []annotationView  `json:"annotations"`
-	Evidence     []evidenceView    `json:"evidence"`
-	AgentRun     *agentRunView     `json:"agentRun,omitempty"`
-	Participants []participantView `json:"participants"`
-	Share        *shareView        `json:"share,omitempty"`
-	ControlLease *leaseView        `json:"controlLease,omitempty"`
+	ReadOnly         bool                     `json:"readOnly"`
+	SessionSnapshots []domain.SessionSnapshot `json:"sessionSnapshots"`
+	Revision         int64                    `json:"revision"`
+	Worktree         string                   `json:"worktree"`
+	Goal             string                   `json:"goal"`
+	Progress         string                   `json:"progress"`
+	Blocker          string                   `json:"blocker"`
+	Tried            string                   `json:"tried"`
+	Questions        string                   `json:"questions"`
+	Git              gitView                  `json:"git"`
+	Rounds           []roundView              `json:"rounds"`
+	Events           []eventView              `json:"events"`
+	Annotations      []annotationView         `json:"annotations"`
+	Evidence         []evidenceView           `json:"evidence"`
+	AgentRun         *agentRunView            `json:"agentRun,omitempty"`
+	Participants     []participantView        `json:"participants"`
+	Share            *shareView               `json:"share,omitempty"`
+	ControlLease     *leaseView               `json:"controlLease,omitempty"`
 }
 
 type handoffManifest struct {

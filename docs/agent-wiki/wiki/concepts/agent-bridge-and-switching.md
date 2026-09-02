@@ -7,7 +7,7 @@ handoff 时，先读本页。
 
 Go Core 只依赖 JSONL-RPC 方法与统一 event：
 
-- session：`sessions.listStored`、`sessions.readStored`
+- session：`sessions.listStored`、`sessions.readStored`、`sessions.snapshot`
 - run：`runs.create`、`runs.importContext`、`runs.send`、`runs.steer`、
   `runs.interrupt`、`runs.respondInput`、`runs.close`
 - event：Run/Turn lifecycle、message delta/completed、tool lifecycle、file changed、
@@ -43,8 +43,8 @@ Claude 没有与 Codex 完全相同的 steer 原语，因此 Team Cross 的 stee
 
 ## Provider 切换顺序
 
-同一 Thread 的切换由写入栅栏串行化；栅栏期间拒绝新的 send、steer、interrupt、input、
-import 和第二次 switch。
+同一 Thread 的切换由写入栅栏串行化；栅栏期间拒绝新的 send、steer、interrupt、input
+和第二次 switch。只读 Import 不经过执行栅栏，而与其他 Round 写入串行封存。
 
 1. 确认旧 Run 不处于 `running`、`waiting` 或 `starting`；否则要求 Owner 先完成或
    interrupt。
@@ -74,6 +74,8 @@ Run 已建立，Bridge 崩溃不能自动创建新 Session 并重放旧命令，
 
 ## 相关来源
 
+- [审阅与接力](session-review-and-continuation.md)
+- [原生能力门槛](../../sources/validation/native-capability-gates.md)
 - `../../sources/decisions/managed-agent-sessions.md`
 - `packages/agent-bridge/README.md`
 - `packages/agent-bridge/src/`

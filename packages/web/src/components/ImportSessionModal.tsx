@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
-import { api } from "../api";
-import type { StoredSession } from "../types";
+import { useEffect, useRef } from "react";
+import { SessionPicker } from "./SessionPicker";
 
 export function ImportSessionModal({
   open,
@@ -11,116 +10,42 @@ export function ImportSessionModal({
   onClose: () => void;
   onImport: (provider: string, sessionId: string) => Promise<void>;
 }) {
-  const [sessions, setSessions] = useState<StoredSession[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
+  const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
-    if (!open) return;
-    let active = true;
-    setSessions([]);
-    setError("");
-    void api
-      .storedSessions()
-      .then((value) => {
-        if (active) setSessions(value);
-      })
-      .catch((reason: unknown) => {
-        if (active)
-          setError(
-            reason instanceof Error
-              ? reason.message
-              : "Unable to list stored Sessions",
-          );
-      });
-    return () => {
-      active = false;
-    };
+    if (open) dialog.current?.showModal();
+    else if (dialog.current?.open) dialog.current.close();
   }, [open]);
-
-  if (!open) return null;
   return (
-    <div
-      className="modal-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <dialog
+      className="modal surface review-modal"
+      ref={dialog}
+      onCancel={onClose}
+      aria-labelledby="import-title"
     >
-      <section
-        aria-labelledby="import-title"
-        aria-modal="true"
-        className="modal surface"
-        role="dialog"
-      >
-        <header>
-          <div>
-            <p className="eyebrow">Read-only context</p>
-            <h2 id="import-title">Import an old Session</h2>
-          </div>
-          <button
-            aria-label="Close"
-            className="modal-close"
-            onClick={onClose}
-            type="button"
-          >
-            ×
-          </button>
-        </header>
-        <p>
-          The original transcript is captured as sourced evidence. Team Cross
-          creates a new managed Session and never resumes the external native
-          ID.
-        </p>
-        <div className="session-list">
-          {sessions.map((session) => (
-            <button
-              disabled={busy}
-              key={`${session.provider}-${session.id}`}
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  await onImport(session.provider, session.id);
-                  onClose();
-                } catch (reason) {
-                  setError(
-                    reason instanceof Error ? reason.message : "Import failed",
-                  );
-                } finally {
-                  setBusy(false);
-                }
-              }}
-              type="button"
-            >
-              <span className={`provider-logo ${session.provider}`}>
-                {session.provider.slice(0, 1).toUpperCase()}
-              </span>
-              <span>
-                <strong>{session.title}</strong>
-                <small>
-                  {session.provider} · {session.cwd ?? "stored session"}
-                </small>
-              </span>
-              <time>{new Date(session.updatedAt).toLocaleDateString()}</time>
-            </button>
-          ))}
-          {sessions.length === 0 && !error ? (
-            <div className="empty-inline">
-              No compatible stored Sessions found.
-            </div>
-          ) : null}
+      <header>
+        <div>
+          <p className="eyebrow">Read-only context</p>
+          <h2 id="import-title">导入 Native Session</h2>
         </div>
-        {error ? (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <footer>
-          <button className="button ghost" onClick={onClose} type="button">
-            Cancel
-          </button>
-        </footer>
-      </section>
-    </div>
+        <button
+          aria-label="Close"
+          className="modal-close"
+          onClick={onClose}
+          type="button"
+        >
+          ×
+        </button>
+      </header>
+      {open ? (
+        <SessionPicker
+          includeTitle={false}
+          submitLabel="保存只读快照"
+          onImport={async (provider, sessionId) => {
+            await onImport(provider, sessionId);
+            onClose();
+          }}
+        />
+      ) : null}
+    </dialog>
   );
 }

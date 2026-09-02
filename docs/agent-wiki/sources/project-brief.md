@@ -25,10 +25,14 @@ switch 和 `Fork Thread` 被含糊地统称为“继续”等问题。
 
 ## 当前原型
 
-当前实现是一个 macOS-first、本地优先的开发上下文交接原型。它服务于两位都能访问同一
-Git 仓库的协作者：主机把当前代码基线、未提交改动、交接说明、evidence 和 Agent 运行
-状态组织成一个 Thread；接收者通过自己的本地 join proxy 查看、批注，并在取得控制租约
-后驱动主机托管的 Agent。
+当前实现是 macOS-first、本地优先的开发上下文交接原型。Session-first 入口把历史
+捕获成只读 SessionSnapshot/Thread，支持选择分享、精准批注与 Markdown 反馈，不启动
+Agent，也不要求原生工作目录仍存在。另一条 Git capture 路径保存代码基线与改动，
+允许 Owner 显式从封存 Round 创建新的 managed Session 或 Fork 独立 Thread。
+
+接收者通过本地 join proxy 查看和批注；只有 Share 另外授权控制并取得租约时才能驱动
+主机 managed Agent。离线交接包可以自包含 Git 基线与所选上下文，接收后 Fork 新
+Thread，不要求继续连接来源仓库。原生 Follow/Open/同会话接管仍不可用。
 
 它不是聊天工具、Git/PR/Issue 替代品、远程 Shell 或完整环境复制器。v0 的核心价值是：
 在不自动修改原工作区的前提下，完成“我卡在这里 → 你获得必要上下文 → 你留下可定位
@@ -49,13 +53,15 @@ Git 仓库的协作者：主机把当前代码基线、未提交改动、交接�
 
 - **Agent Session**：Provider 拥有的连续对话身份；`Native Session` 来自原生 UI/CLI，
   `Managed Session` 由 Team Cross 通过 Adapter 创建。
+- **SessionSnapshot**：带来源、捕获时间、稳定 entry ID 和缺失标记的不可变只读历史。
 - **Thread**：Team Cross 拥有的持久、追加式协作单元，可以按顺序连接多个 Session；有
   baseline commit 时拥有一个隔离 worktree，unborn repository 中则保持只读。
 - **Agent Run**：一个 Session 在某台 host、execution root 和权限边界中的一次实际运行
   绑定。当前 v0 只创建和控制 managed Run。
 - **Turn / Event**：Turn 是一次输入触发的 Agent 工作过程；Event 是其中消息、工具、文件
   和控制变化等细粒度事实。
-- **Round**：有明确来源的不可变交接快照，而不是对话轮次。Round 0 来自初始 capture；
+- **Round**：有明确来源的不可变交接快照，而不是对话轮次。Round 0 来自初始 capture、
+  Session 审阅或离线导入；
   完成或中断的 Agent Turn、Provider 切换等边界可以追加新 Round。
 - **Evidence**：仓库外或难以由 Git 表达的文本、日志、文件和 imported transcript。
 - **Share**：绑定单一 Thread 的临时远端协作入口，带独立 listener、secret、证书和

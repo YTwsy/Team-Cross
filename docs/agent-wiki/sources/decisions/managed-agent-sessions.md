@@ -13,9 +13,11 @@ Team Cross 只控制绑定到自己所创建 managed Session 的 Run。Session �
 Core 通过本地 Node Agent Bridge 统一调用 Codex app-server、Claude Agent SDK 或 Mock
 Adapter；Provider 进程不会直接暴露给远端网络。
 
-已有 Codex/Claude transcript 只作为带来源、不可信的 evidence 导入。Team Cross 会在
-隔离 worktree 中创建新的 managed Session 和对应 Run，不原地 resume、不保留外部 native
-Session ID，也不热接管外部活跃进程。
+已有 Codex/Claude transcript 只作为带来源、不可信的 SessionSnapshot/Evidence 导入。
+读取、预览、导入和分享均不得创建 Run 或发送 prompt。只有 Owner 明确执行
+`Continue from Round` 或 Provider switch 时，才在隔离 worktree 中创建新的 managed
+Session 和对应 Run。来源 native Session ID 保留用于追溯，不被用来原地 resume 或
+热接管外部活跃进程。
 
 ## 原因
 
@@ -50,6 +52,11 @@ Session ID，也不热接管外部活跃进程。
 - 同一 Thread 的 Provider 顺序共享一个 worktree，但不共享 native Session ID。
 - Bridge 启动探活可以安全重试一次；业务 RPC 不自动重放。
 - Bridge 崩溃后不能假定当前原生 Run 可以恢复。
+- `sessions.snapshot` 与所有 `runs.*` 执行路径分离；能力标记遵循
+  [原生能力门槛](../validation/native-capability-gates.md)。
+- 从 Round 创建新 Session 与 Provider switch 是独立动作，前者只读取所选封存上下文，
+  不向 outgoing Agent 请求总结。详见
+  [审阅与接力](session-review-and-continuation.md)。
 
 ## 跨 Agent 切换
 

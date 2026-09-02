@@ -89,11 +89,11 @@ func CaptureWithOptions(ctx context.Context, repo string, selectedUntracked []st
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("capture status: %w", err)
 	}
-	snapshot.StagedPatch, err = gitOutput(ctx, root, nil, "diff", "--cached", "--binary", "--full-index", "--no-ext-diff", "--")
+	snapshot.StagedPatch, err = gitOutput(ctx, root, nil, "diff", "--cached", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", "--")
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("capture staged diff: %w", err)
 	}
-	snapshot.UnstagedPatch, err = gitOutput(ctx, root, nil, "diff", "--binary", "--full-index", "--no-ext-diff", "--")
+	snapshot.UnstagedPatch, err = gitOutput(ctx, root, nil, "diff", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", "--")
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("capture unstaged diff: %w", err)
 	}
@@ -244,19 +244,70 @@ func (e *gitCommandError) Error() string {
 func (e *gitCommandError) Unwrap() error { return e.Err }
 
 func gitOutput(ctx context.Context, repo string, stdin []byte, args ...string) ([]byte, error) {
-	commandArgs := append([]string{"-C", repo}, args...)
-	cmd := exec.CommandContext(ctx, "git", commandArgs...)
+	filterArgs, err := disabledFilterArgs(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+	cmd := isolatedGitCommand(ctx, repo, append(filterArgs, args...)...)
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		return stdout.Bytes(), &gitCommandError{Args: args, Output: stderr.String(), Err: err}
 	}
 	return stdout.Bytes(), nil
+}
+
+// Core Git operations consume literal code bytes and must not execute commands
+// selected by an imported .gitattributes file or inherited host configuration.
+func isolatedGitCommand(ctx context.Context, repo string, args ...string) *exec.Cmd {
+	commandArgs := []string{"--no-pager", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "submodule.recurse=false", "-c", "core.attributesFile=/dev/null", "-C", repo}
+	commandArgs = append(commandArgs, args...)
+	cmd := exec.CommandContext(ctx, "git", commandArgs...)
+	for _, value := range os.Environ() {
+		if !strings.HasPrefix(value, "GIT_") {
+			cmd.Env = append(cmd.Env, value)
+		}
+	}
+	cmd.Env = append(cmd.Env, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_ATTR_NOSYSTEM=1", "GIT_TERMINAL_PROMPT=0", "GIT_NO_REPLACE_OBJECTS=1")
+	return cmd
+}
+
+func disabledFilterArgs(ctx context.Context, repo string) ([]string, error) {
+	command := isolatedGitCommand(ctx, repo, "config", "--includes", "--null", "--name-only", "--get-regexp", `^filter\..*\.(clean|smudge|process|required)$`)
+	keys, err := command.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("inspect Git content filters: %w", err)
+	}
+	args := []string{}
+	seen := map[string]bool{}
+	for _, key := range bytes.Split(keys, []byte{0}) {
+		if len(key) == 0 {
+			continue
+		}
+		name := string(key)
+		index := strings.LastIndexByte(name, '.')
+		if index < len("filter.") {
+			return nil, errors.New("invalid Git filter configuration")
+		}
+		driver := name[:index]
+		if seen[driver] {
+			continue
+		}
+		seen[driver] = true
+		for _, suffix := range []string{"clean=", "smudge=", "process=", "required=false"} {
+			args = append(args, "-c", driver+"."+suffix)
+		}
+	}
+	return args, nil
 }
 
 func isExitCode(err error, code int) bool {

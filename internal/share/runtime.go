@@ -26,7 +26,7 @@ const (
 	TailcatHTTPPort = uint16(443)
 )
 
-var DefaultCapabilities = []string{"view", "annotate", "send", "steer", "interrupt"}
+var DefaultCapabilities = []string{"view", "annotate"}
 
 var ErrTailcatPrewarm = errors.New("Tailcat prewarm failed")
 

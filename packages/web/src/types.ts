@@ -49,6 +49,8 @@ export interface Annotation {
   body: string;
   file?: string;
   line?: number;
+  roundId?: string;
+  target?: AnnotationTarget;
   createdAt: string;
 }
 
@@ -101,6 +103,29 @@ export interface Share {
   expiresAt: string;
   status: "warming" | "active" | "degraded" | "revoked";
   transports: string[];
+  allowControl?: boolean;
+  scope?: ShareScope;
+}
+
+export interface AnnotationTarget {
+  snapshotId?: string;
+  entryId?: string;
+  evidenceId?: string;
+  roundId?: string;
+}
+
+export interface ShareScope {
+  snapshotId?: string;
+  entryIds?: string[];
+  evidenceIds?: string[];
+  includeCode: boolean;
+  includeEvents: boolean;
+}
+
+export interface ShareOptions {
+  allowDegraded: boolean;
+  allowControl: boolean;
+  scope: ShareScope;
 }
 
 export interface Round {
@@ -137,6 +162,8 @@ export interface ThreadDetail extends ThreadSummary {
   agentRun?: AgentRun;
   participants: Participant[];
   share?: Share;
+  readOnly?: boolean;
+  sessionSnapshots?: SessionSnapshot[];
   controlLease?: {
     participantId: string;
     epoch: number;
@@ -159,4 +186,47 @@ export interface StoredSession {
   title: string;
   updatedAt: string;
   cwd?: string;
+}
+
+export interface SessionRef {
+  provider: Provider;
+  sessionId: string;
+  identityKind: string;
+  surface: string;
+  title?: string;
+  cwd?: string;
+  nativeIds?: Record<string, string>;
+  providerVersion?: string;
+}
+
+export interface SessionCapabilities {
+  read: boolean;
+  follow: boolean;
+  open: boolean;
+  resume: boolean;
+  takeControl: boolean;
+  reason?: string;
+}
+
+export interface SessionEntry {
+  id: string;
+  kind: "message" | "tool" | "notice";
+  role?: string;
+  text: string;
+  sourceId?: string;
+  turnId?: string;
+}
+
+export interface SessionPreview {
+  source: SessionRef;
+  capturedAt: string;
+  entries: SessionEntry[];
+  truncated: boolean;
+  warnings: string[];
+  capabilities: SessionCapabilities;
+}
+
+export interface SessionSnapshot extends SessionPreview {
+  id: string;
+  threadId: string;
 }

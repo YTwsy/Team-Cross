@@ -4,16 +4,21 @@
 它们用于快速建立共同心智模型；协议字段和失败语义以 `docs/protocol.md` 为准，具体实现
 仍以代码与测试为最终事实来源。
 
-Team Cross 的长期产品入口是一个具体 coding-agent Session；当前 v0 则先从 Git capture
-创建 Thread，再在隔离 worktree 中创建 managed Session。两者不能被写成同一项已实现
-能力。Session、Thread、Run、Turn 与 Round 的规范语义和目标能力阶梯见
+当前 v0 有两个独立入口：Session-first 只读审阅，以及 Git capture 后的隔离执行。
+前者不创建 Run、不自动抓取来源 cwd；后者确认 Git baseline 后才可显式创建新的 managed
+Session。原生 Follow/Open/同会话接管尚未通过能力门槛。Session、Thread、Run、Turn
+与 Round 的规范语义和目标能力阶梯见
 [产品模型与统一词汇](agent-wiki/wiki/concepts/product-model-and-glossary.md)。
 
 ## 当前 v0 闭环
 
-这张图只描述当前已经实现的路径：一次交接从本地 dirty state 进入隔离 Thread，再由
-另一位协作者批注或驱动主机 Agent，最后形成下一轮不可变快照。整个过程中，原始
-checkout 不被自动写回。
+Session 审阅路径为：只读读取 → 不可变 SessionSnapshot → 选择 Share 范围 → 批注 →
+Owner 导出带引用的 Markdown 反馈。它不需要 Git baseline，也不启动 Agent。
+
+下面的图描述有 Git baseline 的执行路径。另有从 Round Fork 新 Thread/离线包的独立
+路径；具体失败语义见
+[Session 审阅与接力](agent-wiki/wiki/concepts/session-review-and-continuation.md)。
+整个过程中，原始 checkout 不被自动写回。
 
 ```mermaid
 flowchart LR
@@ -22,7 +27,7 @@ flowchart LR
     C --> D[临时 Share 邀请]
     D --> E[开发者 B 的 join proxy + WebGUI]
     E -->|查看与批注| F[Thread 时间线]
-    E -->|取得 Controller 租约| G[主机托管 Codex / Claude]
+    E -->|Owner 另行授权控制且取得租约| G[主机托管 Codex / Claude]
     G -->|消息、工具事件、文件变化| F
     G -->|只写隔离目录| C
     F -->|Turn 完成或 Provider 切换| H[Round N<br/>summary + patch + evidence 引用]
@@ -34,7 +39,9 @@ flowchart LR
 关键边界：
 
 - Share 传递的是受限 Thread 能力，不是 Shell 或整台主机权限。
-- 接收者默认是 Observer；只有当前 Controller 能发送 Agent 控制命令。
+- Share 默认只有 view/annotate；Owner 另行授权控制与实时 managed 输出后，当前
+  Controller 才能发送 Agent 控制命令。
+- 内容投影在 Share 创建时冻结；实时 managed 输出是单独开关，不会扩大旧 SessionSnapshot。
 - 新 Round 追加到历史，不覆盖旧 Round。
 - 用户采纳结果必须是后续显式操作。
 
@@ -58,7 +65,7 @@ flowchart TB
 
     subgraph CORE[Go Core]
         HTTP[REST + SSE]
-        MODEL[Thread / Round / Event<br/>Lease / Command]
+        MODEL[Thread / SessionSnapshot / Round / Event<br/>ShareScope / Lease / Command]
         GIT[Git capture / worktree / patch]
     end
 
@@ -104,7 +111,8 @@ flowchart TB
 
 ## `collaborate` 实时协作时序
 
-这张图聚焦接收者从加入、观察到取得控制，再发送一条可安全重放的 Agent 命令。相同
+这张图假设 Owner 已明确开启该 Share 的控制与实时 managed 输出，聚焦接收者从加入、
+观察到取得控制，再发送一条可安全重放的 Agent 命令。相同
 `commandId` 的完全相同请求会返回持久化结果；新的或语义不同的请求仍要通过 revision
 与 lease epoch 检查。
 

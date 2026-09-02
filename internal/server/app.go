@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"teamcross/internal/bridgeclient"
+	"teamcross/internal/domain"
 	"teamcross/internal/platform"
 	sharetransport "teamcross/internal/share"
 	"teamcross/internal/storage"
@@ -60,8 +61,9 @@ type App struct {
 	logger *slog.Logger
 	api    *http.ServeMux
 
-	bridge       *bridgeclient.Client
-	bridgeCancel context.CancelFunc
+	bridge         *bridgeclient.Client
+	bridgeCancel   context.CancelFunc
+	snapshotReader func(context.Context, string, string) (domain.SessionSnapshot, error)
 
 	handoffTimeout         time.Duration
 	handoffTerminalTimeout time.Duration

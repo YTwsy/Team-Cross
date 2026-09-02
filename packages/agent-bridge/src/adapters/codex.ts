@@ -7,7 +7,9 @@ import {
   type SessionsListStoredParams,
   type SessionsReadStoredParams,
   type StoredSession,
+  type SessionSnapshot,
 } from "../protocol.js";
+import { codexSurface, DEFAULT_SNAPSHOT_LIMIT, normalizeCodexSnapshot } from "../lib/session-snapshot.js";
 import {
   JsonlRpcProcess,
   type InboundRpcRequest,
@@ -38,26 +40,40 @@ export class CodexAdapter implements AgentAdapter {
   private client: JsonlRpcProcess | undefined;
   private clientPromise: Promise<JsonlRpcProcess> | undefined;
   private readonly runsByThread = new Map<string, CodexRun>();
+  private providerVersion: string | undefined;
 
   constructor(private readonly options: CodexAdapterOptions = {}) {}
 
   async listStored(params: SessionsListStoredParams): Promise<StoredSession[]> {
+    // No currently verified provider source value uniquely identifies Desktop.
+    if (params.surface === "desktop") return [];
     const client = await this.ensureClient();
     const response = await client.request("thread/list", {
       limit: params.limit ?? 100,
       ...(params.cwd === undefined ? {} : { cwd: params.cwd }),
       sortKey: "updated_at",
       sortDirection: "desc",
+      useStateDbOnly: true,
+      // Omission defaults to CLI/VS Code only. appServer includes Desktop and other clients.
+      sourceKinds: params.surface === "cli" ? ["cli", "exec"]
+        : params.surface === "vscode" ? ["vscode"]
+        : params.surface === "app-server" ? ["appServer"]
+        : params.surface === "unknown" ? ["subAgent", "subAgentReview", "subAgentCompact", "subAgentThreadSpawn", "subAgentOther", "unknown"]
+        : ["cli", "vscode", "exec", "appServer", "subAgent", "subAgentReview", "subAgentCompact", "subAgentThreadSpawn", "subAgentOther", "unknown"],
     });
     const data = recordArray(isRecord(response) ? response.data : undefined);
     return data.flatMap((thread): StoredSession[] => {
       const sessionId = stringField(thread, "id");
       if (!sessionId) return [];
+      const surface = codexSurface(thread.source);
+      if (params.surface !== undefined && params.surface !== surface) return [];
       const createdAt = epochSecondsToIso(numberField(thread, "createdAt"));
       const updatedAt = epochSecondsToIso(numberField(thread, "updatedAt"));
       return [{
         provider: "codex",
         sessionId,
+        identityKind: "thread.id",
+        surface,
         ...(stringField(thread, "name") ?? stringField(thread, "preview")
           ? { title: stringField(thread, "name") ?? stringField(thread, "preview") }
           : {}),
@@ -69,6 +85,8 @@ export class CodexAdapter implements AgentAdapter {
           status: thread.status,
           cliVersion: thread.cliVersion,
           source: thread.source,
+          threadId: sessionId,
+          sessionTreeId: thread.sessionId,
         },
       }];
     });
@@ -79,6 +97,47 @@ export class CodexAdapter implements AgentAdapter {
     return await client.request("thread/read", {
       threadId: params.sessionId,
       includeTurns: true,
+    });
+  }
+
+  async snapshot(params: SessionsReadStoredParams): Promise<SessionSnapshot> {
+    const client = await this.ensureClient();
+    const metadata = await client.request("thread/read", { threadId: params.sessionId, includeTurns: false });
+    const thread = isRecord(metadata) && isRecord(metadata.thread) ? metadata.thread : undefined;
+    if (!thread || thread.id !== params.sessionId) throw new Error("Codex history returned a different or missing conversation identity");
+    let raw = metadata;
+    if (thread.historyMode === "paginated") {
+      const turns: JsonRecord[] = [];
+      const turnIds = new Set<string>();
+      const cursors = new Set<string>();
+      let cursor: string | undefined;
+      let items = 0;
+      let truncated = false;
+      for (let page = 0; page < 100; page++) {
+        const result = await client.request("thread/turns/list", {
+          threadId: params.sessionId, limit: 50, sortDirection: "asc", itemsView: "full",
+          ...(cursor === undefined ? {} : { cursor }),
+        });
+        if (!isRecord(result) || !Array.isArray(result.data)) throw new Error("Codex returned incompatible paginated history");
+        for (const value of recordArray(result.data)) {
+          const id = stringField(value, "id");
+          if (id && turnIds.has(id)) { truncated = true; continue; }
+          if (id) turnIds.add(id);
+          turns.push(value);
+          items += Array.isArray(value.items) ? value.items.length : 1;
+        }
+        cursor = stringField(result, "nextCursor");
+        if (!cursor) break;
+        if (cursors.has(cursor) || items >= (params.limit ?? DEFAULT_SNAPSHOT_LIMIT) || page === 99) { truncated = true; break; }
+        cursors.add(cursor);
+      }
+      raw = { thread: { ...thread, turns, turnsTruncated: truncated } };
+    } else {
+      raw = await this.readStored(params);
+    }
+    return normalizeCodexSnapshot(raw, params.sessionId, {
+      ...(params.limit === undefined ? {} : { limit: params.limit }),
+      ...(this.providerVersion === undefined ? {} : { providerVersion: this.providerVersion }),
     });
   }
 
@@ -173,6 +232,7 @@ export class CodexAdapter implements AgentAdapter {
       throw new Error("Codex app-server initialize response is incompatible");
     }
     client.notify("initialized");
+    this.providerVersion = initialize.userAgent;
     // A side-effect-free method probe catches app-server builds that predate the APIs we need.
     await client.request("thread/list", { limit: 1, useStateDbOnly: true });
     this.options.onDiagnostic?.(`[codex] initialized ${initialize.userAgent}`);

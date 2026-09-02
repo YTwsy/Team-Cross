@@ -35,6 +35,7 @@ Agent UI。
 | --- | --- | --- |
 | Workspace | 团队已有的仓库、任务、文档、沟通和机器环境 | Team Cross 不替换或规定它 |
 | Agent Session | Provider 拥有的连续对话身份 | 恢复能力和原生 ID 由 Provider 决定 |
+| SessionRef / SessionSnapshot | 原生身份引用 / 不可变历史捕获 | 不等于 Run、订阅或历史代码状态 |
 | Native Session | 用户在 Provider 原生 UI/CLI 中创建的 Session | 未经验证不能热接管 |
 | Managed Session | Team Cross 通过 Adapter 创建且边界已知的 Session | 仍由 Provider 实现 |
 | Thread | Team Cross 拥有的持久、追加式协作单元 | 是分享、审阅和接力的对象 |
@@ -58,7 +59,7 @@ Agent UI。
 - `Take Control` 只取得当前 Run 的 Agent 输入权。
 - `Resume Session` 继续相同 Provider Session ID，必须由已验证 capability 支持。
 - `Continue from Round` 从不可变快照创建新的 Session 和 Run。
-- `Import Session` 只把 transcript 保存为 Evidence。
+- `Import Session` 只把 transcript 保存为 SessionSnapshot/Evidence，零 Run、零 prompt。
 - `Switch Provider` 在同一 Thread 内封存 Round 后创建目标 Session/Run。
 - `Fork Thread` 从 Round 创建独立的后续历史。
 - `Open in Provider` 回到原生 Agent UI，不改变 Thread 身份。
@@ -86,6 +87,7 @@ Agent UI。
 
 ## 相关来源
 
+- [Session 审阅与接力](session-review-and-continuation.md)
 - `../../sources/product-core-and-glossary.md`
 - `../../sources/project-brief.md`
 - `../../sources/decisions/managed-agent-sessions.md`

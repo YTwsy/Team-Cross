@@ -8,6 +8,8 @@
 
 ## 核心概念
 
+- [Session 审阅与接力](concepts/session-review-and-continuation.md)：只读导入、分享范围、
+  精准批注、新 Session 继续和离线 Fork。
 - [产品模型与统一词汇](concepts/product-model-and-glossary.md)：产品核心、问题边界以及
   Session、Thread、Run、Turn、Round、Share 和 Handoff 的规范语义。
 - [运行时架构](concepts/runtime-architecture.md)：Go Core、React WebGUI、Node Bridge、

@@ -5,6 +5,9 @@ import type {
   ThreadDetail,
   ThreadSummary,
   TimelineEvent,
+  AnnotationTarget,
+  SessionPreview,
+  ShareOptions,
 } from "./types";
 
 function collection<T>(value: T[] | null | undefined): T[] {
@@ -33,6 +36,11 @@ function normalizeThread(value: ThreadDetail): ThreadDetail {
     events: collection(value.events).map(normalizeEvent),
     annotations: collection(value.annotations),
     evidence: collection(value.evidence),
+    sessionSnapshots: collection(value.sessionSnapshots).map((snapshot) => ({
+      ...snapshot,
+      entries: collection(snapshot.entries),
+      warnings: collection(snapshot.warnings),
+    })),
     participants: collection(value.participants),
     share,
   };
@@ -57,9 +65,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   const contentType = response.headers.get("content-type") ?? "";
-  const body = contentType.includes("application/json")
-    ? await response.json()
-    : await response.text();
+  const body =
+    contentType.includes("application/json") || contentType.includes("+json")
+      ? await response.json()
+      : await response.text();
   if (!response.ok) {
     const message =
       typeof body === "object" && body && "error" in body
@@ -96,6 +105,8 @@ export const api = {
       body: string;
       file?: string;
       line?: number;
+      roundId?: string;
+      target?: AnnotationTarget;
       expectedRevision: number;
       leaseEpoch?: number;
     },
@@ -111,10 +122,10 @@ export const api = {
     }).then(normalizeThread),
   evidenceContent: (threadId: string, evidenceId: string, download = false) =>
     `/api/v1/threads/${encodeURIComponent(threadId)}/evidence/${encodeURIComponent(evidenceId)}${download ? "?download=1" : ""}`,
-  createShare: (threadId: string, degraded = false) =>
+  createShare: (threadId: string, options: ShareOptions) =>
     request<ThreadDetail>(`/api/v1/threads/${threadId}/shares`, {
       method: "POST",
-      body: JSON.stringify({ ttlSeconds: 3600, allowDegraded: degraded }),
+      body: JSON.stringify({ ttlSeconds: 3600, ...options }),
     }).then(normalizeThread),
   revokeShare: (threadId: string) =>
     request<ThreadDetail>(`/api/v1/threads/${threadId}/shares/current`, {
@@ -193,6 +204,64 @@ export const api = {
     }).then(normalizeThread),
   storedSessions: () =>
     request<StoredSession[] | null>("/api/v1/sessions/stored").then(collection),
+  sessionPreview: (provider: string, sessionId: string) =>
+    request<SessionPreview>("/api/v1/sessions/preview", {
+      method: "POST",
+      body: JSON.stringify({ provider, sessionId }),
+    }).then((value) => ({
+      ...value,
+      entries: collection(value.entries),
+      warnings: collection(value.warnings),
+    })),
+  createThreadFromSession: (
+    provider: string,
+    sessionId: string,
+    title?: string,
+  ) =>
+    request<ThreadDetail>("/api/v1/threads/from-session", {
+      method: "POST",
+      body: JSON.stringify({ provider, sessionId, title }),
+    }).then(normalizeThread),
+  feedback: (threadId: string) =>
+    request<string>(`/api/v1/threads/${threadId}/feedback`),
+  continueFromRound: (
+    threadId: string,
+    input: {
+      roundId: string;
+      provider: string;
+      prompt: string;
+      networkEnabled: boolean;
+      expectedRevision: number;
+      fork: boolean;
+    },
+  ) =>
+    request<ThreadDetail>(`/api/v1/threads/${threadId}/continue`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }).then(normalizeThread),
+  forkThread: (threadId: string, roundId: string) =>
+    request<ThreadDetail>(`/api/v1/threads/${threadId}/fork`, {
+      method: "POST",
+      body: JSON.stringify({ roundId }),
+    }).then(normalizeThread),
+  exportBundle: (
+    threadId: string,
+    input: {
+      roundId: string;
+      evidenceIds: string[];
+      snapshotIds: string[];
+      confirmExport: true;
+    },
+  ) =>
+    request<unknown>(`/api/v1/threads/${threadId}/bundles`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  importBundle: (bundle: unknown) =>
+    request<ThreadDetail>("/api/v1/bundles/import", {
+      method: "POST",
+      body: JSON.stringify(bundle),
+    }).then(normalizeThread),
   importSession: (threadId: string, provider: string, sessionId: string) =>
     request<ThreadDetail>(`/api/v1/threads/${threadId}/sessions/import`, {
       method: "POST",

@@ -13,6 +13,7 @@ import {
   type RunsCreateParams,
   type SessionsListStoredParams,
   type SessionsReadStoredParams,
+  type SessionSurface,
 } from "./protocol.js";
 
 type JsonRecord = Record<string, unknown>;
@@ -65,6 +66,7 @@ export class BridgeServer {
             "bridge.ping",
             "sessions.listStored",
             "sessions.readStored",
+            "sessions.snapshot",
             "runs.create",
             "runs.importContext",
             "runs.send",
@@ -78,6 +80,7 @@ export class BridgeServer {
         const provider = storedProvider(params.provider);
         return await this.adapters[provider].listStored({
           provider,
+          ...(params.surface === undefined ? {} : { surface: sessionSurface(params.surface) }),
           ...(optionalString(params.cwd) ? { cwd: optionalString(params.cwd) } : {}),
           ...(optionalNumber(params.limit) === undefined
             ? {}
@@ -94,6 +97,17 @@ export class BridgeServer {
             ? {}
             : { limit: optionalNumber(params.limit) }),
         } satisfies SessionsReadStoredParams);
+      }
+      case "sessions.snapshot": {
+        const provider = storedProvider(params.provider);
+        const adapter = this.adapters[provider];
+        if (!adapter.snapshot) throw new BridgeRpcError(-32601, `${provider} does not support review snapshots`);
+        return await adapter.snapshot({
+          provider,
+          sessionId: requiredString(params.sessionId, "sessionId"),
+          ...(optionalString(params.cwd) ? { cwd: optionalString(params.cwd) } : {}),
+          ...(params.limit === undefined ? {} : { limit: snapshotLimit(params.limit) }),
+        });
       }
       case "runs.create":
         return await this.createRun(params);
@@ -222,4 +236,16 @@ function optionalString(value: unknown): string | undefined {
 
 function optionalNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function sessionSurface(value: unknown): SessionSurface {
+  if (value === "cli" || value === "desktop" || value === "vscode" || value === "app-server" || value === "unknown") return value;
+  throw new BridgeRpcError(-32602, "unsupported session surface");
+}
+
+function snapshotLimit(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 10_000) {
+    throw new BridgeRpcError(-32602, "limit must be an integer between 1 and 10000");
+  }
+  return value;
 }

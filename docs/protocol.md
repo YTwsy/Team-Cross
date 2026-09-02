@@ -15,7 +15,7 @@ InvitationV1 {
   serverSPKISHA256
   secret
   scope: "collaborate"
-  capabilities: ["view", "annotate", "send", "steer", "interrupt"]
+  capabilities: ["view", "annotate"] # 默认；明确开启控制时才追加 send/steer/interrupt
   lan: { mdnsInstance, endpoints[] }
   tailscale?: { dnsName?, endpoints[] }
   tailcat?: { connBlob, virtualPort, libraryVersion: "v0.4.0" }
@@ -68,8 +68,94 @@ POST /api/v1/threads/{id}/agent/input
 ```
 
 host-only route guard 会拒绝远端执行 capture、附加 evidence、切换 Agent、读取或
-导入 stored Session、创建 Share 和撤销 Share。远端响应会移除 repository root、
+导入 stored Session、Continue、Fork、离线包导入/导出、反馈包导出、创建 Share 和撤销 Share。
+远端响应会移除 repository root、
 worktree path、当前 invitation、主机凭据与主机诊断路径。
+
+## Session 审阅与内容范围
+
+新增 host-only API：
+
+| 路由 | 请求 | 结果 |
+| --- | --- | --- |
+| `POST /api/v1/sessions/preview` | `{provider, sessionId}` | SessionSnapshot 候选；不持久化、不执行 |
+| `POST /api/v1/threads/from-session` | `{provider, sessionId, title?}` | 201，只读 ThreadDetail |
+| `POST /api/v1/threads/{id}/sessions/import` | `{provider, sessionId, title?}` | 200，追加快照/Round；不创建 Run |
+| `GET /api/v1/threads/{id}/feedback` | 无 | 带稳定引用的 Markdown 反馈，不发送 Agent |
+
+`provider` 在历史读取中只允许 `codex`、`claude`。SessionSnapshot 包含
+`id, threadId, source, capturedAt, entries, truncated, warnings, capabilities`。
+`source` 保存 Provider 原始 `sessionId`、`identityKind`、`surface` 和可用的
+`providerVersion`；Codex 对话身份使用 `thread.id`，不能使用 tree root 替代。
+`entries` 的每项具有稳定 `id, kind, text` 和可选 `role, sourceId, turnId`。
+
+ThreadDetail 增加 `readOnly` 和 `sessionSnapshots[]`。能力分别为
+`read, follow, open, resume, takeControl, reason?`；历史读取成功不启用其他能力。
+Session-first Thread 不自动使用来源 cwd，没有明确 Git baseline 时不能执行。
+
+创建 Share 请求：
+
+```json
+{
+  "ttlSeconds": 3600,
+  "allowDegraded": false,
+  "allowControl": false,
+  "scope": {
+    "snapshotId": "snapshot-uuid",
+    "entryIds": ["entry-id"],
+    "evidenceIds": [],
+    "includeCode": false,
+    "includeEvents": false
+  }
+}
+```
+
+scope 与邀请的 `scope: "collaborate"` 不同，前者是服务端存储的内容 allowlist。未提供
+scope 或空列表表示不分享对应内容。code 是创建 Share 时最新 sealed Round 的代码，
+不是实时 worktree；events 是另行授权的 managed Agent 实时输出，可能包含代码与
+工具结果。控制要求 `includeCode`、`includeEvents` 同时启用，且 capability 允许写入。
+
+详情、列表、Evidence 下载、patch、批注、SSE 都使用同一个投影。原始
+`agent_transcript` Evidence 不可直接分享，应先导入结构化 SessionSnapshot。后续导入、
+代码编辑与封存不会扩大已分享快照。活动 Share 再次创建返回 `409 share_active`，
+必须先撤销再改变范围。SSE 也检查到期/撤销。
+
+批注请求增加 `target`，恰好选择一类：
+
+- `{snapshotId, entryId?}`：整个快照或其中一项消息/工具结果；
+- `{evidenceId}`：一个 Evidence；
+- `{roundId}`：不可变 Round，可配合原有 `file, line`。
+
+指定文件且有 target 时必须是 Round target。远端目标必须在 Share scope 内；部分
+分享的 snapshot 不允许以整个 snapshot 为目标。旧无锚点评论不会自动公开。批注不改写
+Round，仍受下述 command/revision 语义限制。
+
+## Round 继续与离线 Fork
+
+以下路由只接受执行主机 Owner，不可经 Share 调用：
+
+| 路由 | 请求 | 结果 |
+| --- | --- | --- |
+| `POST /api/v1/threads/{id}/continue` | `{roundId, provider, prompt, networkEnabled, expectedRevision, fork?, title?}` | 创建新 Session，返回 ThreadDetail |
+| `POST /api/v1/threads/{id}/fork` | `{roundId, title?}` | 201，新 Thread；零执行 |
+| `POST /api/v1/threads/{id}/bundles` | `{roundId, evidenceIds:[], snapshotIds:[], confirmExport:true}` | `application/vnd.teamcross.bundle+json` 附件 |
+| `POST /api/v1/bundles/import` | 离线包 JSON 本体，非文件路径 | 201，新 Thread；零执行 |
+
+Continue 的 provider 支持 `mock`、`codex`、`claude`。历史 Round 自动 Fork；
+最新 Round 的完整 worktree 不符合封存状态时返回 `409 worktree_diverged`，不得覆盖。
+`expectedRevision` 是必填字段；在调用 Provider 前持久化消费，不确定结果不得自动重发。
+新 Run 准备失败不破坏旧 Run/Round；激活后的发送失败需 Owner 刷新再处理。
+
+离线包格式 `teamcross.offline-fork`、version 1、文件后缀 `.tcx.json`；包含
+`origin, baseline, objectFormat, gitObjects, snapshot, context, evidence, sessionSnapshots, objects`。
+JSON bytes 使用 base64，Git 对象使用其原生哈希，CAS 使用 SHA-256。
+接收端验证对象闭包、路径和物化预算后，创建独立对象库及隔离 worktree，并以事务保存
+新的 Thread/Round 与来源映射。原 event seq、租约、凭据和进程不转移。
+
+包包含 baseline 可达 Git 历史；显式选中的上下文成为不可撤回副本，Share 撤销不能删除。
+v1 限制及新旧 schema 行为见
+[审阅与接力契约](agent-wiki/sources/decisions/session-review-and-continuation.md)。
+完整性校验不等于签名或可信指令；导入内容始终不自动执行。
 
 ## 乐观写入与 fencing
 
@@ -109,6 +195,9 @@ Observer 创建 annotation 时使用 `leaseEpoch: 0`。Agent 控制命令要求�
 每个持久化 event 都取得 SQLite autoincrement `seq`，payload 同时携带事务完成后的
 Thread `revision`。SSE endpoint 接受 `Last-Event-ID` 或 `?after=`，同时存在时采用
 较大的 cursor，并按序补发 durable event。
+
+未授权实时 managed 输出的 Share 会把事件投影成仅含 revision 的
+`thread.updated`，保留本机 cursor/time，不透出隐藏内容、内部 ID 或错误信息。
 
 join proxy 会先恢复私有 transport，再让浏览器的 EventSource 重连。因此 SSE 从哪个
 cursor 继续，与新的底层连接最终选择 LAN、Tailnet 还是 Tailcat 无关。

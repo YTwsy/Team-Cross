@@ -90,7 +90,7 @@ func ExportBinaryPatch(ctx context.Context, worktree, baseline string) ([]byte, 
 		return nil, domain.ErrUnbornRepository
 	}
 	tracked, err := gitOutput(ctx, worktree, nil,
-		"diff", "--binary", "--full-index", "--no-ext-diff", baseline, "--")
+		"diff", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", baseline, "--")
 	if err != nil {
 		return nil, fmt.Errorf("export tracked patch: %w", err)
 	}
@@ -106,7 +106,7 @@ func ExportBinaryPatch(ctx context.Context, worktree, baseline string) ([]byte, 
 		}
 		rel := string(raw)
 		piece, diffErr := gitOutput(ctx, worktree, nil,
-			"diff", "--no-index", "--binary", "--full-index", "--no-ext-diff", "--", "/dev/null", rel)
+			"diff", "--no-index", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", "--", "/dev/null", rel)
 		if diffErr != nil && !isExitCode(diffErr, 1) {
 			return nil, fmt.Errorf("export untracked file %s: %w", rel, diffErr)
 		}

@@ -21,8 +21,10 @@ func (app *App) handleCreateShare(response http.ResponseWriter, request *http.Re
 		return
 	}
 	var input struct {
-		TTLSeconds    int64 `json:"ttlSeconds"`
-		AllowDegraded bool  `json:"allowDegraded"`
+		TTLSeconds    int64              `json:"ttlSeconds"`
+		AllowDegraded bool               `json:"allowDegraded"`
+		AllowControl  bool               `json:"allowControl"`
+		Scope         *domain.ShareScope `json:"scope,omitempty"`
 	}
 	if !decodeJSON(response, request, &input) {
 		return
@@ -55,18 +57,22 @@ func (app *App) handleCreateShare(response http.ResponseWriter, request *http.Re
 		existing = nil
 	}
 	if existing != nil {
-		detail, err := app.buildThreadDetail(request.Context(), threadID, accessFrom(request))
-		if err != nil {
-			writeDomainError(response, err)
-			return
-		}
-		writeJSON(response, http.StatusOK, detail)
+		writeError(response, http.StatusConflict, "share_active", "Revoke the active Share before creating a Share with a new scope or permissions")
 		return
 	}
 	shareID := uuid.NewString()
+	projection, err := app.prepareShareProjection(request.Context(), threadID, input.Scope, input.AllowControl)
+	if err != nil {
+		writeError(response, 422, "share_scope", err.Error())
+		return
+	}
+	granted := []string{"view", "annotate"}
+	if input.AllowControl {
+		granted = append(granted, "send", "steer", "interrupt")
+	}
 	expires := time.Now().UTC().Add(ttl)
 	config := share.RuntimeConfig{
-		ShareID: shareID, ExpiresAt: expires, Capabilities: share.DefaultCapabilities,
+		ShareID: shareID, ExpiresAt: expires, Capabilities: granted,
 		Handler: app.remoteHandler(threadID, shareID), EnableMDNS: true, EnableTailcat: true,
 	}
 	runtime, err := share.Start(request.Context(), config)
@@ -102,6 +108,12 @@ func (app *App) handleCreateShare(response http.ResponseWriter, request *http.Re
 		return
 	}
 	var transports []string
+	if err := app.store.SaveShareProjection(request.Context(), shareID, jsonBytes(projection)); err != nil {
+		_ = runtime.Close()
+		_ = app.store.RevokeShare(request.Context(), shareID, time.Time{})
+		writeDomainError(response, err)
+		return
+	}
 	if invitation.LAN.MDNSInstance != "" || len(invitation.LAN.Endpoints) > 0 {
 		transports = append(transports, "lan")
 	}
@@ -185,6 +197,9 @@ func (app *App) remoteHandler(threadID, shareID string) http.Handler {
 	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if !strings.HasPrefix(request.URL.Path, "/api/v1/") {
 			http.NotFound(response, request)
+			return
+		}
+		if !app.authorizeShareCapability(response, request, shareID) {
 			return
 		}
 		participantID := strings.TrimSpace(request.Header.Get("X-TeamCross-Participant-ID"))

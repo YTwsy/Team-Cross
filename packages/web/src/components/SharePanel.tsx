@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import type { Participant, Share } from "../types";
+import type {
+  Evidence,
+  Participant,
+  SessionSnapshot,
+  Share,
+  ShareOptions,
+} from "../types";
 import { CopyIcon, ShareIcon } from "./Icons";
 
 export function SharePanel({
@@ -9,17 +15,43 @@ export function SharePanel({
   onCreate,
   onRevoke,
   onRevokeControl,
+  snapshots = [],
+  evidence = [],
+  canIncludeCode = false,
+  canControl = false,
 }: {
   share?: Share;
   participants: Participant[];
   canManage: boolean;
-  onCreate: (degraded: boolean) => Promise<void>;
+  onCreate: (options: ShareOptions) => Promise<void>;
   onRevoke: () => Promise<void>;
   onRevokeControl: () => Promise<void>;
+  snapshots?: SessionSnapshot[];
+  evidence?: Evidence[];
+  canIncludeCode?: boolean;
+  canControl?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [degraded, setDegraded] = useState(false);
+  const [snapshotId, setSnapshotId] = useState("");
+  const [entryIds, setEntryIds] = useState<string[]>([]);
+  const [evidenceIds, setEvidenceIds] = useState<string[]>([]);
+  const [includeCode, setIncludeCode] = useState(false);
+  const [includeEvents, setIncludeEvents] = useState(false);
+  const [allowControl, setAllowControl] = useState(false);
+  const [error, setError] = useState("");
+  const snapshot = snapshots.find((item) => item.id === snapshotId);
+  const selectedEntries =
+    snapshot?.entries.filter((entry) => entryIds.includes(entry.id)) ?? [];
+  const selectedEvidence = evidence.filter(
+    (item) => item.kind !== "agent_transcript" && evidenceIds.includes(item.id),
+  );
+  const hasSelection =
+    selectedEntries.length > 0 ||
+    selectedEvidence.length > 0 ||
+    includeCode ||
+    includeEvents;
   const remoteController = participants.find(
     (participant) => participant.role === "controller",
   );
@@ -32,8 +64,11 @@ export function SharePanel({
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
+    setError("");
     try {
       await action();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "分享操作失败");
     } finally {
       setBusy(false);
     }
@@ -41,8 +76,12 @@ export function SharePanel({
 
   async function copyInvite() {
     if (!share) return;
-    await navigator.clipboard.writeText(share.invite);
-    setCopied(true);
+    try {
+      await navigator.clipboard.writeText(share.invite);
+      setCopied(true);
+    } catch {
+      setError("剪贴板不可用，请从主机重新复制邀请。");
+    }
   }
 
   return (
@@ -57,11 +96,19 @@ export function SharePanel({
       </div>
       {share ? (
         <div className="share-card">
-          <label>One-time invitation</label>
-          <button className="invite-value" onClick={copyInvite} type="button">
-            <code>{share.invite.slice(0, 30)}…</code>
-            <span>{copied ? "Copied" : <CopyIcon size={15} />}</span>
-          </button>
+          {canManage && share.invite ? (
+            <>
+              <label>One-time invitation</label>
+              <button
+                className="invite-value"
+                onClick={copyInvite}
+                type="button"
+              >
+                <code>{share.invite.slice(0, 30)}…</code>
+                <span>{copied ? "Copied" : <CopyIcon size={15} />}</span>
+              </button>
+            </>
+          ) : null}
           <div className="transport-path">
             {["LAN", "Tailnet", "Tailcat"].map((name, index) => (
               <span
@@ -86,6 +133,12 @@ export function SharePanel({
               minute: "2-digit",
             })}
           </small>
+          <p className="side-muted">
+            {share.allowControl
+              ? "已授权请求 Managed Agent 控制"
+              : "仅查看与批注"}{" "}
+            · 分享内容不会自动扩大到新的 Session 快照。
+          </p>
           {canManage ? (
             <button
               className="text-button danger"
@@ -99,7 +152,145 @@ export function SharePanel({
         </div>
       ) : canManage ? (
         <div className="share-empty">
-          <p>Invite collaborators to observe, annotate, or request control.</p>
+          <p>先确认分享范围。默认仅查看与批注，不授权 Agent 控制。</p>
+          <label className="review-title">
+            Session 快照
+            <select
+              aria-label="分享的 Session 快照"
+              value={snapshotId}
+              onChange={(event) => {
+                setSnapshotId(event.target.value);
+                setEntryIds([]);
+              }}
+            >
+              <option value="">不分享 Session 历史</option>
+              {snapshots.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.source.title || item.source.provider} ·{" "}
+                  {new Date(item.capturedAt).toLocaleString()}
+                </option>
+              ))}
+            </select>
+          </label>
+          {snapshot ? (
+            <div className="share-entry-selection">
+              <div>
+                <button
+                  className="text-button"
+                  onClick={() =>
+                    setEntryIds(snapshot.entries.map((entry) => entry.id))
+                  }
+                  type="button"
+                >
+                  选择全部记录
+                </button>
+                <button
+                  className="text-button"
+                  onClick={() => setEntryIds([])}
+                  type="button"
+                >
+                  清除
+                </button>
+              </div>
+              {snapshot.entries.map((entry, index) => (
+                <label className="inline-checkbox" key={entry.id}>
+                  <input
+                    type="checkbox"
+                    checked={entryIds.includes(entry.id)}
+                    onChange={(event) =>
+                      setEntryIds((current) =>
+                        event.target.checked
+                          ? [...current, entry.id]
+                          : current.filter((id) => id !== entry.id),
+                      )
+                    }
+                  />
+                  <span>
+                    {index + 1}. {entry.role || entry.kind} ·{" "}
+                    {entry.text.slice(0, 80)}
+                  </span>
+                </label>
+              ))}
+            </div>
+          ) : null}
+          {evidence
+            .filter((item) => item.kind !== "agent_transcript")
+            .map((item) => (
+              <label className="inline-checkbox" key={item.id}>
+                <input
+                  checked={evidenceIds.includes(item.id)}
+                  onChange={(event) =>
+                    setEvidenceIds((current) =>
+                      event.target.checked
+                        ? [...current, item.id]
+                        : current.filter((id) => id !== item.id),
+                    )
+                  }
+                  type="checkbox"
+                />
+                Evidence · {item.name}
+              </label>
+            ))}
+          {canIncludeCode ? (
+            <label className="inline-checkbox">
+              <input
+                checked={includeCode}
+                onChange={(event) => {
+                  setIncludeCode(event.target.checked);
+                  setAllowControl(false);
+                }}
+                type="checkbox"
+              />
+              包含当前已封存代码快照与 patch
+            </label>
+          ) : null}
+          {canControl ? (
+            <>
+              <label className="inline-checkbox">
+                <input
+                  checked={includeEvents}
+                  onChange={(event) => {
+                    setIncludeEvents(event.target.checked);
+                    setAllowControl(false);
+                  }}
+                  type="checkbox"
+                />
+                实时分享 Managed Agent 事件（含未来输出）
+              </label>
+              <label className="inline-checkbox">
+                <input
+                  checked={allowControl}
+                  disabled={!includeCode || !includeEvents}
+                  onChange={(event) => setAllowControl(event.target.checked)}
+                  type="checkbox"
+                />
+                允许请求 Managed Agent 控制
+              </label>
+            </>
+          ) : null}
+          <details className="share-preview">
+            <summary>
+              预览分享内容 · {selectedEntries.length} 条记录 /{" "}
+              {selectedEvidence.length} 份 Evidence
+            </summary>
+            <p>
+              未选中的记录、其他 Session
+              快照和原始历史文件不会分享。选择的记录与附件按完整内容分享，请检查其中的敏感信息。
+            </p>
+            {selectedEntries.map((entry) => (
+              <pre key={entry.id}>{entry.text}</pre>
+            ))}
+            {selectedEvidence.map((item) => (
+              <p key={item.id}>
+                {item.name} · {item.size} bytes
+              </p>
+            ))}
+            <p>
+              {includeCode ? "包含封存代码" : "不包含代码"} ·{" "}
+              {includeEvents ? "包含实时 Managed 输出" : "不包含事件流"} ·{" "}
+              {allowControl ? "允许控制" : "仅查看与批注"}
+            </p>
+          </details>
           <label className="inline-checkbox">
             <input
               checked={degraded}
@@ -110,8 +301,26 @@ export function SharePanel({
           </label>
           <button
             className="button secondary full"
-            disabled={busy}
-            onClick={() => run(() => onCreate(degraded))}
+            disabled={busy || !hasSelection}
+            onClick={() =>
+              void run(() =>
+                onCreate({
+                  allowDegraded: degraded,
+                  allowControl,
+                  scope: {
+                    ...(snapshot && selectedEntries.length
+                      ? {
+                          snapshotId: snapshot.id,
+                          entryIds: selectedEntries.map((entry) => entry.id),
+                        }
+                      : {}),
+                    evidenceIds: selectedEvidence.map((item) => item.id),
+                    includeCode,
+                    includeEvents,
+                  },
+                }),
+              )
+            }
             type="button"
           >
             {busy ? "Warming Tailcat…" : "Create share"}
@@ -120,6 +329,11 @@ export function SharePanel({
       ) : (
         <p className="side-muted">This thread is not currently shared.</p>
       )}
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       <div className="participant-list">
         <div className="participant-list-heading">

@@ -98,9 +98,93 @@ describe("subscribeEvents", () => {
     expect(value.rounds).toEqual([]);
     expect(value.annotations).toEqual([]);
     expect(value.evidence).toEqual([]);
+    expect(value.sessionSnapshots).toEqual([]);
     expect(value.participants).toEqual([]);
     expect(value.git.untracked).toEqual([]);
     expect(value.share?.transports).toEqual([]);
     expect(value.events[0]?.payload).toEqual({});
+  });
+
+  it("uses separate read-only preview/create/import APIs with no Agent execution fields", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation((path: string) =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify(
+              path.endsWith("preview")
+                ? { entries: null, warnings: null }
+                : { id: "thread-1" },
+            ),
+            { headers: { "content-type": "application/json" } },
+          ),
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const preview = await api.sessionPreview("codex", "native-1");
+    expect(preview.entries).toEqual([]);
+    expect(preview.warnings).toEqual([]);
+    await api.createThreadFromSession("codex", "native-1", "Review");
+    await api.importSession("thread-1", "codex", "native-1");
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      "/api/v1/sessions/preview",
+      "/api/v1/threads/from-session",
+      "/api/v1/threads/thread-1/sessions/import",
+    ]);
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toEqual({
+      provider: "codex",
+      sessionId: "native-1",
+      title: "Review",
+    });
+  });
+
+  it("preserves annotation anchors and sends observer annotations with fencing metadata", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ id: "thread-1" }), {
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    await api.addAnnotation("thread-1", {
+      body: "Review",
+      target: { snapshotId: "snapshot-1", entryId: "entry-1" },
+      expectedRevision: 7,
+      leaseEpoch: 0,
+    });
+    const input = JSON.parse(fetchMock.mock.calls[0]![1].body);
+    expect(input).toEqual({
+      body: "Review",
+      target: { snapshotId: "snapshot-1", entryId: "entry-1" },
+      expectedRevision: 7,
+      leaseEpoch: 0,
+      commandId: expect.any(String),
+    });
+  });
+
+  it("decodes vendor JSON bundles and keeps selection and copy confirmation explicit", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ version: 1, objects: [] }), {
+          headers: { "content-type": "application/vnd.teamcross.bundle+json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    expect(
+      await api.exportBundle("thread-1", {
+        roundId: "round-1",
+        evidenceIds: [],
+        snapshotIds: [],
+        confirmExport: true,
+      }),
+    ).toEqual({ version: 1, objects: [] });
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toEqual({
+      roundId: "round-1",
+      evidenceIds: [],
+      snapshotIds: [],
+      confirmExport: true,
+    });
   });
 });

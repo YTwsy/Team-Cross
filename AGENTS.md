@@ -25,6 +25,8 @@ Agent Wiki 页面。
    `docs/agent-wiki/wiki/concepts/agent-bridge-and-switching.md`。
 9. 判断测试和验收结论时，读
    `docs/agent-wiki/wiki/concepts/validation-gates.md`。
+10. 改 Session 导入、分享范围、Round 继续或离线 Fork 时，读
+    `docs/agent-wiki/wiki/concepts/session-review-and-continuation.md`。
 
 ## 产品与架构方向
 
@@ -54,6 +56,10 @@ Agent Wiki 页面。
   语义。
 - 外部 Codex/Claude 历史只作为有来源、不可信的 evidence 导入；不原地 resume，不热接管
   原生 Session ID。
+- 读取、预览、导入和分享不得创建 Run 或发送 prompt。Continue 必须显式创建新 Session；
+  历史 Round 独立 Fork，不能回退当前 Thread 的唯一 worktree。
+- Share 默认 view/annotate，内容 scope 必须同时限制详情、列表、下载、批注与 SSE。
+- 离线包导入创建新 Thread，不执行 Agent，不继承租约/凭据；原生能力未验证前保持禁用。
 - Provider 的工具网络默认关闭。不要把模型 API 自身的网络与工具网络开关混为一谈。
 
 ## 连接与失败语义

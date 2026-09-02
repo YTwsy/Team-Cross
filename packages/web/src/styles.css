@@ -44,6 +44,254 @@ textarea {
   color: inherit;
   font: inherit;
 }
+
+select {
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  padding: 8px;
+  max-width: 100%;
+  font: inherit;
+}
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.session-picker {
+  display: grid;
+  gap: 18px;
+}
+.review-boundary,
+.review-provenance p,
+.session-transcript small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.session-picker-grid {
+  display: grid;
+  grid-template-columns: minmax(200px, 0.65fr) minmax(0, 1.35fr);
+  gap: 20px;
+  align-items: start;
+}
+.session-picker-grid .session-list {
+  margin: 0;
+  max-height: 650px;
+  overflow: auto;
+}
+.session-picker-grid .session-preview {
+  max-height: 650px;
+  overflow: auto;
+}
+.session-list button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--panel-3);
+}
+.session-list button small {
+  overflow-wrap: anywhere;
+}
+.session-review {
+  padding: 20px;
+}
+.session-transcript {
+  display: grid;
+  gap: 12px;
+}
+.review-provenance,
+.review-entry {
+  padding: 18px;
+  min-width: 0;
+}
+.review-provenance code,
+.review-provenance small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.review-provenance small {
+  margin-top: 10px;
+}
+.review-provenance .review-warning {
+  color: var(--orange);
+}
+.review-entry header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.review-entry header code {
+  color: var(--muted);
+  font-size: 10px;
+  word-break: break-all;
+  flex: 1;
+}
+.review-entry header strong {
+  font-size: 12px;
+}
+.review-entry pre,
+.share-preview pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.7;
+  margin-bottom: 0;
+}
+.review-entry.tool {
+  border-left: 2px solid var(--cyan);
+}
+.review-entry.notice {
+  border-left: 2px solid var(--orange);
+}
+.review-snapshot-select,
+.review-title {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+.review-snapshot-select {
+  margin-bottom: 18px;
+}
+.review-title input,
+.continuation-panel textarea,
+.feedback-export textarea {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 10px;
+  width: 100%;
+}
+.review-alternatives {
+  margin-top: 28px;
+  padding: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.review-alternatives p {
+  font-size: 12px;
+  color: var(--muted);
+}
+.bundle-upload {
+  display: grid;
+  gap: 10px;
+  font-size: 12px;
+}
+dialog.review-modal {
+  width: min(1060px, 94vw);
+  max-width: 1060px;
+  max-height: 90vh;
+  color: var(--text);
+}
+.review-modal::backdrop {
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+}
+.share-entry-selection {
+  max-height: 240px;
+  overflow: auto;
+  margin: 10px 0;
+}
+.share-entry-selection > div {
+  display: flex;
+  justify-content: space-between;
+}
+.share-empty .inline-checkbox {
+  margin: 12px 0;
+  align-items: start;
+}
+.share-preview {
+  margin: 16px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.share-preview pre {
+  max-height: 220px;
+  overflow: auto;
+  color: var(--text);
+  padding: 10px;
+  background: var(--panel-2);
+  border-radius: 6px;
+}
+.capability-details {
+  margin-top: 14px;
+  font-size: 11px;
+}
+.capability-details dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0;
+}
+.capability-details dd {
+  color: var(--muted);
+  margin: 0;
+}
+summary {
+  cursor: pointer;
+  line-height: 1.5;
+}
+.continuation-panel > label,
+.continuation-panel details > label:not(.inline-checkbox) {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  font-size: 12px;
+}
+.continuation-panel details {
+  margin: 16px 0;
+  font-size: 12px;
+}
+.continuation-panel details p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+.continuation-panel .inline-checkbox {
+  align-items: start;
+  margin: 12px 0;
+}
+.continuation-panel textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+.feedback-export {
+  padding: 18px;
+  margin: 20px;
+}
+.feedback-export header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.feedback-export textarea {
+  min-height: 220px;
+  resize: vertical;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+.feedback-export p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 850px) {
+  .session-picker-grid,
+  .review-alternatives {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .session-picker-grid .session-list {
+    max-height: 260px;
+  }
+  .session-review {
+    padding: 12px;
+  }
+}
 button {
   border: 0;
   cursor: pointer;

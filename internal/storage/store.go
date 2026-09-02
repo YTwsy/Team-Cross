@@ -40,9 +40,24 @@ func Open(ctx context.Context, dataDir string) (*Store, error) {
 	}
 	db.SetMaxOpenConns(8)
 	db.SetMaxIdleConns(4)
+	// A newer database belongs to a newer application. Reject it before even
+	// the legacy CREATE IF NOT EXISTS statements can add tables or triggers.
+	var version int
+	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("read sqlite schema version: %w", err)
+	}
+	if version > schemaVersion {
+		db.Close()
+		return nil, fmt.Errorf("database schema %d is newer than supported %d", version, schemaVersion)
+	}
 	if _, err := db.ExecContext(ctx, schema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("initialize sqlite schema: %w", err)
+	}
+	if err := migrate(ctx, db); err != nil {
+		db.Close()
+		return nil, err
 	}
 	return &Store{db: db, objects: objects}, nil
 }

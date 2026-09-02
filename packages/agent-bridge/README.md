@@ -26,6 +26,7 @@ WebGUI。
 
 - `sessions.listStored`
 - `sessions.readStored`
+- `sessions.snapshot`
 - `runs.create`
 - `runs.importContext`
 - `runs.send`
@@ -37,6 +38,34 @@ WebGUI。
 Bridge 启动时必须先通过 protocol probe。探活失败可以安全重启一次，但不能自动重放
 任何业务 RPC。运行中的 Bridge 如果崩溃，当前 managed Run 不会被假定为可恢复；原生
 Provider Session 状态没有足够证据时必须 fail closed。
+
+## 原生 Session 只读快照
+
+`sessions.snapshot` 接受 `provider`、`sessionId`、可选 `cwd` 和 `limit`，只读取既有历史，
+不创建 Run、Resume、Fork 或发送 Turn。返回 `source`、`capturedAt`、`entries`、
+`truncated`、`warnings` 和 `capabilities`；Go Core 为结果分配持久快照 ID 并不可变保存。
+`limit` 范围为 1–10000，默认 2000 条；单条文本最多约 64K 字符，总文本约 2M 字符。
+未知、非文本、摘要化、未加载或超限内容有明确缺失标记，不把原始 JSON 当作完整回放。
+输入历史始终是不可信 Evidence，不能自动升级为指令。
+
+`entries.id` 由 Provider 身份、原生消息/工具 ID、Turn 和必要的重复项序号生成；缺少原生
+ID 时使用内容派生值。批注仍必须绑定快照 ID，不能把当前历史变化原地写进旧快照。
+Codex 的 Team Cross `sessionId` 对应 `thread.id`；`nativeIds.sessionId` 另存 Provider
+的 Session tree root，二者不可混淆。`appServer` 来源并不能证明 Desktop 创建，故显示
+`app-server`，不猜测为 `desktop`。
+
+当前 `read` 在读取成功后为 true；`follow`、`open`、`resume`、`takeControl` 均为 false，
+并附带未通过的验证边界。具体门槛见
+[原生能力验收契约](../../docs/agent-wiki/sources/validation/native-capability-gates.md)。
+
+可显式运行无 Session 副作用的安装版本协议检查：
+
+```sh
+TEAMCROSS_NATIVE_CAPABILITY_PROBE=1 pnpm --filter @teamcross/agent-bridge probe:native
+```
+
+该命令只查询版本、在临时目录生成协议定义，不连接现有 daemon、不枚举个人 Session、
+不使用 Provider 配额；完成后清理自己的临时文件。它不替代 CLI/Desktop 原生会话验收。
 
 ## Provider 边界
 

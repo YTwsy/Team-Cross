@@ -27,6 +27,9 @@ LAN 是同地协作中成本最低、延迟最小的路径；已有 Tailnet 时�
 ## 不变量
 
 - Share 绑定单一 Thread，默认一小时有效，最长 24 小时。
+- 新 Share 默认只有 view/annotate；代码、快照与 Evidence 受冻结的服务端内容投影
+  限制，控制与 managed 实时输出需额外授权。范围变化必须撤销后重新分享，不能改变
+  旧邀请隐含的权限。完整语义见 [审阅与接力](session-review-and-continuation.md)。
 - 每个 Share 使用随机 `shareId`、32 字节 secret、临时 Ed25519 证书与 SPKI hash。
 - LAN 同时使用邀请内 endpoint 和 mDNS；mDNS 失败不能阻断已知地址。
 - 主机和接收端各自通过 Tailscale LocalAPI 判断 Tailnet 是否可用；一端未 Running 时

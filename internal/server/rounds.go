@@ -13,19 +13,20 @@ import (
 )
 
 type turnManifest struct {
-	Version      int                 `json:"version"`
-	ThreadID     string              `json:"threadId"`
-	RunID        string              `json:"runId"`
-	Provider     string              `json:"provider"`
-	TurnID       string              `json:"turnId,omitempty"`
-	Status       string              `json:"status"`
-	Summary      string              `json:"summary"`
-	PatchObject  string              `json:"patchObject,omitempty"`
-	Files        []string            `json:"files"`
-	Evidence     []evidenceReference `json:"evidence"`
-	EventFromSeq int64               `json:"eventFromSeq"`
-	EventToSeq   int64               `json:"eventToSeq"`
-	CreatedAt    time.Time           `json:"createdAt"`
+	SessionSnapshotIDs []string            `json:"sessionSnapshotIds,omitempty"`
+	Version            int                 `json:"version"`
+	ThreadID           string              `json:"threadId"`
+	RunID              string              `json:"runId"`
+	Provider           string              `json:"provider"`
+	TurnID             string              `json:"turnId,omitempty"`
+	Status             string              `json:"status"`
+	Summary            string              `json:"summary"`
+	PatchObject        string              `json:"patchObject,omitempty"`
+	Files              []string            `json:"files"`
+	Evidence           []evidenceReference `json:"evidence"`
+	EventFromSeq       int64               `json:"eventFromSeq"`
+	EventToSeq         int64               `json:"eventToSeq"`
+	CreatedAt          time.Time           `json:"createdAt"`
 }
 
 // sealCompletedTurn archives the deterministic state produced by one managed
@@ -86,6 +87,11 @@ func (app *App) sealCompletedTurn(run *managedRun, turnID string, completed doma
 		Files: patchFiles(string(patch)), Evidence: references,
 		EventFromSeq: fromSeq, EventToSeq: completed.Seq, CreatedAt: time.Now().UTC(),
 	}
+	manifest.SessionSnapshotIDs, err = app.latestSealedSessionIDs(ctx, rounds)
+	if err != nil {
+		app.logger.Warn("read sealed Session context", "error", err)
+		return
+	}
 	manifestBytes, _ := json.MarshalIndent(manifest, "", "  ")
 	object, err := app.store.PutObject(ctx, manifestBytes, "application/vnd.teamcross.context+json")
 	if err != nil {
@@ -103,6 +109,23 @@ func (app *App) sealCompletedTurn(run *managedRun, turnID string, completed doma
 	if err != nil {
 		app.logger.Warn("seal completed Agent turn", "error", err)
 	}
+}
+
+func (app *App) latestSealedSessionIDs(ctx context.Context, rounds []domain.Round) ([]string, error) {
+	if len(rounds) == 0 || rounds[len(rounds)-1].ManifestObject == "" {
+		return nil, nil
+	}
+	data, err := app.store.GetObject(ctx, rounds[len(rounds)-1].ManifestObject)
+	if err != nil {
+		return nil, err
+	}
+	var manifest struct {
+		SessionSnapshotIDs []string `json:"sessionSnapshotIds"`
+	}
+	if err = json.Unmarshal(data, &manifest); err != nil {
+		return nil, err
+	}
+	return manifest.SessionSnapshotIDs, nil
 }
 
 func (app *App) completedTurnSummary(ctx context.Context, threadID string, fromSeq, toSeq int64, runID, turnID string) string {

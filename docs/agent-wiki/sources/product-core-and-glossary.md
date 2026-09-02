@@ -112,6 +112,15 @@ Team Cross 与它正交；Team Cross 不把自己定义成新的团队 Workspace
 `native` 与 `managed` 描述 Session 的来源和控制关系，不改变 Session 仍由 Provider
 实现这一事实。文档中存在歧义时不得裸用 `Session`。
 
+### SessionRef 与 SessionSnapshot
+
+`SessionRef` 保存 Provider 原始对话身份、身份种类、来源界面和可获得的版本。Codex
+对话身份使用 `thread.id`，不能用 Fork 共享的 Session tree root 冒充同一对话。
+
+`SessionSnapshot` 是一次只读捕获的不可变材料，记录捕获时间、稳定 entry ID、来源、
+截断/缺失标记与能力快照。它不是 Run、实时订阅或某时刻代码状态的证明。Thread 可引用
+多个这样的快照；批注使用 `snapshotId + entryId` 定位，不依赖可漂移的显示序号。
+
 ### Thread
 
 Team Cross 拥有的、长期存在且只能追加的协作单元。它围绕一个工作目标组织 Session、
@@ -205,10 +214,13 @@ Command 是受限的 Agent 操作，不是任意 Shell 输入。
 - **Resume Session**：在 Provider 明确支持且 Team Cross 已验证边界时，继续相同 Session
   ID。
 - **Continue from Round**：以不可变 Round 为上下文创建新的 Session 和 Run。
-- **Import Session**：把历史 transcript 作为 Evidence 保存，不建立活跃 Session 关联。
+- **Import Session**：把历史 transcript 作为不可变 SessionSnapshot/Evidence 保存，
+  不建立活跃 Session 关联，不创建 Run，也不发送模型指令。
 - **Switch Provider**：在同一 Thread 内封存 outgoing Round，并创建目标 Provider 的新
   Session 和 Run。
 - **Fork Thread**：从某个 Round 创建独立的后续协作历史。
+- **Offline Bundle**：将获准导出的封存代码与上下文交付为不可撤回的副本；接收者创建
+  新 Thread，保留来源关系，不同步原 Thread 的租约、运行状态或后续历史。
 - **Open in Provider**：在 Codex、Claude Code 等原生 UI 中打开对应 Session；Thread 身份
   不因此改变。
 

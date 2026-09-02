@@ -5,10 +5,11 @@ import { CaptureForm } from "./components/CaptureForm";
 import { DoctorPanel } from "./components/DoctorPanel";
 import { ThreadList } from "./components/ThreadList";
 import { ThreadWorkspace } from "./components/ThreadWorkspace";
+import { SessionStart } from "./components/SessionStart";
 import type { AppInfo, ThreadSummary } from "./types";
 
 type Route =
-  | { page: "threads" | "doctor" | "capture" }
+  | { page: "threads" | "doctor" | "capture" | "sessions" }
   | { page: "thread"; id: string };
 
 function readRoute(): Route {
@@ -17,6 +18,7 @@ function readRoute(): Route {
     return { page: "thread", id: hash.slice("threads/".length) };
   if (hash === "doctor") return { page: "doctor" };
   if (hash === "capture") return { page: "capture" };
+  if (hash === "sessions") return { page: "sessions" };
   return { page: "threads" };
 }
 
@@ -90,19 +92,29 @@ export function App() {
       active={shellPage}
       info={info}
       onNavigate={(page) => navigate({ page })}
-      onNewThread={() => navigate({ page: "capture" })}
+      onNewThread={() => navigate({ page: "sessions" })}
     >
       {route.page === "threads" ? (
         <ThreadList
           canCreate={info?.role === "owner"}
           loading={loading}
-          onNew={() => navigate({ page: "capture" })}
+          onNew={() => navigate({ page: "sessions" })}
           onOpen={(id) => navigate({ page: "thread", id })}
           threads={threads}
         />
       ) : null}
       {route.page === "doctor" ? <DoctorPanel info={info} /> : null}
-      {route.page === "capture" ? (
+      {route.page === "sessions" && info?.role === "owner" ? (
+        <SessionStart
+          onCancel={() => navigate({ page: "threads" })}
+          onCapture={() => navigate({ page: "capture" })}
+          onCreated={(id) => {
+            void load();
+            navigate({ page: "thread", id });
+          }}
+        />
+      ) : null}
+      {route.page === "capture" && info?.role === "owner" ? (
         <CaptureForm
           defaultRepo={info?.repo}
           onCancel={() => navigate({ page: "threads" })}
@@ -114,8 +126,13 @@ export function App() {
       ) : null}
       {route.page === "thread" && info ? (
         <ThreadWorkspace
+          key={route.id}
           id={route.id}
           info={info}
+          onOpen={(id) => {
+            void load();
+            navigate({ page: "thread", id });
+          }}
           onBack={() => {
             void load();
             navigate({ page: "threads" });

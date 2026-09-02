@@ -8,6 +8,7 @@ import type {
   Role,
   ThreadDetail,
   TimelineEvent,
+  AnnotationTarget,
 } from "../types";
 import { AgentIcon, CommentIcon, GitIcon } from "./Icons";
 import { Composer } from "./Composer";
@@ -16,8 +17,10 @@ import { EvidencePanel } from "./EvidencePanel";
 import { ImportSessionModal } from "./ImportSessionModal";
 import { SharePanel } from "./SharePanel";
 import { Timeline } from "./Timeline";
+import { SessionReview } from "./SessionReview";
+import { ContinuationPanel } from "./ContinuationPanel";
 
-type Tab = "timeline" | "diff" | "evidence" | "annotations";
+type Tab = "session" | "timeline" | "diff" | "evidence" | "annotations";
 
 const snapshotRefreshDelay = 100;
 const leaseRenewInterval = 20_000;
@@ -170,10 +173,12 @@ export function ThreadWorkspace({
   id,
   info,
   onBack,
+  onOpen,
 }: {
   id: string;
   info: AppInfo;
   onBack: () => void;
+  onOpen?: (id: string) => void;
 }) {
   const [thread, setThread] = useState<ThreadDetail>();
   const [tab, setTab] = useState<Tab>("timeline");
@@ -182,12 +187,17 @@ export function ThreadWorkspace({
   const [annotationTarget, setAnnotationTarget] = useState<{
     file?: string;
     line?: number;
+    target?: AnnotationTarget;
   }>();
   const [annotationBody, setAnnotationBody] = useState("");
   const [importOpen, setImportOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [networkEnabled, setNetworkEnabled] = useState(false);
   const [leaseClock, setLeaseClock] = useState(() => Date.now());
+  const [feedback, setFeedback] = useState("");
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
+  const [feedbackCopied, setFeedbackCopied] = useState(false);
+  const [annotationBusy, setAnnotationBusy] = useState(false);
   const threadRef = useRef<ThreadDetail | undefined>(undefined);
 
   useEffect(() => {
@@ -204,6 +214,7 @@ export function ThreadWorkspace({
       .then((value) => {
         if (!active) return;
         setThread(value);
+        setTab(value.sessionSnapshots?.length ? "session" : "timeline");
         setNetworkEnabled(value.agentRun?.networkEnabled ?? false);
       })
       .catch((reason: unknown) => {
@@ -401,19 +412,28 @@ export function ThreadWorkspace({
     thread.git.finalPatch ??
     `${thread.git.stagedPatch}${thread.git.unstagedPatch}`;
   const pendingInput = pendingInputFromEvents(thread.events);
+  const readOnly = thread.readOnly || !thread.git.head;
+  const remoteCanControl = canManage || thread.share?.allowControl !== false;
 
   async function addAnnotation() {
-    if (!annotationBody.trim()) return;
-    await refresh(() =>
-      api.addAnnotation(currentThread.id, {
-        body: annotationBody.trim(),
-        ...annotationTarget,
-        expectedRevision: currentThread.revision,
-        leaseEpoch,
-      }),
-    );
-    setAnnotationBody("");
-    setAnnotationTarget(undefined);
+    if (!annotationBody.trim() || annotationBusy) return;
+    setAnnotationBusy(true);
+    try {
+      await refresh(() =>
+        api.addAnnotation(currentThread.id, {
+          body: annotationBody.trim(),
+          ...annotationTarget,
+          expectedRevision: currentThread.revision,
+          leaseEpoch: 0,
+        }),
+      );
+      setAnnotationBody("");
+      setAnnotationTarget(undefined);
+    } catch {
+      /* refresh keeps the error visible. */
+    } finally {
+      setAnnotationBusy(false);
+    }
   }
 
   async function switchAgent(provider: Provider) {
@@ -422,6 +442,8 @@ export function ThreadWorkspace({
       await refresh(() =>
         api.switchAgent(currentThread.id, provider, networkEnabled),
       );
+    } catch {
+      /* refresh keeps the error visible. */
     } finally {
       setSwitching(false);
     }
@@ -441,8 +463,9 @@ export function ThreadWorkspace({
           <h1>{thread.title}</h1>
           <span className="thread-meta">
             <GitIcon size={14} />
-            {thread.branch || "unborn"} ·{" "}
-            {thread.git.head ? thread.git.head.slice(0, 8) : "no commit"}
+            {readOnly && !thread.git.head
+              ? "Session 只读上下文"
+              : `${thread.branch || "unborn"} · ${thread.git.head ? thread.git.head.slice(0, 8) : "no commit"}`}
           </span>
         </div>
         <div className="workspace-actions">
@@ -450,15 +473,40 @@ export function ThreadWorkspace({
             className={`connection-indicator ${connected ? "connected" : "reconnecting"}`}
           >
             <i />
-            {connected ? "Live" : "Reconnecting"}
+            {connected ? "协作已连接" : "重新连接中"}
           </span>
-          <a
-            className="button ghost compact"
-            href={`/api/v1/threads/${thread.id}/patch`}
-            download
-          >
-            Export patch
-          </a>
+          {!readOnly &&
+          (canManage || thread.share?.scope?.includeCode !== false) ? (
+            <a
+              className="button ghost compact"
+              href={`/api/v1/threads/${thread.id}/patch`}
+              download
+            >
+              Export patch
+            </a>
+          ) : null}
+          {canManage ? (
+            <button
+              className="button secondary compact"
+              disabled={feedbackBusy}
+              onClick={async () => {
+                setFeedbackBusy(true);
+                setFeedbackCopied(false);
+                try {
+                  setFeedback(await api.feedback(thread.id));
+                } catch (reason) {
+                  setError(
+                    reason instanceof Error ? reason.message : "反馈导出失败",
+                  );
+                } finally {
+                  setFeedbackBusy(false);
+                }
+              }}
+              type="button"
+            >
+              导出审阅反馈
+            </button>
+          ) : null}
         </div>
       </header>
 
@@ -474,23 +522,76 @@ export function ThreadWorkspace({
       <div className="workspace-body">
         <div className="workspace-main">
           <nav className="tabs" aria-label="Thread views">
-            {(["timeline", "diff", "evidence", "annotations"] as const).map(
-              (value) => (
-                <button
-                  className={tab === value ? "active" : ""}
-                  key={value}
-                  onClick={() => setTab(value)}
-                  type="button"
-                >
-                  {value}
-                  {value === "annotations" && thread.annotations.length ? (
-                    <b>{thread.annotations.length}</b>
-                  ) : null}
-                </button>
-              ),
-            )}
+            {(
+              [
+                "session",
+                "timeline",
+                "diff",
+                "evidence",
+                "annotations",
+              ] as const
+            ).map((value) => (
+              <button
+                className={tab === value ? "active" : ""}
+                key={value}
+                onClick={() => setTab(value)}
+                type="button"
+              >
+                {value === "session" ? "Session 审阅" : value}
+                {value === "annotations" && thread.annotations.length ? (
+                  <b>{thread.annotations.length}</b>
+                ) : null}
+              </button>
+            ))}
           </nav>
           <div className="workspace-content">
+            {feedback ? (
+              <section
+                className="feedback-export surface"
+                aria-label="审阅反馈"
+              >
+                <header>
+                  <strong>带引用的 Markdown 反馈</strong>
+                  <button
+                    className="text-button"
+                    onClick={() => setFeedback("")}
+                    type="button"
+                  >
+                    收起
+                  </button>
+                </header>
+                <textarea
+                  aria-label="Markdown 反馈"
+                  readOnly
+                  value={feedback}
+                />
+                <p>复制回熟悉的原生 Agent UI。不会自动发送或执行。</p>
+                <button
+                  className="button secondary compact"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(feedback);
+                      setFeedbackCopied(true);
+                    } catch {
+                      setError("剪贴板不可用，请选择并复制上方 Markdown。");
+                    }
+                  }}
+                  type="button"
+                >
+                  {feedbackCopied ? "已复制" : "复制反馈"}
+                </button>
+              </section>
+            ) : null}
+            {tab === "session" ? (
+              <SessionReview
+                snapshots={thread.sessionSnapshots ?? []}
+                annotations={thread.annotations}
+                onAnnotate={(target) => {
+                  setAnnotationTarget({ target });
+                  setTab("annotations");
+                }}
+              />
+            ) : null}
             {tab === "timeline" ? (
               <Timeline events={thread.events} rounds={thread.rounds} />
             ) : null}
@@ -508,6 +609,10 @@ export function ThreadWorkspace({
               <EvidencePanel
                 canManage={canManage}
                 evidence={thread.evidence}
+                onAnnotate={(evidenceId) => {
+                  setAnnotationTarget({ target: { evidenceId } });
+                  setTab("annotations");
+                }}
                 onAttach={(input) =>
                   refresh(() => api.attachEvidence(thread.id, input))
                 }
@@ -535,6 +640,19 @@ export function ThreadWorkspace({
                             {item.line ? `:${item.line}` : ""}
                           </code>
                         ) : null}
+                        {item.target ? (
+                          <code>
+                            {item.target.snapshotId
+                              ? `快照 ${item.target.snapshotId}`
+                              : "上下文"}
+                            {item.target.entryId
+                              ? ` / 记录 ${item.target.entryId}`
+                              : ""}
+                            {item.target.evidenceId
+                              ? ` / Evidence ${item.target.evidenceId}`
+                              : ""}
+                          </code>
+                        ) : null}
                         <p>{item.body}</p>
                       </div>
                     </article>
@@ -554,9 +672,14 @@ export function ThreadWorkspace({
                   <label>
                     {annotationTarget?.file
                       ? `Comment on ${annotationTarget.file}:${annotationTarget.line}`
-                      : "General annotation"}
+                      : annotationTarget?.target?.entryId
+                        ? `批注记录 ${annotationTarget.target.entryId}`
+                        : annotationTarget?.target?.evidenceId
+                          ? `批注 Evidence ${annotationTarget.target.evidenceId}`
+                          : "General annotation"}
                   </label>
                   <textarea
+                    aria-label="Annotation body"
                     placeholder="Leave a concrete observation or question…"
                     value={annotationBody}
                     onChange={(event) => setAnnotationBody(event.target.value)}
@@ -568,14 +691,14 @@ export function ThreadWorkspace({
                         onClick={() => setAnnotationTarget(undefined)}
                         type="button"
                       >
-                        Clear line target
+                        清除批注定位
                       </button>
                     ) : (
                       <span />
                     )}
                     <button
                       className="button secondary compact"
-                      disabled={!annotationBody.trim()}
+                      disabled={annotationBusy || !annotationBody.trim()}
                       onClick={addAnnotation}
                       type="button"
                     >
@@ -586,40 +709,52 @@ export function ThreadWorkspace({
               </div>
             ) : null}
           </div>
-          <Composer
-            pendingInput={pendingInput}
-            role={effectiveRole}
-            run={thread.agentRun}
-            onInterrupt={() =>
-              refresh(() =>
-                api.interrupt(thread.id, thread.revision, leaseEpoch),
-              )
-            }
-            onRequestControl={() =>
-              refresh(() => api.control(thread.id, "request", thread.revision))
-            }
-            onRespondInput={(inputRequestId, response) =>
-              refresh(() =>
-                api.respondInput(
-                  thread.id,
-                  inputRequestId,
-                  response,
-                  thread.revision,
-                  leaseEpoch,
-                ),
-              )
-            }
-            onSend={(text) =>
-              refresh(() =>
-                api.send(thread.id, text, thread.revision, leaseEpoch),
-              )
-            }
-            onSteer={(text) =>
-              refresh(() =>
-                api.steer(thread.id, text, thread.revision, leaseEpoch),
-              )
-            }
-          />
+          {!readOnly && remoteCanControl ? (
+            <Composer
+              pendingInput={pendingInput}
+              role={effectiveRole}
+              run={thread.agentRun}
+              onInterrupt={() =>
+                refresh(() =>
+                  api.interrupt(thread.id, thread.revision, leaseEpoch),
+                )
+              }
+              onRequestControl={() =>
+                refresh(() =>
+                  api.control(thread.id, "request", thread.revision),
+                )
+              }
+              onRespondInput={(inputRequestId, response) =>
+                refresh(() =>
+                  api.respondInput(
+                    thread.id,
+                    inputRequestId,
+                    response,
+                    thread.revision,
+                    leaseEpoch,
+                  ),
+                )
+              }
+              onSend={(text) =>
+                refresh(() =>
+                  api.send(thread.id, text, thread.revision, leaseEpoch),
+                )
+              }
+              onSteer={(text) =>
+                refresh(() =>
+                  api.steer(thread.id, text, thread.revision, leaseEpoch),
+                )
+              }
+            />
+          ) : (
+            <div className="observer-composer">
+              <strong>只读审阅与批注</strong>
+              <p>
+                此视图不会向原生 Session 发送指令。继续开发需由 Owner 显式创建新
+                Session。
+              </p>
+            </div>
+          )}
         </div>
 
         <aside className="context-panel">
@@ -649,11 +784,11 @@ export function ThreadWorkspace({
                 </span>
               ) : null}
             </div>
-            {thread.git.unborn ? (
+            {readOnly ? (
               <p className="side-muted">
-                Create the first commit before starting a managed Agent.
+                只读上下文没有执行目录；导入、分享和批注不会启动 Agent。
               </p>
-            ) : canManage ? (
+            ) : canManage && thread.agentRun ? (
               <>
                 <div className="provider-buttons">
                   {(["codex", "claude", "mock"] as Provider[]).map(
@@ -691,13 +826,6 @@ export function ThreadWorkspace({
                   />
                   <i />
                 </label>
-                <button
-                  className="text-button"
-                  onClick={() => setImportOpen(true)}
-                  type="button"
-                >
-                  Import old Session as context
-                </button>
               </>
             ) : (
               <div className="current-agent">
@@ -712,13 +840,38 @@ export function ThreadWorkspace({
                 </span>
               </div>
             )}
+            {canManage ? (
+              <button
+                className="text-button"
+                onClick={() => setImportOpen(true)}
+                type="button"
+              >
+                Import old Session as context
+              </button>
+            ) : null}
           </section>
+          {canManage ? (
+            <ContinuationPanel
+              key={thread.id}
+              thread={thread}
+              onResult={(value) => {
+                if (value.id === thread.id)
+                  setThread((current) => reconcileThread(current, value));
+                else if (onOpen) onOpen(value.id);
+                else window.location.hash = `#/threads/${value.id}`;
+              }}
+            />
+          ) : null}
           <SharePanel
             canManage={canManage}
             participants={thread.participants}
             share={thread.share}
-            onCreate={(degraded) =>
-              refresh(() => api.createShare(thread.id, degraded))
+            snapshots={thread.sessionSnapshots}
+            evidence={thread.evidence}
+            canIncludeCode={!readOnly}
+            canControl={!!thread.agentRun && !readOnly}
+            onCreate={(options) =>
+              refresh(() => api.createShare(thread.id, options))
             }
             onRevokeControl={() =>
               refresh(() => api.revokeControl(thread.id, thread.revision))
@@ -729,7 +882,7 @@ export function ThreadWorkspace({
             <div className="side-section-heading">
               <span>Isolation</span>
             </div>
-            <code>{thread.worktree}</code>
+            <code>{thread.worktree || "无执行目录 · 只读上下文"}</code>
             <p>Original repository is never automatically modified.</p>
           </section>
         </aside>
@@ -737,9 +890,12 @@ export function ThreadWorkspace({
       <ImportSessionModal
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        onImport={(provider, sessionId) =>
-          refresh(() => api.importSession(thread.id, provider, sessionId))
-        }
+        onImport={async (provider, sessionId) => {
+          await refresh(() =>
+            api.importSession(thread.id, provider, sessionId),
+          );
+          setTab("session");
+        }}
       />
     </div>
   );

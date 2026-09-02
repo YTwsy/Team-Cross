@@ -40,6 +40,15 @@ func (app *App) handleEvents(response http.ResponseWriter, request *http.Request
 		return
 	}
 	after := int64(0)
+	projection := shareProjection{Legacy: true}
+	if identity := accessFrom(request); identity.Mode == "share" {
+		var err error
+		projection, err = app.loadShareProjection(request.Context(), identity.ShareID)
+		if err != nil {
+			writeDomainError(response, err)
+			return
+		}
+	}
 	if value := request.Header.Get("Last-Event-ID"); value != "" {
 		after, _ = strconv.ParseInt(value, 10, 64)
 	}
@@ -58,12 +67,18 @@ func (app *App) handleEvents(response http.ResponseWriter, request *http.Request
 	defer ticker.Stop()
 	defer keepAlive.Stop()
 	for {
+		if identity := accessFrom(request); identity.Mode == "share" {
+			share, err := app.store.GetShare(request.Context(), identity.ShareID)
+			if err != nil || !share.RevokedAt.IsZero() || !share.ExpiresAt.After(time.Now()) {
+				return
+			}
+		}
 		events, err := app.store.EventsAfter(request.Context(), threadID, after, 500)
 		if err != nil {
 			return
 		}
 		for _, event := range events {
-			view := convertEvent(event)
+			view := projection.projectEvent(convertEvent(event))
 			payload, _ := json.Marshal(view)
 			if _, err := fmt.Fprintf(response, "id: %d\ndata: %s\n\n", event.Seq, payload); err != nil {
 				return
@@ -85,12 +100,13 @@ func (app *App) handleEvents(response http.ResponseWriter, request *http.Request
 }
 
 type annotationRequest struct {
-	Body             string `json:"body"`
-	File             string `json:"file,omitempty"`
-	Line             int    `json:"line,omitempty"`
-	CommandID        string `json:"commandId,omitempty"`
-	ExpectedRevision int64  `json:"expectedRevision,omitempty"`
-	LeaseEpoch       int64  `json:"leaseEpoch,omitempty"`
+	Target           *domain.AnnotationTarget `json:"target,omitempty"`
+	Body             string                   `json:"body"`
+	File             string                   `json:"file,omitempty"`
+	Line             int                      `json:"line,omitempty"`
+	CommandID        string                   `json:"commandId,omitempty"`
+	ExpectedRevision int64                    `json:"expectedRevision,omitempty"`
+	LeaseEpoch       int64                    `json:"leaseEpoch,omitempty"`
 }
 
 func (app *App) handleCreateAnnotation(response http.ResponseWriter, request *http.Request) {
@@ -108,7 +124,15 @@ func (app *App) handleCreateAnnotation(response http.ResponseWriter, request *ht
 		return
 	}
 	identity := accessFrom(request)
+	if err := app.validateAnnotationTarget(request.Context(), threadID, input, identity); err != nil {
+		writeError(response, 422, "annotation_target", err.Error())
+		return
+	}
 	annotation := domain.Annotation{ThreadID: threadID, ParticipantID: identity.ParticipantID, Path: input.File, StartLine: input.Line, EndLine: input.Line, Body: input.Body}
+	annotation.Target = input.Target
+	if input.Target != nil {
+		annotation.RoundID = input.Target.RoundID
+	}
 	if identity.Mode == "share" {
 		if input.CommandID == "" {
 			writeError(response, http.StatusBadRequest, "missing_command", "Remote annotations require commandId")
@@ -286,10 +310,31 @@ func (app *App) handleGetEvidence(response http.ResponseWriter, request *http.Re
 	if !ok {
 		return
 	}
+	if identity := accessFrom(request); identity.Mode == "share" {
+		projection, err := app.loadShareProjection(request.Context(), identity.ShareID)
+		if err != nil {
+			writeDomainError(response, err)
+			return
+		}
+		if !projection.Legacy && !contains(projection.Scope.EvidenceIDs, request.PathValue("evidenceID")) {
+			writeError(response, 404, "not_found", "Evidence is not shared")
+			return
+		}
+	}
 	evidence, err := app.store.GetEvidence(request.Context(), threadID, request.PathValue("evidenceID"))
 	if err != nil {
 		writeDomainError(response, err)
 		return
+	}
+	if identity := accessFrom(request); identity.Mode == "share" {
+		projection, err := app.loadShareProjection(request.Context(), identity.ShareID)
+		if err != nil {
+			writeDomainError(response, err)
+			return
+		}
+		if !projection.Legacy {
+			evidence.ObjectHash = projection.EvidenceHashes[evidence.ID]
+		}
 	}
 	content, err := app.store.GetObject(request.Context(), evidence.ObjectHash)
 	if err != nil {

@@ -173,6 +173,17 @@ func (app *App) handleListThreads(response http.ResponseWriter, request *http.Re
 		if identity.Mode == "share" && thread.ID != identity.ThreadID {
 			continue
 		}
+		if identity.Mode == "share" {
+			projection, err := app.loadShareProjection(request.Context(), identity.ShareID)
+			if err != nil {
+				writeDomainError(response, err)
+				return
+			}
+			if !projection.Legacy {
+				result = append(result, projection.Detail.threadSummary)
+				continue
+			}
+		}
 		result = append(result, app.summarizeThread(thread, identity))
 	}
 	writeJSON(response, http.StatusOK, result)
@@ -222,6 +233,21 @@ func (app *App) buildThreadDetail(ctx context.Context, threadID string, identity
 	if err != nil {
 		return threadDetail{}, err
 	}
+	if identity.Mode == "share" {
+		projection, err := app.loadShareProjection(ctx, identity.ShareID)
+		if err != nil {
+			return threadDetail{}, err
+		}
+		if !projection.Legacy {
+			// Remote reads never need private CAS objects or the live worktree.
+			detail := threadDetail{threadSummary: threadSummary{ID: threadID, UpdatedAt: thread.UpdatedAt}, Revision: thread.Revision}
+			if err := app.attachThreadActivity(ctx, &detail); err != nil {
+				return threadDetail{}, err
+			}
+			app.attachEphemeralState(ctx, &detail, identity)
+			return app.projectThreadDetail(ctx, detail, identity)
+		}
+	}
 	rounds, err := app.store.ListRounds(ctx, threadID)
 	if err != nil {
 		return threadDetail{}, err
@@ -254,6 +280,7 @@ func (app *App) buildThreadDetail(ctx context.Context, threadID string, identity
 		}
 	}
 	detail := threadDetail{
+		ReadOnly:      thread.ReadOnly,
 		threadSummary: app.summarizeThread(thread, identity), Revision: thread.Revision,
 		Worktree: thread.WorktreePath, Goal: manifest.Goal, Progress: manifest.Progress,
 		Blocker: manifest.Blocker, Tried: manifest.Tried, Questions: manifest.Questions, Git: git,
@@ -271,24 +298,8 @@ func (app *App) buildThreadDetail(ctx context.Context, threadID string, identity
 		}
 		detail.Rounds = append(detail.Rounds, view)
 	}
-	events, err := app.store.EventsAfter(ctx, threadID, 0, 10_000)
-	if err != nil {
+	if err := app.attachThreadActivity(ctx, &detail); err != nil {
 		return threadDetail{}, err
-	}
-	for _, event := range events {
-		detail.Events = append(detail.Events, convertEvent(event))
-	}
-	annotations, err := app.store.ListAnnotations(ctx, threadID)
-	if err != nil {
-		return threadDetail{}, err
-	}
-	participantNames := app.participantNames(ctx, threadID)
-	for _, annotation := range annotations {
-		author := "Owner"
-		if name := participantNames[annotation.ParticipantID]; name != "" {
-			author = name
-		}
-		detail.Annotations = append(detail.Annotations, annotationView{ID: annotation.ID, Author: author, Body: annotation.Body, File: annotation.Path, Line: annotation.StartLine, CreatedAt: annotation.CreatedAt})
 	}
 	evidence, err := app.store.ListEvidence(ctx, threadID)
 	if err != nil {
@@ -311,7 +322,43 @@ func (app *App) buildThreadDetail(ctx context.Context, threadID string, identity
 		})
 	}
 	app.attachEphemeralState(ctx, &detail, identity)
+	detail.SessionSnapshots, err = app.store.ListSessionSnapshots(ctx, threadID)
+	if err != nil {
+		return threadDetail{}, err
+	}
+	if identity.Mode == "share" {
+		return app.projectThreadDetail(ctx, detail, identity)
+	}
 	return detail, nil
+}
+
+func (app *App) attachThreadActivity(ctx context.Context, detail *threadDetail) error {
+	threadID := detail.ID
+	events, err := app.store.EventsAfter(ctx, threadID, 0, 10_000)
+	if err != nil {
+		return err
+	}
+	for _, event := range events {
+		detail.Events = append(detail.Events, convertEvent(event))
+	}
+	annotations, err := app.store.ListAnnotations(ctx, threadID)
+	if err != nil {
+		return err
+	}
+	participantNames := app.participantNames(ctx, threadID)
+	participantShares := map[string]string{}
+	participants, _ := app.store.ListThreadParticipants(ctx, threadID)
+	for _, participant := range participants {
+		participantShares[participant.ID] = participant.ShareID
+	}
+	for _, annotation := range annotations {
+		author := "Owner"
+		if name := participantNames[annotation.ParticipantID]; name != "" {
+			author = name
+		}
+		detail.Annotations = append(detail.Annotations, annotationView{ID: annotation.ID, Author: author, Body: annotation.Body, File: annotation.Path, Line: annotation.StartLine, CreatedAt: annotation.CreatedAt, Target: annotation.Target, SourceShareID: participantShares[annotation.ParticipantID]})
+	}
+	return nil
 }
 
 func (app *App) objectOrEmpty(ctx context.Context, hash string) []byte {
@@ -367,6 +414,12 @@ func (app *App) attachEphemeralState(ctx context.Context, detail *threadDetail, 
 		return
 	}
 	detail.Share = &shareView{ID: state.ID, Invite: state.Token, ExpiresAt: state.ExpiresAt, Status: "active", Transports: append([]string(nil), state.Transports...)}
+	if projection, err := app.loadShareProjection(ctx, state.ID); err == nil {
+		detail.Share.AllowControl = projection.AllowControl
+		if !projection.Legacy {
+			detail.Share.Scope = &projection.Scope
+		}
+	}
 	participants, _ := app.store.ListParticipants(ctx, state.ID)
 	lease, _ := app.store.GetControlLease(ctx, state.ID)
 	now := time.Now()
@@ -406,6 +459,23 @@ func (app *App) handlePatch(response http.ResponseWriter, request *http.Request)
 	threadID, ok := app.authorizeThread(response, request)
 	if !ok {
 		return
+	}
+	if identity := accessFrom(request); identity.Mode == "share" {
+		projection, err := app.loadShareProjection(request.Context(), identity.ShareID)
+		if err != nil {
+			writeDomainError(response, err)
+			return
+		}
+		if !projection.Scope.IncludeCode {
+			writeError(response, 403, "share_scope", "Code is not included in this Share")
+			return
+		}
+		if !projection.Legacy {
+			response.Header().Set("Content-Type", "application/octet-stream")
+			response.Header().Set("Content-Disposition", `attachment; filename="teamcross-shared.patch"`)
+			_, _ = response.Write([]byte(projection.Detail.Git.FinalPatch))
+			return
+		}
 	}
 	thread, err := app.store.GetThread(request.Context(), threadID)
 	if err != nil {

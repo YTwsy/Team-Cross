@@ -46,6 +46,7 @@ function visibleEvents(events: TimelineEvent[]): TimelineEvent[] {
     ]),
   );
   return events.flatMap((event) => {
+    if (event.type === "thread.updated") return [];
     if (event.type !== "message.delta") return [event];
     const liveEvent = liveBySequence.get(event.seq);
     return liveEvent ? [liveEvent] : [];

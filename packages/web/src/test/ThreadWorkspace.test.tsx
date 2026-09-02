@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, subscribeEvents } from "../api";
 import { ThreadWorkspace } from "../components/ThreadWorkspace";
 import type { AppInfo, ThreadDetail, TimelineEvent } from "../types";
+import { reviewThread } from "./reviewFixtures";
 
 vi.mock("../api", () => ({
   api: {
@@ -21,6 +22,7 @@ vi.mock("../api", () => ({
     revokeShare: vi.fn(),
     importSession: vi.fn(),
     storedSessions: vi.fn(),
+    feedback: vi.fn(),
   },
   subscribeEvents: vi.fn(),
 }));
@@ -102,6 +104,94 @@ describe("ThreadWorkspace effects", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("reviews and annotates a snapshot without an Agent or a control request", async () => {
+    vi.mocked(api.thread).mockResolvedValue(reviewThread);
+    vi.mocked(api.addAnnotation).mockResolvedValue({
+      ...reviewThread,
+      revision: 5,
+    });
+    const user = userEvent.setup();
+    render(<ThreadWorkspace id="thread-1" info={info} onBack={vi.fn()} />);
+    expect(await screen.findByText("Visible request")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Request control" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Send" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "批注" })[0]!);
+    await user.type(
+      screen.getByLabelText("Annotation body"),
+      "Please clarify this decision",
+    );
+    await user.click(screen.getByRole("button", { name: "Add annotation" }));
+    expect(api.addAnnotation).toHaveBeenCalledWith("thread-1", {
+      body: "Please clarify this decision",
+      target: { snapshotId: "snapshot-1", entryId: "entry-1" },
+      expectedRevision: 4,
+      leaseEpoch: 0,
+    });
+    expect(api.send).not.toHaveBeenCalled();
+    expect(api.switchAgent).not.toHaveBeenCalled();
+  });
+
+  it("refreshes shared annotations after a sanitized revision-only event", async () => {
+    vi.mocked(api.thread)
+      .mockResolvedValueOnce(reviewThread)
+      .mockResolvedValue({
+        ...reviewThread,
+        revision: 5,
+        annotations: [
+          {
+            id: "annotation-1",
+            author: "Reviewer",
+            body: "New review",
+            createdAt: reviewThread.updatedAt,
+          },
+        ],
+      });
+    render(<ThreadWorkspace id="thread-1" info={info} onBack={vi.fn()} />);
+    await screen.findByText("Visible request");
+    act(() =>
+      onEvents?.([
+        {
+          seq: 8,
+          type: "thread.updated",
+          createdAt: reviewThread.updatedAt,
+          payload: { revision: 5 },
+        },
+      ]),
+    );
+    await waitFor(() => expect(api.thread).toHaveBeenCalledTimes(2));
+    expect(
+      screen.getByRole("button", { name: "annotations 1" }),
+    ).toBeInTheDocument();
+    expect(subscribeEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it("exports feedback for the Owner without sending it to the Agent", async () => {
+    vi.mocked(api.thread).mockResolvedValue(reviewThread);
+    vi.mocked(api.feedback).mockResolvedValue(
+      "# Review\n[snapshot-1 / entry-1] Please clarify",
+    );
+    const user = userEvent.setup();
+    render(
+      <ThreadWorkspace
+        id="thread-1"
+        info={{ ...info, mode: "host", role: "owner" }}
+        onBack={vi.fn()}
+      />,
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "导出审阅反馈" }),
+    );
+    expect(
+      await screen.findByRole("textbox", { name: "Markdown 反馈" }),
+    ).toHaveValue("# Review\n[snapshot-1 / entry-1] Please clarify");
+    expect(api.feedback).toHaveBeenCalledWith("thread-1");
+    expect(api.send).not.toHaveBeenCalled();
   });
 
   it("keeps one SSE subscription as the cursor advances and refreshes the remote snapshot", async () => {

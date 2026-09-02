@@ -61,15 +61,16 @@ type Evidence struct {
 }
 
 type Annotation struct {
-	ID            string    `json:"id"`
-	ThreadID      string    `json:"threadId"`
-	RoundID       string    `json:"roundId,omitempty"`
-	ParticipantID string    `json:"participantId,omitempty"`
-	Path          string    `json:"path,omitempty"`
-	StartLine     int       `json:"startLine,omitempty"`
-	EndLine       int       `json:"endLine,omitempty"`
-	Body          string    `json:"body"`
-	CreatedAt     time.Time `json:"createdAt"`
+	Target        *AnnotationTarget `json:"target,omitempty"`
+	ID            string            `json:"id"`
+	ThreadID      string            `json:"threadId"`
+	RoundID       string            `json:"roundId,omitempty"`
+	ParticipantID string            `json:"participantId,omitempty"`
+	Path          string            `json:"path,omitempty"`
+	StartLine     int               `json:"startLine,omitempty"`
+	EndLine       int               `json:"endLine,omitempty"`
+	Body          string            `json:"body"`
+	CreatedAt     time.Time         `json:"createdAt"`
 }
 
 type AgentRun struct {

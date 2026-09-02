@@ -5,6 +5,11 @@
 
 ## Share 创建
 
+新 Share 默认只允许查看与批注；内容由不可变 scope projection 冻结。详情、列表、
+patch、Evidence 和 SSE 使用相同范围。控制和 managed live 输出必须额外授权，
+不能以活动 Share 的重复创建隐式改变范围。详见
+[审阅与接力](session-review-and-continuation.md)。
+
 每次创建 Share 都生成新的 `shareId`、secret、临时 Ed25519 证书、SPKI hash 和到期时间，
 再启动一个随机 IPv4 端口。这个 listener 只挂载绑定 Thread 的 Share API。
 

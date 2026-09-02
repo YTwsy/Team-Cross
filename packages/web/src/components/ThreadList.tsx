@@ -31,16 +31,13 @@ export function ThreadList({
     <section className="page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Workspace</p>
-          <h1>Development threads</h1>
-          <p>
-            Each thread owns an isolated worktree, evidence trail, and Agent
-            history.
-          </p>
+          <p className="eyebrow">Session collaboration</p>
+          <h1>协作 Threads</h1>
+          <p>从具体 Session 出发，共同理解、审阅与继续这次工作。</p>
         </div>
         {canCreate ? (
           <button className="button primary" onClick={onNew} type="button">
-            <PlusIcon /> Capture thread
+            <PlusIcon /> 从 Session 开始
           </button>
         ) : null}
       </header>
@@ -81,10 +78,12 @@ export function ThreadList({
             </span>
             <strong>{thread.title}</strong>
             <span className="repo-line">
-              <GitIcon size={15} /> {thread.repo}
+              <GitIcon size={15} /> {thread.repo || "Session 只读审阅"}
             </span>
             <span className="thread-card-bottom">
-              <span className="branch-pill">{thread.branch || "unborn"}</span>
+              <span className="branch-pill">
+                {thread.branch || "只读上下文"}
+              </span>
               {thread.provider ? (
                 <span className="provider-line">
                   <AgentIcon size={15} /> {thread.provider}
@@ -104,10 +103,7 @@ export function ThreadList({
             <GitIcon size={28} />
           </span>
           <h2>No handoff threads yet</h2>
-          <p>
-            Capture the current repository state without touching your original
-            workspace.
-          </p>
+          <p>选择已有 Native Session，或捕获 Git 状态，不改动原始工作区。</p>
           {canCreate ? (
             <button className="button primary" onClick={onNew} type="button">
               Create the first thread

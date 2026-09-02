@@ -30,6 +30,12 @@ Team Cross 只提供查看 diff、下载 patch 和显示 worktree 路径；不�
 - 单个 untracked 文件最多 5 MiB，单轮携带总量最多 20 MiB。
 - 最终 export 包含相对 baseline 的 tracked diff 和仍存在的 untracked regular file。
 - unborn repository 可以创建只读 Thread，但在首个 commit 出现前不创建 managed Agent。
+- Git 子进程忽略继承的 Git 路由/全局/系统配置，禁用 hooks、fsmonitor、textconv
+  与内容 filters；不能让不可信 `.gitattributes` 在导入、查看或导出时执行主机程序。
+  依赖 LFS/自定义 filter 的内容必须先由用户明确物化，Team Cross 不自动运行它们。
+- Share 的代码为已封存 Round 的冻结投影，不使用实时 export 混入后来工作；历史 Round
+  继续与离线包建立新 Thread，遵循
+  [审阅与接力](session-review-and-continuation.md)中的对象闭包与物化安全门槛。
 
 ## 影响
 

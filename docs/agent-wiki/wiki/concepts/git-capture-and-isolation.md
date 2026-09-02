@@ -19,6 +19,10 @@
 worktree 保留真实 Git object 与 baseline 身份，能够准确导出 tracked binary diff；同时不
 需要复制整个 repository。固定 baseline 也避免 branch 在 capture 后移动导致结果无法定位。
 
+离线 Fork 是例外：它显式打包 baseline 可达 Git 对象，在接收端建立独立对象库和
+worktree；不是复制主机配置、凭据或完整工作环境。分享代码只读封存 Round，不能从
+后来改变的 worktree 动态扩大。详见 [审阅与接力](session-review-and-continuation.md)。
+
 ## 需要保持的边界
 
 - 不对原 checkout 运行 `git apply`、写 Agent 文件或改变 index。
@@ -26,6 +30,8 @@ worktree 保留真实 Git object 与 baseline 身份，能够准确导出 tracke
 - 不把未选择或超限的 untracked 内容悄悄带入 worktree。
 - symlink、file mode、binary 内容和 staged/unstaged 语义不能退化成文本复制。
 - export 必须能由 `git apply --binary` 应用到同一 baseline。
+- capture/export 不能执行不可信 Git hooks、textconv 或内容 filter；只读读取也不能
+  继承 host Git 路由环境而误指向原 checkout。
 - Team Cross 当前只显示 worktree 路径；用户依据该路径自行进入目录是显式操作，
   不等于 Team Cross 已采纳改动。
 

@@ -6,6 +6,7 @@ import type {
   SessionsListStoredParams,
   SessionsReadStoredParams,
   StoredSession,
+  SessionSnapshot,
 } from "../protocol.js";
 
 export type EventSink = (event: BridgeEvent) => void;
@@ -24,6 +25,7 @@ export interface AgentAdapter {
   readonly provider: AgentProvider;
   listStored(params: SessionsListStoredParams): Promise<StoredSession[]>;
   readStored(params: SessionsReadStoredParams): Promise<unknown>;
+  snapshot?(params: SessionsReadStoredParams): Promise<SessionSnapshot>;
   createRun(params: Required<Pick<RunsCreateParams, "runId" | "provider" | "worktree">> &
     Omit<RunsCreateParams, "runId" | "provider" | "worktree">,
   emit: EventSink): Promise<AgentRun>;

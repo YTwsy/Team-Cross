@@ -35,11 +35,13 @@ export function EvidencePanel({
   evidence,
   canManage,
   onAttach,
+  onAnnotate,
 }: {
   threadId: string;
   evidence: Evidence[];
   canManage: boolean;
   onAttach: (input: EvidenceAttachment) => Promise<void>;
+  onAnnotate?: (evidenceId: string) => void;
 }) {
   const [kind, setKind] = useState<EvidenceKind>("text");
   const [name, setName] = useState("");
@@ -175,6 +177,15 @@ export function EvidencePanel({
                 <a download={item.name} href={downloadUrl}>
                   Download
                 </a>
+                {onAnnotate ? (
+                  <button
+                    className="text-button"
+                    onClick={() => onAnnotate(item.id)}
+                    type="button"
+                  >
+                    批注
+                  </button>
+                ) : null}
               </div>
             </article>
           );

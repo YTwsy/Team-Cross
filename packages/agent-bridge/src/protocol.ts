@@ -2,6 +2,48 @@ export const BRIDGE_PROTOCOL_VERSION = 1 as const;
 
 export type AgentProvider = "mock" | "codex" | "claude";
 
+export type SessionSurface = "cli" | "desktop" | "vscode" | "app-server" | "unknown";
+
+/** Provider-owned identity. Codex thread.sessionId is a family root, not the conversation ID. */
+export interface SessionRef {
+  provider: Exclude<AgentProvider, "mock">;
+  sessionId: string;
+  identityKind: "thread.id" | "sessionId";
+  surface: SessionSurface;
+  title?: string;
+  cwd?: string;
+  nativeIds?: Record<string, string>;
+  providerVersion?: string;
+}
+
+export interface SessionCapabilities {
+  read: boolean;
+  follow: boolean;
+  open: boolean;
+  resume: boolean;
+  takeControl: boolean;
+  reason?: string;
+}
+
+export interface SessionEntry {
+  id: string;
+  kind: "message" | "tool" | "notice";
+  role?: "user" | "assistant" | "system" | "tool";
+  text: string;
+  sourceId?: string;
+  turnId?: string;
+}
+
+/** Read-only candidate; Go Core assigns the durable snapshot ID and stores it immutably. */
+export interface SessionSnapshot {
+  source: SessionRef;
+  capturedAt: string;
+  entries: SessionEntry[];
+  truncated: boolean;
+  warnings: string[];
+  capabilities: SessionCapabilities;
+}
+
 export const bridgeEventTypes = [
   "run.started",
   "run.status",
@@ -39,6 +81,8 @@ export interface StoredSession {
   cwd?: string;
   createdAt?: string;
   updatedAt?: string;
+  identityKind?: SessionRef["identityKind"];
+  surface?: SessionSurface;
   metadata?: Record<string, unknown>;
 }
 
@@ -73,6 +117,7 @@ export interface SessionsListStoredParams {
   provider: Exclude<AgentProvider, "mock">;
   cwd?: string;
   limit?: number;
+  surface?: SessionSurface;
 }
 
 export interface SessionsReadStoredParams {
@@ -116,6 +161,7 @@ export type BridgeMethod =
   | "bridge.info"
   | "sessions.listStored"
   | "sessions.readStored"
+  | "sessions.snapshot"
   | "runs.create"
   | "runs.importContext"
   | "runs.send"
