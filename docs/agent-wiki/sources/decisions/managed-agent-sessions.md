@@ -1,26 +1,27 @@
 ---
-title: Team Cross 托管 Agent Session
+title: Team Cross 托管 Agent Session 与 Run
 kind: decision
 status: accepted
 ---
 
-# Team Cross 托管 Agent Session
+# Team Cross 托管 Agent Session 与 Run
 
 ## 决策
 
-Team Cross 只控制自己创建的 managed Session。Go Core 通过本地 Node Agent Bridge
-统一调用 Codex app-server、Claude Agent SDK 或 Mock Adapter；Provider 进程不会直接
-暴露给远端网络。
+Team Cross 只控制绑定到自己所创建 managed Session 的 Run。Session 是 Provider 拥有的
+连续对话身份，Run 是该 Session 在已知 worktree、主机和权限边界中的实际运行绑定。Go
+Core 通过本地 Node Agent Bridge 统一调用 Codex app-server、Claude Agent SDK 或 Mock
+Adapter；Provider 进程不会直接暴露给远端网络。
 
 已有 Codex/Claude transcript 只作为带来源、不可信的 evidence 导入。Team Cross 会在
-隔离 worktree 中创建新的 managed Session，不原地 resume、不保留外部 native Session
-ID，也不热接管外部活跃进程。
+隔离 worktree 中创建新的 managed Session 和对应 Run，不原地 resume、不保留外部 native
+Session ID，也不热接管外部活跃进程。
 
 ## 原因
 
 外部 Session 的 cwd、授权、sandbox、进程状态和原生协议生命周期不受 Team Cross
-控制。把 transcript 当作参考材料，可以保留推理背景，同时避免把旧对话、网页内容或
-日志自动升级为操作指令。
+控制，因此无法建立边界已知的可写 Run。把 transcript 当作参考材料，可以保留推理背景，
+同时避免把旧对话、网页内容或日志自动升级为操作指令。
 
 统一 Bridge 让 WebGUI 和多人租约只面对一套稳定 RPC/event contract，Provider 差异
 留在 Adapter 内部。

@@ -3,11 +3,13 @@
 这个 Wiki 是 Team Cross 面向 coding agent 的工程上下文层。它从 `../sources/` 整理稳定
 知识，并指向仍然作为最终事实来源的代码、测试与协议文档。
 
-当任务涉及 Git 隔离、Share transport、多人控制、Agent Adapter 或验收结论时，从这里
-开始。
+当任务涉及产品边界、统一词汇、Git 隔离、Share transport、多人控制、Agent Adapter 或
+验收结论时，从这里开始。
 
 ## 核心概念
 
+- [产品模型与统一词汇](concepts/product-model-and-glossary.md)：产品核心、问题边界以及
+  Session、Thread、Run、Turn、Round、Share 和 Handoff 的规范语义。
 - [运行时架构](concepts/runtime-architecture.md)：Go Core、React WebGUI、Node Bridge、
   SQLite/CAS 和本地进程的职责边界。
 - [Git capture 与隔离](concepts/git-capture-and-isolation.md)：baseline、dirty snapshot、
@@ -28,14 +30,16 @@ Team Cross 当前是 CLI + 本地 WebGUI：主机运行 `teamcross serve --repo 
 本机 loopback；Provider 进程通过 stdio Bridge 工作。它不是远程 Shell、聊天系统、Git
 托管平台或云协作服务。
 
-Thread 是长期追加式档案，Round 是不可变交接快照，Event 是细粒度实时记录，Evidence
-承载 Git 之外的参考材料。有 baseline commit 的 Thread 最多对应一个隔离 worktree；
-unborn Thread 保持只读。所有 Agent 输出都相对同一 baseline 导出，原始 checkout 不被
-自动修改。
+Agent Session 是 Provider 拥有的对话身份；Thread 是 Team Cross 长期追加式协作档案，
+可以按顺序连接多个 Session。Run 是 Session 的一次实际执行绑定，Turn 是一次 Agent
+工作过程，Round 是不可变交接快照，Event 是细粒度实时记录，Evidence 承载 Git 之外的
+参考材料。有 baseline commit 的 Thread 最多对应一个隔离 worktree；unborn Thread 保持
+只读。所有 managed Agent 输出都相对同一 baseline 导出，原始 checkout 不被自动修改。
 
 ## 事实来源
 
 - 用户范围与操作流程：`README.md`
+- 产品核心与统一词汇：`../sources/product-core-and-glossary.md`
 - 产品闭环与架构时序图：`docs/architecture.md`
 - Agent 入口和硬边界：`AGENTS.md`
 - Invitation/Share API：`docs/protocol.md`

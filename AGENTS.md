@@ -13,15 +13,17 @@ Agent Wiki 页面。
 1. 读 `README.md`，了解面向用户的产品范围、运行方式和 v0 边界。
 2. 读 `docs/agent-wiki/wiki/index.md`，获得面向 Agent 的项目导航。
 3. 需要快速理解产品闭环、技术分层或实时协作时序时，读 `docs/architecture.md`。
-4. 改 Git capture、worktree 或 patch export 时，读
+4. 判断产品边界、命名或 Session/Thread/Run/Turn/Round 语义时，读
+   `docs/agent-wiki/wiki/concepts/product-model-and-glossary.md`。
+5. 改 Git capture、worktree 或 patch export 时，读
    `docs/agent-wiki/wiki/concepts/git-capture-and-isolation.md`。
-5. 改 Share、邀请或连接选择时，读
+6. 改 Share、邀请或连接选择时，读
    `docs/agent-wiki/wiki/concepts/share-and-transport.md` 与 `docs/protocol.md`。
-6. 改多人权限、租约或命令幂等时，读
+7. 改多人权限、租约或命令幂等时，读
    `docs/agent-wiki/wiki/concepts/collaboration-and-control.md`。
-7. 改 Codex、Claude、Mock 或 Provider 切换时，读
+8. 改 Codex、Claude、Mock 或 Provider 切换时，读
    `docs/agent-wiki/wiki/concepts/agent-bridge-and-switching.md`。
-8. 判断测试和验收结论时，读
+9. 判断测试和验收结论时，读
    `docs/agent-wiki/wiki/concepts/validation-gates.md`。
 
 ## 产品与架构方向
@@ -95,8 +97,9 @@ Mock、本机两个进程或两个浏览器只能证明本机流程。没有实�
 
 - 面向用户与 Agent 的 Markdown 默认使用简体中文。
 - 协议字段、HTTP 路由、命令、事件名、环境变量和代码标识符保持英文原样。
-- `README.md` 负责用户认知，`docs/protocol.md` 负责 wire/API 规范，Agent Wiki 负责
-  未来 Agent 的工程判断，代码和测试仍是最终事实来源。
+- `README.md` 负责用户认知，`docs/agent-wiki/sources/product-core-and-glossary.md` 负责
+  产品核心与统一词汇，`docs/protocol.md` 负责 wire/API 规范，Agent Wiki 负责未来 Agent
+  的工程判断，代码和测试仍是最终事实来源。
 - `docs/agent-wiki/sources/` 保存稳定事实、决策和验证契约；`wiki/` 保存短小、互链的
   任务上下文。
 - 当功能改动改变长期判断时，在同一提交中同步更新对应 source 与 wiki concept。

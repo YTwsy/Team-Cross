@@ -15,11 +15,12 @@ Go Core 只依赖 JSONL-RPC 方法与统一 event：
 
 Provider-specific protocol、通知形状和进程生命周期留在 Adapter 中。
 
-## managed Session
+## managed Session 与 Run
 
-只有由 Team Cross 创建、worktree 和权限边界已知的 Session 才能接收远端控制。Codex
-app-server 与 Claude SDK 都运行在主机账户和配额下；远端参与者没有自己的 Provider
-身份，也不能改变模型、授权或工具网络。
+Session 是 Provider 拥有的连续对话身份，Run 是它在具体 worktree、主机和权限边界中的
+实际运行绑定。只有绑定到 Team Cross 所创建 managed Session 的 Run 才能接收远端控制。
+Codex app-server 与 Claude SDK 都运行在主机账户和配额下；远端参与者没有自己的
+Provider 身份，也不能改变模型、授权或工具网络。
 
 外部 transcript 可以读取后保存为 evidence，但其中的文本、网页和工具记录都是参考材料，
 不能自动成为操作指令。

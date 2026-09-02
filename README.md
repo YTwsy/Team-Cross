@@ -1,8 +1,21 @@
 # Team Cross
 
-Team Cross 是一个面向 macOS 的本地优先开发上下文交接原型。它捕获真实的 Git
-基线与工作区改动，在隔离 worktree 中运行 Team Cross 托管的 Codex 或 Claude
-Session，并向另一位协作者提供受限的查看、批注和 Agent 控制能力。
+## 产品方向
+
+> Team Cross 让团队在不改变既有工作区和工作流的前提下，安全地分享、审阅、临时移交或继续一个 coding-agent Session。
+
+Team Cross 不替团队选择工作区、任务系统或仓库组织方式。它从不同工作流最终都会触达的
+Agent Session 入手，为具体的一次工作增加共同视图、可定位批注、受限控制和可追溯接力，
+同时让 Codex、Claude Code 等原生 UI 继续作为用户熟悉的个人执行界面。
+
+一个很实用的产品判断规则：
+
+> 它是否从一个具体 Session 出发，并帮助另一个人理解、审阅、控制或继续这次工作？
+
+当前仓库实现的是 macOS-first、本地优先的 v0 原型：它捕获真实的 Git 基线与工作区改动，
+在隔离 worktree 中运行 Team Cross 托管的 Codex 或 Claude Session，并向另一位协作者提供
+受限的查看、批注和 Agent 控制能力。外部 Native Session 当前仍只能作为有来源、
+不可信的 evidence 导入，尚不能被原地恢复或热接管。
 
 原始 checkout 永远不会被 Team Cross 自动应用 patch、提交或 cherry-pick。
 
@@ -168,6 +181,8 @@ Claude 凭据、Tailscale LocalAPI 和临时 Tailcat 初始化。缺少 Tailscal
 ## 文档
 
 - [Agent 开发指南](AGENTS.md)：coding agent 进入仓库后的第一站。
+- [产品模型与统一词汇](docs/agent-wiki/wiki/concepts/product-model-and-glossary.md)：
+  产品核心、问题边界以及 Session、Thread、Run、Turn、Round 等词汇的规范定义。
 - [产品与架构图解](docs/architecture.md)：产品闭环、技术分层与实时协作时序。
 - [协议 v1](docs/protocol.md)：邀请、Share API、幂等和 SSE wire contract。
 - [Agent Wiki](docs/agent-wiki/README.md)：稳定决策、事实来源和任务上下文。
@@ -178,6 +193,6 @@ wire value 保持英文原样。
 
 ## v0 暂不实现
 
-当前原型不提供账户、长期身份、云端 rendezvous、外部活跃 Session 热接管、原生
-Session 跨 cwd 迁移、自动 apply/commit/cherry-pick、完整环境复刻、离线 `.tcx`
-bundle、MCP/Skill 包装或菜单栏 App。
+当前原型不提供账户、长期身份、云端 rendezvous、外部活跃 Session 的 Attach、实时
+Follow、Resume 或热接管、原生 Session 跨 cwd 迁移、自动 apply/commit/cherry-pick、
+完整环境复刻、离线 `.tcx` bundle、MCP/Skill 包装或菜单栏 App。

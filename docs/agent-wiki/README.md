@@ -13,6 +13,7 @@ docs/agent-wiki/
 ├── README.md
 ├── sources/
 │   ├── project-brief.md
+│   ├── product-core-and-glossary.md
 │   ├── decisions/
 │   │   ├── collaboration-and-control.md
 │   │   ├── git-isolation-and-export.md
@@ -24,6 +25,7 @@ docs/agent-wiki/
 └── wiki/
     ├── index.md
     └── concepts/
+        ├── product-model-and-glossary.md
         ├── runtime-architecture.md
         ├── git-capture-and-isolation.md
         ├── share-and-transport.md
@@ -44,6 +46,7 @@ docs/agent-wiki/
 
 当变化会影响未来 Agent 的工程判断时，更新或新增知识：
 
+- 产品核心、统一词汇或 Session/Thread/Run/Turn/Round 的关系变化；
 - Thread、Round、Event 或 evidence 的生命周期语义变化；
 - Git capture、worktree 隔离或 patch export 的边界变化；
 - 邀请、Share API、连接顺序或失败语义变化；

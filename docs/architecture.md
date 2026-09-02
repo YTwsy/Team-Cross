@@ -1,13 +1,19 @@
 # Team Cross 产品与架构图解
 
-本文保存 Team Cross 的三张核心图：产品闭环、技术分层和 `collaborate` 实时协作时序。
+本文保存当前 v0 的三张核心图：已实现闭环、技术分层和 `collaborate` 实时协作时序。
 它们用于快速建立共同心智模型；协议字段和失败语义以 `docs/protocol.md` 为准，具体实现
 仍以代码与测试为最终事实来源。
 
-## 产品闭环
+Team Cross 的长期产品入口是一个具体 coding-agent Session；当前 v0 则先从 Git capture
+创建 Thread，再在隔离 worktree 中创建 managed Session。两者不能被写成同一项已实现
+能力。Session、Thread、Run、Turn 与 Round 的规范语义和目标能力阶梯见
+[产品模型与统一词汇](agent-wiki/wiki/concepts/product-model-and-glossary.md)。
 
-这张图强调一次交接如何从本地 dirty state 进入隔离 Thread，再由另一位协作者批注或
-驱动主机 Agent，最后形成下一轮不可变快照。整个过程中，原始 checkout 不被自动写回。
+## 当前 v0 闭环
+
+这张图只描述当前已经实现的路径：一次交接从本地 dirty state 进入隔离 Thread，再由
+另一位协作者批注或驱动主机 Agent，最后形成下一轮不可变快照。整个过程中，原始
+checkout 不被自动写回。
 
 ```mermaid
 flowchart LR
