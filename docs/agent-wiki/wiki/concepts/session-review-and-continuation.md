@@ -17,9 +17,9 @@
 - 最新 Round 的 worktree 已变化时拒绝顺序继续；历史 Round 或显式 Fork 创建新 Thread。
 - 离线包携带 baseline 可达 Git 历史，不只 diff。导入自己持有的副本不执行 Agent；
   接收者需要自己的凭据，双方不自动同步。
-- M3 原生 Follow/Open、M4 同会话接管仍不可用。API 存在不等于能力已验收。
-  Follow 的增量 reader、持久游标、停止 fence 与 UI 已有能力门控实现；不能据此打开
-  原生 `follow` 标记，也不能把新内容送进已冻结 Share。
+- Codex Follow 仅对通过当前 reader 有界历史合同探测的精确 Session 开放；它读取
+  已保存输出，不是事件订阅。断线重验、停止 fence 和不可变检查点不能授权原生输入，
+  也不能把新内容送进已冻结 Share。Open、Resume 和同会话接管仍不可用。
 - 原生实时分享须单独确认 `nativeLive` 的当前预览和未来类别，服务端将 Follow
   ID/epoch/source 与不可变公开窗口绑定。旧批注通过精确 snapshot 接口读取原文，
   不按当前窗口或相同 entry ID 猜授权。128 窗口/64 MiB 后停止追加公开窗口。

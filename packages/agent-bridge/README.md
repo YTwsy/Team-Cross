@@ -58,8 +58,9 @@ Codex 的 Team Cross `sessionId` 对应 `thread.id`；`nativeIds.sessionId` 另�
 的 Session tree root，二者不可混淆。`appServer` 来源并不能证明 Desktop 创建，故显示
 `app-server`，不猜测为 `desktop`。
 
-当前 `read` 在读取成功后为 true；`follow`、`open`、`resume`、`takeControl` 均为 false，
-并附带未通过的验证边界。具体门槛见
+`read` 在读取成功后为 true。Codex 的 `follow` 只在该 Session、当前 reader 的有界
+分页/稳定身份/可回读边界探测成功后为 true；其余 Provider 暂不开放 Follow。
+`open`、`resume`、`takeControl` 仍为 false，并附带未通过的验证边界。具体门槛见
 [原生能力验收契约](../../docs/agent-wiki/sources/validation/native-capability-gates.md)。
 
 可显式运行无 Session 副作用的安装版本协议检查：
@@ -92,9 +93,11 @@ Fork、Turn 或无关会话枚举。初次读取最新片段并标示省略的�
 返回缺口和 `reset`；reset 只替换当前 Follow 视图，不能删除任何已封存快照或批注。
 完整的网络错误仍可能使 RPC 失败，调用方应保留旧 cursor 后重试，而不是推测原生状态。
 
-这只是已实现并经过合成协议测试的只读 polling 能力。`capabilities.follow` 仍为
-false，只有真实 CLI/Desktop 增量、断线和身份验证完成后才能启用产品 Follow；
-轮询持久历史不等同于已订阅完整实时事件流。
+每个 reader generation 独立探测精确原生 ID：`paginated` metadata、完整 item、最新
+边界及反向游标重放必须匹配。每页继续校验；断线或格式错误撤销缓存，重连重新验证，
+不能把格式错误伪装成 cursor reset，也不能把旧 reader 的迟到响应交给新连接使用。
+空 Session 尚无稳定 item 时暂不开放 Follow。来源界面 token 或版本号不是能力白名单。
+此能力是对持久历史的只读 polling，不等同于完整实时事件订阅，更不授予输入权。
 
 ## Provider 边界
 
@@ -109,7 +112,30 @@ Claude 在 SDK `system/init` 前保留空 `sessionId`，不生成伪造的原生
 身份后不允许它被另一身份替换。
 
 Codex 使用本机已有登录，通过 app-server initialize 和指定会话的实际读取检查方法；
-运行时不依赖硬编码 CLI 版本号。workspace write root 只能是当前 Thread worktree。
+运行时不依赖硬编码 CLI 版本号。每个 managed Run 使用独立 client 和随机命名的
+permission profile；创建及每次 Turn 明确选择 profile 与本机 worktree roots，禁用默认
+临时目录写权限，保留 `:workspace` 的内建保护。创建响应不匹配 profile、cwd、roots、
+approval、工具网络或显式模型时，不发送 prompt，也不回退到 legacy sandbox。
+新 Session 与每次 Turn 都绑定保留的 `local` environment。当前
+`runs.create.forkFromSessionId` 明确拒绝，不能继承未验证的原生执行环境；这不影响
+Go Core 的 Round Fork / 离线 Fork，它们在独立 Thread 中显式创建新 Session。
+
+只读历史 client 独立于 managed 进程；一个 Run 的创建/关闭失败不能关闭旧 Run，也
+不能污染 reader 的版本与能力判断。反过来，历史读取进程退出不能使 managed Run 报错。
+
+local-command sandbox 不是外部工具的统一权限层。managed 进程单独限制 MCP、Apps、
+浏览器等入口；配置、受限 feature 与指定 Session 的 MCP 运行态无法确认时拒绝执行，
+不靠 prompt 请求模型自律。这些检查不证明内建命令/文件工具可用，本地执行宿主需要
+另做真实 Turn 验收。
+这些限制不写入个人配置，也不修改组织策略。工具网络开关仅授权受限工具的网络访问，
+不转移外部集成、凭据或原生 Session 的输入权。
+
+managed close 先确认准确 Turn 终态，再检验该私有 Session 的后台终端，最后等待自有
+app-server 实际退出。已观察的终端身份跨 close 重试保留；`terminated:true`、完成事件
+或随后空列表不单独构成退出证明。有可靠本机 `osPid` 时，仅通过 signal 0 观察并要求
+ESRCH；终止请求仍走准确 Provider `processId`，不扫描进程或用 OS kill 兜底。
+当前本机 Codex 0.152.1 的后台列表未提供可靠 OS 身份，因此一旦观察到这类终端，
+关闭保持失败且不发 `run.closed`。无后台的真实零模型关闭已验证；后台关闭尚未验收。
 
 ## 开发
 

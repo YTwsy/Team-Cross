@@ -58,6 +58,44 @@ describe("Continue from Round", () => {
     expect(screen.getByText(/没有可执行的代码基线/)).toBeInTheDocument();
   });
 
+  it("explains Codex managed restrictions without applying them to other Providers", async () => {
+    const user = userEvent.setup();
+    render(<ContinuationPanel thread={executableThread} onResult={vi.fn()} />);
+    await user.click(screen.getByText("在本机创建新 Session"));
+    const notice = screen.getByText(/Codex 受限执行/);
+    expect(notice).toHaveTextContent("仅可写入隔离 worktree，不代表只能读取此目录");
+    expect(notice).toHaveTextContent("不带入 MCP、Apps、浏览器或自动 hooks");
+    expect(notice).toHaveTextContent("不修改你的原生工具配置");
+    expect(notice).toHaveTextContent("网络开关仅允许受限工具联网，不授权外部集成");
+    expect(screen.getByLabelText(/允许工具访问网络/)).not.toBeChecked();
+    for (const provider of ["claude", "mock"]) {
+      await user.selectOptions(screen.getByLabelText("Provider"), provider);
+      expect(screen.queryByText(/Codex 受限执行/)).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/允许工具访问网络/)).not.toBeChecked();
+    }
+    expect(api.continueFromRound).not.toHaveBeenCalled();
+  });
+
+  it("requires renewed Codex consent when restricted tool networking changes", async () => {
+    vi.mocked(api.continueFromRound).mockResolvedValue(executableThread);
+    const user = userEvent.setup();
+    render(<ContinuationPanel thread={executableThread} onResult={vi.fn()} />);
+    await user.click(screen.getByText("在本机创建新 Session"));
+    await user.type(screen.getByLabelText("首条指令"), "Reviewed work");
+    await user.click(screen.getByLabelText(/我授权以上新 Session/));
+    await user.click(screen.getByLabelText(/允许工具访问网络/));
+    expect(screen.getByLabelText(/我授权以上新 Session/)).not.toBeChecked();
+    const button = screen.getByRole("button", { name: "创建新 Session 并继续" });
+    expect(button).toBeDisabled();
+    expect(api.continueFromRound).not.toHaveBeenCalled();
+    await user.click(screen.getByLabelText(/我授权以上新 Session/));
+    await user.click(button);
+    expect(api.continueFromRound).toHaveBeenCalledWith(
+      executableThread.id,
+      expect.objectContaining({ provider: "codex", networkEnabled: true }),
+    );
+  });
+
   it("does not describe a read-only Session Round as an executable code snapshot", () => {
     render(
       <ContinuationPanel

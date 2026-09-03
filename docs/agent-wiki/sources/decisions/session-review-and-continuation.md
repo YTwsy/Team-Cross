@@ -93,11 +93,15 @@ UI 固定所选 Round；起点、最新 Round、执行目录、Run、Provider、
 失败不发布部分 Thread；创建前消费来源 revision，响应不确定时不得重复创建。
 Owner 随后必须在新 Thread 另行确认新 Session 的 Provider、权限和首条指令。
 
-## M3：只读 Follow 的本机实现与未通过的原生门槛
+## M3：只读 Follow 与运行时能力门控
 
 - Follow 是独立 reader，不是 Run。Owner 明确确认后，Core 重读指定 Session 的当前
   能力并核对 provider、原生 ID、identityKind、来源界面与版本；不信任旧快照自带的授权。
-  当前原生能力仍禁用；合成 Provider 测试只证明下面的本机状态机。
+  Codex 仅在精确 Session、当前 reader 的有界分页和反向边界重放验证成功后开放
+  `follow`；来源 token 和固定版本号不能代替探测。Open/Resume/Take Control 仍禁用。
+- 每个 reader generation 独立保有能力缓存。读取中途不更换 client；断线、格式失配
+  或关闭使缓存失效，迟到响应不得恢复旧许可。每页检验完整稳定 item；空 Session
+  暂不开放，格式错误不当作可消费游标的历史 reset。
 - Codex `sessions.poll` 从最新尾部建立检查点，以不透明分页游标和边界指纹补读、去重。
   读取器只访问指定 Session，不通过 initialize 探针枚举其他 Session，不调用 Resume、
   原生订阅或任何执行 RPC。暂时断线不重置游标，明确历史缺口才重新定位。

@@ -35,7 +35,8 @@ Tailscale LocalAPI warning 是正常 fallback 信号。没有双方 Running 状�
 ## Provider 结论
 
 原生 Read、Follow、Open、Resume 与 Take Control 必须各自验证；CLI 与 Desktop 分开。
-当前高级原生能力禁用，静态协议检查不能通过真实验收。具体要求见
+Codex Follow 按当前 reader 的精确 Session 合同探测开放；Open、Resume、Take Control
+仍禁用，静态协议检查不能通过真实验收。具体要求见
 [原生能力门槛](../../sources/validation/native-capability-gates.md)。
 
 只读 Follow 的本机 cursor/快照事务与 UI 回归已经存在；方法注册、合成分页和停止 fence

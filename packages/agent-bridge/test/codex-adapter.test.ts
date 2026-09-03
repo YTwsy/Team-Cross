@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { CodexAdapter } from "../src/adapters/codex.js";
 import type { AgentAdapter } from "../src/adapters/types.js";
 import type { JsonlRpcProcess } from "../src/lib/jsonl-rpc-client.js";
+import { isToolMetadataMethod, syntheticToolMetadata, verifiedThreadResponse } from "./codex-permission-fixture.js";
 
 describe("Codex adapter requests", () => {
   it("initializes without listing history and constrains each turn to the worktree", async () => {
@@ -16,9 +17,11 @@ describe("Codex adapter requests", () => {
       async close() {},
       async request(method: string, params: unknown) {
         calls.push({ method, params });
+        if (isToolMetadataMethod(method)) return syntheticToolMetadata(method);
         if (method === "initialize") return { userAgent: "codex-test", codexHome: "/tmp" };
         if (method === "thread/list") return { data: [], nextCursor: null };
-        if (method === "thread/start") return { thread: { id: "thread-1" } };
+        if (method === "thread/backgroundTerminals/list") return { data: [], nextCursor: null };
+        if (method === "thread/start") return verifiedThreadResponse(params);
         if (method === "turn/start") return { turn: { id: "turn-1" } };
         if (method === "turn/interrupt") {
           callbacks.onNotification?.({ method: "turn/completed", params: { threadId: "thread-1", turn: { id: "turn-1", status: "interrupted" } } });
@@ -39,7 +42,7 @@ describe("Codex adapter requests", () => {
     const run = await adapter.createRun(params, () => undefined);
     await run.send("fix the test");
 
-    expect(calls.map((call) => call.method)).toEqual([
+    expect(calls.filter((call) => !isToolMetadataMethod(call.method)).map((call) => call.method)).toEqual([
       "initialize",
       "thread/start",
       "turn/start",
@@ -48,14 +51,13 @@ describe("Codex adapter requests", () => {
       cwd: "/tmp/teamcross-worktree",
       runtimeWorkspaceRoots: ["/tmp/teamcross-worktree"],
       approvalPolicy: "never",
-      sandboxPolicy: {
-        type: "workspaceWrite",
-        writableRoots: ["/tmp/teamcross-worktree"],
-        networkAccess: false,
-        excludeTmpdirEnvVar: true,
-        excludeSlashTmp: true,
-      },
+      environments: [{ environmentId: "local", cwd: params.worktree, runtimeWorkspaceRoots: [params.worktree] }],
+      permissions: expect.stringMatching(/^teamcross-[a-f0-9-]+-offline$/),
     });
+    expect(calls.at(-1)?.params).not.toHaveProperty("sandboxPolicy");
+    expect(calls.find((call) => call.method === "thread/start")?.params).not.toHaveProperty("sandbox");
+    expect(callbacks.args[3]).toMatch(/extends=":workspace".*filesystem=.*":tmpdir"="read".*":slash_tmp"="read".*network=\{enabled=false\}/);
+    expect(callbacks.cwd).toBe(params.worktree);
     await run.close();
     await adapter.shutdown();
   });

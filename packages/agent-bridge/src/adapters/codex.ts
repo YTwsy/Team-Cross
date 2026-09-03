@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isAbsolute, normalize } from "node:path";
 
 import {
   createBridgeEvent,
@@ -12,8 +13,14 @@ import {
   type SessionPollResult,
 } from "../protocol.js";
 import { pollCodexSession } from "../lib/codex-poll.js";
+import { CodexFollowCapability, CodexFollowCapabilityError } from "../lib/codex-follow-capability.js";
 import { closeDeadline, withinCloseDeadline } from "../lib/close-deadline.js";
-import { codexSurface, DEFAULT_SNAPSHOT_LIMIT, normalizeCodexSnapshot } from "../lib/session-snapshot.js";
+import { CodexBackgroundTerminals } from "../lib/codex-background-terminals.js";
+import {
+  CodexManagedPolicyError, managedToolArgs, managedToolConfig,
+  readManagedToolMetadata, safeManagedPolicyError, verifyManagedLoadedTools,
+} from "../lib/codex-managed-policy.js";
+import { boundReviewResult, codexSurface, DEFAULT_SNAPSHOT_LIMIT, normalizeCodexSnapshot } from "../lib/session-snapshot.js";
 import {
   JsonlRpcProcess,
   type InboundRpcRequest,
@@ -40,12 +47,33 @@ interface MappedCodexEvent {
   data: Record<string, unknown>;
 }
 
+interface ManagedClient {
+  permissionProfile: string;
+  worktree: string;
+  networkEnabled: boolean;
+  mcpKeys: string[];
+  run?: CodexRun;
+  exitError?: Error;
+  disposing?: boolean;
+  disposed?: boolean;
+}
+
+interface CodexReader {
+  client: JsonlRpcProcess;
+  follow: CodexFollowCapability;
+  providerVersion?: string;
+  retired: boolean;
+}
+
 export class CodexAdapter implements AgentAdapter {
   readonly provider = "codex" as const;
   private client: JsonlRpcProcess | undefined;
   private clientPromise: Promise<JsonlRpcProcess> | undefined;
   private readonly runsByThread = new Map<string, CodexRun>();
-  private providerVersion: string | undefined;
+  private readonly pendingCreates = new Set<Promise<AgentRun>>();
+  private stopping = false;
+  private shutdownAttempt: Promise<void> | undefined;
+  private reader: CodexReader | undefined;
 
   constructor(private readonly options: CodexAdapterOptions = {}) {}
 
@@ -107,6 +135,7 @@ export class CodexAdapter implements AgentAdapter {
 
   async snapshot(params: SessionsReadStoredParams): Promise<SessionSnapshot> {
     const client = await this.ensureClient();
+    const reader = this.captureReader(client);
     const metadata = await client.request("thread/read", { threadId: params.sessionId, includeTurns: false });
     const thread = isRecord(metadata) && isRecord(metadata.thread) ? metadata.thread : undefined;
     if (!thread || thread.id !== params.sessionId) throw new Error("Codex history returned a different or missing conversation identity");
@@ -138,134 +167,289 @@ export class CodexAdapter implements AgentAdapter {
       }
       raw = { thread: { ...thread, turns, turnsTruncated: truncated } };
     } else {
-      raw = await this.readStored(params);
+      // Never replace the captured reader in the middle of a snapshot.
+      raw = await client.request("thread/read", { threadId: params.sessionId, includeTurns: true });
     }
-    return normalizeCodexSnapshot(raw, params.sessionId, {
+    const snapshot = normalizeCodexSnapshot(raw, params.sessionId, {
       ...(params.limit === undefined ? {} : { limit: params.limit }),
-      ...(this.providerVersion === undefined ? {} : { providerVersion: this.providerVersion }),
+      ...(reader.providerVersion === undefined ? {} : { providerVersion: reader.providerVersion }),
     });
+    const capability = await reader.follow.probe(params.sessionId);
+    this.assertReaderCurrent(reader);
+    snapshot.capabilities.follow = capability.supported;
+    snapshot.capabilities.reason = `${capability.reason} Native Open, Resume and Take Control remain unverified and disabled.`;
+    return boundReviewResult(snapshot);
   }
 
   async poll(params: SessionsPollParams): Promise<SessionPollResult> {
-    return await pollCodexSession(async (method, input) => {
-      const client = await this.ensureClient();
-      return await client.request(method, input);
-    }, params, () => this.providerVersion ?? "unknown");
+    const client = await this.ensureClient();
+    const reader = this.captureReader(client);
+    const result = await pollCodexSession(reader.follow.wrapRequest(params.sessionId), params, () => reader.providerVersion ?? "unknown");
+    this.assertReaderCurrent(reader);
+    return result;
   }
 
   async createRun(
     params: Parameters<AgentAdapter["createRun"]>[0],
     emit: EventSink,
   ): Promise<AgentRun> {
-    const client = await this.ensureClient();
+    if (this.stopping) throw new Error("Codex adapter is shutting down");
+    const pending = this.createManagedRun(params, emit);
+    this.pendingCreates.add(pending);
+    try {
+      return await pending;
+    } finally {
+      this.pendingCreates.delete(pending);
+    }
+  }
+
+  private async createManagedRun(
+    params: Parameters<AgentAdapter["createRun"]>[0],
+    emit: EventSink,
+  ): Promise<AgentRun> {
+    if (params.forkFromSessionId) {
+      throw new CodexManagedPolicyError("Native Codex Fork has unverified inherited execution settings; use Continue from Round to create a new Session");
+    }
+    if (!isAbsolute(params.worktree) || normalize(params.worktree) !== params.worktree) {
+      throw new Error("Codex managed worktree must be an absolute normalized path");
+    }
+    // Never reuse a user profile name: config layers can merge additional roots.
+    // Each managed process has exactly one immutable, explicitly selected profile.
+    let managed: ManagedClient = {
+      permissionProfile: `teamcross-${randomUUID()}-${params.networkEnabled ? "online" : "offline"}`,
+      worktree: params.worktree,
+      networkEnabled: Boolean(params.networkEnabled),
+      mcpKeys: [],
+    };
+    let client = await this.startClient(managed);
+    try {
+      const keys = await readManagedToolMetadata(client, params.worktree, false);
+      if (this.stopping) throw new CodexManagedPolicyError("Codex adapter is shutting down");
+      if (keys.length) {
+        await this.disposeManagedClient(managed, client);
+        if (this.stopping) throw new CodexManagedPolicyError("Codex adapter is shutting down");
+        // Separate state prevents a late candidate exit from poisoning the new process.
+        managed = { permissionProfile: managed.permissionProfile, worktree: managed.worktree, networkEnabled: managed.networkEnabled, mcpKeys: keys };
+        client = await this.startClient(managed);
+      }
+      await readManagedToolMetadata(client, params.worktree, true);
+    } catch (error) {
+      try { await this.disposeManagedClient(managed, client); }
+      catch { throw safeManagedPolicyError(undefined); }
+      throw safeManagedPolicyError(error);
+    }
     const common = {
       ...(params.model === undefined ? {} : { model: params.model }),
+      allowProviderModelFallback: false,
       cwd: params.worktree,
       runtimeWorkspaceRoots: [params.worktree],
       approvalPolicy: "never",
-      sandbox: "workspace-write",
+      permissions: managed.permissionProfile,
+      config: managedToolConfig(managed.mcpKeys),
       ephemeral: false,
     };
-    const response = params.forkFromSessionId
-      ? await client.request("thread/fork", {
-          threadId: params.forkFromSessionId,
-          ...common,
-          excludeTurns: true,
-          deferGoalContinuation: true,
-        })
-      : await client.request("thread/start", common);
-    const thread = isRecord(response) && isRecord(response.thread) ? response.thread : undefined;
-    const threadId = thread ? stringField(thread, "id") : undefined;
-    if (!threadId) throw new Error("Codex thread/start returned no thread id");
+    let threadId: string | undefined;
+    try {
+      if (this.stopping) throw new CodexManagedPolicyError("Codex adapter is shutting down");
+      const response = await client.request("thread/start", {
+        ...common,
+        environments: localEnvironment(params.worktree),
+        dynamicTools: [], selectedCapabilityRoots: [],
+      });
+      const thread = isRecord(response) && isRecord(response.thread) ? response.thread : undefined;
+      threadId = thread ? stringField(thread, "id") : undefined;
+      if (!threadId) throw new CodexManagedPolicyError("Codex managed creation returned no thread id");
+      if (this.runsByThread.has(threadId)) {
+        throw new CodexManagedPolicyError("Codex managed creation did not return a new conversation identity");
+      }
+      verifyManagedPermissions(response, managed, params.model);
+      await verifyManagedLoadedTools(client, threadId);
+      if (managed.exitError) throw managed.exitError;
+      if (this.stopping) throw new CodexManagedPolicyError("Codex adapter is shutting down");
+      const createdThreadId = threadId;
 
-    const run = new CodexRun({
-      runId: params.runId,
-      threadId,
-      worktree: params.worktree,
-      networkEnabled: Boolean(params.networkEnabled),
-      ...(params.model === undefined ? {} : { model: params.model }),
-      client,
-      emit,
-      closeTimeoutMs: this.options.closeTimeoutMs,
-      onClosed: () => this.runsByThread.delete(threadId),
-    });
-    this.runsByThread.set(threadId, run);
-    run.announce();
-    if (params.initialPrompt) void run.send(params.initialPrompt).catch((error) => run.reportError(error));
-    return run;
+      const run = new CodexRun({
+        runId: params.runId,
+        threadId,
+        worktree: params.worktree,
+        networkEnabled: Boolean(params.networkEnabled),
+        permissionProfile: managed.permissionProfile,
+        ...(params.model === undefined ? {} : { model: params.model }),
+        client,
+        emit,
+        closeTimeoutMs: this.options.closeTimeoutMs,
+        beforeTurn: async () => {
+          await readManagedToolMetadata(client, managed.worktree, true);
+          await verifyManagedLoadedTools(client, createdThreadId);
+        },
+        dispose: async () => {
+          await this.disposeManagedClient(managed, client);
+        },
+        onClosed: () => {
+          managed.run = undefined;
+          this.runsByThread.delete(createdThreadId);
+        },
+      });
+      managed.run = run;
+      this.runsByThread.set(threadId, run);
+      run.announce();
+      if (params.initialPrompt) void run.send(params.initialPrompt).catch((error) => run.reportError(error));
+      return run;
+    } catch (error) {
+      // Creation never sent a prompt. Detach only this client's newly returned
+      // identity; never archive it or mutate a source/previous managed Session.
+      managed.disposing = true;
+      if (threadId && managed.run && this.runsByThread.get(threadId) === managed.run) {
+        this.runsByThread.delete(threadId);
+        managed.run = undefined;
+      }
+      if (threadId && !this.runsByThread.has(threadId)) {
+        try { await client.request("thread/unsubscribe", { threadId }, 5_000); }
+        catch { this.options.onDiagnostic?.("[codex] failed creation detach (provider diagnostic withheld)"); }
+      }
+      try { await this.disposeManagedClient(managed, client); }
+      catch { throw safeManagedPolicyError(undefined); }
+      throw safeManagedPolicyError(error);
+    }
   }
 
   async shutdown(): Promise<void> {
-    for (const run of [...this.runsByThread.values()]) await run.close();
-    this.runsByThread.clear();
+    this.stopping = true;
+    if (this.reader) this.retireReader(this.reader);
+    if (this.shutdownAttempt) return await this.shutdownAttempt;
+    const pending = this.finishShutdown();
+    this.shutdownAttempt = pending;
+    try { await pending; }
+    finally { if (this.shutdownAttempt === pending) this.shutdownAttempt = undefined; }
+  }
+
+  private async disposeManagedClient(managed: ManagedClient, client: JsonlRpcProcess): Promise<void> {
+    if (managed.disposed) return;
+    managed.disposing = true;
+    try { await client.close(); managed.disposed = true; }
+    catch (error) { managed.disposing = false; throw error; }
+  }
+
+  private async finishShutdown(): Promise<void> {
+    await Promise.allSettled([...this.pendingCreates]);
+    const results = await Promise.allSettled([...this.runsByThread.values()].map((run) => run.close()));
+    // A failed managed close retains its route/fence for a later explicit retry.
+    await this.clientPromise?.catch(() => undefined);
     await this.client?.close();
     this.client = undefined;
-    this.clientPromise = undefined;
+    const failed = results.find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
   }
 
   private async ensureClient(): Promise<JsonlRpcProcess> {
+    if (this.stopping) throw new Error("Codex adapter is shutting down");
     if (this.client) return this.client;
-    if (this.clientPromise) return await this.clientPromise;
-    this.clientPromise = this.startClient();
+    const pending = this.clientPromise ?? (this.clientPromise = this.startClient());
     try {
-      this.client = await this.clientPromise;
-      return this.client;
+      const client = await pending;
+      if (this.stopping) {
+        await client.close();
+        throw new Error("Codex adapter is shutting down");
+      }
+      this.captureReader(client);
+      this.client = client;
+      return client;
     } finally {
-      this.clientPromise = undefined;
+      if (this.clientPromise === pending) this.clientPromise = undefined;
     }
   }
 
-  private async startClient(): Promise<JsonlRpcProcess> {
+  private async startClient(managed?: ManagedClient): Promise<JsonlRpcProcess> {
     const factory = this.options.clientFactory ?? ((options) => new JsonlRpcProcess(options));
     let client!: JsonlRpcProcess;
+    let reader: CodexReader | undefined;
     client = factory({
       command: this.options.command ?? process.env.TEAMCROSS_CODEX_BIN ?? "codex",
-      args: ["app-server", "--stdio"],
+      args: ["app-server", "--stdio", ...(managed ? [
+        "-c",
+        `permissions.${managed.permissionProfile}={extends=":workspace",filesystem={":tmpdir"="read",":slash_tmp"="read"},network={enabled=${managed.networkEnabled}}}`,
+        ...managedToolArgs(managed.mcpKeys),
+      ] : [])],
+      ...(managed ? { cwd: managed.worktree } : {}),
       env: this.options.env ?? process.env,
       requestTimeoutMs: 45_000,
-      onNotification: (notification) => this.routeNotification(notification),
-      onRequest: (request) => this.routeRequest(client, request),
-      onStderr: (line) => this.options.onDiagnostic?.(`[codex] ${line}`),
+      onNotification: (notification) => this.routeNotification(notification, managed?.run),
+      onRequest: (request) => this.routeRequest(client, request, managed?.run),
+      onStderr: (line) => this.options.onDiagnostic?.(managed ? "[codex] managed provider diagnostic withheld" : `[codex] ${line}`),
       onExit: (error) => {
-        for (const run of this.runsByThread.values()) run.reportError(error);
-        this.client = undefined;
+        if (managed) {
+          managed.exitError = error;
+          if (!managed.disposing) managed.run?.reportError(error);
+        } else {
+          if (reader) this.retireReader(reader);
+          if (this.client === client) this.client = undefined;
+        }
       },
     } as ConstructorParameters<typeof JsonlRpcProcess>[0]);
-    client.start();
-    const initialize = await client.request("initialize", {
-      clientInfo: { name: "teamcross", title: "Team Cross", version: "0.1.0" },
-      capabilities: {
-        experimentalApi: true,
-        requestAttestation: false,
-        optOutNotificationMethods: [],
-      },
-    });
-    if (!isRecord(initialize) || typeof initialize.userAgent !== "string") {
-      await client.close();
-      throw new Error("Codex app-server initialize response is incompatible");
+    if (!managed) {
+      reader = { client, follow: new CodexFollowCapability((method, input) => client.request(method, input)), retired: false };
+      this.reader = reader;
     }
-    client.notify("initialized");
-    this.providerVersion = initialize.userAgent;
-    // Probe only the explicitly selected history operation; initialization must
-    // not enumerate unrelated personal Sessions as a compatibility check.
-    this.options.onDiagnostic?.(`[codex] initialized ${initialize.userAgent}`);
-    return client;
+    try {
+      client.start();
+      const initialize = await client.request("initialize", {
+        clientInfo: { name: "teamcross", title: "Team Cross", version: "0.1.0" },
+        capabilities: {
+          experimentalApi: true,
+          requestAttestation: false,
+          optOutNotificationMethods: [],
+        },
+      });
+      if (!isRecord(initialize) || typeof initialize.userAgent !== "string") {
+        throw new Error("Codex app-server initialize response is incompatible");
+      }
+      client.notify("initialized");
+      if (reader) {
+        this.assertReaderCurrent(reader);
+        reader.providerVersion = initialize.userAgent;
+      }
+      // Probe only the explicitly selected history operation; initialization must
+      // not enumerate unrelated personal Sessions as a compatibility check.
+      this.options.onDiagnostic?.(managed ? "[codex] initialized private managed client" : `[codex] initialized ${initialize.userAgent}`);
+      return client;
+    } catch (error) {
+      if (reader) this.retireReader(reader);
+      try {
+        if (managed) await this.disposeManagedClient(managed, client);
+        else await client.close();
+      } catch (cleanupError) { throw managed ? safeManagedPolicyError(cleanupError) : cleanupError; }
+      throw managed ? safeManagedPolicyError(error) : error;
+    }
   }
 
-  private routeNotification(notification: RpcNotification): void {
+  private captureReader(client: JsonlRpcProcess): CodexReader {
+    const reader = this.reader;
+    if (!reader || reader.client !== client) throw new CodexFollowCapabilityError("The captured read-only reader is no longer current.");
+    this.assertReaderCurrent(reader);
+    return reader;
+  }
+
+  private assertReaderCurrent(reader: CodexReader): void {
+    if (reader.retired || this.reader !== reader) throw new CodexFollowCapabilityError("The original read-only reader has closed; validate a new reader.");
+  }
+
+  private retireReader(reader: CodexReader): void {
+    reader.retired = true;
+    reader.follow.retire();
+  }
+
+  private routeNotification(notification: RpcNotification, run?: CodexRun): void {
     const params = isRecord(notification.params) ? notification.params : {};
     const threadId = stringField(params, "threadId")
       ?? (isRecord(params.thread) ? stringField(params.thread, "id") : undefined);
-    if (!threadId) return;
-    const run = this.runsByThread.get(threadId);
-    if (!run) return;
+    if (!run || threadId !== run.descriptor.sessionId) return;
     run.onNotification(notification.method, params);
   }
 
-  private routeRequest(client: JsonlRpcProcess, request: InboundRpcRequest): void {
+  private routeRequest(client: JsonlRpcProcess, request: InboundRpcRequest, ownedRun?: CodexRun): void {
     const params = isRecord(request.params) ? request.params : {};
     const threadId = stringField(params, "threadId");
-    const run = threadId ? this.runsByThread.get(threadId) : undefined;
+    const run = threadId === ownedRun?.descriptor.sessionId ? ownedRun : undefined;
     if (request.method === "item/tool/requestUserInput" && run) {
       run.onInputRequest(request.id, params);
       return;
@@ -284,14 +468,45 @@ export class CodexAdapter implements AgentAdapter {
   }
 }
 
+function verifyManagedPermissions(response: unknown, managed: ManagedClient, model?: string): void {
+  const value = isRecord(response) ? response : {};
+  const profile = isRecord(value.activePermissionProfile) ? value.activePermissionProfile : {};
+  const sandbox = isRecord(value.sandbox) ? value.sandbox : {};
+  const roots = value.runtimeWorkspaceRoots;
+  const writableRoots = sandbox.writableRoots;
+  // activePermissionProfile is required protocol provenance, not a claim that
+  // the legacy sandbox summary is the complete effective filesystem policy.
+  // Our unique profile inherits only the built-in workspace policy; separately
+  // check every returned constraint that the protocol makes observable.
+  if (profile.id !== managed.permissionProfile || profile.extends !== ":workspace"
+    || value.cwd !== managed.worktree || value.approvalPolicy !== "never"
+    || !Array.isArray(roots) || roots.length !== 1 || roots[0] !== managed.worktree
+    || sandbox.type !== "workspaceWrite" || sandbox.networkAccess !== managed.networkEnabled
+    || sandbox.excludeTmpdirEnvVar !== true || sandbox.excludeSlashTmp !== true
+    || !Array.isArray(writableRoots) || writableRoots.length > 1
+    || writableRoots.some((root) => root !== managed.worktree)
+    || (model !== undefined && value.model !== model)) {
+    throw new CodexManagedPolicyError("Codex did not confirm the required managed permission profile, worktree, approval, network or model constraints; execution refused");
+  }
+}
+
+function localEnvironment(worktree: string) {
+  // Codex reserves "local" for EnvironmentManager; remote registration cannot
+  // replace it. Empty environments means no filesystem access, not local-only.
+  return [{ environmentId: "local", cwd: worktree, runtimeWorkspaceRoots: [worktree] }];
+}
+
 interface CodexRunOptions {
   runId: string;
   threadId: string;
   worktree: string;
   networkEnabled: boolean;
+  permissionProfile: string;
   model?: string;
   client: JsonlRpcProcess;
   emit: EventSink;
+  dispose: () => Promise<void>;
+  beforeTurn: () => Promise<void>;
   onClosed: () => void;
   closeTimeoutMs?: number;
 }
@@ -307,6 +522,8 @@ class CodexRun implements AgentRun {
   private startUncertain = false;
   private closing = false;
   private closeAttempt: Promise<void> | undefined;
+  private readonly backgroundTerminals: CodexBackgroundTerminals;
+  private backgroundTerminalsConfirmed = false;
   private importedContext: string[] = [];
   private readonly pendingInputs = new Map<string, {
     rpcId: string | number;
@@ -314,6 +531,7 @@ class CodexRun implements AgentRun {
   }>();
 
   constructor(private readonly options: CodexRunOptions) {
+    this.backgroundTerminals = new CodexBackgroundTerminals(options.threadId, (method, params, timeoutMs) => options.client.request(method, params, timeoutMs));
     this.descriptor = {
       runId: options.runId,
       provider: "codex",
@@ -334,6 +552,7 @@ class CodexRun implements AgentRun {
         transport: "stdio",
         approvalPolicy: "never",
         sandbox: "workspaceWrite",
+        permissionProfile: this.options.permissionProfile,
       },
     });
     this.status("idle");
@@ -353,7 +572,12 @@ class CodexRun implements AgentRun {
       return await pending;
     } catch (error) {
       // A failed/timeout response does not prove turn/start was never accepted.
-      this.startUncertain = true;
+      if (error instanceof CodexManagedPolicyError) {
+        // Policy preflight failed before dispatch. Fence input, but allow close
+        // of the idle process without inventing an unconfirmed started Turn.
+        this.closing = true;
+        this.descriptor.capabilities = { send: false, steer: false, interrupt: false, inputResponse: false };
+      } else this.startUncertain = true;
       throw error;
     } finally {
       if (this.pendingStart === pending) this.pendingStart = undefined;
@@ -361,20 +585,18 @@ class CodexRun implements AgentRun {
   }
 
   private async startTurn(message: string): Promise<{ turnId: string }> {
+    await this.options.beforeTurn();
+    if (this.closing) throw new CodexManagedPolicyError("Codex run is closing; execution refused before dispatch");
     const prompt = this.withImportedContext(message);
     const response = await this.options.client.request("turn/start", {
       threadId: this.options.threadId,
       input: [{ type: "text", text: prompt, text_elements: [] }],
       cwd: this.options.worktree,
       runtimeWorkspaceRoots: [this.options.worktree],
+      environments: localEnvironment(this.options.worktree),
       approvalPolicy: "never",
-      sandboxPolicy: {
-        type: "workspaceWrite",
-        writableRoots: [this.options.worktree],
-        networkAccess: this.options.networkEnabled,
-        excludeTmpdirEnvVar: true,
-        excludeSlashTmp: true,
-      },
+      permissions: this.options.permissionProfile,
+      ...(this.options.model === undefined ? {} : { model: this.options.model }),
     });
     const turn = isRecord(response) && isRecord(response.turn) ? response.turn : undefined;
     const turnId = turn ? stringField(turn, "id") : undefined;
@@ -446,7 +668,10 @@ class CodexRun implements AgentRun {
       this.options.client.respondError(pending.rpcId, -32000, "Team Cross run is closing");
       this.pendingInputs.delete(id);
     }
-    if (this.pendingStart) await withinCloseDeadline(this.pendingStart, deadline, "turn/start identity");
+    if (this.pendingStart) {
+      try { await withinCloseDeadline(this.pendingStart, deadline, "turn/start identity"); }
+      catch (error) { if (!(error instanceof CodexManagedPolicyError)) throw error; }
+    }
     if (this.startUncertain) throw new Error("Codex turn/start outcome is unknown; termination is unconfirmed");
     for (const pending of this.pendingSteers) await withinCloseDeadline(pending, deadline, "in-flight turn/steer");
     while (this.activeTurns.size) {
@@ -462,6 +687,15 @@ class CodexRun implements AgentRun {
         this.terminalWaiters.delete(turnId);
       }
     }
+    if (!this.backgroundTerminalsConfirmed) {
+      await this.backgroundTerminals.confirmStopped(deadline);
+      if (this.activeTurns.size) throw new Error("Codex turn started during terminal cleanup; termination is unconfirmed");
+      this.backgroundTerminalsConfirmed = true;
+    }
+    await withinCloseDeadline(this.options.dispose(), deadline, "managed client close");
+    if (!this.backgroundTerminalsConfirmed || this.activeTurns.size) {
+      throw new Error("Codex turn changed during client disposal; termination is unconfirmed");
+    }
     this.emit("run.closed", { data: {} });
     this.descriptor.status = "closed";
     this.options.onClosed();
@@ -473,6 +707,7 @@ class CodexRun implements AgentRun {
       ?? (isRecord(params.turn) ? stringField(params.turn, "id") : undefined);
     if (method === "turn/started" && turnId) {
       if (this.terminalTurns.has(turnId)) return;
+      this.backgroundTerminalsConfirmed = false;
       this.activeTurns.add(turnId);
       this.activeTurnId = turnId;
       this.descriptor.status = "running";
@@ -593,6 +828,9 @@ export function mapCodexNotification(method: string, params: JsonRecord): Mapped
         data: { text: item.text, phase: item.phase },
       }];
     }
+    // Core already records command.send/steer with the original user text.
+    // Native echoes, plans, reasoning and unknown future items are not tools.
+    if (!CODEX_TOOL_ITEM_TYPES.has(itemType)) return [];
     const event: MappedCodexEvent = {
       type: method === "item/started" ? "tool.started" : "tool.completed",
       ...base,
@@ -627,6 +865,11 @@ export function mapCodexNotification(method: string, params: JsonRecord): Mapped
   }
   return [];
 }
+
+const CODEX_TOOL_ITEM_TYPES = new Set([
+  "commandExecution", "fileChange", "mcpToolCall", "dynamicToolCall",
+  "collabAgentToolCall", "webSearch", "imageView", "sleep", "imageGeneration",
+]);
 
 function normalizeInputResponse(response: unknown, questionIds: string[]): unknown {
   if (isRecord(response) && isRecord(response.answers)) return response;

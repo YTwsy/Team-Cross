@@ -154,11 +154,25 @@ TCP 建立后仍必须通过邀请中的 Ed25519 证书 SPKI pin 和 Share hands
 Node Bridge 通过 stdio 上的 JSONL-RPC 与 Go Core 通信。Codex app-server 只是本地
 子进程，不会暴露到 LAN、Tailnet 或 Tailcat。
 
-Codex Run 使用主机现有的 Codex 登录、`approvalPolicy: never`，并把
-`workspaceWrite` 限定到 Thread worktree。Claude 使用 TypeScript Agent SDK 的
+Codex Run 使用主机现有的 Codex 登录、独立 app-server 和 `approvalPolicy: never`。
+创建与每次 Turn 都显式使用只写 Thread worktree 的权限 profile，关闭默认临时目录
+写权限；无法确认权限时不发送模型指令。MCP、Apps、浏览器等外部工具有独立权限，
+不会因为目录 sandbox 生效就被默认带入 managed Run；这些限制只作用于 Team Cross
+创建的进程，不改动用户原生工具的个人配置。Claude 使用 TypeScript Agent SDK 的
 Streaming Input 模式、`dontAsk`、显式工具 allowlist、强制原生 sandbox，并从 Bash
 子进程环境中移除模型凭据。两个 Provider 的工具网络默认关闭，只能由主机在创建 Run
 时选择开启。
+
+worktree 隔离描述的是写入边界，不是完整的主机虚拟机隔离，也不意味着工具只能读取
+该目录。managed Agent 仍以主机账户运行，控制权限只应授予可信协作者；默认的只读
+分享与批注不会授予这些执行能力。
+
+当前 Codex 的后台终端有额外限制：若 Provider 无法提供可核验的本机进程身份，
+Team Cross 会保守地拒绝确认 Run 已关闭，不继续在同一 worktree 切换 Writer。
+Turn 中断或 app-server 退出不能替代后台进程退出证明；需要继续独立工作时，应从
+已封存 Round Fork 到新 Thread。此限制不影响只读 Session 审阅与 Follow。
+跨 Core 重启的未确认 Writer 持久栅栏尚未完成：发生关闭失败后，不应通过重启在原
+Thread 继续工作，应使用独立 Fork。该修复当前暂停，不能把运行期保护理解为重启后保证。
 
 每个完成的 managed Agent Turn 都会封存新的不可变 Round，包含事件范围、当前 patch、
 文件清单和 evidence 引用。Provider 切换还会保存 outgoing semantic summary；如果生成
@@ -171,8 +185,9 @@ Provider 提供 `thread/resume` 都不意味着单 Writer 已被证明；未验�
 CLI/Desktop 的独立验收要求见
 [原生能力门槛](docs/agent-wiki/sources/validation/native-capability-gates.md)。
 
-只读 Follow 已有增量读取、持久游标、停止保护与 WebGUI 状态面板，但当前原生来源尚未
-通过专用 CLI/Desktop 验收，因此入口保持禁用并显示原因。Follow 不创建 Run，不取得
+Codex 只读 Follow 按具体 Session 和当前 reader 验证有界分页、稳定身份与可回读边界，
+通过后才开放增量读取、持久游标、停止保护与 WebGUI 状态面板；不支持时显示原因。
+它跟随已保存的消息/工具输出，不承诺逐 token 事件订阅。Follow 不创建 Run，不取得
 输入权，也不会扩大已有 Share。原生实时分享已有独立范围授权：明确选择当前窗口和
 未来内容类别，按不可变窗口保留旧批注；默认关闭，仍受真实 Follow 能力门槛限制。
 准确打开 Codex Desktop 的入口同样受能力门控，202 只代表系统接收请求，不代表原生

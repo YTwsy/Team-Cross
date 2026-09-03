@@ -39,8 +39,15 @@ Writer 的工作目录归到旧 Run 的 Round。
 ## Codex
 
 Codex Adapter 启动 `codex app-server --stdio`，先 initialize，再做 capability probe。
-不要把实验性 WebSocket 暴露到 Share network。workspace write 只能包含 Thread worktree，
-approval policy 保持 `never`。
+不要把实验性 WebSocket 暴露到 Share network。每个 managed Run 使用独立 client 和
+唯一的 named permission profile；创建与每次 Turn 都显式选中它，workspace roots 只能
+包含 Thread worktree，默认临时目录不可写，approval policy 保持 `never`。创建响应
+不能确认所需约束时零 prompt 失败，不降级为 legacy sandbox。
+
+历史 reader 的重连不影响 managed Run，目标创建失败只清理自己的 client，不关闭旧
+Run。local-command sandbox 与 MCP/Apps/浏览器等工具的权限不同，不能只设置
+`networkAccess: false` 就声称所有工具离线；managed 工具面需要独立限制，原生 UI 的
+个人配置保持不变。实现与真实边界证据见 managed 决策和原生能力门槛。
 
 ## Claude
 

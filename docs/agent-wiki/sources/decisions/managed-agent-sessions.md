@@ -32,10 +32,45 @@ Session 和对应 Run。来源 native Session ID 保留用于追溯，不被用�
 
 ### Codex
 
-- 本地启动 `codex app-server --stdio`。
-- 使用主机现有 Codex 登录与 Provider 默认模型。
-- `approvalPolicy: never`，`workspaceWrite` 只允许 Thread worktree。
+- 本地启动 `codex app-server --stdio`。每个 managed Run 使用独立 client；只读历史
+  client 不路由 managed 事件，其退出不能把其他 Run 标成错误。
+- 使用主机现有 Codex 登录；未明确选择模型时使用 Provider 默认模型，明确选择时
+  不允许 Provider fallback。测试指定模型不改变用户全局设置。
+- `approvalPolicy: never`；创建和每次 Turn 都显式选择本进程唯一的 named permission
+  profile，继承 `:workspace`，将运行 roots 固定到 Thread worktree，并关闭默认临时
+  目录写权限。保留内建 `.git` / `.codex` 保护，不使用可与用户配置合并的固定 profile 名。
+- 新 Session 与每个 Turn 显式绑定 Provider 保留的 `local` environment 及准确 cwd/roots；
+  空 `environments` 不是“本地运行”，不能用它代替执行位置确认。当前拒绝 Bridge
+  `forkFromSessionId`，避免继承未经验证的原生 sticky environment；产品 Round Fork
+  仍以独立 Thread + 新 Session 完成，不依赖此 Provider 原生接口。
+- 创建响应必须确认 profile、cwd、roots、approval、工具网络及显式模型；不兼容或被
+  策略拒绝时零 prompt 失败，不回退到 legacy sandbox 或宽权限。profile provenance
+  与兼容性 sandbox 摘要不是完整的实际边界证明，仍须专用真实工具测试。
+- local-command sandbox 不约束 MCP、Apps、浏览器等独立工具面。managed Run 只使用
+  经单独限制的工具，不把原生 UI 的所有集成隐式带入受控执行。工具网络开关不表示
+  模型 API 的网络，也不表示外部工具的通用授权；不修改用户全局配置或组织策略。
+- 本地 Code Mode host 是工具调用的执行宿主，不等于 MCP 或通用 Node 工具权限。
+  managed 私有进程必须保留并确认它可用，不连接远程 host。模型 catalog 的 `tool_mode`
+  优先于 `features.code_mode`，因此关闭后者不保证模型改用 Direct；不能通过禁用 host
+  来代替工具限制，否则模型可能连受限的本地命令也无法执行。
+- managed 创建仅在内存读取必要配置元数据，最多重建一次 client 以逐项关闭 MCP；
+  空配置表不等于清空继承值。最终配置、runtime feature inventory 与指定 Session
+  的 MCP 运行态清单必须分别确认，Turn 前重新检查。它们不是内建命令/文件工具的
+  可用性探针，本地执行宿主仍需独立真实 Turn 验收。未确认、配置变化或组织强制 hook 与
+  此合同冲突时拒绝执行；不记录原始配置、凭据或 Provider 配置诊断。
+- `:workspace` 是写隔离，不是“仅可读取 worktree”的证明。不能把它描述为完整主机
+  隔离；managed 控制使用主机账户及其工具能力，只应授予可信协作者。
 - 运行前执行 initialize/capability probe，不依赖硬编码 CLI 版本号。
+- 关闭必须先确认准确 Turn 终态、该私有 Session 的已观察后台终端退出，再等待自有
+  app-server 的 OS exit。Provider 清理 ACK 或清空注册表不是进程退出证明；已观察身份
+  跨重试保留。有可靠本机 PID 时只用 signal 0 观察，只有 ESRCH 可确认；不扫描或
+  杀主机进程。缺失/冲突身份、权限错误、仍存活或超时都保持未确认，不发 `run.closed`。
+- 当前 Codex 后台列表缺少可核验 OS 身份，相关关闭能力保持阻塞；不能通过重试空列表
+  洗白不确定状态。这个限制与外部原生 Writer 的独占权是两个问题，都不能由 Controller
+  租约替代。
+
+权限字段的范围及配置优先级见 [官方 Permissions 文档](https://learn.chatgpt.com/docs/permissions)。
+工具模式优先级见 [Codex 固定版本源码](https://github.com/openai/codex/blob/38ba8cdceb536aa55af7db132d6bc830da8c0129/codex-rs/core/src/tools/mod.rs#L68-L89)。
 
 ### Claude
 

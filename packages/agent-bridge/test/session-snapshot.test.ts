@@ -189,8 +189,10 @@ describe("snapshot RPC is zero execution", () => {
     const adapter = new CodexAdapter({ clientFactory: () => fake as unknown as JsonlRpcProcess });
     const server = new BridgeServer({ adapters: { codex: adapter } });
     const snapshot = await server.handle("sessions.snapshot", { provider: "codex", sessionId: "conversation-a" }) as SessionSnapshot;
-    expect(calls.map((call) => call.method)).toEqual(["initialize", "thread/read", "thread/read"]);
-    expect(calls.at(-1)?.params).toEqual({ threadId: "conversation-a", includeTurns: true });
+    expect(calls.map((call) => call.method)).toEqual(["initialize", "thread/read", "thread/read", "thread/read"]);
+    expect(calls[2]?.params).toEqual({ threadId: "conversation-a", includeTurns: true });
+    expect(calls.at(-1)?.params).toEqual({ threadId: "conversation-a", includeTurns: false });
+    expect(snapshot.capabilities.follow).toBe(false);
     expect(snapshot.source.providerVersion).toBe("codex-test");
     const stored = await adapter.listStored({ provider: "codex" });
     expect(stored[0]).toMatchObject({ identityKind: "thread.id", surface: "cli", metadata: { threadId: "conversation-a", sessionTreeId: "root-family" } });
@@ -214,6 +216,10 @@ describe("snapshot RPC is zero execution", () => {
           return { thread: { ...codexHistory([]).thread, historyMode: "paginated" } };
         }
         if (method === "thread/turns/list") {
+          if ((params as { sortDirection?: string }).sortDirection === "desc") {
+            expect(params).toMatchObject({ threadId: "conversation-a", limit: 1, itemsView: "full" });
+            return { data: [], nextCursor: null, backwardsCursor: null };
+          }
           expect(params).toMatchObject({ sortDirection: "asc", itemsView: "full" });
           return { data: [{ id: "turn-a", items: [{ type: "agentMessage", id: "a", text: "saved" }], itemsView: "full" }], nextCursor: "repeated" };
         }
@@ -222,9 +228,10 @@ describe("snapshot RPC is zero execution", () => {
     };
     const adapter = new CodexAdapter({ clientFactory: () => fake as unknown as JsonlRpcProcess });
     const snapshot = await adapter.snapshot({ provider: "codex", sessionId: "conversation-a" });
-    expect(calls).toEqual(["initialize", "thread/read", "thread/turns/list", "thread/turns/list"]);
+    expect(calls).toEqual(["initialize", "thread/read", "thread/turns/list", "thread/turns/list", "thread/read", "thread/turns/list"]);
     expect(snapshot.entries.filter((entry) => entry.kind === "message")).toHaveLength(1);
     expect(snapshot.truncated).toBe(true);
+    expect(snapshot.capabilities.follow).toBe(false);
     await adapter.shutdown();
   });
 

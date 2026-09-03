@@ -4,6 +4,23 @@ import { mapClaudeMessage, sanitizeBashHook } from "../src/adapters/claude.js";
 import { mapCodexNotification } from "../src/adapters/codex.js";
 
 describe("Codex event mapping", () => {
+  it.each(["userMessage", "reasoning", "plan", "hookPrompt", "contextCompaction", "enteredReviewMode", "exitedReviewMode", "subAgentActivity", "futureUnknownItem"])("does not invent a tool lifecycle for %s", (type) => {
+    for (const method of ["item/started", "item/completed"]) {
+      expect(mapCodexNotification(method, { threadId: "thread", turnId: "turn", item: {
+        type, id: "non-tool", text: "/bin/sleep 20", content: [{ type: "text", text: "/bin/sleep 20" }],
+      } })).toEqual([]);
+    }
+  });
+
+  it("distinguishes prompt text from an actual commandExecution item", () => {
+    const text = "/bin/sleep 20";
+    expect(mapCodexNotification("item/started", { item: { type: "agentMessage", id: "assistant", text } })).toEqual([]);
+    expect(mapCodexNotification("item/completed", { item: { type: "agentMessage", id: "assistant", text } })[0]?.type).toBe("message.completed");
+    expect(mapCodexNotification("item/started", { item: { type: "commandExecution", id: "exec", command: text } })).toEqual([
+      expect.objectContaining({ type: "tool.started", toolId: "exec", data: { name: "Bash", item: { type: "commandExecution", id: "exec", command: text } } }),
+    ]);
+  });
+
   it("maps streaming text and file changes to the common event model", () => {
     expect(mapCodexNotification("item/agentMessage/delta", {
       threadId: "thread",

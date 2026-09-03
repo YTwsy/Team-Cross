@@ -61,6 +61,9 @@ Agent Wiki 页面。
 - Share 默认 view/annotate，内容 scope 必须同时限制详情、列表、下载、批注与 SSE。
 - 离线包导入创建新 Thread，不执行 Agent，不继承租约/凭据；原生能力未验证前保持禁用。
 - Provider 的工具网络默认关闭。不要把模型 API 自身的网络与工具网络开关混为一谈。
+- Codex managed Run 使用独立 client、显式 named permission profile 和准确 worktree
+  roots；无法确认权限时零 prompt 失败，不回退到 legacy 或宽权限。MCP/Apps 等外部
+  工具需要独立限制，不能把 local-command sandbox 当作全局工具权限。
 
 ## 连接与失败语义
 

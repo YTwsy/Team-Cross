@@ -5,6 +5,7 @@ import type { AgentRun } from "../src/adapters/types.js";
 import { AsyncQueue } from "../src/lib/async-queue.js";
 import type { JsonlRpcProcess } from "../src/lib/jsonl-rpc-client.js";
 import type { BridgeEvent } from "../src/protocol.js";
+import { isToolMetadataMethod, syntheticToolMetadata, verifiedThreadResponse } from "./codex-permission-fixture.js";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -23,23 +24,27 @@ async function codexFixture() {
     start: async (): Promise<unknown> => ({ turn: { id: "turn-1" } }),
     interrupt: async (_params: unknown): Promise<unknown> => ({}),
     steer: async (): Promise<unknown> => ({}),
+    terminals: async (): Promise<unknown> => ({ data: [], nextCursor: null }),
+    dispose: async () => {},
     respondError: (_id: string | number) => {},
   };
   const adapter = new CodexAdapter({ closeTimeoutMs: 50, clientFactory: (options) => {
     callbacks = options;
     return {
-      start() {}, notify() {}, async close() {},
+      start() {}, notify() {}, async close() { calls.push({ method: "client.close", params: {} }); await behavior.dispose(); },
       respond(id: string | number, result: unknown) { responses.push({ id, result }); },
       respondError(id: string | number, _code: number, error: string) {
         behavior.respondError(id); responses.push({ id, error });
       },
       async request(method: string, input: unknown) {
         calls.push({ method, params: input });
+        if (isToolMetadataMethod(method)) return syntheticToolMetadata(method);
         if (method === "initialize") return { userAgent: "synthetic-codex" };
-        if (method === "thread/start") return { thread: { id: "thread-1" } };
+        if (method === "thread/start") return verifiedThreadResponse(input);
         if (method === "turn/start") return await behavior.start();
         if (method === "turn/interrupt") return await behavior.interrupt(input);
         if (method === "turn/steer") return await behavior.steer();
+        if (method === "thread/backgroundTerminals/list") return await behavior.terminals();
         throw new Error(`unexpected synthetic method ${method}`);
       },
     } as unknown as JsonlRpcProcess;
@@ -101,6 +106,42 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 describe("Codex managed close confirmation", () => {
+  it("waits for exact Turn terminal before checking background processes, then closes the client", async () => {
+    const f = await codexFixture(); await f.run.send("synthetic");
+    const closing = f.run.close(); await vi.advanceTimersByTimeAsync(0);
+    expect(f.calls.some((call) => call.method.startsWith("thread/backgroundTerminals/"))).toBe(false);
+    f.completed(); await closing;
+    expect(f.calls.slice(-4).map((call) => call.method)).toEqual(["turn/interrupt", "thread/backgroundTerminals/list", "thread/backgroundTerminals/list", "client.close"]);
+    expect(f.run.descriptor.status).toBe("closed");
+  });
+
+  it("keeps unknown background PID fenced across retries and never cleans its registry or closes the client", async () => {
+    const f = await codexFixture(); await f.run.send("synthetic");
+    f.behavior.interrupt = async () => { f.completed(); return {}; };
+    f.behavior.terminals = async () => ({ data: [{ processId: "14338", itemId: "exact-sleep", osPid: null }], nextCursor: null });
+    await expect(f.run.close()).rejects.toThrow(/no verifiable/);
+    f.behavior.terminals = async () => ({ data: [], nextCursor: null });
+    await expect(f.run.close()).rejects.toThrow(/no verifiable/);
+    await expectFenced(f.run); expectUnclosed(f.run, f.events);
+    expect(f.calls.some((call) => call.method === "client.close" || call.method.endsWith("/clean") || call.method.endsWith("/terminate"))).toBe(false);
+    expect(f.calls.filter((call) => call.method === "turn/interrupt")).toHaveLength(1);
+  });
+
+  it("does not close if another Turn starts during final terminal validation", async () => {
+    const f = await codexFixture();
+    f.behavior.terminals = async () => { f.notification("turn/started", "late-turn"); return { data: [], nextCursor: null }; };
+    await expect(f.run.close()).rejects.toThrow(/started during terminal cleanup/);
+    expectUnclosed(f.run, f.events);
+    expect(f.calls.some((call) => call.method === "client.close")).toBe(false);
+  });
+
+  it("does not emit closed for a late started Turn during client disposal", async () => {
+    const f = await codexFixture();
+    f.behavior.dispose = async () => { f.notification("turn/started", "late-turn"); };
+    await expect(f.run.close()).rejects.toThrow(/changed during client disposal/);
+    expectUnclosed(f.run, f.events);
+  });
+
   it("does not ACK interruption-only close; fences pending/late input and keeps routing for retry", async () => {
     const f = await codexFixture();
     await f.run.send("synthetic"); f.input("pending");
@@ -199,12 +240,14 @@ describe("Codex managed close confirmation", () => {
     f.behavior.start = () => start.promise;
     const sending = f.run.send("synthetic");
     await expect(f.run.send("duplicate")).rejects.toThrow(/unconfirmed/);
+    await vi.advanceTimersByTimeAsync(0); // Dispatch after the read-only tool-scope preflight.
+    expect(f.calls.some((call) => call.method === "turn/start")).toBe(true);
     const closing = f.run.close();
     expect(f.calls.filter((call) => call.method === "turn/interrupt")).toHaveLength(0);
     expectUnclosed(f.run, f.events);
     f.behavior.interrupt = async () => { f.completed("turn-late"); return {}; };
     start.resolve({ turn: { id: "turn-late" } }); await sending; await closing;
-    expect(f.calls.at(-1)).toEqual({ method: "turn/interrupt", params: { threadId: "thread-1", turnId: "turn-late" } });
+    expect(f.calls.findLast((call) => call.method === "turn/interrupt")).toEqual({ method: "turn/interrupt", params: { threadId: "thread-1", turnId: "turn-late" } });
   });
 
   it("does not resurrect completion before start response or on a late duplicate start", async () => {
@@ -219,6 +262,8 @@ describe("Codex managed close confirmation", () => {
     const f = await codexFixture(); const start = deferred<unknown>();
     f.behavior.start = () => start.promise;
     const sending = f.run.send("synthetic");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.calls.some((call) => call.method === "turn/start")).toBe(true);
     const failure = expect(f.run.close()).rejects.toThrow(/turn\/start identity/);
     await vi.advanceTimersByTimeAsync(51); await failure;
     start.resolve({ turn: { id: "turn-1" } }); await sending;

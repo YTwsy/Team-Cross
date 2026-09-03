@@ -239,6 +239,33 @@ listener/双 Mac transport 或 CLI/Desktop 同 ID 接管与交还。浏览器工
 链接执行环境限制，本轮未取得新增浏览器证据。原生高级能力继续关闭；需要明确 opt-in
 后再运行专用真实 Provider 会话，不能用本轮 managed close 测试替代原生 Writer fencing。
 
+## 2026-09-03 Codex 私有执行与逐会话 Follow 切片
+
+已完成的 Bridge 切片通过类型检查、14 个测试文件共 187 项 Vitest、编译与编译产物
+ping/info readiness。Web 通过类型检查、18 个文件共 101 项测试与 production build，
+嵌入资源已刷新。对应已完成 Core/Web 树通过 Go 全量 test/vet，以及 cmd、bridgeclient、
+server、storage 的 `-race -count=1`；这些结论不覆盖随后暂停的持久 Writer fence 草稿。
+
+新增回归覆盖独立 managed client、明确 permission profile、本地 Code Mode host 与外部
+工具面的分别校验、逐 reader generation 的 Follow 探测、连接退出后的迟到结果拒绝、
+真实自有 Node 子进程退出确认，以及后台终端身份缺失/冲突/假 ACK 的保守关闭失败。
+权限或关闭无法确认时不降低限制；工具网络开关不授予 MCP/Apps/浏览器权限。
+
+指定模型后的真实测试均使用 `gpt-5.6-luna`。CLI 三个回合、Desktop 指定会话读取与
+Core 只读审阅的证据已取得；managed 第六回合验证了实际命令/文件工具的写入和网络
+边界，但后台关闭失败，不能记作整体验收通过。最终实际零模型创建/空终端检查/关闭
+通过，未追加第七个模型回合。详见[原生能力门槛](native-capability-gates.md)。
+
+按用户要求暂停后续 edge case 修复和追加真实测试。未完成的 Core 持久 Writer fence
+草稿保留本地、不提交，也不包含在上述验证结论中。真实 Core Follow 与新增 Luna 输出、
+静态/live Share、断线恢复的组合验收未完成；双 Mac、原生 Open、同 ID 接管和交还亦未通过。
+
+暂停前已完成的较窄证据是：精确原生 Session 的 Core 只读 Follow、生产 Share 的广告
+LAN 地址 SPKI pin/握手、静态消息范围与 message-only live 当前窗口的权限预检。
+它不包含原生新增内容之后的窗口变化，也不证明真实双机、自动连接选择器或 DERP。
+暂停清理后，24 个自有测试进程均退出，四个临时数据库没有活动 Share/Follow 或 Agent
+Run，专用 Desktop 目录内容未变；没有发送原计划用于窗口更新的两条额外 Luna 指令。
+
 ## 2026-09-03 原生来源识别与显式授权的真实读取
 
 在 `28b3dbe` 之后，真实 Desktop 专用任务暴露了 `source: vscode` 不能唯一识别界面的

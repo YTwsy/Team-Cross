@@ -189,6 +189,13 @@ export function ContinuationPanel({
             ? "将创建新的隔离 worktree。"
             : `隔离目录：${thread.worktree}`}
         </p>
+        {provider === "codex" ? (
+          <p className="side-muted">
+            Codex 受限执行：仅可写入隔离 worktree，不代表只能读取此目录。
+            不带入 MCP、Apps、浏览器或自动 hooks，也不修改你的原生工具配置。
+            网络开关仅允许受限工具联网，不授权外部集成。
+          </p>
+        ) : null}
         <label className="inline-checkbox">
           <input
             type="checkbox"
