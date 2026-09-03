@@ -19,7 +19,6 @@ import (
 	"teamcross/internal/bridgeclient"
 	"teamcross/internal/domain"
 	"teamcross/internal/platform"
-	sharetransport "teamcross/internal/share"
 	"teamcross/internal/storage"
 	"teamcross/internal/webassets"
 )
@@ -35,48 +34,63 @@ type Config struct {
 }
 
 type managedRun struct {
-	ID             string
-	ThreadID       string
-	Provider       string
-	SessionID      string
-	TurnID         string
-	Status         string
-	NetworkEnabled bool
+	ID               string
+	ThreadID         string
+	Provider         string
+	SessionID        string
+	TurnID           string
+	Status           string
+	NetworkEnabled   bool
+	IdentityConflict bool
 }
 
 type hostedShare struct {
 	ID          string
 	ThreadID    string
 	Token       string
-	Runtime     *sharetransport.Runtime
+	Runtime     shareRuntime
 	ExpiresAt   time.Time
 	Transports  []string
 	ExpiryTimer *time.Timer
 }
 
 type App struct {
-	config Config
-	paths  platform.Paths
-	store  *storage.Store
-	logger *slog.Logger
-	api    *http.ServeMux
+	config    Config
+	paths     platform.Paths
+	store     *storage.Store
+	logger    *slog.Logger
+	api       *http.ServeMux
+	closeOnce sync.Once
+	closeErr  error
 
 	bridge         *bridgeclient.Client
 	bridgeCancel   context.CancelFunc
 	snapshotReader func(context.Context, string, string) (domain.SessionSnapshot, error)
+	nativeOpener   func(context.Context, string) error
+	followReader   func(context.Context, domain.SessionFollow) (domain.SessionPoll, error)
+	followMu       sync.Mutex
+	followCtx      context.Context
+	followCancel   context.CancelFunc
+	followWorkers  map[string]context.CancelFunc
+	followWG       sync.WaitGroup
+	followClosed   bool
 
 	handoffTimeout         time.Duration
 	handoffTerminalTimeout time.Duration
 
-	mu        sync.RWMutex
-	roundMu   sync.Mutex
-	runs      map[string]*managedRun
-	runsByID  map[string]*managedRun
-	switching map[string]bool
-	agentOps  map[string]int
-	shares    map[string]*hostedShare
-	shareByID map[string]*hostedShare
-	handoff   map[string]*handoffWaiter
+	mu            sync.RWMutex
+	roundMu       sync.Mutex
+	runs          map[string]*managedRun
+	runsByID      map[string]*managedRun
+	switching     map[string]bool
+	agentOps      map[string]int
+	shares        map[string]*hostedShare
+	shareByID     map[string]*hostedShare
+	shareStarting map[string]*shareCreation
+	sharesClosed  bool
+	shareWG       sync.WaitGroup
+	shareStarter  shareStartFunc
+	handoff       map[string]*handoffWaiter
 }
 
 func Open(ctx context.Context, config Config) (*App, error) {
@@ -116,34 +130,25 @@ func Open(ctx context.Context, config Config) (*App, error) {
 	}
 	app.api = app.routes()
 	app.startBridge(ctx)
+	app.startSessionFollows(ctx)
 	return app, nil
 }
 
 func (app *App) Store() *storage.Store { return app.store }
 
 func (app *App) Close() error {
-	app.mu.Lock()
-	shares := make([]*hostedShare, 0, len(app.shares))
-	for _, state := range app.shares {
-		shares = append(shares, state)
-	}
-	app.shares = make(map[string]*hostedShare)
-	app.shareByID = make(map[string]*hostedShare)
-	app.mu.Unlock()
-	for _, state := range shares {
-		if state.ExpiryTimer != nil {
-			state.ExpiryTimer.Stop()
+	app.closeOnce.Do(func() {
+		app.closeShares()
+		app.stopFollowWorkers()
+		if app.bridgeCancel != nil {
+			app.bridgeCancel()
 		}
-		state.Runtime.Revoke()
-		_ = state.Runtime.Close()
-	}
-	if app.bridgeCancel != nil {
-		app.bridgeCancel()
-	}
-	if app.bridge != nil {
-		_ = app.bridge.Close()
-	}
-	return app.store.Close()
+		if app.bridge != nil {
+			_ = app.bridge.Close()
+		}
+		app.closeErr = app.store.Close()
+	})
+	return app.closeErr
 }
 
 func (app *App) Handler() http.Handler {
@@ -242,12 +247,35 @@ func (app *App) startBridge(parent context.Context) {
 
 func (app *App) consumeBridgeEvents(client *bridgeclient.Client) {
 	for event := range client.Events() {
-		app.mu.Lock()
-		run := app.runsByID[event.RunID]
-		var runSnapshot *managedRun
-		waiter := app.handoff[event.RunID]
-		isHandoff := waiter != nil && event.TurnID != "" && (waiter.turnID == "" || waiter.turnID == event.TurnID)
-		if run != nil {
+		app.consumeBridgeEvent(event)
+	}
+}
+
+func (app *App) consumeBridgeEvent(event bridgeclient.Event) {
+	app.mu.RLock()
+	known := app.runsByID[event.RunID]
+	matchesProvider := known != nil && (event.Provider == "" || event.Provider == known.Provider)
+	app.mu.RUnlock()
+	if !matchesProvider {
+		return
+	}
+	if event.Type == "run.started" || event.Type == "run.status" {
+		if identity, ok := event.Data["sessionId"].(string); ok {
+			if err := app.adoptManagedRunIdentity(context.Background(), known, identity); err != nil {
+				app.logger.Warn("reject bridge Session identity", "run_id", event.RunID, "error", err)
+				return
+			}
+		}
+	}
+	app.mu.Lock()
+	run := app.runsByID[event.RunID]
+	var runSnapshot *managedRun
+	waiter := app.handoff[event.RunID]
+	isHandoff := waiter != nil && event.TurnID != "" && (waiter.turnID == "" || waiter.turnID == event.TurnID)
+	if run != nil {
+		// Archived/closed Runs stay historical even if their old process sends
+		// delayed events. Identity completion does not grant Writer ownership.
+		if run.Status != "archived" && run.Status != "closed" && !run.IdentityConflict {
 			if value, ok := event.Data["status"].(string); ok {
 				run.Status = value
 			}
@@ -266,50 +294,56 @@ func (app *App) consumeBridgeEvents(client *bridgeclient.Client) {
 			if event.TurnID != "" {
 				run.TurnID = event.TurnID
 			}
-			snapshot := *run
-			runSnapshot = &snapshot
 		}
-		if event.Type == "message.completed" && isHandoff {
-			if text, ok := event.Data["text"].(string); ok {
-				waiter.summaries[event.TurnID] = text
-			}
+		snapshot := *run
+		runSnapshot = &snapshot
+	}
+	if event.Type == "message.completed" && isHandoff {
+		if text, ok := event.Data["text"].(string); ok {
+			waiter.summaries[event.TurnID] = text
+		}
+	}
+	shouldSeal := event.Type == "turn.completed" && !isHandoff && app.canSealRunLocked(run)
+	app.mu.Unlock()
+	if runSnapshot == nil {
+		return
+	}
+	payload := cloneMap(event.Data)
+	if _, supplied := payload["sessionId"]; supplied {
+		// Never publish the legacy placeholder or an unadopted alternate ID
+		// as the Run's native identity in the public event projection.
+		payload["sessionId"] = runSnapshot.SessionID
+	}
+	payload["provider"] = runSnapshot.Provider
+	payload["runId"] = runSnapshot.ID
+	if event.TurnID != "" {
+		payload["turnId"] = event.TurnID
+	}
+	if event.MessageID != "" {
+		payload["messageId"] = event.MessageID
+	}
+	if event.ToolID != "" {
+		payload["toolId"] = event.ToolID
+	}
+	if event.InputRequestID != "" {
+		payload["inputRequestId"] = event.InputRequestID
+	}
+	encoded, _ := json.Marshal(payload)
+	persisted, err := app.store.AppendEvent(context.Background(), runSnapshot.ThreadID, event.Type, encoded)
+	if err != nil {
+		app.logger.Warn("persist bridge event", "error", err, "type", event.Type)
+		return
+	}
+	if event.Type == "turn.completed" && isHandoff {
+		app.mu.Lock()
+		if app.handoff[event.RunID] == waiter {
+			waiter.completed[event.TurnID] = true
+			app.signalHandoffIfCompleteLocked(waiter)
 		}
 		app.mu.Unlock()
-		if runSnapshot == nil {
-			continue
-		}
-		payload := cloneMap(event.Data)
-		payload["provider"] = runSnapshot.Provider
-		payload["runId"] = runSnapshot.ID
-		if event.TurnID != "" {
-			payload["turnId"] = event.TurnID
-		}
-		if event.MessageID != "" {
-			payload["messageId"] = event.MessageID
-		}
-		if event.ToolID != "" {
-			payload["toolId"] = event.ToolID
-		}
-		if event.InputRequestID != "" {
-			payload["inputRequestId"] = event.InputRequestID
-		}
-		encoded, _ := json.Marshal(payload)
-		persisted, err := app.store.AppendEvent(context.Background(), runSnapshot.ThreadID, event.Type, encoded)
-		if err != nil {
-			app.logger.Warn("persist bridge event", "error", err, "type", event.Type)
-			continue
-		}
-		if event.Type == "turn.completed" && isHandoff {
-			app.mu.Lock()
-			if app.handoff[event.RunID] == waiter {
-				waiter.completed[event.TurnID] = true
-				app.signalHandoffIfCompleteLocked(waiter)
-			}
-			app.mu.Unlock()
-		}
-		if event.Type == "turn.completed" && !isHandoff {
-			go app.sealCompletedTurn(runSnapshot, event.TurnID, persisted, cloneMap(event.Data))
-		}
+	}
+	if shouldSeal {
+		go app.sealCompletedTurn(runSnapshot, event.TurnID, persisted, cloneMap(event.Data))
 	}
 }
 

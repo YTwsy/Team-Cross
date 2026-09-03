@@ -15,14 +15,16 @@ import (
 
 // A Share owns its immutable disclosure projection; later imports cannot widen it.
 type shareProjection struct {
-	SnapshotFullyShared bool              `json:"snapshotFullyShared"`
-	Version             int               `json:"version"`
-	Scope               domain.ShareScope `json:"scope"`
-	AllowControl        bool              `json:"allowControl"`
-	CreatedAt           time.Time         `json:"createdAt"`
-	Detail              threadDetail      `json:"detail"`
-	EvidenceHashes      map[string]string `json:"evidenceHashes"`
-	Legacy              bool              `json:"-"`
+	LiveBinding         *domain.NativeLiveBinding `json:"-"`
+	SnapshotFullyShared bool                      `json:"snapshotFullyShared"`
+	SnapshotEntryCount  int                       `json:"snapshotEntryCount,omitempty"`
+	Version             int                       `json:"version"`
+	Scope               domain.ShareScope         `json:"scope"`
+	AllowControl        bool                      `json:"allowControl"`
+	CreatedAt           time.Time                 `json:"createdAt"`
+	Detail              threadDetail              `json:"detail"`
+	EvidenceHashes      map[string]string         `json:"evidenceHashes"`
+	Legacy              bool                      `json:"-"`
 }
 
 func contains(values []string, value string) bool {
@@ -80,7 +82,14 @@ func (app *App) prepareShareProjection(ctx context.Context, threadID string, sco
 	if p.Scope.SnapshotID == "" && len(p.Scope.EntryIDs) > 0 {
 		return p, fmt.Errorf("entryIds require snapshotId")
 	}
+	p.LiveBinding, err = app.prepareNativeLive(ctx, threadID, p.Scope.NativeLive)
+	if err != nil {
+		return p, err
+	}
 	p.Detail.SessionSnapshots = []domain.SessionSnapshot{}
+	// Read-only native following does not expand a previously granted disclosure.
+	p.Detail.SessionFollows = nil
+	p.Detail.NativeLive = nil
 	if p.Scope.SnapshotID != "" {
 		snapshot, err := app.store.GetSessionSnapshot(ctx, threadID, p.Scope.SnapshotID)
 		if err != nil {
@@ -106,6 +115,7 @@ func (app *App) prepareShareProjection(ctx context.Context, threadID string, sco
 			}
 		}
 		p.SnapshotFullyShared = len(entries) == len(snapshot.Entries)
+		p.SnapshotEntryCount = len(snapshot.Entries)
 		snapshot.Entries = entries
 		snapshot.Source.Cwd = ""
 		snapshot.Source.NativeIDs = nil
@@ -169,7 +179,7 @@ func (app *App) prepareShareProjection(ctx context.Context, threadID string, sco
 			return p, err
 		}
 		defer restored.Cleanup()
-		patch, err := gitstate.ExportBinaryPatch(ctx, restored.Worktree, bundle.Baseline)
+		patch, err := gitstate.ExportSnapshotPatch(ctx, restored.Worktree, bundle.Snapshot)
 		if err != nil {
 			return p, err
 		}
@@ -248,7 +258,14 @@ func (app *App) projectThreadDetail(ctx context.Context, detail threadDetail, id
 	if p.Legacy {
 		return detail, nil
 	}
+	if err = app.requireCurrentShare(ctx, identity.ShareID, detail.ID); err != nil {
+		return threadDetail{}, err
+	}
 	out := p.Detail
+	out.SessionSnapshots = append([]domain.SessionSnapshot{}, p.Detail.SessionSnapshots...)
+	if err = app.attachNativeLiveDetail(ctx, identity.ShareID, detail.ID, p, &out); err != nil {
+		return threadDetail{}, err
+	}
 	out.Revision = detail.Revision
 	out.UpdatedAt = detail.UpdatedAt
 	out.Share = detail.Share
@@ -264,17 +281,33 @@ func (app *App) projectThreadDetail(ctx context.Context, detail threadDetail, id
 	for _, a := range out.Annotations {
 		existing[a.ID] = true
 	}
+	allowsAnnotation := app.sharedAnnotationChecker(ctx, identity.ShareID, detail.ID, p)
 	for _, a := range detail.Annotations {
 		if a.Target == nil && a.SourceShareID != identity.ShareID {
 			continue
 		}
-		if !existing[a.ID] && !a.CreatedAt.Before(p.CreatedAt) && p.allowsAnnotation(a) {
+		allowed, err := allowsAnnotation(a)
+		if err != nil {
+			return threadDetail{}, err
+		}
+		// An exact immutable anchor can predate the Share. Its authorized text
+		// cannot expand when later captures arrive. Unanchored comments retain
+		// the existing same-Share and creation-time boundary.
+		if !existing[a.ID] && (a.Target != nil || !a.CreatedAt.Before(p.CreatedAt)) && allowed {
 			out.Annotations = append(out.Annotations, a)
 		}
 	}
 	out.Events = []eventView{}
+	projectEvent, err := app.sharedEventProjector(ctx, identity.ShareID, detail.ID, p)
+	if err != nil {
+		return threadDetail{}, err
+	}
 	for _, event := range detail.Events {
-		out.Events = append(out.Events, p.projectEvent(event))
+		view, err := projectEvent(event)
+		if err != nil {
+			return threadDetail{}, err
+		}
+		out.Events = append(out.Events, view)
 	}
 	return out, nil
 }

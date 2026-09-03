@@ -94,6 +94,7 @@ func (s *Store) CreateAgentRun(ctx context.Context, run domain.AgentRun) (domain
 	if run.Status == "" {
 		run.Status = "starting"
 	}
+	run.SessionID = domain.CanonicalSessionID(run.Provider, run.ID, run.SessionID)
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO agent_runs(id, thread_id, provider, session_id, status, started_at, closed_at)
 		VALUES(?, ?, ?, ?, ?, ?, ?)`, run.ID, run.ThreadID, run.Provider,
@@ -104,10 +105,16 @@ func (s *Store) CreateAgentRun(ctx context.Context, run domain.AgentRun) (domain
 	return run, nil
 }
 
-func (s *Store) UpdateAgentRun(ctx context.Context, runID, sessionID, status string, closedAt time.Time) error {
+// UpdateAgentRun changes lifecycle state only. Session identity is adopted
+// separately, so a stale status writer cannot overwrite a later native ID.
+func (s *Store) UpdateAgentRun(ctx context.Context, runID, status string, closedAt time.Time) error {
 	result, err := s.db.ExecContext(ctx, `
-		UPDATE agent_runs SET session_id = ?, status = ?, closed_at = ? WHERE id = ?`,
-		sessionID, status, nullMillis(closedAt), runID)
+		UPDATE agent_runs SET status = CASE
+			WHEN status = 'closed' THEN status
+			WHEN status = 'archived' AND ? <> 'closed' THEN status
+			WHEN status = 'identity_conflict' AND ? NOT IN ('closed','archived') THEN status
+			ELSE ? END, closed_at = COALESCE(closed_at, ?) WHERE id = ?`,
+		status, status, status, nullMillis(closedAt), runID)
 	if err != nil {
 		return fmt.Errorf("update agent run: %w", err)
 	}
@@ -159,5 +166,6 @@ func scanAgentRun(row rowScanner) (domain.AgentRun, error) {
 	if closed.Valid {
 		run.ClosedAt = fromMillis(closed.Int64)
 	}
+	run.SessionID = domain.CanonicalSessionID(run.Provider, run.ID, run.SessionID)
 	return run, nil
 }

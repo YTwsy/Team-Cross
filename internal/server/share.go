@@ -37,31 +37,23 @@ func (app *App) handleCreateShare(response http.ResponseWriter, request *http.Re
 		writeError(response, http.StatusBadRequest, "invalid_ttl", "Share TTL must be between one second and 24 hours")
 		return
 	}
-	now := time.Now()
-	app.mu.Lock()
-	existing := app.shares[threadID]
-	expired := existing != nil && !now.Before(existing.ExpiresAt)
-	if expired {
-		delete(app.shares, threadID)
-		delete(app.shareByID, existing.ID)
-	}
-	app.mu.Unlock()
-	if expired {
-		if existing.ExpiryTimer != nil {
-			existing.ExpiryTimer.Stop()
+	op, expired, err := app.beginShareCreation(request.Context(), threadID)
+	if err != nil {
+		status, code := http.StatusConflict, "share_active"
+		if errors.Is(err, errSharesClosed) {
+			status, code = http.StatusServiceUnavailable, "share_closed"
+		} else if errors.Is(err, errShareStarting) {
+			code = "share_starting"
 		}
-		existing.Runtime.Revoke()
-		_ = existing.Runtime.Close()
-		_ = app.store.RevokeShare(request.Context(), existing.ID, existing.ExpiresAt)
-		_, _ = app.store.AppendEvent(request.Context(), threadID, "share.expired", jsonBytes(map[string]any{"actor": "System", "shareId": existing.ID}))
-		existing = nil
-	}
-	if existing != nil {
-		writeError(response, http.StatusConflict, "share_active", "Revoke the active Share before creating a Share with a new scope or permissions")
+		writeError(response, status, code, err.Error())
 		return
 	}
+	defer app.finishShareCreation(threadID, op)
+	if expired != nil {
+		app.retireShare(expired, expired.ExpiresAt, "share.expired", "System")
+	}
 	shareID := uuid.NewString()
-	projection, err := app.prepareShareProjection(request.Context(), threadID, input.Scope, input.AllowControl)
+	projection, err := app.prepareShareProjection(op.ctx, threadID, input.Scope, input.AllowControl)
 	if err != nil {
 		writeError(response, 422, "share_scope", err.Error())
 		return
@@ -75,12 +67,30 @@ func (app *App) handleCreateShare(response http.ResponseWriter, request *http.Re
 		ShareID: shareID, ExpiresAt: expires, Capabilities: granted,
 		Handler: app.remoteHandler(threadID, shareID), EnableMDNS: true, EnableTailcat: true,
 	}
-	runtime, err := share.Start(request.Context(), config)
+	var runtime shareRuntime
+	published, persisted := false, false
+	defer func() {
+		if !published {
+			stopShareRuntime(runtime)
+			if persisted {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_ = app.store.RevokeShare(ctx, shareID, time.Time{})
+			}
+		}
+	}()
+	runtime, err = app.startShare(op.ctx, config)
 	degraded := false
-	if err != nil && input.AllowDegraded && errors.Is(err, share.ErrTailcatPrewarm) {
+	if err != nil && op.ctx.Err() == nil && input.AllowDegraded && errors.Is(err, share.ErrTailcatPrewarm) {
+		stopShareRuntime(runtime)
+		runtime = nil
 		config.EnableTailcat = false
-		runtime, err = share.Start(request.Context(), config)
+		runtime, err = app.startShare(op.ctx, config)
 		degraded = true
+	}
+	if op.ctx.Err() != nil {
+		writeError(response, http.StatusConflict, "share_cancelled", "Share creation was cancelled; no invitation was published")
+		return
 	}
 	if err != nil {
 		if errors.Is(err, share.ErrTailcatPrewarm) {
@@ -92,26 +102,27 @@ func (app *App) handleCreateShare(response http.ResponseWriter, request *http.Re
 	}
 	token, err := runtime.Token()
 	if err != nil {
-		_ = runtime.Close()
 		writeError(response, http.StatusInternalServerError, "invite", err.Error())
 		return
 	}
 	invitation := runtime.Invitation()
 	expires = time.Unix(invitation.ExpiresAt, 0).UTC()
 	capabilities, _ := json.Marshal(invitation.Capabilities)
-	if _, err := app.store.CreateShare(request.Context(), domain.Share{
+	if _, err := app.store.CreateShare(op.ctx, domain.Share{
 		ID: shareID, ThreadID: threadID, SecretHash: hashSecret(invitation.Secret),
 		ServerSPKI: fmt.Sprintf("%x", invitation.ServerSPKISHA256), Capabilities: capabilities, ExpiresAt: expires,
 	}); err != nil {
-		_ = runtime.Close()
 		writeDomainError(response, err)
 		return
 	}
+	persisted = true
 	var transports []string
-	if err := app.store.SaveShareProjection(request.Context(), shareID, jsonBytes(projection)); err != nil {
-		_ = runtime.Close()
-		_ = app.store.RevokeShare(request.Context(), shareID, time.Time{})
-		writeDomainError(response, err)
+	if err := app.store.SaveScopedShareProjection(op.ctx, shareID, jsonBytes(projection), projection.LiveBinding); err != nil {
+		if errors.Is(err, domain.ErrLiveShareStale) || errors.Is(err, domain.ErrLiveShareFence) {
+			writeError(response, http.StatusConflict, "share_preview_changed", "Follow 或预览窗口已变化；本次分享未发布。请刷新内容后重新确认。")
+		} else {
+			writeDomainError(response, err)
+		}
 		return
 	}
 	if invitation.LAN.MDNSInstance != "" || len(invitation.LAN.Endpoints) > 0 {
@@ -124,13 +135,11 @@ func (app *App) handleCreateShare(response http.ResponseWriter, request *http.Re
 		transports = append(transports, "tailcat")
 	}
 	state := &hostedShare{ID: shareID, ThreadID: threadID, Token: token, Runtime: runtime, ExpiresAt: expires, Transports: transports}
-	app.mu.Lock()
-	app.shares[threadID] = state
-	app.shareByID[shareID] = state
-	state.ExpiryTimer = time.AfterFunc(time.Until(expires), func() {
-		app.expireHostedShare(threadID, shareID, expires)
-	})
-	app.mu.Unlock()
+	if !app.publishShare(threadID, op, state) {
+		writeError(response, http.StatusConflict, "share_cancelled", "Share creation was cancelled; no invitation was published")
+		return
+	}
+	published = true
 	payload := map[string]any{"actor": "Owner", "shareId": shareID, "transports": transports, "warnings": runtime.Warnings()}
 	if degraded {
 		payload["degraded"] = true
@@ -150,23 +159,30 @@ func (app *App) handleRevokeShare(response http.ResponseWriter, request *http.Re
 		return
 	}
 	app.mu.Lock()
+	if app.sharesClosed {
+		app.mu.Unlock()
+		writeError(response, http.StatusServiceUnavailable, "share_closed", "Share service is closing")
+		return
+	}
+	op := app.shareStarting[threadID]
+	if op != nil {
+		op.cancel()
+	}
 	state := app.shares[threadID]
 	if state != nil {
 		delete(app.shares, threadID)
 		delete(app.shareByID, state.ID)
 	}
+	app.shareWG.Add(1)
 	app.mu.Unlock()
-	if state == nil {
+	defer app.shareWG.Done()
+	if state == nil && op == nil {
 		writeError(response, http.StatusNotFound, "share_not_found", "No active share")
 		return
 	}
-	if state.ExpiryTimer != nil {
-		state.ExpiryTimer.Stop()
+	if state != nil {
+		app.retireShare(state, time.Time{}, "share.revoked", "Owner")
 	}
-	state.Runtime.Revoke()
-	_ = state.Runtime.Close()
-	_ = app.store.RevokeShare(request.Context(), state.ID, time.Time{})
-	_, _ = app.store.AppendEvent(request.Context(), threadID, "share.revoked", jsonBytes(map[string]any{"actor": "Owner", "shareId": state.ID}))
 	detail, err := app.buildThreadDetail(request.Context(), threadID, accessFrom(request))
 	if err != nil {
 		writeDomainError(response, err)
@@ -177,26 +193,32 @@ func (app *App) handleRevokeShare(response http.ResponseWriter, request *http.Re
 
 func (app *App) expireHostedShare(threadID, shareID string, expiredAt time.Time) {
 	app.mu.Lock()
-	state := app.shares[threadID]
-	if state == nil || state.ID != shareID {
+	state := app.shareByID[shareID]
+	if state == nil {
+		state = app.shares[threadID]
+	}
+	if app.sharesClosed || state == nil || state.ID != shareID {
 		app.mu.Unlock()
 		return
 	}
-	delete(app.shares, threadID)
+	if current := app.shares[threadID]; current == state {
+		delete(app.shares, threadID)
+	}
 	delete(app.shareByID, shareID)
+	app.shareWG.Add(1)
 	app.mu.Unlock()
-	state.Runtime.Revoke()
-	_ = state.Runtime.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_ = app.store.RevokeShare(ctx, shareID, expiredAt)
-	_, _ = app.store.AppendEvent(ctx, threadID, "share.expired", jsonBytes(map[string]any{"actor": "System", "shareId": shareID}))
+	defer app.shareWG.Done()
+	app.retireShare(state, expiredAt, "share.expired", "System")
 }
 
 func (app *App) remoteHandler(threadID, shareID string) http.Handler {
 	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if !strings.HasPrefix(request.URL.Path, "/api/v1/") {
 			http.NotFound(response, request)
+			return
+		}
+		if !app.isPublishedShare(threadID, shareID) {
+			writeError(response, http.StatusGone, "share_inactive", "Share is not active on this host")
 			return
 		}
 		if !app.authorizeShareCapability(response, request, shareID) {

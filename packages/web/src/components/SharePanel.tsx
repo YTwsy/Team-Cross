@@ -1,12 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   Evidence,
   Participant,
   SessionSnapshot,
   Share,
   ShareOptions,
+  SessionFollow,
+  NativeLiveStatus,
 } from "../types";
 import { CopyIcon, ShareIcon } from "./Icons";
+import {
+  NativeLiveShare,
+  emptyNativeLiveDraft,
+  nativeLiveScope,
+} from "./NativeLiveShare";
 
 export function SharePanel({
   share,
@@ -19,6 +26,8 @@ export function SharePanel({
   evidence = [],
   canIncludeCode = false,
   canControl = false,
+  sessionFollows = [],
+  nativeLive,
 }: {
   share?: Share;
   participants: Participant[];
@@ -30,6 +39,8 @@ export function SharePanel({
   evidence?: Evidence[];
   canIncludeCode?: boolean;
   canControl?: boolean;
+  sessionFollows?: SessionFollow[];
+  nativeLive?: NativeLiveStatus;
 }) {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -41,6 +52,47 @@ export function SharePanel({
   const [includeEvents, setIncludeEvents] = useState(false);
   const [allowControl, setAllowControl] = useState(false);
   const [error, setError] = useState("");
+  const [liveDraft, setLiveDraft] = useState(emptyNativeLiveDraft);
+  const liveScope = nativeLiveScope(liveDraft, sessionFollows, snapshots);
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  const liveFollow = sessionFollows.find(
+    (item) => item.id === liveDraft.followId,
+  );
+  const livePreviewId = liveDraft.preview?.snapshot.id;
+  const livePreviewEpoch = liveDraft.preview?.epoch;
+  const livePreviewAvailable = snapshots.some(
+    (item) => item.id === livePreviewId,
+  );
+  useEffect(() => {
+    if (
+      livePreviewId &&
+      (!livePreviewAvailable ||
+        !liveFollow?.lastPolledAt ||
+        liveFollow.currentSnapshotId !== livePreviewId ||
+        liveFollow?.state !== "active" ||
+        liveFollow.epoch !== livePreviewEpoch)
+    ) {
+      setLiveDraft((current) => ({
+        ...current,
+        confirmCurrent: false,
+        confirmFuture: false,
+      }));
+    }
+  }, [
+    livePreviewId,
+    livePreviewEpoch,
+    liveFollow?.currentSnapshotId,
+    liveFollow?.state,
+    liveFollow?.epoch,
+    liveFollow?.lastPolledAt,
+    livePreviewAvailable,
+  ]);
   const snapshot = snapshots.find((item) => item.id === snapshotId);
   const selectedEntries =
     snapshot?.entries.filter((entry) => entryIds.includes(entry.id)) ?? [];
@@ -51,7 +103,9 @@ export function SharePanel({
     selectedEntries.length > 0 ||
     selectedEvidence.length > 0 ||
     includeCode ||
-    includeEvents;
+    includeEvents ||
+    !!liveScope;
+  const canCreate = hasSelection && (!liveDraft.enabled || !!liveScope);
   const remoteController = participants.find(
     (participant) => participant.role === "controller",
   );
@@ -63,14 +117,16 @@ export function SharePanel({
   }, [copied]);
 
   async function run(action: () => Promise<void>) {
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
       await action();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "分享操作失败");
+      if (active.current)
+        setError(reason instanceof Error ? reason.message : "分享操作失败");
     } finally {
-      setBusy(false);
+      if (active.current) setBusy(false);
     }
   }
 
@@ -78,9 +134,9 @@ export function SharePanel({
     if (!share) return;
     try {
       await navigator.clipboard.writeText(share.invite);
-      setCopied(true);
+      if (active.current) setCopied(true);
     } catch {
-      setError("剪贴板不可用，请从主机重新复制邀请。");
+      if (active.current) setError("剪贴板不可用，请从主机重新复制邀请。");
     }
   }
 
@@ -137,8 +193,32 @@ export function SharePanel({
             {share.allowControl
               ? "已授权请求 Managed Agent 控制"
               : "仅查看与批注"}{" "}
-            · 分享内容不会自动扩大到新的 Session 快照。
+            · 静态分享内容不会自动扩大到新的 Session 快照。
           </p>
+          {share.scope?.nativeLive ? (
+            <div className="native-live-status">
+              <strong>
+                已单独授权原生实时范围 · {nativeLive?.state || "状态待更新"}
+              </strong>
+              <p>
+                Follow <code>{share.scope.nativeLive.followId}</code> ·
+                当前窗口及后续窗口
+              </p>
+              <p>
+                类别：{share.scope.nativeLive.entryKinds.join("、")}（不是脱敏）
+              </p>
+              <p>
+                确认起点{" "}
+                <code>{share.scope.nativeLive.expectedSnapshotId}</code>
+              </p>
+              {nativeLive ? (
+                <p>
+                  最新窗口 <code>{nativeLive.latestSnapshotId}</code> ·{" "}
+                  {nativeLive.reason || "只按已授权类别交付，不授权控制"}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {canManage ? (
             <button
               className="text-button danger"
@@ -268,14 +348,21 @@ export function SharePanel({
               </label>
             </>
           ) : null}
+          <NativeLiveShare
+            draft={liveDraft}
+            onChange={setLiveDraft}
+            follows={sessionFollows}
+            snapshots={snapshots}
+            busy={busy}
+          />
           <details className="share-preview">
             <summary>
               预览分享内容 · {selectedEntries.length} 条记录 /{" "}
               {selectedEvidence.length} 份 Evidence
             </summary>
             <p>
-              未选中的记录、其他 Session
-              快照和原始历史文件不会分享。选择的记录与附件按完整内容分享，请检查其中的敏感信息。
+              静态范围中未选中的记录、其他 Session
+              快照和原始历史文件不会分享。原生实时范围在上方单独确认。选择的记录与附件按完整内容分享，请检查其中的敏感信息。
             </p>
             {selectedEntries.map((entry) => (
               <pre key={entry.id}>{entry.text}</pre>
@@ -301,8 +388,9 @@ export function SharePanel({
           </label>
           <button
             className="button secondary full"
-            disabled={busy || !hasSelection}
-            onClick={() =>
+            disabled={busy || !canCreate}
+            onClick={() => {
+              if (!canCreate || busy) return;
               void run(() =>
                 onCreate({
                   allowDegraded: degraded,
@@ -317,10 +405,11 @@ export function SharePanel({
                     evidenceIds: selectedEvidence.map((item) => item.id),
                     includeCode,
                     includeEvents,
+                    ...(liveScope ? { nativeLive: liveScope } : {}),
                   },
                 }),
-              )
-            }
+              );
+            }}
             type="button"
           >
             {busy ? "Warming Tailcat…" : "Create share"}

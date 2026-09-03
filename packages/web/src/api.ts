@@ -8,6 +8,12 @@ import type {
   AnnotationTarget,
   SessionPreview,
   ShareOptions,
+  SessionFollow,
+  SessionSnapshot,
+  NativeOpenResult,
+  SealedCodeReview,
+  ReviewSuccessorInput,
+  ReviewSuccessorPreview,
 } from "./types";
 
 function collection<T>(value: T[] | null | undefined): T[] {
@@ -24,10 +30,38 @@ function normalizeEvent(event: TimelineEvent): TimelineEvent {
   return { ...event, payload: record(event.payload) };
 }
 
+function normalizeSessionFollow(value: SessionFollow): SessionFollow {
+  return { ...value, gaps: collection(value.gaps) };
+}
+
+function normalizeSessionSnapshot(value: SessionSnapshot): SessionSnapshot {
+  return {
+    ...value,
+    entries: collection(value.entries),
+    warnings: collection(value.warnings),
+  };
+}
+
 function normalizeThread(value: ThreadDetail): ThreadDetail {
   const git = value.git ?? ({} as ThreadDetail["git"]);
   const share = value.share
-    ? { ...value.share, transports: collection(value.share.transports) }
+    ? {
+        ...value.share,
+        transports: collection(value.share.transports),
+        scope: value.share.scope
+          ? {
+              ...value.share.scope,
+              nativeLive: value.share.scope.nativeLive
+                ? {
+                    ...value.share.scope.nativeLive,
+                    entryKinds: collection(
+                      value.share.scope.nativeLive.entryKinds,
+                    ),
+                  }
+                : undefined,
+            }
+          : undefined,
+      }
     : undefined;
   return {
     ...value,
@@ -36,12 +70,19 @@ function normalizeThread(value: ThreadDetail): ThreadDetail {
     events: collection(value.events).map(normalizeEvent),
     annotations: collection(value.annotations),
     evidence: collection(value.evidence),
-    sessionSnapshots: collection(value.sessionSnapshots).map((snapshot) => ({
-      ...snapshot,
-      entries: collection(snapshot.entries),
-      warnings: collection(snapshot.warnings),
-    })),
+    sessionSnapshots: collection(value.sessionSnapshots).map(
+      normalizeSessionSnapshot,
+    ),
+    sessionFollows: collection(value.sessionFollows).map(
+      normalizeSessionFollow,
+    ),
     participants: collection(value.participants),
+    nativeLive: value.nativeLive
+      ? {
+          ...value.nativeLive,
+          entryKinds: collection(value.nativeLive.entryKinds),
+        }
+      : undefined,
     share,
   };
 }
@@ -80,6 +121,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  roundCode: (threadId: string, roundId: string) =>
+    request<SealedCodeReview>(
+      `/api/v1/threads/${encodeURIComponent(threadId)}/rounds/${encodeURIComponent(roundId)}/code`,
+    ).then((value) => ({ ...value, lines: collection(value.lines) })),
   info: () =>
     request<AppInfo>("/api/v1/info").then((value) => ({
       ...value,
@@ -224,6 +269,43 @@ export const api = {
     }).then(normalizeThread),
   feedback: (threadId: string) =>
     request<string>(`/api/v1/threads/${threadId}/feedback`),
+  previewReviewSuccessor: (threadId: string, input: ReviewSuccessorInput) =>
+    request<ReviewSuccessorPreview>(`/api/v1/threads/${encodeURIComponent(threadId)}/successor/preview`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  createReviewSuccessor: (threadId: string, input: ReviewSuccessorInput & { previewHash: string; confirmSeparateBaseline: true }) =>
+    request<ThreadDetail>(`/api/v1/threads/${encodeURIComponent(threadId)}/successors`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }).then(normalizeThread),
+  sessionSnapshot: (threadId: string, snapshotId: string) =>
+    request<SessionSnapshot>(
+      `/api/v1/threads/${encodeURIComponent(threadId)}/sessions/snapshots/${encodeURIComponent(snapshotId)}`,
+    ).then(normalizeSessionSnapshot),
+  openNativeSession: (threadId: string, snapshotId: string) =>
+    request<NativeOpenResult>(
+      `/api/v1/threads/${encodeURIComponent(threadId)}/sessions/open`,
+      {
+        method: "POST",
+        body: JSON.stringify({ snapshotId, confirmOpen: true }),
+      },
+    ),
+  startSessionFollow: (threadId: string, snapshotId: string) =>
+    request<SessionFollow>(
+      `/api/v1/threads/${encodeURIComponent(threadId)}/follows`,
+      {
+        method: "POST",
+        body: JSON.stringify({ snapshotId, confirmReadOnly: true }),
+      },
+    ).then(normalizeSessionFollow),
+  stopSessionFollow: (threadId: string, followId: string) =>
+    request<SessionFollow>(
+      `/api/v1/threads/${encodeURIComponent(threadId)}/follows/${encodeURIComponent(followId)}`,
+      {
+        method: "DELETE",
+      },
+    ).then(normalizeSessionFollow),
   continueFromRound: (
     threadId: string,
     input: {

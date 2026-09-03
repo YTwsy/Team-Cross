@@ -31,6 +31,7 @@ describe("Claude adapter policy", () => {
     await vi.waitFor(() => expect(run.descriptor.status).toBe("error"));
     expect(run.descriptor.sessionId).toBe("real-native-id");
     expect(events.at(-1)).toMatchObject({ type: "run.error", data: { message: expect.stringContaining("different native Session identity") } });
+    await expect(adapter.shutdown()).rejects.toThrow("different native Session identity");
     await adapter.shutdown();
   });
 

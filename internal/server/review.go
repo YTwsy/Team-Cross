@@ -186,11 +186,25 @@ func (app *App) validateAnnotationTarget(ctx context.Context, threadID string, i
 		return fmt.Errorf("line must not be negative")
 	}
 	target := input.Target
+	codeTarget := input.File != "" || input.Line != 0 || (target != nil && target.Side != "")
+	if codeTarget && (target == nil || target.RoundID == "" || !validReviewPath(input.File) || input.Line < 1 || (target.Side != "old" && target.Side != "new")) {
+		return fmt.Errorf("code annotations require a sealed Round, repository-relative file, old/new side and positive line")
+	}
 	if target != nil {
 		count := 0
 		if target.SnapshotID != "" {
 			count++
-			snapshot, err := app.store.GetSessionSnapshot(ctx, threadID, target.SnapshotID)
+			var snapshot domain.SessionSnapshot
+			var err error
+			if identity.Mode == "share" {
+				var p shareProjection
+				p, err = app.loadShareProjection(ctx, identity.ShareID)
+				if err == nil {
+					snapshot, _, err = app.resolveSharedSnapshot(ctx, identity.ShareID, threadID, target.SnapshotID, p)
+				}
+			} else {
+				snapshot, err = app.store.GetSessionSnapshot(ctx, threadID, target.SnapshotID)
+			}
 			if err != nil {
 				return fmt.Errorf("snapshot target is unavailable")
 			}
@@ -233,8 +247,21 @@ func (app *App) validateAnnotationTarget(ctx context.Context, threadID string, i
 		if err != nil {
 			return err
 		}
-		if !projection.allowsAnnotation(annotationView{Target: target, File: input.File}) {
+		allowed, err := app.sharedAnnotationAllowed(ctx, identity.ShareID, threadID, projection, annotationView{Target: target, File: input.File})
+		if err != nil {
+			return err
+		}
+		if !allowed {
 			return fmt.Errorf("annotation target is outside this Share")
+		}
+	}
+	if codeTarget {
+		code, err := app.readRoundCode(ctx, threadID, target.RoundID, identity)
+		if err != nil {
+			return fmt.Errorf("sealed code target is unavailable")
+		}
+		if _, err = code.anchorIndex(input.File, target.Side, input.Line); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -250,34 +277,8 @@ func (app *App) handleFeedback(w http.ResponseWriter, r *http.Request) {
 		writeDomainError(w, err)
 		return
 	}
-	var text strings.Builder
-	fmt.Fprintf(&text, "# %s — 审阅反馈\n\nThread: %s\n\n以下内容为人工意见及引用，不会自动提交给 Agent。\n", detail.Title, detail.ID)
-	for _, annotation := range detail.Annotations {
-		fmt.Fprintf(&text, "\n## %s · %s\n\n%s\n", annotation.Author, annotation.CreatedAt.Format(time.RFC3339), annotation.Body)
-		if annotation.Target != nil {
-			target := annotation.Target
-			fmt.Fprintf(&text, "\n来源锚点: snapshot=%s entry=%s round=%s evidence=%s\n", target.SnapshotID, target.EntryID, target.RoundID, target.EvidenceID)
-			for _, snapshot := range detail.SessionSnapshots {
-				if snapshot.ID != target.SnapshotID {
-					continue
-				}
-				fmt.Fprintf(&text, "\nProvider: %s; %s=%s; capturedAt=%s\n", snapshot.Source.Provider, snapshot.Source.IdentityKind, snapshot.Source.SessionID, snapshot.CapturedAt.Format(time.RFC3339))
-				for _, entry := range snapshot.Entries {
-					if entry.ID == target.EntryID {
-						quote := []rune(entry.Text)
-						if len(quote) > 2000 {
-							quote = append(quote[:2000], []rune("…（引用截断）")...)
-						}
-						fmt.Fprintf(&text, "\n> %s\n", strings.ReplaceAll(string(quote), "\n", "\n> "))
-					}
-				}
-			}
-		}
-		if annotation.File != "" {
-			fmt.Fprintf(&text, "\n文件: %s:%d\n", annotation.File, annotation.Line)
-		}
-	}
+	text := app.reviewFeedback(r.Context(), detail, accessFrom(r))
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="teamcross-feedback.md"`)
-	_, _ = w.Write([]byte(text.String()))
+	_, _ = w.Write([]byte(text))
 }

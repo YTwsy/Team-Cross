@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { Provider, ThreadDetail } from "../types";
+import { ReviewSuccessorPanel } from "./ReviewSuccessorPanel";
 
 function download(data: unknown, name: string, type: string) {
   const content = typeof data === "string" ? data : JSON.stringify(data);
@@ -19,26 +20,57 @@ export function ContinuationPanel({
   thread: ThreadDetail;
   onResult: (value: ThreadDetail) => void;
 }) {
-  const [selectedRound, setSelectedRound] = useState("");
+  const [selectedRound, setSelectedRound] = useState(
+    () => thread.rounds.at(-1)?.id ?? "",
+  );
   const [provider, setProvider] = useState<Provider>("codex");
   const [prompt, setPrompt] = useState("");
   const [networkEnabled, setNetworkEnabled] = useState(false);
   const [fork, setFork] = useState(false);
-  const [confirmed, setConfirmed] = useState(false);
-  const [exportConfirmed, setExportConfirmed] = useState(false);
+  const [confirmedPlan, setConfirmedPlan] = useState<string | null>(null);
+  const [confirmedExport, setConfirmedExport] = useState<string | null>(null);
   const [evidenceIds, setEvidenceIds] = useState<string[]>([]);
   const [snapshotIds, setSnapshotIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const latest = thread.rounds.at(-1);
-  const round =
-    thread.rounds.find((item) => item.id === selectedRound) ?? latest;
+  const round = thread.rounds.find((item) => item.id === selectedRound);
   const historical = !!round && round.id !== latest?.id;
   const willFork = historical || fork;
   const writable = !!thread.git.head && !thread.readOnly;
   const running =
     thread.agentRun?.status === "running" ||
     thread.agentRun?.status === "waiting";
+  // Consent covers one concrete plan, not whichever latest Round arrives next.
+  // Revision-only refreshes (for example, a new annotation) do not change it.
+  const planKey = JSON.stringify([
+    thread.id,
+    round?.id,
+    latest?.id,
+    thread.git.head,
+    thread.worktree,
+    writable,
+    thread.agentRun?.id,
+    thread.agentRun?.status,
+    provider,
+    prompt,
+    networkEnabled,
+    willFork,
+  ]);
+  const exportKey = JSON.stringify([
+    thread.id,
+    round?.id,
+    thread.git.head,
+    writable,
+    evidenceIds,
+    snapshotIds,
+  ]);
+  const confirmed = confirmedPlan === planKey;
+  const exportConfirmed = confirmedExport === exportKey;
+  // Also discard old consent so changing away and back cannot reactivate it.
+  // The key comparison above makes it invalid even before this effect runs.
+  useEffect(() => setConfirmedPlan(null), [planKey]);
+  useEffect(() => setConfirmedExport(null), [exportKey]);
 
   async function act(action: () => Promise<void>) {
     setBusy(true);
@@ -52,7 +84,7 @@ export function ContinuationPanel({
     }
   }
 
-  if (!round || !writable)
+  if (!writable)
     return (
       <section className="side-section">
         <strong>Continue from Round</strong>
@@ -60,6 +92,25 @@ export function ContinuationPanel({
           此 Thread
           仅包含历史参考材料，没有可执行的代码基线。审阅与批注不需要启动 Agent。
         </p>
+        {(thread.sessionSnapshots?.length ?? 0) > 0 ? <ReviewSuccessorPanel key={thread.id} thread={thread} onResult={onResult} /> : null}
+      </section>
+    );
+  if (!round)
+    return (
+      <section className="side-section">
+        <strong>Continue from Round</strong>
+        <p className="side-muted" role="alert">
+          所选 Round 已不可用；不会自动改用另一个快照或沿用之前的授权。
+        </p>
+        {latest ? (
+          <button
+            type="button"
+            className="button secondary full"
+            onClick={() => setSelectedRound(latest.id)}
+          >
+            选择最新 Round {latest.sequence}，重新确认
+          </button>
+        ) : null}
       </section>
     );
   return (
@@ -73,8 +124,6 @@ export function ContinuationPanel({
           value={round.id}
           onChange={(event) => {
             setSelectedRound(event.target.value);
-            setConfirmed(false);
-            setExportConfirmed(false);
           }}
         >
           {thread.rounds.map((item) => (
@@ -84,7 +133,10 @@ export function ContinuationPanel({
           ))}
         </select>
       </label>
-      <p className="side-muted">不可变代码快照，不是当前原仓库状态。</p>
+      <p className="side-muted">
+        不可变代码快照，不是当前原仓库状态。所选 Round
+        已固定；新增 Round 不会自动替换起点。
+      </p>
       <details>
         <summary>在本机创建新 Session</summary>
         <p>
@@ -117,7 +169,6 @@ export function ContinuationPanel({
             disabled={historical}
             onChange={(event) => {
               setFork(event.target.checked);
-              setConfirmed(false);
             }}
           />
           创建独立 Fork Thread
@@ -128,7 +179,6 @@ export function ContinuationPanel({
             checked={networkEnabled}
             onChange={(event) => {
               setNetworkEnabled(event.target.checked);
-              setConfirmed(false);
             }}
           />
           允许工具访问网络（默认关闭）
@@ -143,7 +193,9 @@ export function ContinuationPanel({
           <input
             type="checkbox"
             checked={confirmed}
-            onChange={(event) => setConfirmed(event.target.checked)}
+            onChange={(event) =>
+              setConfirmedPlan(event.target.checked ? planKey : null)
+            }
           />
           我授权以上新 Session 执行；原始 checkout 不被自动修改。
         </label>
@@ -164,7 +216,7 @@ export function ContinuationPanel({
                   fork: willFork,
                 }),
               );
-              setConfirmed(false);
+              setConfirmedPlan(null);
               setPrompt("");
             })
           }
@@ -205,7 +257,6 @@ export function ContinuationPanel({
                     ? [...current, snapshot.id]
                     : current.filter((id) => id !== snapshot.id),
                 );
-                setExportConfirmed(false);
               }}
             />
             完整快照：{snapshot.source.title || snapshot.source.provider}
@@ -224,7 +275,6 @@ export function ContinuationPanel({
                       ? [...current, item.id]
                       : current.filter((id) => id !== item.id),
                   );
-                  setExportConfirmed(false);
                 }}
               />
               Evidence：{item.name}
@@ -234,7 +284,9 @@ export function ContinuationPanel({
           <input
             type="checkbox"
             checked={exportConfirmed}
-            onChange={(event) => setExportConfirmed(event.target.checked)}
+            onChange={(event) =>
+              setConfirmedExport(event.target.checked ? exportKey : null)
+            }
           />
           已检查代码与所选内容；交付的副本无法随 Share 撤销而收回。
         </label>

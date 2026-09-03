@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { AsyncQueue } from "../lib/async-queue.js";
+import { closeDeadline, withinCloseDeadline } from "../lib/close-deadline.js";
 import {
   createBridgeEvent,
   type BridgeEventType,
@@ -19,6 +20,7 @@ type JsonRecord = Record<string, unknown>;
 interface ClaudeQuery extends AsyncIterable<unknown> {
   interrupt(): Promise<void>;
   close(): void;
+  return?(value?: void): Promise<IteratorResult<unknown>>;
 }
 
 interface ClaudeSdk {
@@ -32,6 +34,7 @@ export interface ClaudeAdapterOptions {
   sdkLoader?: () => Promise<ClaudeSdk>;
   env?: NodeJS.ProcessEnv;
   onDiagnostic?: (message: string) => void;
+  closeTimeoutMs?: number;
 }
 
 export class ClaudeAdapter implements AgentAdapter {
@@ -118,6 +121,7 @@ export class ClaudeAdapter implements AgentAdapter {
       emit,
       onClosed: () => this.runs.delete(run),
       onDiagnostic: this.options.onDiagnostic,
+      closeTimeoutMs: this.options.closeTimeoutMs,
     });
     this.runs.add(run);
     run.start();
@@ -146,13 +150,17 @@ interface ClaudeRunOptions {
   emit: EventSink;
   onClosed: () => void;
   onDiagnostic?: (message: string) => void;
+  closeTimeoutMs?: number;
 }
 
 class ClaudeRun implements AgentRun {
   readonly descriptor: RunDescriptor;
   private readonly input = new AsyncQueue<unknown>();
   private query: ClaudeQuery | undefined;
-  private receiveLoop: Promise<void> | undefined;
+  private receiveLoop: Promise<Error | undefined> | undefined;
+  private closing = false;
+  private closeAttempt: Promise<void> | undefined;
+  private reportedCloseReceiveFailure: Error | undefined;
   private activeTurnId: string | undefined;
   private importedContext: string[] = [];
   private readonly tools = new Map<number, { id: string; name: string; input: string }>();
@@ -190,11 +198,12 @@ class ClaudeRun implements AgentRun {
   }
 
   async importContext(source: Record<string, unknown>, context: unknown): Promise<void> {
+    this.assertInputOpen();
     this.importedContext.push(serializeImportedContext(source, context));
   }
 
   async send(message: string): Promise<{ turnId: string }> {
-    if (this.descriptor.status === "closed") throw new Error("run is closed");
+    this.assertInputOpen();
     if (this.activeTurnId) throw new Error("a Claude turn is active; use runs.steer");
     const turnId = randomUUID();
     const prompt = this.withImportedContext(message);
@@ -211,14 +220,17 @@ class ClaudeRun implements AgentRun {
   }
 
   async steer(message: string): Promise<{ turnId: string }> {
+    this.assertInputOpen();
     await this.interrupt();
     return await this.send(message);
   }
 
   async interrupt(): Promise<void> {
+    this.assertInputOpen();
     const turnId = this.activeTurnId;
     if (!turnId || !this.query) return;
     await this.query.interrupt();
+    if (this.closing) return;
     if (this.activeTurnId === turnId) {
       this.activeTurnId = undefined;
       this.emit("turn.completed", { turnId, data: { status: "interrupted" } });
@@ -235,13 +247,40 @@ class ClaudeRun implements AgentRun {
 
   async close(): Promise<void> {
     if (this.descriptor.status === "closed") return;
-    await this.interrupt().catch(() => undefined);
-    this.descriptor.status = "closed";
+    if (this.closeAttempt) return await this.closeAttempt;
+    this.closing = true;
+    this.descriptor.capabilities = { send: false, steer: false, interrupt: false, inputResponse: false };
     this.input.close();
-    this.query?.close();
-    this.query = undefined;
-    await this.receiveLoop?.catch(() => undefined);
+    const attempt = this.finishClose();
+    this.closeAttempt = attempt;
+    try {
+      await attempt;
+    } finally {
+      if (this.closeAttempt === attempt) this.closeAttempt = undefined;
+    }
+  }
+
+  private async finishClose(): Promise<void> {
+    const deadline = closeDeadline(this.options.closeTimeoutMs);
+    const query = this.query;
+    if (!query || !this.receiveLoop) throw new Error("Claude query termination cannot be confirmed");
+    // SDK close forcefully ends the query/subprocess. An interrupt ACK (or our
+    // synthesized turn.completed) is not used as shutdown evidence.
+    query.close();
+    const receiveFailure = await withinCloseDeadline(this.receiveLoop, deadline, "Claude receive loop termination");
+    if (receiveFailure && receiveFailure !== this.reportedCloseReceiveFailure) {
+      this.reportedCloseReceiveFailure = receiveFailure;
+      throw receiveFailure;
+    }
+    // The installed SDK's AsyncGenerator return also awaits subprocess cleanup.
+    // Structural SDK fakes/older implementations may expose only AsyncIterable.
+    if (query.return) {
+      const result = await withinCloseDeadline(query.return(), deadline, "Claude query cleanup");
+      if (!result.done) throw new Error("Claude query cleanup did not finish; termination is unconfirmed");
+    }
     this.emit("run.closed", { data: {} });
+    this.descriptor.status = "closed";
+    this.query = undefined;
     this.options.onClosed();
   }
 
@@ -327,18 +366,19 @@ class ClaudeRun implements AgentRun {
     };
   }
 
-  private async receive(query: ClaudeQuery): Promise<void> {
+  private async receive(query: ClaudeQuery): Promise<Error | undefined> {
     try {
       for await (const message of query) this.onMessage(message);
-      if (this.descriptor.status !== "closed") {
+      if (!this.closing) {
         throw new Error("Claude streaming session ended unexpectedly");
       }
     } catch (error) {
-      if (this.descriptor.status === "closed") return;
       this.descriptor.status = "error";
       this.emit("run.error", { data: { message: errorMessage(error) } });
       this.options.onDiagnostic?.(`[claude] ${errorMessage(error)}`);
+      return error instanceof Error ? error : new Error(errorMessage(error));
     }
+    return undefined;
   }
 
   private onMessage(message: unknown): void {
@@ -383,6 +423,10 @@ class ClaudeRun implements AgentRun {
   private withImportedContext(message: string): string {
     if (this.importedContext.length === 0) return message;
     return `${this.importedContext.splice(0).join("\n\n")}\n\n<user-request>\n${message}\n</user-request>`;
+  }
+
+  private assertInputOpen(): void {
+    if (this.closing || this.descriptor.status === "closed") throw new Error("run is closing or closed; input is fenced");
   }
 
   private status(status: RunDescriptor["status"], turnId?: string): void {

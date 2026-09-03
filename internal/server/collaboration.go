@@ -77,8 +77,24 @@ func (app *App) handleEvents(response http.ResponseWriter, request *http.Request
 		if err != nil {
 			return
 		}
+		projectEvent := func(event eventView) (eventView, error) { return projection.projectEvent(event), nil }
+		if identity := accessFrom(request); identity.Mode == "share" && len(events) > 0 {
+			projectEvent, err = app.sharedEventProjector(request.Context(), identity.ShareID, threadID, projection)
+			if err != nil {
+				return
+			}
+		}
 		for _, event := range events {
 			view := projection.projectEvent(convertEvent(event))
+			if identity := accessFrom(request); identity.Mode == "share" {
+				if err := app.requireCurrentShare(request.Context(), identity.ShareID, threadID); err != nil {
+					return
+				}
+				view, err = projectEvent(convertEvent(event))
+				if err != nil {
+					return
+				}
+			}
 			payload, _ := json.Marshal(view)
 			if _, err := fmt.Fprintf(response, "id: %d\ndata: %s\n\n", event.Seq, payload); err != nil {
 				return
@@ -181,10 +197,10 @@ func (app *App) claimRemoteCommand(ctx context.Context, identity access, id, kin
 	if err != nil {
 		return false, err
 	}
-	command, created, err := app.store.ClaimCommand(ctx, domain.Command{
+	command, created, err := app.store.AdmitRemoteCommand(ctx, domain.Command{
 		ShareID: identity.ShareID, ID: id, Kind: kind, ExpectedRevision: expectedRevision,
 		LeaseEpoch: leaseEpoch, RequestObject: object.Hash,
-	})
+	}, identity.ParticipantID, time.Time{})
 	if err != nil || created {
 		return false, err
 	}

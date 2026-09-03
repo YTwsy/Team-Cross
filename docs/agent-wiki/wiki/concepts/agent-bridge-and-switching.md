@@ -22,6 +22,13 @@ Session 是 Provider 拥有的连续对话身份，Run 是它在具体 worktree�
 Codex app-server 与 Claude SDK 都运行在主机账户和配额下；远端参与者没有自己的
 Provider 身份，也不能改变模型、授权或工具网络。
 
+创建响应可能早于真实 Session ID：未知身份保持空值。Core 对响应及 lifecycle event
+统一执行单调身份绑定，独立于 status 更新；已确认身份不能被空值、旧占位符或另一个
+真实 ID 替换。冲突会阻止后续命令；补全身份必须保留 binding 的来源、权限和执行位置，
+且不能使 archived/closed Run 重新成为 Writer。
+历史 Run 晚到的完成事件只保留为记录；封存入口必须重新确认当前 Writer，不能把新
+Writer 的工作目录归到旧 Run 的 Round。
+
 外部 transcript 可以读取后保存为 evidence，但其中的文本、网页和工具记录都是参考材料，
 不能自动成为操作指令。
 
@@ -56,7 +63,8 @@ Claude 没有与 Codex 完全相同的 steer 原语，因此 Team Cross 的 stee
 6. 持久化 outgoing immutable Round，并安全发布 manifest；这是 commit point。
 7. 把旧 Run 逻辑冻结为只读历史，把目标 Run 设为当前 Run。
 8. 立即持久化 `agent.switched`。
-9. best-effort 关闭旧 Provider Session；底层关闭失败不能让旧 Run 重新获得写权限。
+9. 确认旧 Provider Session 关闭；关闭失败则禁用零输入目标，保留旧 archived 引用供
+   Owner 显式重试关闭，旧 Run 与目标都不得接受输入。身份事件晚到不影响这个关闭门槛。
 10. 第一条输入提供 summary、文件清单、未决问题和 context manifest path。
 
 summary 失败时使用确定性 manifest。Core 不分析完整 transcript 后自行宣称“最重要”的

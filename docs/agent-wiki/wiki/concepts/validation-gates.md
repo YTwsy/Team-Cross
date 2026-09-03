@@ -38,6 +38,10 @@ Tailscale LocalAPI warning 是正常 fallback 信号。没有双方 Running 状�
 当前高级原生能力禁用，静态协议检查不能通过真实验收。具体要求见
 [原生能力门槛](../../sources/validation/native-capability-gates.md)。
 
+只读 Follow 的本机 cursor/快照事务与 UI 回归已经存在；方法注册、合成分页和停止 fence
+不证明真实原生更新可持续读到，也不证明能安全打开或接管原生 UI。managed Run 的
+关闭回执栅栏同样不能替代外部原生 Writer 的互斥证明。
+
 Codex app-server initialize 不是实际 Agent Turn。Claude credential 存在也不是 SDK Run。
 真实验收需要在临时 Thread 中观察 message、tool、file、input/interrupt 和 Round，并再次
 确认原 checkout 不变。

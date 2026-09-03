@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"teamcross/internal/domain"
-	"teamcross/internal/gitstate"
 )
 
 type turnManifest struct {
@@ -22,11 +21,24 @@ type turnManifest struct {
 	Status             string              `json:"status"`
 	Summary            string              `json:"summary"`
 	PatchObject        string              `json:"patchObject,omitempty"`
+	CapturedPaths      []string            `json:"capturedPaths"`
 	Files              []string            `json:"files"`
 	Evidence           []evidenceReference `json:"evidence"`
 	EventFromSeq       int64               `json:"eventFromSeq"`
 	EventToSeq         int64               `json:"eventToSeq"`
 	CreatedAt          time.Time           `json:"createdAt"`
+}
+
+// canSealRunLocked requires app.mu to be held. Only the current Writer can
+// attribute the shared worktree to its Turn; delayed historical Run events
+// remain events but cannot create a new code checkpoint.
+func (app *App) canSealRunLocked(run *managedRun) bool {
+	if run == nil {
+		return false
+	}
+	current := app.runs[run.ThreadID]
+	return current != nil && current.ID == run.ID && current.Provider == run.Provider &&
+		current.Status != "archived" && current.Status != "closed" && !current.IdentityConflict
 }
 
 // sealCompletedTurn archives the deterministic state produced by one managed
@@ -35,6 +47,14 @@ type turnManifest struct {
 func (app *App) sealCompletedTurn(run *managedRun, turnID string, completed domain.Event, data map[string]any) {
 	app.roundMu.Lock()
 	defer app.roundMu.Unlock()
+	// A completion can wait behind a switch while roundMu is held. Recheck
+	// after acquiring it rather than trusting the earlier event-time snapshot.
+	app.mu.RLock()
+	eligible := app.canSealRunLocked(run)
+	app.mu.RUnlock()
+	if !eligible {
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -62,7 +82,7 @@ func (app *App) sealCompletedTurn(run *managedRun, turnID string, completed doma
 	if summary == "" {
 		summary = fmt.Sprintf("%s turn %s (%s)", run.Provider, shortID(turnID), status)
 	}
-	patch, err := gitstate.ExportBinaryPatch(ctx, thread.WorktreePath, thread.BaselineCommit)
+	patch, capturedPaths, err := app.captureThreadPatch(ctx, thread)
 	if err != nil {
 		app.logger.Warn("capture completed turn patch", "error", err)
 		return
@@ -84,7 +104,7 @@ func (app *App) sealCompletedTurn(run *managedRun, turnID string, completed doma
 	manifest := turnManifest{
 		Version: 1, ThreadID: thread.ID, RunID: run.ID, Provider: run.Provider,
 		TurnID: turnID, Status: status, Summary: summary, PatchObject: patchObject.Hash,
-		Files: patchFiles(string(patch)), Evidence: references,
+		Files: patchFiles(string(patch)), CapturedPaths: capturedPaths, Evidence: references,
 		EventFromSeq: fromSeq, EventToSeq: completed.Seq, CreatedAt: time.Now().UTC(),
 	}
 	manifest.SessionSnapshotIDs, err = app.latestSealedSessionIDs(ctx, rounds)

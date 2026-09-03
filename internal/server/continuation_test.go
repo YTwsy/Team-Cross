@@ -34,7 +34,7 @@ log=$1
 fail=$2
 while IFS= read -r line; do
   printf '%s\n' "$line" >> "$log"
-  id=$(printf '%s' "$line" | sed -E 's/.*"id":"([^"]+)".*/\1/')
+  id=$(printf '%s' "$line" | sed -E 's/^\{"id":"([^"]+)".*/\1/')
   case "$line" in
     *'"method":"runs.create"'*)
       if [ "$fail" = yes ]; then

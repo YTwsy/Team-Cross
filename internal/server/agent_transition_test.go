@@ -75,7 +75,9 @@ done
 		t.Fatalf("committed transition deadline = %v, bounded %v", remaining, bounded)
 	}
 
-	app.activatePreparedRun(transitionCtx, thread.ID, current, target)
+	if err := app.activatePreparedRun(transitionCtx, thread.ID, current, target); err != nil {
+		t.Fatal(err)
+	}
 	if app.runs[thread.ID] != target || current.Status != "archived" {
 		t.Fatalf("activation state: current=%#v outgoing=%#v", app.runs[thread.ID], current)
 	}

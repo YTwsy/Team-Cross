@@ -46,7 +46,9 @@ func (app *App) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/threads", app.hostOnly(app.handleCreateThread))
 	mux.HandleFunc("GET /api/v1/threads/{threadID}", app.handleGetThread)
 	mux.HandleFunc("GET /api/v1/threads/{threadID}/events", app.handleEvents)
+	mux.HandleFunc("GET /api/v1/threads/{threadID}/sessions/snapshots/{snapshotID}", app.handleGetSessionSnapshot)
 	mux.HandleFunc("GET /api/v1/threads/{threadID}/patch", app.handlePatch)
+	mux.HandleFunc("GET /api/v1/threads/{threadID}/rounds/{roundID}/code", app.handleGetRoundCode)
 	mux.HandleFunc("POST /api/v1/threads/{threadID}/annotations", app.handleCreateAnnotation)
 	mux.HandleFunc("POST /api/v1/threads/{threadID}/evidence", app.hostOnly(app.handleCreateEvidence))
 	mux.HandleFunc("GET /api/v1/threads/{threadID}/evidence/{evidenceID}", app.handleGetEvidence)
@@ -63,10 +65,15 @@ func (app *App) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/threads/from-session", app.hostOnly(app.handleThreadFromSession))
 	mux.HandleFunc("GET /api/v1/threads/{threadID}/feedback", app.hostOnly(app.handleFeedback))
 	mux.HandleFunc("POST /api/v1/threads/{threadID}/continue", app.hostOnly(app.handleContinueRound))
+	mux.HandleFunc("POST /api/v1/threads/{threadID}/successor/preview", app.hostOnly(app.handlePreviewReviewSuccessor))
+	mux.HandleFunc("POST /api/v1/threads/{threadID}/successors", app.hostOnly(app.handleCreateReviewSuccessor))
 	mux.HandleFunc("POST /api/v1/threads/{threadID}/fork", app.hostOnly(app.handleForkRound))
 	mux.HandleFunc("POST /api/v1/threads/{threadID}/bundles", app.hostOnly(app.handleExportBundle))
 	mux.HandleFunc("POST /api/v1/bundles/import", app.hostOnly(app.handleImportBundle))
 	mux.HandleFunc("POST /api/v1/threads/{threadID}/sessions/import", app.hostOnly(app.handleImportSession))
+	mux.HandleFunc("POST /api/v1/threads/{threadID}/sessions/open", app.hostOnly(app.handleOpenNativeSession))
+	mux.HandleFunc("POST /api/v1/threads/{threadID}/follows", app.hostOnly(app.handleStartFollow))
+	mux.HandleFunc("DELETE /api/v1/threads/{threadID}/follows/{followID}", app.hostOnly(app.handleStopFollow))
 	return mux
 }
 

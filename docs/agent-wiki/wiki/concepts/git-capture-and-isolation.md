@@ -30,6 +30,8 @@ worktree；不是复制主机配置、凭据或完整工作环境。分享代码
 - 不把未选择或超限的 untracked 内容悄悄带入 worktree。
 - symlink、file mode、binary 内容和 staged/unstaged 语义不能退化成文本复制。
 - export 必须能由 `git apply --binary` 应用到同一 baseline。
+- 已捕获路径后来被 `.gitignore` 隐藏仍须导出；累计路径来自同 Thread 不可变快照，
+  不扫描全部 ignored，不复活删除文件。代码审阅使用 sealed Round，不用 live diff 归锚。
 - capture/export 不能执行不可信 Git hooks、textconv 或内容 filter；只读读取也不能
   继承 host Git 路由环境而误指向原 checkout。
 - Team Cross 当前只显示 worktree 路径；用户依据该路径自行进入目录是显式操作，

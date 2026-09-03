@@ -49,13 +49,15 @@ type AnnotationTarget struct {
 	EntryID    string `json:"entryId,omitempty"`
 	EvidenceID string `json:"evidenceId,omitempty"`
 	RoundID    string `json:"roundId,omitempty"`
+	Side       string `json:"side,omitempty"`
 }
 
 // ShareScope is an allowlist. Empty collections disclose no corresponding data.
 type ShareScope struct {
-	SnapshotID    string   `json:"snapshotId,omitempty"`
-	EntryIDs      []string `json:"entryIds"`
-	EvidenceIDs   []string `json:"evidenceIds"`
-	IncludeCode   bool     `json:"includeCode"`
-	IncludeEvents bool     `json:"includeEvents"`
+	SnapshotID    string           `json:"snapshotId,omitempty"`
+	EntryIDs      []string         `json:"entryIds"`
+	EvidenceIDs   []string         `json:"evidenceIds"`
+	IncludeCode   bool             `json:"includeCode"`
+	IncludeEvents bool             `json:"includeEvents"`
+	NativeLive    *NativeLiveScope `json:"nativeLive,omitempty"`
 }

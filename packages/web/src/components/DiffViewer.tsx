@@ -1,13 +1,14 @@
-import { useMemo, useState } from "react";
-import type { Annotation } from "../types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type {
+  Annotation,
+  CodeAnnotation,
+  SealedCodeLine,
+  SealedCodeReview,
+} from "../types";
 import { CommentIcon } from "./Icons";
 
-interface DiffLine {
-  kind: "add" | "delete" | "context" | "meta";
-  text: string;
-  file: string;
-  oldLine?: number;
-  newLine?: number;
+interface DiffLine extends SealedCodeLine {
+  file?: string;
 }
 
 function unquoteGitPath(value: string): string {
@@ -86,15 +87,32 @@ export function DiffViewer({
   patch,
   annotations,
   onAnnotate,
+  review,
+  reference,
 }: {
   patch: string;
   annotations: Annotation[];
-  onAnnotate: (file: string, line: number) => void;
+  onAnnotate?: (anchor: CodeAnnotation) => void;
+  review?: SealedCodeReview;
+  reference?: CodeAnnotation;
 }) {
   const [mode, setMode] = useState<"unified" | "raw">("unified");
-  const lines = useMemo(() => parseDiff(patch), [patch]);
+  const lines: DiffLine[] = useMemo(
+    () => review?.lines ?? parseDiff(patch),
+    [patch, review],
+  );
+  const referenceElement = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    referenceElement.current?.scrollIntoView?.({ block: "center" });
+  }, [reference, review]);
   const files = useMemo(
-    () => [...new Set(lines.map((line) => line.file))],
+    () => [
+      ...new Set(
+        lines
+          .map((line) => line.newPath || line.oldPath || line.file)
+          .filter(Boolean),
+      ),
+    ],
     [lines],
   );
   const patchLabel =
@@ -104,12 +122,19 @@ export function DiffViewer({
   const commentCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const annotation of annotations) {
-      if (!annotation.file || annotation.line === undefined) continue;
-      const key = `${annotation.file}\u0000${annotation.line}`;
+      if (
+        !review ||
+        annotation.target?.roundId !== review.roundId ||
+        !annotation.target.side ||
+        !annotation.file ||
+        annotation.line === undefined
+      )
+        continue;
+      const key = `${annotation.target.side}\u0000${annotation.file}\u0000${annotation.line}`;
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
     return counts;
-  }, [annotations]);
+  }, [annotations, review]);
 
   return (
     <div className="diff-panel surface">
@@ -140,29 +165,62 @@ export function DiffViewer({
         ) : (
           <div className="diff-lines">
             {lines.map((line, index) => {
-              const lineNumber = line.newLine ?? line.oldLine;
-              const commentCount =
-                lineNumber !== undefined
-                  ? (commentCounts.get(`${line.file}\u0000${lineNumber}`) ?? 0)
-                  : 0;
+              const anchors: CodeAnnotation[] =
+                review && line.kind !== "meta"
+                  ? (["old", "new"] as const).flatMap((side) => {
+                      const file = side === "old" ? line.oldPath : line.newPath;
+                      const number =
+                        side === "old" ? line.oldLine : line.newLine;
+                      return file && number
+                        ? [
+                            {
+                              file,
+                              line: number,
+                              target: { roundId: review.roundId, side },
+                            },
+                          ]
+                        : [];
+                    })
+                  : [];
+              const referenced = anchors.some(
+                (anchor) =>
+                  reference?.target.roundId === anchor.target.roundId &&
+                  reference.target.side === anchor.target.side &&
+                  reference.file === anchor.file &&
+                  reference.line === anchor.line,
+              );
               return (
                 <div
-                  className={`diff-line ${line.kind}`}
+                  className={`diff-line ${line.kind}${referenced ? " referenced" : ""}`}
                   key={`${index}-${line.text}`}
+                  ref={referenced ? referenceElement : undefined}
+                  aria-current={referenced ? "location" : undefined}
                 >
                   <span className="line-number">{line.oldLine ?? ""}</span>
                   <span className="line-number">{line.newLine ?? ""}</span>
                   <code>{line.text || " "}</code>
-                  {lineNumber !== undefined && line.kind !== "meta" ? (
-                    <button
-                      aria-label={`Annotate ${line.file} line ${lineNumber}`}
-                      className="line-comment"
-                      onClick={() => onAnnotate(line.file, lineNumber)}
-                      type="button"
-                    >
-                      <CommentIcon size={14} />
-                      {commentCount ? <b>{commentCount}</b> : null}
-                    </button>
+                  {onAnnotate && anchors.length ? (
+                    <span className="line-annotation-actions">
+                      {anchors.map((anchor) => {
+                        const count =
+                          commentCounts.get(
+                            `${anchor.target.side}\u0000${anchor.file}\u0000${anchor.line}`,
+                          ) ?? 0;
+                        return (
+                          <button
+                            key={anchor.target.side}
+                            aria-label={`Annotate ${anchor.file} ${anchor.target.side} line ${anchor.line}`}
+                            className="line-comment"
+                            onClick={() => onAnnotate(anchor)}
+                            type="button"
+                          >
+                            <CommentIcon size={14} />
+                            {anchor.target.side === "old" ? "旧" : "新"}
+                            {count ? <b>{count}</b> : null}
+                          </button>
+                        );
+                      })}
+                    </span>
                   ) : null}
                 </div>
               );
@@ -172,8 +230,16 @@ export function DiffViewer({
       ) : (
         <div className="empty-diff">
           <span>✓</span>
-          <strong>Worktree matches the baseline</strong>
-          <p>Agent changes will appear here as a binary-capable Git patch.</p>
+          <strong>
+            {review
+              ? "所选 Round 与 baseline 一致"
+              : "Worktree matches the baseline"}
+          </strong>
+          <p>
+            {review
+              ? "此不可变快照没有可批注的改动行。"
+              : "这是实时 worktree 视图，不是封存 Round，不能创建代码批注。"}
+          </p>
         </div>
       )}
     </div>

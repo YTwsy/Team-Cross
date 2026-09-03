@@ -334,7 +334,7 @@ func (s *Store) ValidateCommandFence(ctx context.Context, shareID, participantID
 		FROM shares
 		JOIN threads ON threads.id = shares.thread_id
 		LEFT JOIN control_leases ON control_leases.share_id = shares.id
-		WHERE shares.id = ?`, shareID).Scan(&revision, &holder, &currentEpoch, &expires)
+		WHERE shares.id = ? AND shares.revoked_at IS NULL AND shares.expires_at > ?`, shareID, millis(now)).Scan(&revision, &holder, &currentEpoch, &expires)
 	if err != nil {
 		return mapNotFound(err)
 	}

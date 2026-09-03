@@ -1,12 +1,10 @@
 package gitstate
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"teamcross/internal/domain"
 )
@@ -81,39 +79,4 @@ func CreateWorktree(ctx context.Context, snapshot Snapshot, destination string) 
 	}
 	created = false
 	return nil
-}
-
-// ExportBinaryPatch returns the entire tracked diff from baseline plus binary
-// patches for untracked regular files. The output is suitable for git apply.
-func ExportBinaryPatch(ctx context.Context, worktree, baseline string) ([]byte, error) {
-	if baseline == "" {
-		return nil, domain.ErrUnbornRepository
-	}
-	tracked, err := gitOutput(ctx, worktree, nil,
-		"diff", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", baseline, "--")
-	if err != nil {
-		return nil, fmt.Errorf("export tracked patch: %w", err)
-	}
-	untracked, err := gitOutput(ctx, worktree, nil, "ls-files", "--others", "--exclude-standard", "-z")
-	if err != nil {
-		return nil, fmt.Errorf("list untracked files: %w", err)
-	}
-	var patch bytes.Buffer
-	patch.Write(tracked)
-	for _, raw := range bytes.Split(untracked, []byte{0}) {
-		if len(raw) == 0 {
-			continue
-		}
-		rel := string(raw)
-		piece, diffErr := gitOutput(ctx, worktree, nil,
-			"diff", "--no-index", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", "--", "/dev/null", rel)
-		if diffErr != nil && !isExitCode(diffErr, 1) {
-			return nil, fmt.Errorf("export untracked file %s: %w", rel, diffErr)
-		}
-		if patch.Len() > 0 && !strings.HasSuffix(patch.String(), "\n") {
-			patch.WriteByte('\n')
-		}
-		patch.Write(piece)
-	}
-	return patch.Bytes(), nil
 }

@@ -1,6 +1,26 @@
 export type Role = "owner" | "controller" | "observer";
 export type Provider = "mock" | "codex" | "claude";
 
+export interface ReviewSuccessorInput {
+  roundId: string;
+  repo: string;
+  untracked: string[];
+  goal: string;
+  expectedRevision: number;
+}
+
+export interface ReviewSuccessorPreview {
+  roundId: string;
+  repo: string;
+  baseline: string;
+  previewHash: string;
+  expectedRevision: number;
+  snapshotCount: number;
+  feedbackCount: number;
+  untracked: GitSnapshot["untracked"];
+  warning: string;
+}
+
 export interface DoctorCheck {
   key: string;
   label: string;
@@ -112,6 +132,29 @@ export interface AnnotationTarget {
   entryId?: string;
   evidenceId?: string;
   roundId?: string;
+  side?: "old" | "new";
+}
+
+export interface CodeAnnotation {
+  file: string;
+  line: number;
+  target: { roundId: string; side: "old" | "new" };
+}
+
+export interface SealedCodeLine {
+  kind: "add" | "delete" | "context" | "meta";
+  text: string;
+  oldPath?: string;
+  newPath?: string;
+  oldLine?: number;
+  newLine?: number;
+}
+
+export interface SealedCodeReview {
+  roundId: string;
+  baseline: string;
+  patch: string;
+  lines: SealedCodeLine[];
 }
 
 export interface ShareScope {
@@ -120,6 +163,30 @@ export interface ShareScope {
   evidenceIds?: string[];
   includeCode: boolean;
   includeEvents: boolean;
+  nativeLive?: NativeLiveScope;
+}
+
+export interface NativeLiveScope {
+  followId: string;
+  expectedSnapshotId: string;
+  entryKinds: SessionEntry["kind"][];
+  confirmCurrentAndFuture: true;
+}
+
+export interface NativeLiveStatus {
+  followId: string;
+  state: "active" | "retrying" | "stopped" | "limited";
+  latestSnapshotId: string;
+  entryKinds: string[];
+  reason?: string;
+}
+
+export interface NativeOpenResult {
+  status: "requested";
+  provider: Provider;
+  sessionId: string;
+  target: "codex-desktop";
+  message: string;
 }
 
 export interface ShareOptions {
@@ -164,6 +231,8 @@ export interface ThreadDetail extends ThreadSummary {
   share?: Share;
   readOnly?: boolean;
   sessionSnapshots?: SessionSnapshot[];
+  sessionFollows?: SessionFollow[];
+  nativeLive?: NativeLiveStatus;
   controlLease?: {
     participantId: string;
     epoch: number;
@@ -229,4 +298,18 @@ export interface SessionPreview {
 export interface SessionSnapshot extends SessionPreview {
   id: string;
   threadId: string;
+}
+
+export interface SessionFollow {
+  id: string;
+  threadId: string;
+  source: SessionRef;
+  sourceSnapshotId: string;
+  currentSnapshotId: string;
+  state: "active" | "retrying" | "stopped";
+  epoch: number;
+  updatedAt: string;
+  lastPolledAt?: string;
+  reason?: string;
+  gaps: string[];
 }

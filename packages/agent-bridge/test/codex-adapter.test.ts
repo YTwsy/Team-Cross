@@ -7,6 +7,7 @@ import type { JsonlRpcProcess } from "../src/lib/jsonl-rpc-client.js";
 describe("Codex adapter requests", () => {
   it("initializes without listing history and constrains each turn to the worktree", async () => {
     const calls: Array<{ method: string; params: unknown }> = [];
+    let callbacks!: ConstructorParameters<typeof JsonlRpcProcess>[0];
     const fake = {
       start() {},
       notify() {},
@@ -19,12 +20,15 @@ describe("Codex adapter requests", () => {
         if (method === "thread/list") return { data: [], nextCursor: null };
         if (method === "thread/start") return { thread: { id: "thread-1" } };
         if (method === "turn/start") return { turn: { id: "turn-1" } };
-        if (method === "turn/interrupt") return {};
+        if (method === "turn/interrupt") {
+          callbacks.onNotification?.({ method: "turn/completed", params: { threadId: "thread-1", turn: { id: "turn-1", status: "interrupted" } } });
+          return {};
+        }
         throw new Error(`unexpected method ${method}`);
       },
     };
     const adapter = new CodexAdapter({
-      clientFactory: () => fake as unknown as JsonlRpcProcess,
+      clientFactory: (options) => { callbacks = options; return fake as unknown as JsonlRpcProcess; },
     });
     const params: Parameters<AgentAdapter["createRun"]>[0] = {
       runId: "run-1",

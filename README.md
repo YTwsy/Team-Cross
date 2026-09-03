@@ -27,12 +27,20 @@ Session 仍只作为有来源、不可信的上下文导入，尚不能被实时
 入口不使用原生 cwd 自动抓取代码：没有经用户明确捕获的 Git 基线也能审阅，但这样的
 只读 Thread 不能执行 Agent。当前代码状态不是历史 Session 当时的代码状态。
 
-需要执行时，先捕获 Git 创建可执行 Thread，再导入参考 Session：
+已有只读审阅需要继续时，可明确选择一个代码仓库，预览当前基线与选定文件，创建独立
+后继 Thread。它携带已保存的 Session 快照和精确指向这些材料的只读反馈 Evidence，
+不必再次读取原生历史；此步骤本身仍不启动 Agent。
+
+`只读审阅 → 选择独立代码基线 → 预览并确认 → 后继 Thread → 确认新 Session → 隔离执行`
+
+也可以先捕获 Git 创建可执行 Thread，再导入参考 Session：
 
 `capture → 导入参考 Session → 选择 Round → 确认新 Session → 隔离执行 → 新 Round → patch export`
 
 从历史 Round 继续会创建新 Thread；最新 Round 只有在 worktree 与封存状态一致时才能
 原 Thread 顺序继续。若有后来修改，选择 Fork，不覆盖或回退当前 worktree。
+继续起点在选择时固定，后台新 Round 不会悄悄替换已确认的起点。代码审阅显示封存 Round
+的 diff，批注区分 old/new 侧；当前 worktree 的实时 diff 单独查看，不冒充历史快照。
 
 完整的产品闭环、技术分层和实时协作时序见
 [产品与架构图解](docs/architecture.md)。
@@ -163,6 +171,13 @@ Provider 提供 `thread/resume` 都不意味着单 Writer 已被证明；未验�
 CLI/Desktop 的独立验收要求见
 [原生能力门槛](docs/agent-wiki/sources/validation/native-capability-gates.md)。
 
+只读 Follow 已有增量读取、持久游标、停止保护与 WebGUI 状态面板，但当前原生来源尚未
+通过专用 CLI/Desktop 验收，因此入口保持禁用并显示原因。Follow 不创建 Run，不取得
+输入权，也不会扩大已有 Share。原生实时分享已有独立范围授权：明确选择当前窗口和
+未来内容类别，按不可变窗口保留旧批注；默认关闭，仍受真实 Follow 能力门槛限制。
+准确打开 Codex Desktop 的入口同样受能力门控，202 只代表系统接收请求，不代表原生
+会话已经验收。原生同会话接管与交还仍未交付。
+
 ## 离线交接
 
 有 Git 基线的 Thread 可以在 WebGUI 选择 Round 和允许导出的上下文，确认后下载
@@ -197,7 +212,8 @@ SQLite 启用 WAL、foreign keys、busy timeout、单调事件序号、不可变
 5 MiB、单 Round 20 MiB；超限内容只保留元数据。
 
 数据库通过版本化迁移保留旧 Thread/Round，新增不可变 SessionSnapshot、批注锚点、
-Share 内容投影及 Run 来源/Writer/能力绑定。升级前应备份数据目录；不支持降级打开新 schema。
+Share 内容投影、Run 来源/Writer/能力绑定、只读 Follow 状态及不可变公开窗口。
+schema v3 保留 v0/v1/v2 历史；升级前应备份数据目录，不支持降级打开新 schema。
 
 主机重启会主动使所有临时 Share runtime 失效，但 Thread、Round、worktree、evidence、
 annotation 和 event 会继续保留。

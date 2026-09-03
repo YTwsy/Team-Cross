@@ -28,7 +28,12 @@ Team Cross 只提供查看 diff、下载 patch 和显示 worktree 路径；不�
 - staged 与 unstaged patch 使用 `--binary` 语义捕获。
 - untracked 文件只有在用户选择且未超限时携带内容；超限项保留元数据。
 - 单个 untracked 文件最多 5 MiB，单轮携带总量最多 20 MiB。
-- 最终 export 包含相对 baseline 的 tracked diff 和仍存在的 untracked regular file。
+- 最终 export 包含相对 baseline 的 tracked diff、当前可见 untracked 和仍存在的已捕获
+  文件（含受限 symlink）。后者即使后来被 ignore 隐藏也不能丢失；授权范围来自同一
+  Thread 的不可变 capture/patch 或累计 capturedPaths，不扫描全部 ignored 文件。
+  缺失文件不从旧内容复活，已 tracked 路径不重复导出，危险路径和 symlink 父级拒绝。
+- 后续 Round 保证 baseline 下的代码树，不承诺完整重放历史 Git index/refs。导出需要的
+  index 规范化只能发生在临时 index，不能改实际 checkout/worktree 的 index 或 HEAD。
 - unborn repository 可以创建只读 Thread，但在首个 commit 出现前不创建 managed Agent。
 - Git 子进程忽略继承的 Git 路由/全局/系统配置，禁用 hooks、fsmonitor、textconv
   与内容 filters；不能让不可信 `.gitattributes` 在导入、查看或导出时执行主机程序。
@@ -39,7 +44,8 @@ Team Cross 只提供查看 diff、下载 patch 和显示 worktree 路径；不�
 
 ## 影响
 
-Agent 的文件写入会立即反映在 Thread diff 中，但原 checkout 的 `git status` 不会因这些
+Agent 的文件写入会反映在 live diff 中；代码批注只针对独立选择的 sealed Round diff，
+不以 live diff 冒充历史。原 checkout 的 `git status` 不会因这些
 写入变化。用户若要采纳结果，必须显式下载 patch、依据显示的路径进入 worktree，或自行
 执行 Git 操作。
 
@@ -52,5 +58,7 @@ Agent 的文件写入会立即反映在 Thread diff 中，但原 checkout 的 `g
 
 - `internal/gitstate/capture.go`
 - `internal/gitstate/worktree.go`
+- `internal/gitstate/export.go`
+- `internal/server/captured_export.go`
 - `internal/server/threads.go`
 - `internal/gitstate/capture_test.go`

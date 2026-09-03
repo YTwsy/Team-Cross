@@ -275,7 +275,7 @@ func (app *App) buildThreadDetail(ctx context.Context, threadID string, identity
 		}
 	}
 	if !thread.ReadOnly && thread.WorktreePath != "" {
-		if patch, patchErr := gitstate.ExportBinaryPatch(ctx, thread.WorktreePath, thread.BaselineCommit); patchErr == nil {
+		if patch, patchErr := app.exportThreadPatch(ctx, thread); patchErr == nil {
 			git.FinalPatch = string(patch)
 		}
 	}
@@ -325,6 +325,12 @@ func (app *App) buildThreadDetail(ctx context.Context, threadID string, identity
 	detail.SessionSnapshots, err = app.store.ListSessionSnapshots(ctx, threadID)
 	if err != nil {
 		return threadDetail{}, err
+	}
+	if identity.Mode == "host" {
+		detail.SessionFollows, err = app.store.ListSessionFollows(ctx, threadID)
+		if err != nil {
+			return threadDetail{}, err
+		}
 	}
 	if identity.Mode == "share" {
 		return app.projectThreadDetail(ctx, detail, identity)
@@ -410,7 +416,7 @@ func (app *App) attachEphemeralState(ctx context.Context, detail *threadDetail, 
 		detail.AgentRun = &agentRunView{ID: copyRun.ID, Provider: copyRun.Provider, Status: copyRun.Status, SessionID: copyRun.SessionID, TurnID: copyRun.TurnID, NetworkEnabled: copyRun.NetworkEnabled}
 	}
 	app.mu.RUnlock()
-	if state == nil || !time.Now().Before(state.ExpiresAt) {
+	if state == nil || !time.Now().Before(state.ExpiresAt) || (identity.Mode == "share" && state.ID != identity.ShareID) {
 		return
 	}
 	detail.Share = &shareView{ID: state.ID, Invite: state.Token, ExpiresAt: state.ExpiresAt, Status: "active", Transports: append([]string(nil), state.Transports...)}
@@ -418,6 +424,9 @@ func (app *App) attachEphemeralState(ctx context.Context, detail *threadDetail, 
 		detail.Share.AllowControl = projection.AllowControl
 		if !projection.Legacy {
 			detail.Share.Scope = &projection.Scope
+			if identity.Mode == "host" && projection.Scope.NativeLive != nil {
+				detail.NativeLive, _ = app.nativeLiveStatus(ctx, state.ID)
+			}
 		}
 	}
 	participants, _ := app.store.ListParticipants(ctx, state.ID)
@@ -486,7 +495,7 @@ func (app *App) handlePatch(response http.ResponseWriter, request *http.Request)
 		writeError(response, http.StatusConflict, "unborn", "A baseline commit is required to export a patch")
 		return
 	}
-	patch, err := gitstate.ExportBinaryPatch(request.Context(), thread.WorktreePath, thread.BaselineCommit)
+	patch, err := app.exportThreadPatch(request.Context(), thread)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "patch", err.Error())
 		return

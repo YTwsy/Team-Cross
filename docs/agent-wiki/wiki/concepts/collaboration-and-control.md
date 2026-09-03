@@ -43,6 +43,9 @@ Core 在执行前持久化 `(share_id, command_id)`、participant identity 与�
 已完成重放不重新消费当前 revision 或 lease；新 `commandId` 仍必须通过最新 fencing。
 
 增加新的远端写接口时，不能绕过这条路径。
+首次 admission 必须把 Share 有效性、capability、participant、revision 和按操作需要的
+lease 检查与 command 插入放在同一原子写入。撤销先提交会拒绝迟到 body；已 admission
+的操作可能完成，不把撤销描述成回滚正在执行的工作。
 
 ## 远端 API 边界
 

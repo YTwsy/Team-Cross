@@ -52,6 +52,27 @@ Session 和对应 Run。来源 native Session ID 保留用于追溯，不被用�
 - 同一 Thread 的 Provider 顺序共享一个 worktree，但不共享 native Session ID。
 - Bridge 启动探活可以安全重试一次；业务 RPC 不自动重放。
 - Bridge 崩溃后不能假定当前原生 Run 可以恢复。
+- managed Run 创建时允许真实 Session ID 尚未返回；未知值不能用 Run ID 或临时占位符
+  冒充。Core 从创建响应或 `run.started` / `run.status` 采用第一个真实 ID，并原子更新
+  持久 Run 与 binding；晚到的空值、旧占位符和重复事件不能回退身份。不同的真实 ID
+  会被拒绝并封锁该 Run 后续命令，不能隐式切换 Session。身份补全保留 Continue/Fork
+  来源与执行边界，也不会复活 archived/closed Run。
+- 身份冲突可能发生在旧 Agent 仍执行时。对该 Run 执行同 worktree 的 switch 或
+  Continue，必须先确认旧 Writer 关闭成功；关闭失败不得 prepare/create/send 新 Run。
+  普通非冲突切换仍先 prepare；目标初始化失败不关闭旧 Run。初始化成功后，所有替换
+  都必须在目标首条输入前确认旧 Writer 关闭，不能仅依赖当时是否已报告身份冲突。
+  关闭失败则禁用从未 send 的目标 Run，保留旧 archived 引用供 Owner 显式重试关闭，
+  不恢复旧输入权限，也不把未确认关闭的进程记录成已关闭。
+- 激活时旧 Run 归档或 `agent.switched` / `agent.continued` 持久化失败，也必须进入相同
+  补偿路径；不能在关闭栅栏之前留下可通过普通 send 访问的零输入目标。
+- Adapter 从第一次 close 起永久封锁该 Run 的新输入，但错误/超时不报告 closed。
+  Codex 必须等待准确 Turn 的 `turn/completed` 终态，中断 ACK 本身不算关闭；待返回的
+  turn/start 身份和 steer 也须收口。未知 start 结果保持 fail-closed，不猜成 idle。
+  Claude 先执行 SDK query close，再等待接收循环与可用的 iterator cleanup；关闭抛错
+  或未结束保持可重试，不提前丢弃路由。两 Adapter 都合并并发 close，并保留有界超时。
+  Codex 中断/终态的协议依据见 [官方 App Server 文档](https://learn.chatgpt.com/docs/app-server)。
+- 延迟的历史 Run `turn.completed` 仍可记录为事件，但不得捕获当前 worktree 或追加
+  Round；入队时与取得 Round 写入锁后都要确认它仍是当前 Writer。
 - `sessions.snapshot` 与所有 `runs.*` 执行路径分离；能力标记遵循
   [原生能力门槛](../validation/native-capability-gates.md)。
 - 从 Round 创建新 Session 与 Provider switch 是独立动作，前者只读取所选封存上下文，
@@ -70,12 +91,14 @@ Session 和对应 Run。来源 native Session ID 保留用于追溯，不被用�
 2. **Commit**：持久化 outgoing immutable Round，并发布对应 context manifest。这个点
    之前失败会丢弃目标 Session，旧 Run 仍是当前 Run。
 3. **Activate**：把旧 Run 逻辑冻结为只读历史，把目标 Run 设为当前 Run，立即持久化
-   `agent.switched`；随后 best-effort 关闭旧 Provider Session，再向目标发送首条
-   handoff prompt。
+   `agent.switched`；随后确认旧 Provider Session 关闭成功，再向目标发送首条 handoff
+   prompt。旧关闭失败时禁用零输入目标，保留旧 archived 引用供 Owner 显式重试。
+   归档或激活审计事件持久化失败同样禁用零输入目标，不恢复旧输入权限。
 
 这样目标 Provider 初始化失败时不会先失去旧 Session，同时在任意时刻仍只有一个可接受
-普通命令的 Run。commit 后首条 prompt 失败不会复活旧 Run；目标 Run 保持当前并记录失败，
-由主机决定重试或再次切换。
+普通命令的 Run。首条 prompt 已发送后的失败不会复活旧 Run；目标 Run 保持当前并记录
+失败，由主机决定重试或再次切换。关闭旧 Writer 失败的回退仅恢复不可写的历史引用，
+不清除 archived/identity conflict，也不自动执行任何 Agent 输入。
 
 Round commit 绑定带唯一后缀的 context manifest，目标 Agent 直接读取该路径。固定的
 `contexts/<thread-id>.json` 只是便于人工查看的 best-effort 别名，发布失败不会使已经提交

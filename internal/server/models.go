@@ -125,6 +125,8 @@ type threadDetail struct {
 	threadSummary
 	ReadOnly         bool                     `json:"readOnly"`
 	SessionSnapshots []domain.SessionSnapshot `json:"sessionSnapshots"`
+	SessionFollows   []domain.SessionFollow   `json:"sessionFollows,omitempty"`
+	NativeLive       *nativeLiveView          `json:"nativeLive,omitempty"`
 	Revision         int64                    `json:"revision"`
 	Worktree         string                   `json:"worktree"`
 	Goal             string                   `json:"goal"`

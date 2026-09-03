@@ -61,7 +61,7 @@ func TestCaptureAnnotationLeaseAndCommandIdempotency(t *testing.T) {
 
 	hostAnnotation := requestJSON(t, host, http.MethodPost,
 		"/api/v1/threads/"+detail.ID+"/annotations",
-		annotationRequest{Body: "Owner note", File: "tracked.txt", Line: 1}, nil)
+		annotationRequest{Body: "Owner note"}, nil)
 	if hostAnnotation.Code != http.StatusCreated {
 		t.Fatalf("host annotation status = %d, body = %s", hostAnnotation.Code, hostAnnotation.Body.String())
 	}
@@ -145,7 +145,7 @@ func TestCaptureAnnotationLeaseAndCommandIdempotency(t *testing.T) {
 	}
 
 	remoteAnnotationBody := annotationRequest{
-		Body: "Reviewer note", File: "tracked.txt", Line: 1,
+		Body:      "Reviewer note",
 		CommandID: "annotation-1", ExpectedRevision: detail.Revision,
 	}
 	remoteAnnotation := requestJSON(t, remote, http.MethodPost,

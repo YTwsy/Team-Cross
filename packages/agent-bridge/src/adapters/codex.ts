@@ -12,6 +12,7 @@ import {
   type SessionPollResult,
 } from "../protocol.js";
 import { pollCodexSession } from "../lib/codex-poll.js";
+import { closeDeadline, withinCloseDeadline } from "../lib/close-deadline.js";
 import { codexSurface, DEFAULT_SNAPSHOT_LIMIT, normalizeCodexSnapshot } from "../lib/session-snapshot.js";
 import {
   JsonlRpcProcess,
@@ -28,6 +29,7 @@ export interface CodexAdapterOptions {
   env?: NodeJS.ProcessEnv;
   onDiagnostic?: (message: string) => void;
   clientFactory?: (options: ConstructorParameters<typeof JsonlRpcProcess>[0]) => JsonlRpcProcess;
+  closeTimeoutMs?: number;
 }
 
 interface MappedCodexEvent {
@@ -184,6 +186,7 @@ export class CodexAdapter implements AgentAdapter {
       ...(params.model === undefined ? {} : { model: params.model }),
       client,
       emit,
+      closeTimeoutMs: this.options.closeTimeoutMs,
       onClosed: () => this.runsByThread.delete(threadId),
     });
     this.runsByThread.set(threadId, run);
@@ -290,11 +293,20 @@ interface CodexRunOptions {
   client: JsonlRpcProcess;
   emit: EventSink;
   onClosed: () => void;
+  closeTimeoutMs?: number;
 }
 
 class CodexRun implements AgentRun {
   readonly descriptor: RunDescriptor;
   private activeTurnId: string | undefined;
+  private readonly activeTurns = new Set<string>();
+  private readonly terminalTurns = new Set<string>();
+  private readonly terminalWaiters = new Map<string, () => void>();
+  private pendingStart: Promise<{ turnId: string }> | undefined;
+  private readonly pendingSteers = new Set<Promise<unknown>>();
+  private startUncertain = false;
+  private closing = false;
+  private closeAttempt: Promise<void> | undefined;
   private importedContext: string[] = [];
   private readonly pendingInputs = new Map<string, {
     rpcId: string | number;
@@ -328,12 +340,27 @@ class CodexRun implements AgentRun {
   }
 
   async importContext(source: Record<string, unknown>, context: unknown): Promise<void> {
+    this.assertInputOpen();
     this.importedContext.push(serializeImportedContext(source, context));
   }
 
   async send(message: string): Promise<{ turnId: string }> {
-    if (this.descriptor.status === "closed") throw new Error("run is closed");
-    if (this.activeTurnId) throw new Error("a Codex turn is active; use runs.steer");
+    this.assertInputOpen();
+    if (this.activeTurns.size || this.pendingStart || this.startUncertain) throw new Error("a Codex turn is active or unconfirmed; use runs.steer");
+    const pending = this.startTurn(message);
+    this.pendingStart = pending;
+    try {
+      return await pending;
+    } catch (error) {
+      // A failed/timeout response does not prove turn/start was never accepted.
+      this.startUncertain = true;
+      throw error;
+    } finally {
+      if (this.pendingStart === pending) this.pendingStart = undefined;
+    }
+  }
+
+  private async startTurn(message: string): Promise<{ turnId: string }> {
     const prompt = this.withImportedContext(message);
     const response = await this.options.client.request("turn/start", {
       threadId: this.options.threadId,
@@ -352,23 +379,35 @@ class CodexRun implements AgentRun {
     const turn = isRecord(response) && isRecord(response.turn) ? response.turn : undefined;
     const turnId = turn ? stringField(turn, "id") : undefined;
     if (!turnId) throw new Error("Codex turn/start returned no turn id");
-    this.activeTurnId = turnId;
-    this.descriptor.status = "running";
+    // Notifications can arrive before the turn/start response.
+    if (!this.terminalTurns.has(turnId)) {
+      this.activeTurns.add(turnId);
+      this.activeTurnId = turnId;
+      this.descriptor.status = "running";
+    }
     return { turnId };
   }
 
   async steer(message: string): Promise<{ turnId: string }> {
+    this.assertInputOpen();
     const turnId = this.activeTurnId;
     if (!turnId) throw new Error("no active Codex turn to steer");
-    await this.options.client.request("turn/steer", {
+    const pending = this.options.client.request("turn/steer", {
       threadId: this.options.threadId,
       expectedTurnId: turnId,
       input: [{ type: "text", text: message, text_elements: [] }],
     });
+    this.pendingSteers.add(pending);
+    try {
+      await pending;
+    } finally {
+      this.pendingSteers.delete(pending);
+    }
     return { turnId };
   }
 
   async interrupt(): Promise<void> {
+    this.assertInputOpen();
     const turnId = this.activeTurnId;
     if (!turnId) return;
     await this.options.client.request("turn/interrupt", {
@@ -378,6 +417,7 @@ class CodexRun implements AgentRun {
   }
 
   async respondInput(inputRequestId: string, response: unknown): Promise<void> {
+    this.assertInputOpen();
     const pending = this.pendingInputs.get(inputRequestId);
     if (!pending) throw new Error(`unknown Codex input request: ${inputRequestId}`);
     this.pendingInputs.delete(inputRequestId);
@@ -387,33 +427,78 @@ class CodexRun implements AgentRun {
 
   async close(): Promise<void> {
     if (this.descriptor.status === "closed") return;
-    await this.interrupt().catch(() => undefined);
-    for (const pending of this.pendingInputs.values()) {
-      this.options.client.respondError(pending.rpcId, -32000, "Team Cross run closed");
+    if (this.closeAttempt) return await this.closeAttempt;
+    // This fence survives every failure; a retry may only finish closing.
+    this.closing = true;
+    this.descriptor.capabilities = { send: false, steer: false, interrupt: false, inputResponse: false };
+    const attempt = this.finishClose();
+    this.closeAttempt = attempt;
+    try {
+      await attempt;
+    } finally {
+      if (this.closeAttempt === attempt) this.closeAttempt = undefined;
     }
-    this.pendingInputs.clear();
-    this.descriptor.status = "closed";
+  }
+
+  private async finishClose(): Promise<void> {
+    const deadline = closeDeadline(this.options.closeTimeoutMs);
+    for (const [id, pending] of this.pendingInputs) {
+      this.options.client.respondError(pending.rpcId, -32000, "Team Cross run is closing");
+      this.pendingInputs.delete(id);
+    }
+    if (this.pendingStart) await withinCloseDeadline(this.pendingStart, deadline, "turn/start identity");
+    if (this.startUncertain) throw new Error("Codex turn/start outcome is unknown; termination is unconfirmed");
+    for (const pending of this.pendingSteers) await withinCloseDeadline(pending, deadline, "in-flight turn/steer");
+    while (this.activeTurns.size) {
+      const turnId = this.activeTurns.values().next().value!;
+      // Register before interrupt: exact terminal notification may precede its ACK.
+      const terminal = new Promise<void>((resolve) => this.terminalWaiters.set(turnId, resolve));
+      try {
+        await withinCloseDeadline(this.options.client.request("turn/interrupt", {
+          threadId: this.options.threadId, turnId,
+        }, Math.max(1, deadline - Date.now())), deadline, `interrupt ACK for ${turnId}`);
+        if (this.activeTurns.has(turnId)) await withinCloseDeadline(terminal, deadline, `terminal turn/completed for ${turnId}`);
+      } finally {
+        this.terminalWaiters.delete(turnId);
+      }
+    }
     this.emit("run.closed", { data: {} });
+    this.descriptor.status = "closed";
     this.options.onClosed();
   }
 
   onNotification(method: string, params: JsonRecord): void {
+    if (this.descriptor.status === "closed") return;
     const turnId = stringField(params, "turnId")
       ?? (isRecord(params.turn) ? stringField(params.turn, "id") : undefined);
     if (method === "turn/started" && turnId) {
+      if (this.terminalTurns.has(turnId)) return;
+      this.activeTurns.add(turnId);
       this.activeTurnId = turnId;
       this.descriptor.status = "running";
-    } else if (method === "turn/completed" && turnId === this.activeTurnId) {
-      this.activeTurnId = undefined;
-      this.descriptor.status = "idle";
+    } else if (method === "turn/completed") {
+      const status = isRecord(params.turn) ? params.turn.status : undefined;
+      if (!turnId || (status !== "completed" && status !== "interrupted" && status !== "failed")) return;
+      this.terminalTurns.add(turnId);
+      if (this.terminalTurns.size > 64) this.terminalTurns.delete(this.terminalTurns.values().next().value!);
+      this.activeTurns.delete(turnId);
+      this.terminalWaiters.get(turnId)?.();
+      if (turnId === this.activeTurnId) {
+        this.activeTurnId = this.activeTurns.values().next().value;
+        this.descriptor.status = this.activeTurnId ? "running" : "idle";
+      }
     }
     for (const mapped of mapCodexNotification(method, params)) {
       this.emit(mapped.type, mapped);
     }
-    if (method === "turn/completed") this.status("idle", turnId);
+    if (method === "turn/completed" && this.activeTurns.size === 0) this.status("idle", turnId);
   }
 
   onInputRequest(rpcId: string | number, params: JsonRecord): void {
+    if (this.closing || this.descriptor.status === "closed") {
+      this.options.client.respondError(rpcId, -32000, "Team Cross run is closing");
+      return;
+    }
     const inputRequestId = `codex-input-${String(rpcId)}-${randomUUID()}`;
     const questions = recordArray(params.questions);
     this.pendingInputs.set(inputRequestId, {
@@ -435,6 +520,7 @@ class CodexRun implements AgentRun {
   }
 
   reportError(error: unknown): void {
+    if (this.descriptor.status === "closed") return;
     this.descriptor.status = "error";
     this.emit("run.error", { data: { message: errorMessage(error) } });
   }
@@ -442,6 +528,10 @@ class CodexRun implements AgentRun {
   private withImportedContext(message: string): string {
     if (this.importedContext.length === 0) return message;
     return `${this.importedContext.splice(0).join("\n\n")}\n\n<user-request>\n${message}\n</user-request>`;
+  }
+
+  private assertInputOpen(): void {
+    if (this.closing || this.descriptor.status === "closed") throw new Error("run is closing or closed; input is fenced");
   }
 
   private status(status: RunDescriptor["status"], turnId?: string): void {

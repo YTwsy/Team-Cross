@@ -48,7 +48,7 @@ func installReviewShare(t *testing.T, app *App, threadID string, scope domain.Sh
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = app.store.SaveShareProjection(ctx, share.ID, jsonBytes(projection)); err != nil {
+	if err = app.store.SaveScopedShareProjection(ctx, share.ID, jsonBytes(projection), projection.LiveBinding); err != nil {
 		t.Fatal(err)
 	}
 	app.shares[threadID] = &hostedShare{ID: share.ID, ThreadID: threadID, ExpiresAt: share.ExpiresAt}
@@ -263,6 +263,7 @@ func TestImportedSessionsSurviveLaterCheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	run := &managedRun{ID: stored.ID, ThreadID: detail.ID, Provider: "mock", Status: "idle"}
+	app.runs[detail.ID] = run
 	completed, err := app.store.AppendEvent(ctx, detail.ID, "turn.completed", jsonBytes(map[string]string{"runId": run.ID, "turnId": "turn", "status": "completed"}))
 	if err != nil {
 		t.Fatal(err)
@@ -271,6 +272,9 @@ func TestImportedSessionsSurviveLaterCheckpoint(t *testing.T) {
 	rounds, err := app.store.ListRounds(ctx, detail.ID)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(rounds) == 0 || rounds[len(rounds)-1].Kind != "agent_turn" || rounds[len(rounds)-1].AgentRunID != run.ID {
+		t.Fatalf("current Run completion was not sealed: %#v", rounds)
 	}
 	ids, err := app.latestSealedSessionIDs(ctx, rounds)
 	if err != nil || len(ids) != 2 || ids[0] != "snapshot-A" || ids[1] != "snapshot-B" {

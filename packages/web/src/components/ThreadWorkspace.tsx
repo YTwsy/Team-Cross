@@ -9,15 +9,17 @@ import type {
   ThreadDetail,
   TimelineEvent,
   AnnotationTarget,
+  CodeAnnotation,
 } from "../types";
 import { AgentIcon, CommentIcon, GitIcon } from "./Icons";
 import { Composer } from "./Composer";
-import { DiffViewer } from "./DiffViewer";
+import { CodeReviewPanel } from "./CodeReviewPanel";
 import { EvidencePanel } from "./EvidencePanel";
 import { ImportSessionModal } from "./ImportSessionModal";
 import { SharePanel } from "./SharePanel";
 import { Timeline } from "./Timeline";
 import { SessionReview } from "./SessionReview";
+import type { SessionReviewReference } from "./SessionReview";
 import { ContinuationPanel } from "./ContinuationPanel";
 
 type Tab = "session" | "timeline" | "diff" | "evidence" | "annotations";
@@ -199,6 +201,12 @@ export function ThreadWorkspace({
   const [feedbackCopied, setFeedbackCopied] = useState(false);
   const [annotationBusy, setAnnotationBusy] = useState(false);
   const threadRef = useRef<ThreadDetail | undefined>(undefined);
+  const [reviewReference, setReviewReference] =
+    useState<SessionReviewReference>();
+  const [codeReference, setCodeReference] = useState<
+    CodeAnnotation & { requestId: number }
+  >();
+  const viewEpoch = useRef(0);
 
   useEffect(() => {
     threadRef.current = thread;
@@ -206,6 +214,11 @@ export function ThreadWorkspace({
 
   useEffect(() => {
     let active = true;
+    viewEpoch.current += 1;
+    setReviewReference(undefined);
+    setCodeReference(undefined);
+    setAnnotationTarget(undefined);
+    setAnnotationBody("");
     setThread(undefined);
     setConnected(false);
     setError("");
@@ -225,6 +238,7 @@ export function ThreadWorkspace({
       });
     return () => {
       active = false;
+      viewEpoch.current += 1;
     };
   }, [id]);
 
@@ -385,12 +399,19 @@ export function ThreadWorkspace({
   }, [controllerParticipantId, effectiveRole, id]);
 
   async function refresh(action: () => Promise<ThreadDetail>) {
+    const epoch = viewEpoch.current;
     try {
       const value = await action();
-      setThread((current) => reconcileThread(current, value));
+      if (epoch !== viewEpoch.current) return;
+      setThread((current) =>
+        current?.id === id && value.id === id
+          ? reconcileThread(current, value)
+          : current,
+      );
       setError("");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Request failed");
+      if (epoch === viewEpoch.current)
+        setError(reason instanceof Error ? reason.message : "Request failed");
       throw reason;
     }
   }
@@ -582,29 +603,66 @@ export function ThreadWorkspace({
                 </button>
               </section>
             ) : null}
-            {tab === "session" ? (
+            <div hidden={tab !== "session"}>
               <SessionReview
+                threadId={thread.id}
                 snapshots={thread.sessionSnapshots ?? []}
+                follows={thread.sessionFollows ?? []}
+                canManage={canManage && info.mode === "host"}
+                nativeLive={thread.nativeLive}
+                reference={reviewReference}
+                onFollowChanged={(follow) => {
+                  setThread((current) => {
+                    if (!current || current.id !== follow.threadId)
+                      return current;
+                    const existing = current.sessionFollows?.find(
+                      (item) => item.id === follow.id,
+                    );
+                    if (
+                      existing &&
+                      (existing.epoch > follow.epoch ||
+                        (existing.epoch === follow.epoch &&
+                          Date.parse(existing.updatedAt) >
+                            Date.parse(follow.updatedAt)))
+                    )
+                      return current;
+                    return {
+                      ...current,
+                      sessionFollows: [
+                        ...(current.sessionFollows ?? []).filter(
+                          (item) => item.id !== follow.id,
+                        ),
+                        follow,
+                      ],
+                    };
+                  });
+                }}
                 annotations={thread.annotations}
                 onAnnotate={(target) => {
                   setAnnotationTarget({ target });
                   setTab("annotations");
                 }}
               />
-            ) : null}
+            </div>
             {tab === "timeline" ? (
               <Timeline events={thread.events} rounds={thread.rounds} />
             ) : null}
-            {tab === "diff" ? (
-              <DiffViewer
+            <div hidden={tab !== "diff"}>
+              <CodeReviewPanel
+                key={`${thread.id}:${codeReference?.requestId ?? 0}`}
+                threadId={thread.id}
+                rounds={thread.rounds}
+                active={tab === "diff"}
+                canManage={canManage}
                 annotations={thread.annotations}
-                onAnnotate={(file, line) => {
-                  setAnnotationTarget({ file, line });
+                onAnnotate={(anchor) => {
+                  setAnnotationTarget(anchor);
                   setTab("annotations");
                 }}
-                patch={patch}
+                livePatch={patch}
+                reference={codeReference}
               />
-            ) : null}
+            </div>
             {tab === "evidence" ? (
               <EvidencePanel
                 canManage={canManage}
@@ -638,6 +696,9 @@ export function ThreadWorkspace({
                           <code>
                             {item.file}
                             {item.line ? `:${item.line}` : ""}
+                            {item.target?.roundId && item.target.side
+                              ? ` · Round ${item.target.roundId} · ${item.target.side}`
+                              : " · 历史代码批注（未绑定不可变定位）"}
                           </code>
                         ) : null}
                         {item.target ? (
@@ -654,6 +715,47 @@ export function ThreadWorkspace({
                           </code>
                         ) : null}
                         <p>{item.body}</p>
+                        {item.target?.snapshotId ? (
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() => {
+                              setReviewReference({
+                                threadId: thread.id,
+                                snapshotId: item.target!.snapshotId!,
+                                entryId: item.target?.entryId,
+                                requestId:
+                                  (reviewReference?.requestId ?? 0) + 1,
+                              });
+                              setTab("session");
+                            }}
+                          >
+                            查看引用快照
+                          </button>
+                        ) : null}
+                        {item.file &&
+                        item.line &&
+                        item.target?.roundId &&
+                        item.target.side ? (
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() => {
+                              setCodeReference((previous) => ({
+                                file: item.file!,
+                                line: item.line!,
+                                requestId: (previous?.requestId ?? 0) + 1,
+                                target: {
+                                  roundId: item.target!.roundId!,
+                                  side: item.target!.side!,
+                                },
+                              }));
+                              setTab("diff");
+                            }}
+                          >
+                            查看引用代码
+                          </button>
+                        ) : null}
                       </div>
                     </article>
                   ))}
@@ -671,7 +773,7 @@ export function ThreadWorkspace({
                 <div className="annotation-compose surface">
                   <label>
                     {annotationTarget?.file
-                      ? `Comment on ${annotationTarget.file}:${annotationTarget.line}`
+                      ? `批注 Round ${annotationTarget.target?.roundId} · ${annotationTarget.target?.side} · ${annotationTarget.file}:${annotationTarget.line}`
                       : annotationTarget?.target?.entryId
                         ? `批注记录 ${annotationTarget.target.entryId}`
                         : annotationTarget?.target?.evidenceId
@@ -863,10 +965,13 @@ export function ThreadWorkspace({
             />
           ) : null}
           <SharePanel
-            canManage={canManage}
+            key={`share:${thread.id}`}
+            canManage={canManage && info.mode === "host"}
             participants={thread.participants}
             share={thread.share}
             snapshots={thread.sessionSnapshots}
+            sessionFollows={thread.sessionFollows}
+            nativeLive={thread.nativeLive}
             evidence={thread.evidence}
             canIncludeCode={!readOnly}
             canControl={!!thread.agentRun && !readOnly}

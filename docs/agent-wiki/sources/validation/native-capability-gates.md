@@ -48,6 +48,50 @@ CLI 和 Desktop 单独执行上述验收；不能用 CLI 结果代替 Desktop。
 旧 Writer 的证据，以及原 checkout 前后状态。若不能可靠关闭旧输入，停止启用该能力；
 不得通过 UI 自动化、公开原始 app-server、复制凭据或创建新 Session 来替代安全门槛。
 
+## 已实现但未启用的 Follow reader
+
+`sessions.poll` 已提供限定到指定 Codex Session 的只读增量合同，Core 已实现持久游标、
+不可变检查点、重试/重启重验能力、停止 fencing，WebGUI 可呈现并显式管理 reader。
+测试覆盖初次尾部、边界更新、超过一页的补读、暂时断线、历史缺口、重置、重复结果与
+长工具输出；它们使用合成 app-server/Provider 数据，不是 CLI/Desktop 原生验收。
+Snapshot 与 Follow 的序列化结果另按实际 JSON 字节收口，测试覆盖大量需转义控制字符，
+避免字符计数合格但单行超过 Bridge 通道限制。截断材料必须标记为不完整。
+
+`bridge.info.methods` 出现 `sessions.poll` 只表示 RPC 合同可调用，不等于某来源的
+`capabilities.follow=true`。本机初始检查也不再使用 `thread/list` 枚举一个无关 Session。
+`Open in Provider` 仍禁用：仅证明 `codex app PATH`、应用注册 URL scheme 或静态路由
+可解析，不能证明实际定位准确原生对话或不会产生第二个 Writer。
+
+原生实时 Share 已有独立授权与不可变公开窗口合同，不改变上述能力门槛。它只允许已经
+成功读取的活动 Follow，并限制到明确类别和当前预览；使用合成 reader 测试公开窗口、
+批注和 SSE，不能据此把 CLI/Desktop 的 `follow` 标记打开。
+
+Core 的 `sessions/open` HTTP 入口已实现但受 fresh `read/open` 能力限制。它只接受
+Owner 明确确认，使用固定 bundle 和 UUID 链接，并拒绝历史 managed 同 ID 及未确认
+Writer 状态。202 仅表示系统接受请求。合成 opener 测试不实际启动应用；此实现不能
+替代真实 Open 验收，更不构成同一 Session 的安全交还。
+
+## Desktop 深链的静态证据
+
+2026-09-03 对本机 Codex Desktop 26.831.21537 / build 7579 的安装 bundle 做只读检查；
+实际安装路径为 `/Applications/ChatGPT.app`，bundle ID 为 `com.openai.codex`。其
+`Contents/Resources/app.asar` 内原生复制链接实现生成 `codex://threads/<thread.id>`，
+主进程要求 `codex:` protocol、`threads` host 与 UUID 格式 conversationId；找到对应
+Thread 后导航 `/local/<conversationId>`。这些证据比单纯注册 scheme 更具体，但不是
+一次真实 Open 验收。
+
+精确代码位置：`webview/assets/app-initial-b09f80199db1.js` 的 `cBi`（line 2845）；
+`.vite/build/src-B8dS-jjl.js` 的 `GE/tD`（line 122）；
+`.vite/build/main-7MZ5kTIG.js` 的 `localConversation` 分支（line 1485）。
+
+外部 URL 解析不读取 `hostId` query，不能以追加该参数声称能准确定位远端机器。将来
+生成链接只能带经验证的最小 UUID，不携带可触发额外行为的 prompt/browser/review 参数。
+Renderer 同时含 `thread/resume` hydration 路径；尚未证明导航时是否触发，所以 Open
+不能被当作已证明只读，managed Writer 存在时尤其不得直接启用。
+
+本次没有启动应用、连接会话、读取个人 profile/历史或调用模型。能力仍为 `open:false`；
+后续必须独立验证真实目标身份、cwd 和 Writer 边界。
+
 ## 可复现的静态检查
 
 `packages/agent-bridge/scripts/probe-native-capabilities.mjs` 需要
