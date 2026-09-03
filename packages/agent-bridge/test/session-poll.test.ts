@@ -12,14 +12,14 @@ function turn(index: number, text = `message ${index}`): RecordValue {
   return { id: `turn-${index}`, status: "completed", itemsView: "full", items: [{ type: "agentMessage", id: `item-${index}`, text }] };
 }
 
-function fixture(initial: RecordValue[] = []) {
+function fixture(initial: RecordValue[] = [], source: unknown = "cli") {
   const state = { turns: initial, calls: [] as Array<{ method: string; params: RecordValue }>, afterHead: undefined as (() => void) | undefined, invalidCursor: false };
   const request = async (method: string, params: RecordValue): Promise<unknown> => {
     state.calls.push({ method, params });
     if (method === "initialize") return { userAgent: "codex-test" };
     if (method === "thread/read") {
       expect(params).toEqual({ threadId: "native", includeTurns: false });
-      return { thread: { id: "native", sessionId: "family", source: "cli", historyMode: "paginated", turns: [] } };
+      return { thread: { id: "native", sessionId: "family", source, historyMode: "paginated", turns: [] } };
     }
     if (method !== "thread/turns/list") throw new Error(`Forbidden method: ${method}`);
     expect(params).toMatchObject({ threadId: "native", itemsView: "full" });
@@ -45,6 +45,20 @@ function fixture(initial: RecordValue[] = []) {
 }
 
 describe("Codex read-only polling", () => {
+  it.each(["vscode", { type: "vscode" }])("retains ambiguous source provenance without enabling native UI capabilities (%j)", async (source) => {
+    const { state, adapter } = fixture([turn(0)], source);
+    const bridge = new BridgeServer({ adapters: { codex: adapter() } });
+    const first = await bridge.handle("sessions.poll", { provider: "codex", sessionId: "native" }) as SessionPollResult;
+    expect(first.source).toMatchObject({ sessionId: "native", identityKind: "thread.id", surface: "unknown", providerSource: "vscode" });
+    expect(first.source.nativeIds).toEqual({ threadId: "native", sessionId: "family" });
+    const next = await bridge.handle("sessions.poll", { provider: "codex", sessionId: "native", cursor: first.cursor }) as SessionPollResult;
+    expect(next.source).toEqual(first.source);
+    expect(next.entries).toEqual([]);
+    expect(reviewCapabilities("codex")).toMatchObject({ read: true, follow: false, open: false, resume: false, takeControl: false });
+    expect(state.calls.some((call) => /resume|subscribe|start$|thread\/list|fork/.test(call.method))).toBe(false);
+    await bridge.shutdown();
+  });
+
   it("starts at newest history then returns changed boundary entries and new items only", async () => {
     const { state, adapter } = fixture(Array.from({ length: 40 }, (_, index) => turn(index)));
     const bridge = new BridgeServer({ adapters: { codex: adapter() } });

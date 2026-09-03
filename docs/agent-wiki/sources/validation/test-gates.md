@@ -199,7 +199,7 @@ gitstate/cmd race tests；Web 类型检查、74 项单元测试和 production bu
 
 ## 2026-09-03 核心闭环与失败路径补齐
 
-以下证据对应 `d6335ac` 之后的待提交整合工作树，不代表 M1–M4 的真实环境验收完成。
+以下证据对应已提交为 `28b3dbe` 的整合工作树，不代表 M1–M4 的真实环境验收完成。
 
 最终已运行并通过：
 
@@ -238,3 +238,30 @@ gitstate/cmd race tests；Web 类型检查、74 项单元测试和 production bu
 listener/双 Mac transport 或 CLI/Desktop 同 ID 接管与交还。浏览器工具仍受上述符号
 链接执行环境限制，本轮未取得新增浏览器证据。原生高级能力继续关闭；需要明确 opt-in
 后再运行专用真实 Provider 会话，不能用本轮 managed close 测试替代原生 Writer fencing。
+
+## 2026-09-03 原生来源识别与显式授权的真实读取
+
+在 `28b3dbe` 之后，真实 Desktop 专用任务暴露了 `source: vscode` 不能唯一识别界面的
+问题。修复后此类 `surface` 为 `unknown`，可选 `providerSource` 保留有界原始 token；
+未知/超长结构不透传，公开投影不披露该字段，旧 JSON 与原有身份/fencing 保持兼容。
+
+Bridge 类型检查、9 个文件共 64 项测试、build 与编译产物 ping/info readiness 通过；
+Web 类型检查、18 个文件共 99 项测试与 production build 通过，嵌入资源字节未变化。
+Go 全量 test/vet，以及 domain/server/storage 的 `-race -count=1` 通过；新增覆盖
+来源兼容性、静态/实时投影与身份判断。编译 Bridge 对同一专用 Desktop Session 的再次
+实测返回 `surface: unknown`、`providerSource: vscode`，重复轮询为零 entries。
+
+用户明确授权后的真实证据：
+
+- 专用 `codex exec` 的三个 GPT-5.6 Luna 回合保持同一原生 `thread.id`，实际 Bridge
+  观察到运行中新输出、无更新去重及 reader 重启后的 cursor 恢复；所有读取限定到该 ID。
+- 专用 Desktop 任务的 Luna 消息、fileChange、commandExecution 可被只读补读；
+  固定 UUID 的系统深链请求成功但仍缺独立可视确认，不记为 Open 验收通过。
+- Core 的专用 Desktop 读取 → 只读导入 → 精确批注 → 反馈 → 重启恢复通过；冻结
+  14 条 entry、批注和反馈不变，Run/Share/Follow/Command 均为零，原生目录内容不变。
+
+CLI 同 ID 跨 cwd 的成功限于专用 named profile，不能代替 managed Adapter 的 sandbox
+验收；后者的零模型 `command/exec` 预检未满足目录边界，因此没有发送第四个模型 Turn。
+这还不能证明 `turn/start` 同样失败。方法、前置条件与未通过范围详见
+[原生能力门槛](native-capability-gates.md)。高级原生能力仍关闭；真实两台 Mac、交互
+TUI、原生独占 Writer 与接管/交还仍未完成，本节不是 M1–M4 全部通过的声明。

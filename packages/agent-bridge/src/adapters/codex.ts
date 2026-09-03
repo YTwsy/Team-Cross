@@ -50,8 +50,8 @@ export class CodexAdapter implements AgentAdapter {
   constructor(private readonly options: CodexAdapterOptions = {}) {}
 
   async listStored(params: SessionsListStoredParams): Promise<StoredSession[]> {
-    // No currently verified provider source value uniquely identifies Desktop.
-    if (params.surface === "desktop") return [];
+    // vscode is shared by Desktop and IDE clients, not a verified UI identity.
+    if (params.surface === "desktop" || params.surface === "vscode") return [];
     const client = await this.ensureClient();
     const response = await client.request("thread/list", {
       limit: params.limit ?? 100,
@@ -59,11 +59,11 @@ export class CodexAdapter implements AgentAdapter {
       sortKey: "updated_at",
       sortDirection: "desc",
       useStateDbOnly: true,
-      // Omission defaults to CLI/VS Code only. appServer includes Desktop and other clients.
+      // Provider sourceKinds and verified UI surfaces are different concepts.
+      // Omission defaults to cli/vscode; request all relevant provenance values.
       sourceKinds: params.surface === "cli" ? ["cli", "exec"]
-        : params.surface === "vscode" ? ["vscode"]
         : params.surface === "app-server" ? ["appServer"]
-        : params.surface === "unknown" ? ["subAgent", "subAgentReview", "subAgentCompact", "subAgentThreadSpawn", "subAgentOther", "unknown"]
+        : params.surface === "unknown" ? ["vscode", "subAgent", "subAgentReview", "subAgentCompact", "subAgentThreadSpawn", "subAgentOther", "unknown"]
         : ["cli", "vscode", "exec", "appServer", "subAgent", "subAgentReview", "subAgentCompact", "subAgentThreadSpawn", "subAgentOther", "unknown"],
     });
     const data = recordArray(isRecord(response) ? response.data : undefined);

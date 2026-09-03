@@ -10,6 +10,8 @@ export interface SessionRef {
   sessionId: string;
   identityKind: "thread.id" | "sessionId";
   surface: SessionSurface;
+  /** Bounded Provider source discriminator; not UI identity or a capability grant. */
+  providerSource?: string;
   title?: string;
   cwd?: string;
   nativeIds?: Record<string, string>;

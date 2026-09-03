@@ -88,7 +88,11 @@ worktree path、当前 invitation、主机凭据与主机诊断路径。
 `provider` 在历史读取中只允许 `codex`、`claude`。SessionSnapshot 包含
 `id, threadId, source, capturedAt, entries, truncated, warnings, capabilities`。
 `source` 保存 Provider 原始 `sessionId`、`identityKind`、`surface` 和可用的
-`providerVersion`；Codex 对话身份使用 `thread.id`，不能使用 tree root 替代。
+`providerVersion`；可选 `providerSource` 只保存有界、已知的 Provider 来源 discriminator，
+不作为界面身份、Session 身份或能力授权。Codex 的 `vscode` 来源也可能由 Desktop 返回，
+因此此类 `surface` 为 `unknown`，不能仅依据 token 声称来自 VS Code 或 Desktop；原生
+界面筛选不得扩大成对底层来源 token 的猜测。旧数据没有此字段仍可读取，公开 Share
+投影不携带它。Codex 对话身份使用 `thread.id`，不能使用 tree root 替代。
 `entries` 的每项具有稳定 `id, kind, text` 和可选 `role, sourceId, turnId`。
 
 ThreadDetail 增加 `readOnly` 和 `sessionSnapshots[]`。能力分别为

@@ -115,6 +115,40 @@ func TestSessionIdentityMismatchCannotCreateThread(t *testing.T) {
 	}
 }
 
+func TestSessionSourceProvenancePersistsButRemainsPrivate(t *testing.T) {
+	app := newIntegrationApp(t, t.TempDir())
+	app.snapshotReader = func(context.Context, string, string) (domain.SessionSnapshot, error) {
+		snapshot := reviewFixture()
+		snapshot.Source.Surface = "unknown"
+		snapshot.Source.ProviderSource = "vscode"
+		return snapshot, nil
+	}
+	created := requestJSON(t, app.Handler(), "POST", "/api/v1/threads/from-session", sessionImportRequest{Provider: "codex", SessionID: "native-conversation"}, nil)
+	var detail threadDetail
+	decodeResponse(t, created, &detail)
+	if created.Code != 201 || len(detail.SessionSnapshots) != 1 {
+		t.Fatalf("capture failed: %s", created.Body.String())
+	}
+	snapshotID := detail.SessionSnapshots[0].ID
+	snapshot, err := app.store.GetSessionSnapshot(context.Background(), detail.ID, snapshotID)
+	if err != nil || snapshot.Source.ProviderSource != "vscode" || snapshot.Source.Surface != "unknown" {
+		t.Fatalf("source provenance was lost: %+v %v", snapshot.Source, err)
+	}
+	path := "/api/v1/threads/" + detail.ID
+	exact := path + "/sessions/snapshots/" + snapshotID
+	owner := requestJSON(t, app.Handler(), "GET", exact, nil, nil)
+	if owner.Code != 200 || !strings.Contains(owner.Body.String(), `"providerSource":"vscode"`) {
+		t.Fatalf("owner lost provenance: %s", owner.Body.String())
+	}
+	remote, headers := installReviewShare(t, app, detail.ID, domain.ShareScope{SnapshotID: snapshotID, EntryIDs: []string{"public"}}, false)
+	for _, route := range []string{path, exact} {
+		result := requestJSON(t, remote, "GET", route, nil, headers)
+		if result.Code != 200 || strings.Contains(result.Body.String(), "providerSource") || !strings.Contains(result.Body.String(), `"surface":"unknown"`) {
+			t.Fatalf("public source projection is not private: %s %s", route, result.Body.String())
+		}
+	}
+}
+
 func TestReviewShareScopeCoversDetailDownloadsSSEAndWrites(t *testing.T) {
 	app := newIntegrationApp(t, t.TempDir())
 	detail := createReviewThread(t, app)

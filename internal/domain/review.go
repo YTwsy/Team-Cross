@@ -12,6 +12,8 @@ type SessionRef struct {
 	Title           string            `json:"title,omitempty"`
 	Cwd             string            `json:"cwd,omitempty"`
 	NativeIDs       map[string]string `json:"nativeIds,omitempty"`
+	// ProviderSource is a bounded provenance token, not UI identity or authority.
+	ProviderSource string `json:"providerSource,omitempty"`
 }
 
 type SessionCapabilities struct {

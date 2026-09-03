@@ -262,6 +262,8 @@ export interface SessionRef {
   sessionId: string;
   identityKind: string;
   surface: string;
+  /** Provider provenance only; does not identify a verified UI or grant access. */
+  providerSource?: string;
   title?: string;
   cwd?: string;
   nativeIds?: Record<string, string>;

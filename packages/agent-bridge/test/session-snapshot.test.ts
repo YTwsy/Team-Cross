@@ -40,6 +40,22 @@ describe("native history review snapshots", () => {
     expect(() => normalizeCodexSnapshot({}, "conversation-a")).toThrow(/conversation identity/);
   });
 
+  it.each(["vscode", { type: "vscode", privateMetadata: "MUST_NOT_IMPORT" }])("keeps ambiguous vscode provenance without asserting a native UI (%j)", (source) => {
+    const input = codexHistory([{ type: "agentMessage", id: "a1", text: "saved" }]);
+    const snapshot = normalizeCodexSnapshot({ thread: { ...input.thread, source } }, "conversation-a", { providerVersion: "0.152.1" });
+    expect(snapshot.source).toMatchObject({ surface: "unknown", providerSource: "vscode", providerVersion: "0.152.1", sessionId: "conversation-a" });
+    expect(snapshot.source.nativeIds).toEqual({ threadId: "conversation-a", sessionId: "root-family" });
+    expect(snapshot.entries).toEqual(normalizeCodexSnapshot(input, "conversation-a").entries);
+    expect(JSON.stringify(snapshot)).not.toContain("MUST_NOT_IMPORT");
+    expect(snapshot.capabilities).toMatchObject({ read: true, follow: false, open: false, resume: false, takeControl: false });
+  });
+
+  it.each([undefined, "future-source", "x".repeat(1000), { type: "future-source", secret: "PRIVATE" }, { vscode: "PRIVATE" }])("does not preserve arbitrary source metadata as a provenance token (%j)", (source) => {
+    const snapshot = normalizeCodexSnapshot({ thread: { ...codexHistory([]).thread, source } }, "conversation-a");
+    expect(snapshot.source.surface).toBe("unknown");
+    expect(snapshot.source).not.toHaveProperty("providerSource");
+  });
+
   it("reports unsupported and truncated material without exposing unknown payloads", () => {
     const snapshot = normalizeCodexSnapshot(codexHistory([
       { type: "reasoning", id: "private", content: "MUST_NOT_BE_IMPORTED" },
@@ -124,6 +140,40 @@ describe("native history review snapshots", () => {
 });
 
 describe("snapshot RPC is zero execution", () => {
+  it("lists ambiguous vscode records as unknown and never labels them Desktop or VS Code", async () => {
+    const calls: Array<{ method: string; params: unknown }> = [];
+    const history = [
+      { id: "synthetic-desktop", source: "vscode" },
+      { id: "synthetic-ide", source: "vscode" },
+      { id: "synthetic-cli", source: "cli" },
+      { id: "synthetic-integration", source: "appServer" },
+    ];
+    const fake = {
+      start() {}, notify() {}, async close() {},
+      async request(method: string, params: { sourceKinds?: string[] }) {
+        calls.push({ method, params });
+        if (method === "initialize") return { userAgent: "codex-test" };
+        if (method === "thread/list") return { data: history.filter((item) => params.sourceKinds?.includes(item.source)) };
+        throw new Error(`Forbidden execution method: ${method}`);
+      },
+    };
+    const adapter = new CodexAdapter({ clientFactory: () => fake as unknown as JsonlRpcProcess });
+    for (const surface of ["desktop", "vscode"] as const) {
+      await expect(adapter.listStored({ provider: "codex", surface })).resolves.toEqual([]);
+    }
+    expect(calls).toEqual([]);
+    const all = await adapter.listStored({ provider: "codex" });
+    expect(all.map((item) => [item.sessionId, item.surface])).toEqual([
+      ["synthetic-desktop", "unknown"], ["synthetic-ide", "unknown"], ["synthetic-cli", "cli"], ["synthetic-integration", "app-server"],
+    ]);
+    const unknown = await adapter.listStored({ provider: "codex", surface: "unknown" });
+    expect(unknown.map((item) => item.sessionId)).toEqual(["synthetic-desktop", "synthetic-ide"]);
+    expect(unknown.every((item) => item.metadata?.source === "vscode")).toBe(true);
+    expect(calls.at(-1)?.params).toMatchObject({ sourceKinds: expect.arrayContaining(["vscode", "unknown"]), useStateDbOnly: true });
+    expect(calls.map((call) => call.method)).toEqual(["initialize", "thread/list", "thread/list"]);
+    await adapter.shutdown();
+  });
+
   it("Codex snapshot calls only initialize and targeted thread/read", async () => {
     const calls: Array<{ method: string; params: unknown }> = [];
     const fake = {

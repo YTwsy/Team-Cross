@@ -18,7 +18,9 @@ Run、Resume、Fork 或发送 Turn。未知、非文本、缺失及超限材料�
 
 Codex 原生对话身份以 `thread.id` 为准；`thread.sessionId` 是 Session tree root，Fork
 可能与来源共享它，因此不能以相同 `thread.sessionId` 证明“同一会话”。原始来源也必须
-保留；`appServer` 可由不同客户端创建，不能自动标成 Desktop。
+保留；`appServer` 可由不同客户端创建，不能自动标成 Desktop。真实专用 Desktop 任务
+也观察到 `source: vscode`，该 token 同样不能唯一识别 VS Code 界面；保留为可选的
+`providerSource`，`surface` 为 `unknown`，不参与身份、fencing 或能力准入。
 
 ## 分能力验收
 
@@ -97,6 +99,45 @@ Renderer 同时含 `thread/resume` hydration 路径；尚未证明导航时是�
 `packages/agent-bridge/scripts/probe-native-capabilities.mjs` 需要
 `TEAMCROSS_NATIVE_CAPABILITY_PROBE=1`，只读取 CLI 版本并生成临时协议定义。输出明确
 分开 `observed` 与 `acceptance`，实际 CLI/Desktop 验收始终标记为 `not-run`。
+
+## 2026-09-03 显式 opt-in 的真实 Session 检查
+
+用户授权使用专用仓库和会话后，新增了真实读取证据。后续模型调用固定为
+`gpt-5.6-luna`；在指定模型前已完成的 Desktop 种子回合沿用应用默认设置，不能记作
+Luna 回合。下面的证据不等于原生控制能力已经交付。
+
+- Codex CLI 0.152.1 的专用 `codex exec` 会话完成三个 Luna 回合：原目录工作、原生
+  继续、退出自有 CLI 进程后在隔离 worktree 使用同一个 `thread.id` 恢复。没有 Fork；
+  第三个回合确认实际 cwd 为隔离目录，旧 source 与同级测试哨兵不可写。这里验证的是
+  专用 CLI profile，不是 Team Cross managed Run 的实际 sandbox 参数，更不是交互
+  TUI 的输入接管或第三方 Writer fencing。
+- Desktop 专用任务通过 Codex App 的任务入口创建和继续，完成 Luna 文本输出与指定
+  验收文件写入。实际编译的 Bridge 只请求该准确 ID 的 `thread/read` 和
+  `thread/turns/list`，能读到新增消息、fileChange 和 commandExecution。采样期间没有
+  `runs.*`、Resume、Fork 或 Session 枚举；重新启动 reader 后沿用 cursor 能继续补读，
+  无更新时返回零 entries。未知/不展示材料仍带缺失标记，不声称完整原文回放。
+- Desktop 的底层来源实际返回 `vscode`，因此不能把该值等同于 VS Code UI。界面
+  来源与 Provider 原始 discriminator 已分开记录，不因一个测试会话而启用整个来源类别。
+- 对无 Team Cross Writer 的专用 Desktop 任务执行固定 bundle/UUID 深链，系统请求
+  返回成功且任务没有新增 Turn。可视准确定位仍需独立确认；不能由 exit 0、导航请求
+  或任务状态推定 Open 验收完成。
+- Core 的真实只读链路也已贯通：固定该专用 Desktop Session 的 14 条 entry，完成
+  preview、只读 Thread、精确消息批注、Markdown 反馈和重启恢复。冻结快照与反馈保持
+  不变，AgentRun/Share/Follow/Command 均为零，原生目录内容校验一致。该检查不包含
+  分享 transport 或实时 Follow 状态机。
+
+后续 managed 写测试在零模型预检时停止：独立 app-server 的 `command/exec` 使用与
+生产 `turn/start` 同形的 legacy `sandboxPolicy` 时，工具网络被拒绝，但隔离目录外
+的专用 source/sibling 哨兵仍可写。没有发出计划中的第四个 Luna Turn，也没有创建
+managed Run；该结果只证明此预检路径没有满足目录边界，尚不能断言 `turn/start` 的
+实际行为相同。需先分清入口和权限字段的优先级，不能以先前 CLI named profile 的
+成功证据替代生产 Adapter 验收，更不能在未确认边界时继续模型写测试。
+
+上述测试没有建立能封锁 Desktop 旧输入的第三方接口，也没有持久原生 Writer 交接协议。
+终止测试中自有 CLI 进程不代表能够识别并封锁任意原生 Writer。同 ID 技术性 Resume
+不能替代“接管 → 崩溃恢复 → 交还”的完整验收，`resume`/`takeControl` 继续关闭。
+真实双 Mac、Tailnet/DERP、交互 TUI 与 Claude 仍未在本轮验收。一次性完整日志、测试
+会话 ID 和临时路径只留在专用测试材料中，不进入稳定 Wiki。
 
 ## 官方来源
 

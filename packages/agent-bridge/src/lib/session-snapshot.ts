@@ -72,10 +72,23 @@ export function reviewCapabilities(provider: SessionRef["provider"]): SessionCap
   };
 }
 
-export function codexSurface(source: unknown): SessionSurface {
+// Source discriminators are provenance, not independently verified UI names.
+// Only preserve known bounded tokens, never an arbitrary Provider object.
+const CODEX_SOURCE_TOKENS = new Set([
+  "cli", "vscode", "exec", "appServer", "subAgent", "subAgentReview",
+  "subAgentCompact", "subAgentThreadSpawn", "subAgentOther", "unknown",
+]);
+
+function codexSourceToken(source: unknown): string | undefined {
   const kind = typeof source === "string" ? source : isRecord(source) ? string(source.type) : undefined;
+  return kind !== undefined && CODEX_SOURCE_TOKENS.has(kind) ? kind : undefined;
+}
+
+export function codexSurface(source: unknown): SessionSurface {
+  const kind = codexSourceToken(source);
   if (kind === "cli" || kind === "exec") return "cli";
-  if (kind === "vscode") return "vscode";
+  // Desktop can also persist vscode; this value cannot distinguish the two UIs.
+  if (kind === "vscode") return "unknown";
   // appServer is also used by integrations; it does not prove Desktop origin.
   if (kind === "appServer") return "app-server";
   return "unknown";
@@ -88,8 +101,10 @@ export function normalizeCodexSnapshot(
 ): SessionSnapshot {
   const thread = isRecord(raw) && isRecord(raw.thread) ? raw.thread : undefined;
   if (!thread || thread.id !== sessionId) throw new Error("Codex history returned a different or missing conversation identity");
+  const providerSource = codexSourceToken(thread.source);
   const source: SessionRef = {
     provider: "codex", sessionId, identityKind: "thread.id", surface: codexSurface(thread.source),
+    ...(providerSource ? { providerSource } : {}),
     nativeIds: { threadId: sessionId, ...(string(thread.sessionId) ? { sessionId: string(thread.sessionId)! } : {}) },
     ...(string(thread.name) ?? string(thread.preview) ? { title: string(thread.name) ?? string(thread.preview) } : {}),
     ...(string(thread.cwd) ? { cwd: string(thread.cwd) } : {}),

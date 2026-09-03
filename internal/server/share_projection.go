@@ -120,6 +120,7 @@ func (app *App) prepareShareProjection(ctx context.Context, threadID string, sco
 		snapshot.Source.Cwd = ""
 		snapshot.Source.NativeIDs = nil
 		snapshot.Source.Title = ""
+		snapshot.Source.ProviderSource = ""
 		snapshot.Warnings = []string{}
 		if snapshot.Truncated {
 			snapshot.Warnings = append(snapshot.Warnings, "来源历史不完整；此视图仅包含获准分享的记录。")

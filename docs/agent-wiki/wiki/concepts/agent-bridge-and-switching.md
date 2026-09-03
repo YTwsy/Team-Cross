@@ -15,6 +15,10 @@ Go Core 只依赖 JSONL-RPC 方法与统一 event：
 
 Provider-specific protocol、通知形状和进程生命周期留在 Adapter 中。
 
+原生界面不能由 Provider 的来源 token 猜测：实测 Desktop 任务也返回 `vscode`。
+`SessionRef.providerSource` 仅保留有界来源事实，`surface` 在不能唯一识别界面时为
+`unknown`；来源 token 不是身份、授权或能力验证结果，公开 Share 不携带它。
+
 ## managed Session 与 Run
 
 Session 是 Provider 拥有的连续对话身份，Run 是它在具体 worktree、主机和权限边界中的

@@ -21,7 +21,9 @@ status: accepted
 - Session-first 创建只读 Thread，不自动访问来源 cwd、不创建 worktree，也不要求
   原目录仍可访问。要执行必须先有用户明确捕获的 Git baseline；现有 Git Thread
   可以追加导入 Session。导入时继承的代码 checkpoint 不是原生 Session 当时的代码。
-- SessionRef 保留 Provider 身份、来源界面和版本；未知来源不猜成 Desktop。消息、
+- SessionRef 保留 Provider 身份、来源界面和版本；未知来源不猜成 Desktop 或 VS Code。
+  可选 `providerSource` 只保存有界的已知 Provider 来源 token，不参加身份或能力判断；
+  实测 Desktop 会话也可能返回 `vscode`，此时 `surface` 必须为 `unknown`。消息、
   工具、未知类型与截断都可读呈现；快照 ID 与 entry ID 构成稳定锚点。
 - 批注目标为一个 SessionSnapshot/entry、Evidence 或 Round；新的代码批注必须同时绑定
   Round、path、old/new side 与正行号，并以同一封存 diff 的结构行验证。UI 的 live diff
