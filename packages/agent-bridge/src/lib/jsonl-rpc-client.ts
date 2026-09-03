@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
+import { closeDeadline, withinCloseDeadline } from "./close-deadline.js";
 
 type RpcId = string | number;
 
@@ -26,6 +27,7 @@ export interface JsonlRpcProcessOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   requestTimeoutMs?: number;
+  closeTimeoutMs?: number;
   onNotification?: (notification: RpcNotification) => void;
   onRequest?: (request: InboundRpcRequest) => void;
   onStderr?: (line: string) => void;
@@ -37,12 +39,16 @@ export class JsonlRpcProcess {
   private nextId = 1;
   private readonly pending = new Map<RpcId, PendingRequest>();
   private readonly timeoutMs: number;
+  private closing = false;
+  private closeAttempt: Promise<void> | undefined;
+  private childExited: Promise<void> | undefined;
 
   constructor(private readonly options: JsonlRpcProcessOptions) {
     this.timeoutMs = options.requestTimeoutMs ?? 30_000;
   }
 
   start(): void {
+    if (this.closing) throw new Error(`${this.options.command} is closing or closed`);
     if (this.child) return;
     const child = spawn(this.options.command, this.options.args, {
       cwd: this.options.cwd,
@@ -50,24 +56,43 @@ export class JsonlRpcProcess {
       stdio: ["pipe", "pipe", "pipe"],
     });
     this.child = child;
+    let resolveExit!: () => void;
+    this.childExited = new Promise<void>((resolve) => { resolveExit = resolve; });
+    let finished = false;
+    const finish = (error: Error) => {
+      if (finished) return;
+      finished = true;
+      if (this.child === child) {
+        this.failAll(error);
+        this.child = undefined;
+      }
+      resolveExit();
+      this.options.onExit?.(error);
+    };
 
     const stdout = createInterface({ input: child.stdout, crlfDelay: Infinity });
-    stdout.on("line", (line) => this.onLine(line));
+    stdout.on("line", (line) => {
+      if (this.child === child && !this.closing) this.onLine(line);
+    });
 
     const stderr = createInterface({ input: child.stderr, crlfDelay: Infinity });
     stderr.on("line", (line) => this.options.onStderr?.(line));
 
-    child.once("error", (cause) => this.failAll(new Error(
-      `failed to start ${this.options.command}: ${cause.message}`,
-      { cause },
-    )));
+    // A failed spawn has no PID and may never emit exit. An error signalling an
+    // existing child is NOT proof of exit; keep that child fenced and retryable.
+    child.on("error", (cause) => {
+      const error = new Error(`failed to run ${this.options.command}: ${cause.message}`, { cause });
+      if (child.pid === undefined) finish(error);
+      else if (this.child === child) this.failAll(error);
+    });
+    child.stdin.on("error", (cause) => {
+      if (this.child === child) this.failAll(new Error(`${this.options.command} stdin failed`, { cause }));
+    });
     child.once("exit", (code, signal) => {
       const error = new Error(
         `${this.options.command} exited (${signal ? `signal ${signal}` : `code ${String(code)}`})`,
       );
-      this.failAll(error);
-      this.child = undefined;
-      this.options.onExit?.(error);
+      finish(error);
     });
   }
 
@@ -82,7 +107,16 @@ export class JsonlRpcProcess {
       timer.unref();
       this.pending.set(id, { resolve, reject, timer });
     });
-    this.write({ jsonrpc: "2.0", id, method, params });
+    try {
+      this.write({ jsonrpc: "2.0", id, method, params });
+    } catch (cause) {
+      const pending = this.pending.get(id);
+      if (pending) {
+        clearTimeout(pending.timer);
+        this.pending.delete(id);
+        pending.reject(cause instanceof Error ? cause : new Error(String(cause)));
+      }
+    }
     return await result;
   }
 
@@ -92,11 +126,15 @@ export class JsonlRpcProcess {
   }
 
   respond(id: RpcId, result: unknown): void {
+    // An already delivered inbound request may complete asynchronously during
+    // close. Discard its late response without I/O or an uncaught callback error.
+    if (this.closing) return;
     this.runningChild();
     this.write({ jsonrpc: "2.0", id, result });
   }
 
   respondError(id: RpcId, code: number, message: string, data?: unknown): void {
+    if (this.closing) return;
     this.runningChild();
     this.write({
       jsonrpc: "2.0",
@@ -105,18 +143,32 @@ export class JsonlRpcProcess {
     });
   }
 
-  async close(): Promise<void> {
+  close(): Promise<void> {
+    if (this.closeAttempt) return this.closeAttempt;
+    this.closing = true;
+    this.failAll(new Error(`${this.options.command} is closing`));
     const child = this.child;
-    if (!child) return;
-    this.child = undefined;
-    child.stdin.end();
+    if (!child) return Promise.resolve();
+    const pending = this.closeChild(child, this.childExited!).finally(() => {
+      if (this.closeAttempt === pending) this.closeAttempt = undefined;
+    });
+    this.closeAttempt = pending;
+    return pending;
+  }
+
+  private async closeChild(child: ChildProcessWithoutNullStreams, exited: Promise<void>): Promise<void> {
+    const deadline = closeDeadline(this.options.closeTimeoutMs);
+    if (!child.stdin.destroyed && !child.stdin.writableEnded) child.stdin.end();
     if (child.exitCode === null && child.signalCode === null) {
+      // Only signal the ChildProcess this instance spawned. A sent signal is
+      // not an acknowledgement; never discard its identity before actual exit.
       child.kill("SIGTERM");
     }
-    this.failAll(new Error(`${this.options.command} was closed`));
+    await withinCloseDeadline(exited, deadline, "subprocess exit");
   }
 
   private runningChild(): ChildProcessWithoutNullStreams {
+    if (this.closing) throw new Error(`${this.options.command} is closing or closed`);
     if (!this.child) throw new Error(`${this.options.command} is not running`);
     return this.child;
   }
