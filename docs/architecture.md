@@ -1,186 +1,78 @@
-# Team Cross 产品与架构图解
+# 架构
 
-本文保存当前 v0 的三张核心图：已实现闭环、技术分层和 `collaborate` 实时协作时序。
-它们用于快速建立共同心智模型；协议字段和失败语义以 `docs/protocol.md` 为准，具体实现
-仍以代码与测试为最终事实来源。
-
-当前 v0 有两个独立入口：Session-first 只读审阅，以及 Git capture 后的隔离执行。
-前者不创建 Run、不自动抓取来源 cwd；后者确认 Git baseline 后才可显式创建新的 managed
-Session。原生 Follow/Open/同会话接管尚未通过能力门槛。Session、Thread、Run、Turn
-与 Round 的规范语义和目标能力阶梯见
-[产品模型与统一词汇](agent-wiki/wiki/concepts/product-model-and-glossary.md)。
-
-## 当前 v0 闭环
-
-Session 审阅路径为：只读读取 → 不可变 SessionSnapshot → 选择 Share 范围 → 批注 →
-Owner 导出带引用的 Markdown 反馈。它不需要 Git baseline，也不启动 Agent。
-
-下面的图描述有 Git baseline 的执行路径。另有从 Round Fork 新 Thread/离线包的独立
-路径；具体失败语义见
-[Session 审阅与接力](agent-wiki/wiki/concepts/session-review-and-continuation.md)。
-整个过程中，原始 checkout 不被自动写回。
+Team Cross 管理协作的来源、执行目录、原生 fork、邀请、输入归属与人工批注。模型上下文与工具执行由 A 上的 Codex app-server 持有。
 
 ```mermaid
 flowchart LR
-    A[开发者 A 的原始 checkout] -->|capture| B[Round 0<br/>基线 + dirty diff + 交接说明]
-    B --> C[隔离 Thread worktree]
-    C --> D[临时 Share 邀请]
-    D --> E[开发者 B 的 join proxy + WebGUI]
-    E -->|查看与批注| F[Thread 时间线]
-    E -->|Owner 另行授权控制且取得租约| G[主机托管 Codex / Claude]
-    G -->|消息、工具事件、文件变化| F
-    G -->|只写隔离目录| C
-    F -->|Turn 完成或 Provider 切换| H[Round N<br/>summary + patch + evidence 引用]
-    H -->|继续协作| E
-    H -->|查看或下载 patch| A
-    C -. 不自动 apply、commit 或 cherry-pick .-> A
+  AT[A 的 TUI / 专用 Desktop] --> AG
+  BT[B 的 TUI / 专用 Desktop] --> BP[B 的本机代理]
+  BM[B 自己的 TUI / Desktop] --> MCP[teamcross mcp]
+  MCP --> BC[B 的本机 Core]
+  BP --> LAN[临时 TLS 局域网共享]
+  BC --> LAN
+  LAN --> AG[A 的协作网关与输入协调]
+  AW[A 的 WebGUI] --> AG
+  AG --> AS[专属 Codex app-server]
+  AS --> FS[原目录 / 新 worktree]
 ```
 
-关键边界：
+## 模块
 
-- Share 传递的是受限 Thread 能力，不是 Shell 或整台主机权限。
-- Share 默认只有 view/annotate；Owner 另行授权控制与实时 managed 输出后，当前
-  Controller 才能发送 Agent 控制命令。
-- 内容投影在 Share 创建时冻结；实时 managed 输出是单独开关，不会扩大旧 SessionSnapshot。
-- 新 Round 追加到历史，不覆盖旧 Round。
-- 用户采纳结果必须是后续显式操作。
+- `internal/workspace`：Git 预览、干净 worktree、子目录映射、文件读取。
+- `internal/nativecodex`：启动和初始化独立 app-server，通过一个长期 WebSocket 进行 RPC、事件及 server request 分发。
+- `internal/collab`：协作记录、原生协议网关、输入协调、邀请与加入、TUI/Desktop 启动、HTTP 管理接口。
+- `internal/sharing`：临时 TLS listener、指纹绑定、局域网邀请与连接。
+- `internal/mcp`：本地 STDIO MCP。每次调用读取本地 Core 连接文件，服务重启后无需重新配置 MCP。
+- `packages/web`：新 React/Vite 界面，生产资源编译到 `internal/webassets/dist` 后嵌入 Go 二进制。
 
-## 技术分层
+## 原生运行时
 
-这张图展示不同运行时为何同时存在，以及远端访问如何与本地管理员能力隔离。
+浏览来源时按需创建只读用途的 app-server 控制连接；不会自动发送 prompt。每次协作有单独的 app-server 进程，以 A 的原生会话库读取来源并执行 fork。独立进程的配置以命令行参数覆盖，不重写 A 的个人配置。
 
-```mermaid
-flowchart TB
-    subgraph UI[控制面]
-        HO[主机浏览器]
-        RO[接收者浏览器]
-    end
+仅复制 rollout 文件无法替代原生历史数据库。协作记录保存 `sourceId`、已确认的 `sourceTurnId` 和新 `sessionId`。创建调用 `thread/fork`，使用 `lastTurnId` 保留确认过的已完成起点。恢复调用 `thread/resume`，继续同一 ID。
 
-    subgraph ENTRY[本地与远端入口]
-        ADMIN[Loopback 管理员 API]
-        PROXY[接收者 loopback join proxy]
-        ROUTE[接收端拨号器<br/>LAN → Tailnet → Tailcat]
-        SHARE[单 Thread Share API<br/>临时 TLS listener]
-    end
+直接客户端的 `initialize`、会话枚举和请求都经过协作网关。网关只暴露指定协作；固定 `threadId`、`cwd`、模型与权限 profile。网关与 MCP 共享同一个上游控制连接，避免审批只被某个连接收到而另一入口无法回应。直接客户端断开不会终止 app-server。
 
-    subgraph CORE[Go Core]
-        HTTP[REST + SSE]
-        MODEL[Thread / SessionSnapshot / Round / Event<br/>ShareScope / Lease / Command]
-        GIT[Git capture / worktree / patch]
-    end
+Desktop 使用本机安装版本的指定 WebSocket 入口，配合单独的 `CODEX_HOME` 与 Electron 数据目录，通过 `open -n` 启动。是否所有 Desktop 操作都适合远程执行需要按实际客户端版本验收；不能仅凭 app-server 协议相同宣布完整兼容。
 
-    subgraph STATE[持久状态]
-        DB[(SQLite)]
-        CAS[(Content-addressed objects)]
-        WT[(隔离 worktree)]
-    end
+客户端本机代理单独处理 `account/login/start`、登录完成通知、`getAuthStatus` 和客户端偏好写入。读取已有登录状态可以使用 B 的本机账户；修改账户时启动专用客户端配置的本机 app-server，避免改写 B 的普通 Codex 配置。远端共享网关不传出 A 的登录 token、MCP 配置或完整个人配置。登录路由与共享会话执行路由分别验收。
 
-    subgraph AGENT[Node Agent Bridge]
-        RPC[JSONL-RPC stdio]
-        CODEX[Codex app-server]
-        CLAUDE[Claude Agent SDK]
-        MOCK[Mock Adapter]
-    end
+轻量历史使用 `thread/read` 的元数据与 `thread/turns/list` 分页组合，不反复要求上游加载完整历史。每页 8 轮，按时间正序返回，MCP 可用 `nextCursor` 继续读取。
 
-    HO --> ADMIN
-    RO --> PROXY
-    PROXY --> ROUTE
-    ROUTE --> SHARE
-    ADMIN --> HTTP
-    SHARE --> HTTP
-    HTTP --> MODEL
-    MODEL --> DB
-    MODEL --> CAS
-    MODEL --> GIT
-    GIT --> WT
-    MODEL <--> RPC
-    RPC --> CODEX
-    RPC --> CLAUDE
-    RPC --> MOCK
-    CODEX --> WT
-    CLAUDE --> WT
-    MOCK --> WT
+## 目录与持久化
+
+实验数据目录独立于旧产品：
+
+```text
+Team Cross Next/
+  settings.json
+  connection.json
+  core.lock
+  joined.json
+  collaborations/<id>/
+    collaboration.json
+    runtime.log
+    worktree/             # 仅 worktree 模式
+  clients/<id>/
+    tui/codex-home/
+    desktop/codex-home/
+    desktop/app-data/
 ```
 
-分层原则：
+协作 JSON 原子替换写入。`workspaceOwned` 说明目录由谁创建，`executionCwd` 统一表示实际执行子目录。原目录和新 worktree 均不在结束共享时清理。创建中断会留下错误记录与已创建资源，防止自动重试重复创建。
 
-- WebGUI 负责呈现和发起动作，不保存第二套 durable state。
-- Go Core 是 Thread、权限、幂等、连接选择和恢复语义的唯一协调层。
-- Agent Bridge 只做 Provider 协议适配，不监听协作网络。
-- Share API 只暴露绑定 Thread 的能力，管理员 API 始终只在 loopback。
+接收端加入记录包含邀请凭据，以本机仅用户可读文件保存；过期或撤销后不再有效。发起者的临时分享监听不持久化，重启后需重新分享。
 
-## `collaborate` 实时协作时序
+## 输入协调与失败语义
 
-这张图假设 Owner 已明确开启该 Share 的控制与实时 managed 输出，聚焦接收者从加入、
-观察到取得控制，再发送一条可安全重放的 Agent 命令。相同
-`commandId` 的完全相同请求会返回持久化结果；新的或语义不同的请求仍要通过 revision
-与 lease epoch 检查。
+`writer` 为 `owner` 或 `remote`；交接增加 `epoch`。所有原生和 MCP 写入先检查归属。运行中的 `turn/start` 不再接受另一轮开始；补充使用 `turn/steer`，中断使用 `turn/interrupt`。审批只接受当前输入者回应一次。
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Owner as 主机 Owner
-    actor Receiver as 接收者
-    participant UI as 接收者 WebGUI
-    participant Proxy as join proxy
-    participant Core as Share API / Go Core
-    participant Store as SQLite
-    participant Bridge as Agent Bridge
-    participant Agent as Codex / Claude
+写入携带 `requestId`，记录请求哈希、`pending/completed/failed/unknown`。相同 ID、相同内容的完成请求返回已有响应；内容改变则拒绝。状态不明时先读取事件和会话结果，不能自动重发。重启后未完成写入标为 `unknown`。
 
-    Receiver->>UI: 打开本机 join 页面
-    UI->>Proxy: 获取 Thread snapshot 与 SSE
-    Proxy->>Core: pinned TLS + secret + participant identity
-    Note over Proxy,Core: Proxy 校验 SPKI；Share gate 校验版本、到期、撤销与 secret
-    Core->>Store: upsert participant 并读取 Thread
-    Store-->>Core: Thread revision + event cursor
-    Core-->>Proxy: snapshot + SSE stream
-    Proxy-->>UI: Observer 视图
+当前直接客户端只有一个。交出/接回输入关闭旧直接连接；只读工具仍可读取。结束共享立即撤销访问并关闭远端直接连接，同时将输入归属还给发起者。TLS listener 短暂保留 30 秒，仅返回 `410 Gone`，让在线接收者知道共享已结束，随后关闭；Core 退出会直接关闭全部监听。
 
-    Receiver->>UI: 请求控制
-    UI->>Proxy: control request(commandId, revision)
-    Proxy->>Core: 转发受认证请求
-    Core->>Store: claim command + 获取 60 秒 lease
-    Store-->>Core: leaseEpoch
-    Core-->>Proxy: Controller 状态
-    Proxy-->>UI: Controller 状态
+接收者持久化已经观察到的结束状态，重启后仍显示“共享已结束”；本地时间超过邀请期限时显示“邀请已到期”。未收到结束通知且主机不可达时只能判断连接中断，不能推断结束原因。重新获取邀请是恢复已关闭访问的入口。
 
-    Receiver->>UI: Send / Steer / Interrupt
-    UI->>Proxy: commandId + expectedRevision + leaseEpoch
-    Proxy->>Core: 转发命令
-    Core->>Store: lookup commandId + participant + 完整请求
-    alt 完全相同的已完成重放
-        Store-->>Core: 持久化结果
-        Core-->>Proxy: 返回当前 Thread 状态
-        Proxy-->>UI: 返回当前 Thread 状态
-    else 首次执行
-        Core->>Store: 校验 revision 与 lease fencing
-        Core->>Store: claim commandId
-        Core->>Store: 追加 command event 并推进 revision
-        Core->>Bridge: JSONL-RPC runs.*
-        Bridge->>Agent: 驱动主机 managed Session
-        Agent-->>Bridge: message / tool / file / status event
-        Bridge-->>Core: 统一事件
-        Core->>Store: 持久化事件与命令结果
-        Core-->>Proxy: SSE 增量 + 更新后的 Thread
-        Proxy-->>UI: SSE 增量 + 更新后的 Thread
-    end
+## 范围
 
-    loop 每 20 秒
-        UI->>Proxy: renew 当前 lease
-        Proxy->>Core: 转发 renew
-        Core->>Store: 校验 participant + epoch + expiry
-    end
-
-    Owner->>Core: reclaim control
-    Core->>Store: 提升 epoch 并撤销远端租约
-    Core-->>Proxy: control revoked event
-    Proxy-->>UI: control revoked event
-    UI->>Proxy: 延迟到达的旧 epoch 命令
-    Proxy->>Core: 转发旧命令
-    Core-->>Proxy: 拒绝 stale lease fence
-    Proxy-->>UI: 显示控制权已失效
-```
-
-这个时序只表示 Team Cross 自己托管的 managed Session。已有 Codex 或 Claude 历史只能
-作为带来源、不可信的 evidence 导入，不能被远端热接管。
+首轮聚焦 macOS、Codex、普通 Git 仓库和两位参与者的 LAN 协作。无强制 Round、独立 Evidence、Claude、离线包、patch/PR 发布流程。WebGUI 显示轻量上下文，完整 Agent 对话交给 Codex。

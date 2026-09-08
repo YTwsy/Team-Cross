@@ -1,144 +1,148 @@
-import { useCallback, useEffect, useState } from "react";
-import { api } from "./api";
-import { AppShell } from "./components/AppShell";
-import { CaptureForm } from "./components/CaptureForm";
-import { DoctorPanel } from "./components/DoctorPanel";
-import { ThreadList } from "./components/ThreadList";
-import { ThreadWorkspace } from "./components/ThreadWorkspace";
-import { SessionStart } from "./components/SessionStart";
-import type { AppInfo, ThreadSummary } from "./types";
-
-type Route =
-  | { page: "threads" | "doctor" | "capture" | "sessions" }
-  | { page: "thread"; id: string };
-
-function readRoute(): Route {
-  const hash = window.location.hash.replace(/^#\/?/, "");
-  if (hash.startsWith("threads/"))
-    return { page: "thread", id: hash.slice("threads/".length) };
-  if (hash === "doctor") return { page: "doctor" };
-  if (hash === "capture") return { page: "capture" };
-  if (hash === "sessions") return { page: "sessions" };
-  return { page: "threads" };
-}
-
-function setLocation(route: Route) {
-  const hash =
-    route.page === "thread"
-      ? `threads/${route.id}`
-      : route.page === "threads"
-        ? ""
-        : route.page;
-  window.location.hash = `#/${hash}`;
-}
-
-export function App() {
-  const [route, setRoute] = useState<Route>(() => readRoute());
-  const [info, setInfo] = useState<AppInfo>();
-  const [threads, setThreads] = useState<ThreadSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fatal, setFatal] = useState("");
-
-  const load = useCallback(async () => {
-    try {
-      const [nextInfo, nextThreads] = await Promise.all([
-        api.info(),
-        api.threads(),
-      ]);
-      setInfo(nextInfo);
-      setThreads(nextThreads);
-      setFatal("");
-    } catch (reason) {
-      setFatal(
-        reason instanceof Error
-          ? reason.message
-          : "Unable to reach Team Cross Core",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+import { useEffect, useState } from "react";
+import { Home } from "./components/Home";
+import { Create } from "./components/Create";
+import { Detail } from "./components/Detail";
+import { Join } from "./components/Join";
+import { Settings, type Theme } from "./components/Settings";
+import { Icon } from "./components/ui";
+export default function App() {
+  const [route, setRoute] = useState(() => location.hash.slice(1) || "/");
+  const [theme, setTheme] = useState<Theme>(() => {
+    const t = localStorage.getItem("teamcross.theme.v1");
+    return t === "light" || t === "dark" ? t : "system";
+  });
   useEffect(() => {
-    void load();
-  }, [load]);
-  useEffect(() => {
-    const listener = () => setRoute(readRoute());
-    window.addEventListener("hashchange", listener);
-    return () => window.removeEventListener("hashchange", listener);
+    const handler = () => {
+      setRoute(location.hash.slice(1) || "/");
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener("hashchange", handler);
+    return () => window.removeEventListener("hashchange", handler);
   }, []);
-
-  function navigate(next: Route) {
-    setLocation(next);
-    setRoute(next);
-  }
-
-  if (fatal && !info) {
-    return (
-      <main className="fatal-screen">
-        <span className="fatal-logo">×</span>
-        <h1>Team Cross Core is unavailable</h1>
-        <p>{fatal}</p>
-        <button className="button primary" onClick={load} type="button">
-          Retry connection
-        </button>
-      </main>
+  useEffect(() => {
+    const media = matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => {
+      document.documentElement.dataset.theme =
+        theme === "system" ? (media.matches ? "dark" : "light") : theme;
+    };
+    apply();
+    localStorage.setItem("teamcross.theme.v1", theme);
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [theme]);
+  useEffect(() => {
+    const timer = setTimeout(
+      () =>
+        document
+          .querySelector<HTMLElement>("h1")
+          ?.focus({ preventScroll: true }),
+      0,
     );
-  }
-
-  const shellPage = route.page === "doctor" ? "doctor" : "threads";
+    return () => clearTimeout(timer);
+  }, [route]);
+  const detailId = route.match(/^\/collaborations\/([^/]+)$/)?.[1];
+  const page =
+    route === "/create" ? (
+      <Create />
+    ) : route === "/join" ? (
+      <Join />
+    ) : route === "/settings" ? (
+      <Settings theme={theme} setTheme={setTheme} />
+    ) : detailId ? (
+      <Detail key={detailId} id={detailId} />
+    ) : (
+      <Home />
+    );
   return (
-    <AppShell
-      active={shellPage}
-      info={info}
-      onNavigate={(page) => navigate({ page })}
-      onNewThread={() => navigate({ page: "sessions" })}
-    >
-      {route.page === "threads" ? (
-        <ThreadList
-          canCreate={info?.role === "owner"}
-          loading={loading}
-          onNew={() => navigate({ page: "sessions" })}
-          onOpen={(id) => navigate({ page: "thread", id })}
-          threads={threads}
-        />
-      ) : null}
-      {route.page === "doctor" ? <DoctorPanel info={info} /> : null}
-      {route.page === "sessions" && info?.role === "owner" ? (
-        <SessionStart
-          onCancel={() => navigate({ page: "threads" })}
-          onCapture={() => navigate({ page: "capture" })}
-          onCreated={(id) => {
-            void load();
-            navigate({ page: "thread", id });
-          }}
-        />
-      ) : null}
-      {route.page === "capture" && info?.role === "owner" ? (
-        <CaptureForm
-          defaultRepo={info?.repo}
-          onCancel={() => navigate({ page: "threads" })}
-          onCreated={(id) => {
-            void load();
-            navigate({ page: "thread", id });
-          }}
-        />
-      ) : null}
-      {route.page === "thread" && info ? (
-        <ThreadWorkspace
-          key={route.id}
-          id={route.id}
-          info={info}
-          onOpen={(id) => {
-            void load();
-            navigate({ page: "thread", id });
-          }}
-          onBack={() => {
-            void load();
-            navigate({ page: "threads" });
-          }}
-        />
-      ) : null}
-    </AppShell>
+    <div className="app-shell">
+      <a
+        className="skip-link"
+        href="#main-content"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById("main-content")?.focus();
+        }}
+      >
+        跳到主要内容
+      </a>
+      <aside className="sidebar">
+        <a className="brand" href="#/" aria-label="Team Cross 首页">
+          <span className="brand-mark">
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
+          <span>
+            Team Cross<small>一起继续</small>
+          </span>
+        </a>
+        <nav aria-label="主导航">
+          <a
+            className={route !== "/settings" ? "active" : ""}
+            href="#/"
+            aria-current={route === "/" ? "page" : undefined}
+          >
+            <Icon name="grid" />
+            协作空间
+          </a>
+          <a
+            className={route === "/settings" ? "active" : ""}
+            href="#/settings"
+            aria-current={route === "/settings" ? "page" : undefined}
+          >
+            <Icon name="settings" />
+            设置与连接
+          </a>
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="local-label">
+            <span className="dot green-dot" />
+            本地运行 <span className="experiment">实验版</span>
+          </div>
+          <button
+            className="theme-toggle"
+            onClick={() =>
+              setTheme(
+                theme === "system"
+                  ? "light"
+                  : theme === "light"
+                    ? "dark"
+                    : "system",
+              )
+            }
+            aria-label={`切换主题，当前${theme === "system" ? "跟随系统" : theme === "light" ? "浅色" : "深色"}`}
+          >
+            <Icon
+              name={
+                theme === "dark"
+                  ? "moon"
+                  : theme === "light"
+                    ? "sun"
+                    : "desktop"
+              }
+              size={17}
+            />
+            {theme === "system"
+              ? "跟随系统"
+              : theme === "light"
+                ? "浅色外观"
+                : "深色外观"}
+          </button>
+        </div>
+      </aside>
+      <main id="main-content" tabIndex={-1} className="main-content">
+        <div className="topbar">
+          <span>你的工作现场，与同事相连</span>
+          <span className="local-pill">
+            <Icon name="desktop" size={14} />
+            macOS · Codex
+          </span>
+        </div>
+        <div className="page" key={route}>
+          {page}
+        </div>
+      </main>
+    </div>
   );
 }
