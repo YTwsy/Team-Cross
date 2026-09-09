@@ -90,3 +90,5 @@ TEAMCROSS_LIVE_DIR=/private/tmp/teamcross-fresh-fixture \
 产品进程、TUI 启动和专用客户端配置不再强制 Luna/low。回归测试覆盖来源继承、客户端选择、无覆盖输入保持设置、模型拒绝不更新显示、恢复持久化配置、设置通知和输入归属。前端验证显示运行时返回的模型和推理强度。真实测试使用专用 Luna 会话，以 medium 创建来源、检查 fork 继承，再切换到 low 执行文件证明；本次专用仓库验证已通过，两种模式均保留正确模型并响应推理强度切换；没有调用其他真实模型。
 
 另外通过真实 `thread/settings/update` 将测试协作从 low 改为 medium，确认原生会话 ID 不变、设置已更新，期间没有 `turn/*` 事件。真实浏览器展开技术信息后显示 `gpt-5.6-luna` 与 `medium`，已查看截图复核布局；截图保存在实验工作目录的 `output/playwright/main-model-settings.png`。
+
+main 快进至 `30a4ebb` 后，主目录重新安装依赖并运行上述全部工程门槛，结果通过；7 项前端测试通过，重新生成的 Web 资源无差异。使用主目录新构建的二进制恢复测试协作，确认 fork ID、执行目录、Git 分支及 medium 设置保持不变，事件中没有新 `turn/*`。这些补充检查没有重新启动专用 Desktop；前述八种客户端组合的结果来自本日已完成的独立客户端验收。
