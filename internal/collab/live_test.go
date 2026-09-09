@@ -15,6 +15,8 @@ import (
 
 // Opt in only. Uses a dedicated native history home and repository. The sole
 // credential reference is a local symlink; no credential is printed or copied.
+const liveModel = "gpt-5.6-luna"
+
 func TestLiveCodex(t *testing.T) {
 	root := os.Getenv("TEAMCROSS_LIVE_DIR")
 	if root == "" {
@@ -34,6 +36,9 @@ func TestLiveCodex(t *testing.T) {
 		t.Fatal(e)
 	}
 	t.Setenv("CODEX_HOME", home)
+	if e := os.WriteFile(filepath.Join(home, "config.toml"), []byte("model = \""+liveModel+"\"\nmodel_reasoning_effort = \"low\"\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
 	for _, args := range [][]string{{"init", "-b", "main"}, {"config", "user.name", "Team Cross Fixture"}, {"config", "user.email", "fixture@example.invalid"}} {
 		if _, e := workspace.Git(ctx, repo, args...); e != nil {
 			t.Fatal(e)
@@ -79,7 +84,7 @@ func TestLiveCodex(t *testing.T) {
 			}
 		}
 	})
-	if e = a.readerCall(ctx, "turn/start", map[string]any{"threadId": source, "model": nativecodex.Model, "effort": "low", "input": []any{map[string]any{"type": "text", "text": "This is a dedicated Team Cross integration fixture. Reply exactly TEAMCROSS_SOURCE_READY. Do not use tools."}}}, nil); e != nil {
+	if e = a.readerCall(ctx, "turn/start", map[string]any{"threadId": source, "model": liveModel, "effort": "medium", "input": []any{map[string]any{"type": "text", "text": "This is a dedicated Team Cross integration fixture. Reply exactly TEAMCROSS_SOURCE_READY. Do not use tools."}}}, nil); e != nil {
 		t.Fatal(e)
 	}
 	select {
@@ -90,7 +95,7 @@ func TestLiveCodex(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
-	t.Log("source completed with", nativecodex.Model, source)
+	t.Log("source completed with", liveModel, source)
 	os.WriteFile(filepath.Join(repo, "src", "baseline.txt"), []byte("staged\n"), 0600)
 	workspace.Git(ctx, repo, "add", "src/baseline.txt")
 	os.WriteFile(filepath.Join(repo, "src", "baseline.txt"), []byte("unstaged\n"), 0600)
@@ -110,6 +115,9 @@ func TestLiveCodex(t *testing.T) {
 		}
 		ids[mode] = s.record.ID
 		t.Log("created", mode, s.record.SessionID, s.record.ExecutionCwd)
+		if s.record.Model != liveModel || s.record.ReasoningEffort == nil || *s.record.ReasoningEffort != "medium" {
+			t.Fatalf("source model settings not inherited: %s %v", s.record.Model, s.record.ReasoningEffort)
+		}
 		data, _ := os.ReadFile(filepath.Join(s.record.ExecutionCwd, "baseline.txt"))
 		expected := "unstaged\n"
 		if mode == "worktree" {
@@ -119,7 +127,7 @@ func TestLiveCodex(t *testing.T) {
 			t.Fatal("wrong workspace", string(data))
 		}
 		text := "Use your file or command tools to create a file named " + mode + "-proof.txt in the current working directory, with exactly TEAMCROSS_" + strings.ToUpper(mode) + "_OK as its contents. Do not change any other file. Then reply with the absolute file path. This is an authorized integration test in a dedicated fixture."
-		_, e = s.RPC(ctx, "owner", "turn/start", map[string]any{"input": []any{map[string]any{"type": "text", "text": text}}}, "live-file-"+mode)
+		_, e = s.RPC(ctx, "owner", "turn/start", map[string]any{"model": liveModel, "effort": "low", "input": []any{map[string]any{"type": "text", "text": text}}}, "live-file-"+mode)
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -145,9 +153,12 @@ func TestLiveCodex(t *testing.T) {
 		if e != nil || strings.TrimSpace(string(proof)) != "TEAMCROSS_"+strings.ToUpper(mode)+"_OK" {
 			t.Fatalf("execution proof missing: %q %v", proof, e)
 		}
+		if s.record.Model != liveModel || s.record.ReasoningEffort == nil || *s.record.ReasoningEffort != "low" {
+			t.Fatal("client model settings not observed")
+		}
 		t.Log("file execution confirmed", mode)
 	}
-	result := map[string]any{"root": root, "repo": repo, "dataDir": a.Config.DataDir, "codexHome": home, "sourceId": source, "collaborations": ids, "model": nativecodex.Model, "createdAt": time.Now()}
+	result := map[string]any{"root": root, "repo": repo, "dataDir": a.Config.DataDir, "codexHome": home, "sourceId": source, "collaborations": ids, "model": liveModel, "createdAt": time.Now()}
 	if e = writeJSONFile(filepath.Join(root, "fixture.json"), result); e != nil {
 		t.Fatal(e)
 	}

@@ -27,13 +27,16 @@ type Config struct {
 	StartProcess                      func(string, string, string, string) (Runtime, error)
 }
 type Source struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Preview   string `json:"preview"`
-	Cwd       string `json:"cwd"`
-	Path      string `json:"path,omitempty"`
-	UpdatedAt int64  `json:"updatedAt"`
-	Status    struct {
+	Model           string  `json:"model,omitempty"`
+	ModelProvider   string  `json:"modelProvider,omitempty"`
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+	ID              string  `json:"id"`
+	Name            string  `json:"name"`
+	Preview         string  `json:"preview"`
+	Cwd             string  `json:"cwd"`
+	Path            string  `json:"path,omitempty"`
+	UpdatedAt       int64   `json:"updatedAt"`
+	Status          struct {
 		Type string `json:"type"`
 	} `json:"status"`
 }
@@ -77,26 +80,29 @@ type Command struct {
 	Error  string          `json:"error,omitempty"`
 }
 type Record struct {
-	ID             string             `json:"id"`
-	Title          string             `json:"title"`
-	SourceID       string             `json:"sourceId"`
-	SourceTurnID   string             `json:"sourceTurnId"`
-	SessionID      string             `json:"sessionId"`
-	WorkspaceMode  string             `json:"workspaceMode"`
-	Repo           string             `json:"repo"`
-	ExecutionCwd   string             `json:"executionCwd"`
-	WorkspaceRoot  string             `json:"workspaceRoot"`
-	WorkspaceOwned bool               `json:"workspaceOwned"`
-	Head           string             `json:"head"`
-	Branch         string             `json:"branch"`
-	ProviderHome   string             `json:"providerHome"`
-	State          string             `json:"state"`
-	Error          string             `json:"error,omitempty"`
-	CreatedAt      time.Time          `json:"createdAt"`
-	UpdatedAt      time.Time          `json:"updatedAt"`
-	PreviewHash    string             `json:"previewHash"`
-	Annotations    []Annotation       `json:"annotations"`
-	Commands       map[string]Command `json:"commands,omitempty"`
+	Model           string             `json:"model,omitempty"`
+	ModelProvider   string             `json:"modelProvider,omitempty"`
+	ReasoningEffort *string            `json:"reasoningEffort,omitempty"`
+	ID              string             `json:"id"`
+	Title           string             `json:"title"`
+	SourceID        string             `json:"sourceId"`
+	SourceTurnID    string             `json:"sourceTurnId"`
+	SessionID       string             `json:"sessionId"`
+	WorkspaceMode   string             `json:"workspaceMode"`
+	Repo            string             `json:"repo"`
+	ExecutionCwd    string             `json:"executionCwd"`
+	WorkspaceRoot   string             `json:"workspaceRoot"`
+	WorkspaceOwned  bool               `json:"workspaceOwned"`
+	Head            string             `json:"head"`
+	Branch          string             `json:"branch"`
+	ProviderHome    string             `json:"providerHome"`
+	State           string             `json:"state"`
+	Error           string             `json:"error,omitempty"`
+	CreatedAt       time.Time          `json:"createdAt"`
+	UpdatedAt       time.Time          `json:"updatedAt"`
+	PreviewHash     string             `json:"previewHash"`
+	Annotations     []Annotation       `json:"annotations"`
+	Commands        map[string]Command `json:"commands,omitempty"`
 }
 type direct struct {
 	subscribed bool

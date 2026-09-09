@@ -63,6 +63,23 @@ beforeEach(() => {
   location.hash = "/";
 });
 describe("产品路径", () => {
+  it("详情显示运行时确认的模型与推理强度", async () => {
+    mockFetch((path) =>
+      path.includes("/context")
+        ? { thread: { turns: [] } }
+        : {
+            ...collaboration,
+            model: "fixture-selected-model",
+            reasoningEffort: "xhigh",
+          },
+    );
+    const user = userEvent.setup();
+    render(<Detail id="c1" />);
+    await user.click(await screen.findByText("技术信息"));
+    expect(screen.getByText("fixture-selected-model")).toBeVisible();
+    expect(screen.getByText("xhigh")).toBeVisible();
+    expect(screen.queryByText("gpt-5.6-luna")).not.toBeInTheDocument();
+  });
   it.each([
     ["ended", "这次共享已结束"],
     ["expired", "这份邀请已到期"],

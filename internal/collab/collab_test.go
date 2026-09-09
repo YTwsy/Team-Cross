@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"net/http"
@@ -19,14 +20,16 @@ import (
 )
 
 type fakeRuntime struct {
-	mu      sync.Mutex
-	source  Source
-	calls   []string
-	forks   int
-	handler func(nativecodex.Message)
-	last    map[string]any
-	fail    bool
-	alive   bool
+	mu       sync.Mutex
+	source   Source
+	calls    []string
+	forks    int
+	handler  func(nativecodex.Message)
+	last     map[string]any
+	fail     bool
+	alive    bool
+	threads  map[string]Source
+	requests map[string]map[string]any
 }
 
 func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error {
@@ -35,21 +38,58 @@ func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error 
 	f.calls = append(f.calls, method)
 	params, _ := in.(map[string]any)
 	f.last = params
+	if f.requests == nil {
+		f.requests = map[string]map[string]any{}
+	}
+	encoded, _ := json.Marshal(params)
+	var request map[string]any
+	_ = json.Unmarshal(encoded, &request)
+	f.requests[method] = request
+	if f.threads == nil {
+		f.threads = map[string]Source{}
+	}
+	id, _ := params["threadId"].(string)
+	thread, exists := f.threads[id]
+	if !exists {
+		thread = f.source
+	}
+	if method == "turn/start" || method == "thread/resume" || method == "thread/settings/update" || method == "thread/fork" {
+		if params["model"] == "rejected-fixture-model" {
+			return fmt.Errorf(`{"code":-32602,"message":"unsupported fixture model"}`)
+		}
+		if model, ok := params["model"].(string); ok && model != "" {
+			thread.Model = model
+		}
+		if effort, ok := params["effort"].(string); ok {
+			thread.ReasoningEffort = &effort
+		}
+		if config, ok := params["config"].(map[string]any); ok {
+			if effort, ok := config["model_reasoning_effort"].(string); ok {
+				thread.ReasoningEffort = &effort
+			}
+		}
+		f.threads[id] = thread
+	}
 	var result any = map[string]any{}
 	switch method {
 	case "getAuthStatus":
 		result = map[string]any{"authToken": f.source.Name + "-token", "authMethod": "chatgpt"}
 	case "config/read":
-		result = map[string]any{"config": map[string]any{"model": nativecodex.Model, "mcp_servers": map[string]any{"private": "secret"}, "model_providers": map[string]any{"secret": "key"}}, "origins": map[string]string{"secret": "path"}}
+		result = map[string]any{"config": map[string]any{"model": "fixture-config-model", "mcp_servers": map[string]any{"private": "secret"}, "model_providers": map[string]any{"secret": "key"}}, "origins": map[string]string{"secret": "path"}}
 	case "thread/read":
-		result = map[string]any{"thread": f.source}
+		result = map[string]any{"thread": thread}
 	case "thread/turns/list":
 		result = map[string]any{"data": []any{map[string]any{"id": "turn-fixture", "status": "completed"}}}
 	case "thread/fork":
 		f.forks++
-		result = map[string]any{"thread": map[string]any{"id": uuid.NewString(), "forkedFromId": f.source.ID, "cwd": params["cwd"]}}
+		thread.ID = uuid.NewString()
+		thread.Cwd, _ = params["cwd"].(string)
+		f.threads[thread.ID] = thread
+		result = map[string]any{"model": thread.Model, "modelProvider": thread.ModelProvider, "reasoningEffort": thread.ReasoningEffort, "thread": map[string]any{"id": thread.ID, "forkedFromId": f.source.ID, "cwd": thread.Cwd}}
 	case "turn/start":
 		result = map[string]any{"turn": map[string]any{"id": "active-turn"}}
+	case "thread/resume":
+		result = map[string]any{"thread": thread, "model": thread.Model, "reasoningEffort": thread.ReasoningEffort}
 	}
 	if out != nil {
 		b, _ := json.Marshal(result)
@@ -80,7 +120,8 @@ func fixture(t *testing.T) (*App, *fakeRuntime, string) {
 	os.WriteFile(filepath.Join(repo, "file.txt"), []byte("baseline"), 0600)
 	workspace.Git(ctx, repo, "add", "file.txt")
 	workspace.Git(ctx, repo, "commit", "-m", "fixture")
-	f := &fakeRuntime{source: Source{ID: uuid.NewString(), Cwd: repo, Name: "fixture"}, alive: true}
+	effort := "high"
+	f := &fakeRuntime{source: Source{ID: uuid.NewString(), Cwd: repo, Name: "fixture", Model: "fixture-source-model", ModelProvider: "fixture-provider", ReasoningEffort: &effort}, alive: true}
 	a, e := Open(Config{DataDir: t.TempDir(), Repo: repo, Binary: "/usr/bin/true", Loopback: true, StartProcess: func(string, string, string, string) (Runtime, error) {
 		f.mu.Lock()
 		f.alive = true
@@ -157,7 +198,7 @@ func TestInputOwnershipDedupAndApproval(t *testing.T) {
 	a, f, _ := fixture(t)
 	s := createFixture(t, a, f, "existing")
 	ctx := context.Background()
-	params := map[string]any{"input": []any{}, "cwd": "/wrong", "model": "wrong"}
+	params := map[string]any{"input": []any{}, "cwd": "/wrong", "model": "fixture-client-model", "effort": "medium"}
 	if _, e := s.RPC(ctx, "remote", "turn/start", params, "blocked"); e == nil {
 		t.Fatal("remote writes without share")
 	}
@@ -170,7 +211,7 @@ func TestInputOwnershipDedupAndApproval(t *testing.T) {
 		t.Fatal("duplicate result not replayed", e)
 	}
 	f.mu.Lock()
-	if f.last["cwd"] != s.record.ExecutionCwd || f.last["model"] != nativecodex.Model {
+	if f.requests["turn/start"]["cwd"] != s.record.ExecutionCwd || f.requests["turn/start"]["model"] != "fixture-client-model" || f.requests["turn/start"]["effort"] != "medium" {
 		t.Fatal("runtime binding overridden")
 	}
 	f.mu.Unlock()

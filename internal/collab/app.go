@@ -297,10 +297,14 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 		return fail(e)
 	}
 	params := nativecodex.Overrides(r.SourceID, cwd)
+	inheritModel(params, p.Source)
 	params["lastTurnId"] = r.SourceTurnID
 	params["excludeTurns"] = true
 	var fork struct {
-		Thread struct {
+		Model           string  `json:"model"`
+		ModelProvider   string  `json:"modelProvider"`
+		ReasoningEffort *string `json:"reasoningEffort"`
+		Thread          struct {
 			ID           string `json:"id"`
 			ForkedFromID string `json:"forkedFromId"`
 			Cwd          string `json:"cwd"`
@@ -314,6 +318,7 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 	}
 	s.mu.Lock()
 	s.record.SessionID = fork.Thread.ID
+	s.modelLocked(fork.Model, fork.ModelProvider, fork.ReasoningEffort)
 	s.record.State = "ready"
 	s.record.UpdatedAt = time.Now()
 	e = s.saveLocked()
@@ -359,12 +364,21 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 	s.approvals = map[string]Approval{}
 	s.mu.Unlock()
 	if resume && r.SessionID != "" {
+		var read struct {
+			Thread Source `json:"thread"`
+		}
+		if e = p.Call(ctx, "thread/read", map[string]any{"threadId": r.SessionID, "includeTurns": false}, &read); e != nil {
+			p.Close()
+			return e
+		}
 		params := nativecodex.Overrides(r.SessionID, r.ExecutionCwd)
+		inheritModel(params, read.Thread)
 		params["excludeTurns"] = true
 		if e = p.Call(ctx, "thread/resume", params, nil); e != nil {
 			p.Close()
 			return e
 		}
+		s.refreshModel(ctx, p)
 	}
 	return nil
 }
@@ -438,7 +452,7 @@ func (s *Session) view() map[string]any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	r := s.record
-	out := map[string]any{"id": r.ID, "title": r.Title, "sourceId": r.SourceID, "sourceTurnId": r.SourceTurnID, "sessionId": r.SessionID, "workspaceMode": r.WorkspaceMode, "executionCwd": r.ExecutionCwd, "repo": r.Repo, "head": r.Head, "branch": r.Branch, "workspaceOwned": r.WorkspaceOwned, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "writer": s.writer, "busy": s.busy, "online": s.online, "epoch": s.epoch, "sharing": s.share != nil, "connected": s.direct != nil, "sequence": s.sequence, "approvals": len(s.approvals), "annotations": r.Annotations, "model": nativecodex.Model}
+	out := map[string]any{"id": r.ID, "title": r.Title, "sourceId": r.SourceID, "sourceTurnId": r.SourceTurnID, "sessionId": r.SessionID, "workspaceMode": r.WorkspaceMode, "executionCwd": r.ExecutionCwd, "repo": r.Repo, "head": r.Head, "branch": r.Branch, "workspaceOwned": r.WorkspaceOwned, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "writer": s.writer, "busy": s.busy, "online": s.online, "epoch": s.epoch, "sharing": s.share != nil, "connected": s.direct != nil, "sequence": s.sequence, "approvals": len(s.approvals), "annotations": r.Annotations, "model": r.Model, "modelProvider": r.ModelProvider, "reasoningEffort": r.ReasoningEffort}
 	if s.direct != nil {
 		out["client"] = s.direct.kind
 	}

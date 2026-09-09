@@ -515,8 +515,10 @@ export function Detail({ id }: { id: string }) {
               <dd>{c.branch}</dd>
               <dt>基线提交</dt>
               <dd>{c.head}</dd>
-              <dt>运行模型</dt>
-              <dd>{c.model}</dd>
+              <dt>{c.online ? "当前模型" : "最近确认的模型"}</dt>
+              <dd>{c.model || "等待 Codex 确认"}</dd>
+              <dt>推理强度</dt>
+              <dd>{c.reasoningEffort || "Codex 默认"}</dd>
             </dl>
           </details>
         </aside>

@@ -31,13 +31,21 @@ flowchart LR
 
 仅复制 rollout 文件无法替代原生历史数据库。协作记录保存 `sourceId`、已确认的 `sourceTurnId` 和新 `sessionId`。创建调用 `thread/fork`，使用 `lastTurnId` 保留确认过的已完成起点。恢复调用 `thread/resume`，继续同一 ID。
 
-直接客户端的 `initialize`、会话枚举和请求都经过协作网关。网关只暴露指定协作；固定 `threadId`、`cwd`、模型与权限 profile。网关与 MCP 共享同一个上游控制连接，避免审批只被某个连接收到而另一入口无法回应。直接客户端断开不会终止 app-server。
+直接客户端的 `initialize`、会话枚举和请求都经过协作网关。网关只暴露指定协作；固定 `threadId`、`cwd` 与权限 profile。模型及推理强度继承原生来源和当前输入者的选择。网关与 MCP 共享同一个上游控制连接，避免审批只被某个连接收到而另一入口无法回应。直接客户端断开不会终止 app-server。
 
 Desktop 使用本机安装版本的指定 WebSocket 入口，配合单独的 `CODEX_HOME` 与 Electron 数据目录，通过 `open -n` 启动。是否所有 Desktop 操作都适合远程执行需要按实际客户端版本验收；不能仅凭 app-server 协议相同宣布完整兼容。
 
 客户端本机代理单独处理 `account/login/start`、登录完成通知、`getAuthStatus` 和客户端偏好写入。读取已有登录状态可以使用 B 的本机账户；修改账户时启动专用客户端配置的本机 app-server，避免改写 B 的普通 Codex 配置。远端共享网关不传出 A 的登录 token、MCP 配置或完整个人配置。登录路由与共享会话执行路由分别验收。
 
 轻量历史使用 `thread/read` 的元数据与 `thread/turns/list` 分页组合，不反复要求上游加载完整历史。每页 8 轮，按时间正序返回，MCP 可用 `nextCursor` 继续读取。
+
+## 模型设置
+
+创建时从来源 `thread/read` 读取模型、Provider 与推理强度并传给 `thread/fork`；没有值时由 Codex 自身解析配置。恢复时读取协作会话最新持久化设置，避免用 Core 的旧缓存覆盖外部修改。
+
+`turn/start`、带模型覆盖的 `thread/resume`、`thread/settings/update` 都检查输入归属。客户端的模型和推理强度保持有效，权限和执行目录仍由协作约束。`thread/settings/updated` 通知与成功请求后的元数据读取更新界面和持久化记录；失败请求不展示为已经生效。这里记录的是会话当前配置，不是逐轮模型执行遥测。
+
+产品进程参数、专用客户端配置和普通辅助客户端命令均不固定模型。Luna 与测试强度只出现在显式的真实模型测试配置中。
 
 ## 目录与持久化
 

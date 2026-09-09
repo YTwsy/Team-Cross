@@ -4,11 +4,11 @@
 
 Team Cross 是 macOS 上的本地协作工具。发起者选择一个来源会话，创建新的原生 Codex fork，再向同事发送临时局域网邀请。会话、模型调用与代码执行保留在发起者的 Mac；参与者可以使用本机 TUI、专用 Desktop，或让自己的 Codex 通过工具辅助协作。
 
-本分支 `codex/session-collaboration` 是独立实验。新界面与新数据目录不读取旧版 Thread/Round/Evidence 数据，也不依赖 Node Agent Bridge。
+`main` 已采用这套原生协作架构，当前处于原型阶段。默认启动新 WebGUI；使用独立数据目录，不读取旧版 Thread/Round/Evidence 数据，也不依赖 Node Agent Bridge。
 
 ## 启动
 
-需要 macOS、Go 1.25.3+、Node 24+、pnpm，以及已登录的 Codex。当前验证版本为 `codex-cli 0.153.1`、Codex Desktop `26.901.31953`。实验运行时暂时固定为 `gpt-5.6-luna`；客户端显示的模型选择不会改变共享运行时的模型。
+需要 macOS、Go 1.25.3+、Node 24+、pnpm，以及已登录的 Codex。当前验证版本为 `codex-cli 0.153.1`、Codex Desktop `26.901.31953`。产品不固定模型或推理强度，实际可用模型由执行主机的 Codex 配置和账户决定。
 
 ```sh
 pnpm install
@@ -18,7 +18,7 @@ make build
 
 打开 `http://127.0.0.1:43210`。浏览器只负责协作管理、上下文查看与批注；完整 Agent 对话在 Codex 客户端中进行。
 
-默认实验数据目录是 `~/Library/Application Support/Team Cross Next`。可用 `--data-dir` 指定另一个目录，`--listen 127.0.0.1:PORT` 改变本机端口，`--no-open` 禁止自动打开浏览器。`--codex-bin`、`--desktop-app` 或界面的设置页可以指定客户端路径。
+默认数据目录沿用原生协作原型的 `~/Library/Application Support/Team Cross Next`，避免变更路径导致已有协作不可见。可用 `--data-dir` 指定另一个目录，`--listen 127.0.0.1:PORT` 改变本机端口，`--no-open` 禁止自动打开浏览器。`--codex-bin`、`--desktop-app` 或界面的设置页可以指定客户端路径。
 
 ## 发起协作
 
@@ -50,6 +50,12 @@ make build
 输入者由发起者交接或接回；接收者也可以交还输入。直接客户端和辅助工具的写入统一检查输入归属，读取可以并行。当前轮运行中可通过 Codex 或 MCP 补充、中断，审批在原生客户端或辅助工具中回应。
 
 专用 Desktop 第一次打开时可能需要完成登录或跳过引导，之后从左侧打开协作会话。它与原有 Desktop 使用独立应用数据目录；账户登录与客户端偏好在使用者本机处理，共享会话的模型调用仍由发起者运行时承担。此入口面向协作会话的历史、输入、审批与代码操作，Desktop 的其他全局功能不在首轮兼容承诺中。
+
+## 模型与推理强度
+
+创建协作时继承来源会话已保存的模型、Provider 和推理强度；来源缺少相应信息时使用 A 的 Codex 配置。后续在原生客户端中选择模型或推理强度，协作网关保留这些选择，工具未指定设置时沿用共享会话当前配置。
+
+恢复会读取该协作会话最新持久化的设置。详情中的“技术信息”展示 Codex 已确认的当前模型与推理强度；离线时标注为最近确认的模型。普通辅助 TUI/Desktop 的本地模型由使用者自行配置。`gpt-5.6-luna` 仅用于本仓库的真实模型测试。
 
 ## 一次性接入 MCP
 

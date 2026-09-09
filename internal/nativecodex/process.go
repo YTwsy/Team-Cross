@@ -19,7 +19,6 @@ import (
 	"github.com/coder/websocket"
 )
 
-const Model = "gpt-5.6-luna"
 const Profile = "teamcross-native"
 
 type Message struct {
@@ -79,9 +78,7 @@ func WriteConfig(home string) error {
 	if err := os.MkdirAll(home, 0700); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(home, "config.toml"), []byte(`model = "gpt-5.6-luna"
-model_reasoning_effort = "low"
-default_permissions = "teamcross-native"
+	return os.WriteFile(filepath.Join(home, "config.toml"), []byte(`default_permissions = "teamcross-native"
 approval_policy = "on-request"
 web_search = "disabled"
 allow_login_shell = false
@@ -121,7 +118,6 @@ func Start(ctx context.Context, binary, home, cwd, logPath string) (*Process, er
 	// Native fork must use A's native history database. Apply configuration to
 	// this process only instead of modifying A's personal config.toml.
 	for _, value := range []string{
-		`model="gpt-5.6-luna"`, `model_reasoning_effort="low"`,
 		`default_permissions="teamcross-native"`, `approval_policy="on-request"`,
 		`permissions.teamcross-native={extends=":workspace",network={enabled=false}}`,
 		`web_search="disabled"`, `allow_login_shell=false`, `features.code_mode_host=true`,
@@ -301,12 +297,12 @@ func (p *Process) Close() {
 }
 
 func Overrides(threadID, cwd string) map[string]any {
-	return map[string]any{"threadId": threadID, "cwd": cwd, "model": Model, "permissions": Profile, "runtimeWorkspaceRoots": []string{cwd}, "approvalPolicy": "on-request", "approvalsReviewer": "user"}
+	return map[string]any{"threadId": threadID, "cwd": cwd, "permissions": Profile, "runtimeWorkspaceRoots": []string{cwd}, "approvalPolicy": "on-request", "approvalsReviewer": "user"}
 }
 
 func Quote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
 func Command(binary, home, id, endpoint string) string {
-	return "env CODEX_HOME=" + Quote(home) + " " + Quote(binary) + " resume " + Quote(id) + " --remote " + Quote(endpoint) + " -m " + Model
+	return "env CODEX_HOME=" + Quote(home) + " " + Quote(binary) + " resume " + Quote(id) + " --remote " + Quote(endpoint)
 }
 
 func (p *Process) SetHandler(h func(Message)) { p.mu.Lock(); p.handler = h; p.mu.Unlock() }

@@ -181,7 +181,7 @@ export function Settings({
                 <dl>
                   <dt>执行主机</dt>
                   <dd>{info.data.host}</dd>
-                  <dt>实验数据目录</dt>
+                  <dt>数据目录</dt>
                   <dd>{info.data.dataDir}</dd>
                   <dt>版本</dt>
                   <dd>{info.data.version}</dd>

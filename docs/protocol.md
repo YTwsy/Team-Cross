@@ -1,6 +1,6 @@
-# 实验接口
+# 协作接口
 
-这些接口仅用于 `codex/session-collaboration`，不兼容旧 Thread/Share API。
+这些接口是 `main` 的默认协作协议，不兼容旧 Thread/Share API。
 
 ## 本机管理 API
 
@@ -69,4 +69,10 @@ TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS 路径和凭�
 
 STDIO MCP 采用逐行 JSON-RPC 2.0，协议版本 `2024-11-05`；只在 stdout 输出协议消息。工具输入和结果遵循上述管理 API。
 
-Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客户端连接返回。A 的共享网关不支持远端修改主机账户，也不返回主机认证 token；`threadId/cwd/model/permissionProfile` 等共享执行参数由协作绑定。其他未开放的原生方法返回可读的“不支持”错误，不默认穿透。
+Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客户端连接返回。A 的共享网关不支持远端修改主机账户，也不返回主机认证 token；`threadId/cwd/permissionProfile` 等共享执行参数由协作绑定。其他未开放的原生方法返回可读的“不支持”错误，不默认穿透。
+
+## 模型设置
+
+协作状态包含运行时确认的 `model`、`modelProvider` 和可空的 `reasoningEffort`；未知值不填造默认模型。离线返回最近保存的设置。
+
+原生网关支持 `thread/settings/update` 的模型与推理设置。它和带配置覆盖的 `thread/resume` 属于写入，需要当前输入者及 `requestId`；只读恢复查询不能绕过输入归属修改模型。`turn/start` 保留 `model/effort`，不指定时沿用当前会话。`thread/resume.config` 仅保留模型与推理相关配置。

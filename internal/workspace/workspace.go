@@ -76,7 +76,7 @@ func Inspect(ctx context.Context, cwd, mode string) (Preview, error) {
 	}
 	p.Dirty = len(status) > 0
 	if _, err := os.Stat(filepath.Join(p.Repo, ".gitmodules")); err == nil {
-		return p, fmt.Errorf("本实验暂不支持含 submodule 的仓库")
+		return p, fmt.Errorf("当前暂不支持含 submodule 的仓库")
 	}
 	return p, nil
 }

@@ -34,6 +34,7 @@ func (s *Session) onMessage(m nativecodex.Message) {
 		return
 	}
 	s.sequence++
+	s.observeModelLocked(m.Method, m.Params)
 	s.events = append(s.events, Event{Sequence: s.sequence, Method: m.Method, Params: m.Params, Time: time.Now()})
 	if len(s.events) > 600 {
 		s.events = append([]Event(nil), s.events[len(s.events)-600:]...)
@@ -73,7 +74,7 @@ func (s *Session) Events(after uint64) map[string]any {
 	return map[string]any{"events": events, "cursor": s.sequence, "approvals": approvals, "busy": s.busy, "online": s.online}
 }
 func mutating(method string) bool {
-	return method == "turn/start" || method == "turn/steer" || method == "turn/interrupt" || method == "thread/name/set"
+	return method == "turn/start" || method == "turn/steer" || method == "turn/interrupt" || method == "thread/name/set" || method == "thread/settings/update"
 }
 func (s *Session) RPC(ctx context.Context, role, method string, params map[string]any, requestID string) (json.RawMessage, error) {
 	if params == nil {
@@ -137,7 +138,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 		// collaboration gateway may report auth state, but never exports A's token.
 		params["includeToken"] = false
 		params["refreshToken"] = false
-	case "thread/read", "thread/resume", "thread/turns/list", "thread/items/list", "thread/unsubscribe", "thread/goal/get", "thread/name/set", "turn/start", "turn/steer", "turn/interrupt":
+	case "thread/read", "thread/resume", "thread/turns/list", "thread/items/list", "thread/unsubscribe", "thread/goal/get", "thread/name/set", "thread/settings/update", "turn/start", "turn/steer", "turn/interrupt":
 		if id, ok := params["threadId"]; ok && id != r.SessionID {
 			s.mu.Unlock()
 			return nil, fmt.Errorf("此连接只访问指定的协作会话")
@@ -169,19 +170,49 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	if method == "thread/resume" && s.direct != nil && s.direct.role == role {
 		s.direct.subscribed = true
 	}
-	write := mutating(method)
+	write := mutating(method) || (method == "thread/resume" && (params["model"] != nil || params["modelProvider"] != nil || params["config"] != nil || params["collaborationMode"] != nil))
 	if write && role != s.writer {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("当前由另一位参与者输入，请先交接输入")
 	}
-	if method == "turn/start" || method == "thread/resume" {
+	if method == "turn/start" || method == "thread/resume" || method == "thread/settings/update" {
+		if mode, ok := params["collaborationMode"].(map[string]any); ok {
+			if settings, ok := mode["settings"].(map[string]any); ok {
+				if model, ok := settings["model"].(string); ok {
+					params["model"] = model
+				}
+				if effort, ok := settings["reasoning_effort"]; ok {
+					params["effort"] = effort
+				}
+			}
+		}
+		var modelConfig map[string]any
+		if method == "thread/resume" {
+			if config, ok := params["config"].(map[string]any); ok {
+				modelConfig = map[string]any{}
+				for _, k := range []string{"model", "model_reasoning_effort"} {
+					if v, ok := config[k]; ok {
+						modelConfig[k] = v
+					}
+				}
+			}
+			if effort, ok := params["effort"].(string); ok {
+				if modelConfig == nil {
+					modelConfig = map[string]any{}
+				}
+				modelConfig["model_reasoning_effort"] = effort
+				delete(params, "effort")
+			}
+		}
 		for _, k := range []string{"path", "history", "config", "sandbox", "sandboxPolicy", "baseInstructions", "developerInstructions", "environments", "multiAgentMode", "collaborationMode"} {
 			delete(params, k)
 		}
 		for k, v := range nativecodex.Overrides(r.SessionID, r.ExecutionCwd) {
 			params[k] = v
 		}
-		params["effort"] = "low"
+		if len(modelConfig) > 0 {
+			params["config"] = modelConfig
+		}
 	}
 	hash := ""
 	if write {
@@ -222,6 +253,9 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	s.mu.Unlock()
 	var result json.RawMessage
 	err := p.Call(ctx, method, params, &result)
+	if err == nil && (method == "turn/start" || method == "thread/resume" || method == "thread/settings/update") {
+		s.refreshModel(ctx, p)
+	}
 	if method == "config/read" && err == nil {
 		var v map[string]any
 		if json.Unmarshal(result, &v) == nil {

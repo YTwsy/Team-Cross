@@ -102,7 +102,7 @@ func (a *App) Info(ctx context.Context) map[string]any {
 	}
 	executable, _ := os.Executable()
 	mcpCommand := "codex mcp add teamcross -- " + nativecodex.Quote(executable) + " mcp --data-dir " + nativecodex.Quote(a.Config.DataDir)
-	return map[string]any{"name": "Team Cross", "version": "0.2.0-experimental", "host": a.Host, "binary": binary, "codexVersion": version, "codexError": problem, "desktopApp": a.desktop(), "dataDir": a.Config.DataDir, "model": nativecodex.Model, "mcpCommand": mcpCommand, "mcpConfigured": a.mcpConfigured(ctx, binary), "time": time.Now()}
+	return map[string]any{"name": "Team Cross", "version": "0.2.0-experimental", "host": a.Host, "binary": binary, "codexVersion": version, "codexError": problem, "desktopApp": a.desktop(), "dataDir": a.Config.DataDir, "mcpCommand": mcpCommand, "mcpConfigured": a.mcpConfigured(ctx, binary), "time": time.Now()}
 }
 func (a *App) SetupMCP(ctx context.Context) error {
 	binary, e := a.binary()
@@ -159,7 +159,7 @@ func (a *App) AssistPlan(ctx context.Context, id, client string, launch bool) (m
 	case "tui":
 		// The ordinary client uses its own context and local repository, with the
 		// user's normal Codex home. It is never attached to the shared runtime.
-		command = "cd " + nativecodex.Quote(a.Config.Repo) + " && " + nativecodex.Quote(binary) + " -m " + nativecodex.Model
+		command = "cd " + nativecodex.Quote(a.Config.Repo) + " && " + nativecodex.Quote(binary)
 		cmd = exec.Command("osascript", "-e", "tell application \"Terminal\"\nactivate\ndo script "+strconv.Quote(command)+"\nend tell")
 	case "desktop":
 		app := a.desktop()

@@ -1,6 +1,6 @@
-# 实验分支验收记录
+# 原生协作验收记录
 
-验证日期：2026-09-09。对象：`codex/session-collaboration` 的新 Go Core、WebGUI、原生网关与 MCP。
+验证日期：2026-09-09。对象：由 `codex/session-collaboration` 进入 main 的 Go Core、WebGUI、原生网关与 MCP。
 
 本记录把工程检查、浏览器检查、真实客户端检查分开。所有真实模型调用均使用 `gpt-5.6-luna`；A/B 运行在同一台 Mac 的独立服务与配置目录中。没有第二台 Mac 的实际 LAN 结果，不将同机 TLS 连接等同于跨设备验收。
 
@@ -57,14 +57,14 @@
 ```sh
 go test ./...
 go vet ./...
-go test -race ./internal/collab ./internal/mcp ./internal/sharing
+go test -race ./internal/collab ./internal/mcp ./internal/sharing ./internal/nativecodex
 pnpm --filter @teamcross/web check
 pnpm --filter @teamcross/web test
 pnpm --filter @teamcross/web build
 go build -o bin/teamcross ./cmd/teamcross
 ```
 
-全部门槛通过。前端包含 6 项产品路径测试，包括结束/到期状态回归；生产资源已更新到 `internal/webassets/dist`。原生真实模型用例默认跳过，通过以下显式入口在专用目录运行，并已完成一次成功验收：
+全部门槛通过。前端包含 7 项产品路径测试，包括结束/到期状态回归；生产资源已更新到 `internal/webassets/dist`。原生真实模型用例默认跳过，通过以下显式入口在专用目录运行，并已完成一次成功验收：
 
 ```sh
 TEAMCROSS_LIVE_DIR=/private/tmp/teamcross-fresh-fixture \
@@ -81,6 +81,12 @@ TEAMCROSS_LIVE_DIR=/private/tmp/teamcross-fresh-fixture \
 | 跨设备网络条件 | 单独记录实际 IP、网络接口、系统防火墙与主机休眠恢复。当前没有 Tailnet/Tailcat 验收，也不包含这些传输实现 |
 | Desktop 版本兼容 | 指定 WebSocket 启动为当前本机版本的实验入口；升级后重做登录、历史、直接输入、审批与 A 上执行的检查 |
 | Desktop 全局功能 | 本轮覆盖协作会话与本地 MCP；不承诺专用实例的语音、Marketplace、云任务或其他全局菜单功能 |
-| 模型选择 | 实验共享运行时固定为 Luna。开放其他模型前，应把实际运行时与客户端显示、能力差异一起验收 |
+| 不同真实模型 | 产品已解除模型限制。模拟运行时覆盖不同模型和失败请求；真实调用仅使用 Luna，其他模型的实际可用性仍以 A 的 Codex 账户与配置为准 |
 
 测试结束后关闭本次启动的专用 Desktop、TUI、Core、app-server 和测试浏览器页面；测试仓库、会话和截图保留，普通 Codex 与用户其他浏览器内容保留。
+
+## 进入 main 的补充验证
+
+产品进程、TUI 启动和专用客户端配置不再强制 Luna/low。回归测试覆盖来源继承、客户端选择、无覆盖输入保持设置、模型拒绝不更新显示、恢复持久化配置、设置通知和输入归属。前端验证显示运行时返回的模型和推理强度。真实测试使用专用 Luna 会话，以 medium 创建来源、检查 fork 继承，再切换到 low 执行文件证明；本次专用仓库验证已通过，两种模式均保留正确模型并响应推理强度切换；没有调用其他真实模型。
+
+另外通过真实 `thread/settings/update` 将测试协作从 low 改为 medium，确认原生会话 ID 不变、设置已更新，期间没有 `turn/*` 事件。真实浏览器展开技术信息后显示 `gpt-5.6-luna` 与 `medium`，已查看截图复核布局；截图保存在实验工作目录的 `output/playwright/main-model-settings.png`。

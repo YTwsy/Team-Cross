@@ -1,30 +1,23 @@
-# 实施记录
+# 原生协作主线迁移记录
 
-实验分支 `codex/session-collaboration`；实现目录为原仓库下 `.worktrees/session-collaboration`。
-原工作区未修改；已保存快照 `.local-backups/before-session-collaboration-20260909-002633`。
+2026-09-09，Team Cross 将 Codex 原生会话协作确立为 main 的产品基线。原型阶段的能力边界继续保留，当前功能与接口以 README、docs/product-flows.md、docs/architecture.md 和 docs/protocol.md 为准。
 
-## 已实现
+## 来源与归档
 
-- 新 Go 协作核心、JSON 持久化、原生 app-server 复用网关、TLS 邀请、本机代理、MCP STDIO。
-- 原目录与干净 worktree 两种模式，原生 fork、同一会话恢复、输入交接、审批和断线写入状态。
-- 新 React WebGUI：首页、两步创建、协作详情、加入、设置、主题与响应式布局。
-- TUI 与独立 Desktop 启动；Desktop 账户操作和偏好落到客户端本机，不经远端共享传输。
-- 原有 Node Bridge、Evidence、Round、旧 Web 与旧文档从实验分支移除。
+- 原 main 基线：`878ce7f`。
+- 原生协作重构：`codex/session-collaboration` 的 `9b7f402`，在独立 worktree 中完成。
+- 实验阶段保持原工作目录不变；快照保存于 `.local-backups/before-session-collaboration-20260909-002633`。
+- 进入 main 前，将原主目录中 24 项已跟踪改动和 18 个未跟踪旧原型文件归档为独立 Git 提交。归档分支为 `codex/archive-before-session-collaboration-20260909`，保留以供追溯。
+- main 使用 fast-forward 接纳新实现；旧原型源码和旧 Node Bridge 构建产物退出主工作目录，快照与归档提交保留。
 
-## 已完成验证
+## 新主线
 
-- Go 测试、vet、collab/MCP race；前端类型、6 项交互测试、production build。
-- 独立测试仓库中两种模式的原生 fork 和真实 Luna 文件操作。
-- 两种目录模式分别覆盖直接 TUI、直接 Desktop、辅助 TUI、辅助 Desktop；用户操作 Desktop，API 和目标文件核实结果。
-- 直接客户端保持连接期间，普通 Desktop 经 MCP 读取两种目录并发送、读取各自结果。
-- 原生审批在 Desktop 显示，经 MCP 允许一次并完成，输出 TEAMCROSS_APPROVAL_OK。
-- 本机 A/B 独立服务经 TLS 加入、输入交接；真实两台 Mac 不在上述结论中。
-- 首页、创建、详情、加入、设置在三种实际 CSS 窗口宽度、深浅主题下截图复核；检查键盘与关键失败状态。
+Go Core 直接管理原生 fork、两种执行目录、LAN 邀请、输入协调与生命周期；TUI/Desktop 接入同一共享会话，普通本地会话通过 MCP 辅助。React WebGUI 负责协作管理、轻量上下文和批注。旧 Thread、Round、Evidence、managed Bridge、旧页面及对应文档退出当前源码树。
 
-## 交付边界
+模型与推理强度继承来源和原生客户端的选择，不再被实验测试配置覆盖。真实模型验证仍只使用 gpt-5.6-luna，固定配置仅保存在测试入口。界面显示原生运行时已确认的设置。
 
-- 详细结果、复现命令与跨设备验收步骤见 docs/validation.md。
-- Desktop 私有指定运行时入口按当前安装版本验证，不承诺其他全局菜单和后续版本的完整兼容。
-- 提交前核对原工作区快照；结束后关闭本次测试的客户端、服务和浏览器页面，保留测试材料。
+## 验证与交付
 
-全部真实模型调用固定使用 gpt-5.6-luna。两台 Mac 的 LAN 验收需要第二台真实设备，必须单列。
+首轮在同一台 Mac 上覆盖两种目录模式与四种客户端入口，完成原生审批与并行辅助。模型设置修正另有来源继承、客户端切换、拒绝请求、恢复和界面显示回归测试。工程门槛、真实客户端结果和未完成的跨设备验收分别记录在 docs/validation.md。
+
+合入后从主工作目录重新安装工作区依赖、构建嵌入式 Web 和 Go 二进制并运行工程门槛。测试完成后关闭测试页面、Core 与 app-server，保留测试仓库、会话和截图。

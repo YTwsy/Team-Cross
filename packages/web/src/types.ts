@@ -34,7 +34,9 @@ export type Collaboration = {
   invitation?: string;
   expiresAt?: string;
   annotations: Annotation[];
-  model: string;
+  model?: string;
+  modelProvider?: string;
+  reasoningEffort?: string | null;
 };
 export type Source = {
   id: string;
