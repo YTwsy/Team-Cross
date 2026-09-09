@@ -2,6 +2,8 @@
 
 这些接口是 `main` 的默认协作协议，不兼容旧 Thread/Share API。
 
+本页是字段、路由与协议行为的统一说明。产品语义见 [词汇与核心模型](product-core-and-glossary.md)，调用入口见 [运行时架构](../wiki/concepts/runtime-architecture.md)。
+
 ## 本机管理 API
 
 默认 `http://127.0.0.1:43210/api`。仅接受 loopback Host；浏览器写入需同源。响应为 JSON，错误返回 `{ "error": "可读说明" }`。接收端也必须在自己的 Mac 运行 Core，由它连接远端。
@@ -76,3 +78,7 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 协作状态包含运行时确认的 `model`、`modelProvider` 和可空的 `reasoningEffort`；未知值不填造默认模型。离线返回最近保存的设置。
 
 原生网关支持 `thread/settings/update` 的模型与推理设置。它和带配置覆盖的 `thread/resume` 属于写入，需要当前输入者及 `requestId`；只读恢复查询不能绕过输入归属修改模型。`turn/start` 保留 `model/effort`，不指定时沿用当前会话。`thread/resume.config` 仅保留模型与推理相关配置。
+
+## 维护入口
+
+路由与转发以 [本机 HTTP](../../../internal/collab/http.go)、[共享连接](../../../internal/collab/network.go)、[原生 RPC](../../../internal/collab/rpc.go)、[邀请与 TLS](../../../internal/sharing/sharing.go) 和 [STDIO MCP](../../../internal/mcp/server.go) 为准。协议变化在同一提交中更新本页及对应测试；Wiki 页面引用本页，不另存一份路由表。

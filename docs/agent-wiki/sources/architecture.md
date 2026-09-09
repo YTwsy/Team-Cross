@@ -1,4 +1,6 @@
-# 架构
+# 原生协作架构
+
+本页保存当前架构的完整说明。按任务查找代码与边界时，从 [运行时架构](../wiki/concepts/runtime-architecture.md) 开始；具体字段和路由见 [协作接口](protocol.md)。
 
 Team Cross 管理协作的来源、执行目录、原生 fork、邀请、输入归属与人工批注。模型上下文与工具执行由 A 上的 Codex app-server 持有。
 
@@ -49,7 +51,7 @@ Desktop 使用本机安装版本的指定 WebSocket 入口，配合单独的 `CO
 
 ## 目录与持久化
 
-实验数据目录独立于旧产品：
+当前沿用原生协作的数据目录，与旧产品数据分开：
 
 ```text
 Team Cross Next/
@@ -84,3 +86,7 @@ Team Cross Next/
 ## 范围
 
 首轮聚焦 macOS、Codex、普通 Git 仓库和两位参与者的 LAN 协作。无强制 Round、独立 Evidence、Claude、离线包、patch/PR 发布流程。WebGUI 显示轻量上下文，完整 Agent 对话交给 Codex。
+
+## 维护入口
+
+实现以 [协作核心](../../../internal/collab/)、[原生连接](../../../internal/nativecodex/)、[工作目录](../../../internal/workspace/)、[共享传输](../../../internal/sharing/) 和 [MCP](../../../internal/mcp/) 为准。修改职责或运行时边界时，同步更新本页、相关决策与 [Wiki 索引](../wiki/index.md)。

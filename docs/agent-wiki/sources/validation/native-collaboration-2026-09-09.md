@@ -2,6 +2,8 @@
 
 验证日期：2026-09-09。对象：由 `codex/session-collaboration` 进入 main 的 Go Core、WebGUI、原生网关与 MCP。
 
+本页是该日期和版本下的验收记录，迁移目录不代表重新运行验收。后续变更按 [验证门槛](test-gates.md) 选择检查，新的实际结果另建带日期的记录，并更新 [验收导航](../../wiki/concepts/validation-gates.md)。主线迁移与旧现场归档见 [迁移记录](../../../../IMPLEMENTATION.md)。
+
 本记录把工程检查、浏览器检查、真实客户端检查分开。所有真实模型调用均使用 `gpt-5.6-luna`；A/B 运行在同一台 Mac 的独立服务与配置目录中。没有第二台 Mac 的实际 LAN 结果，不将同机 TLS 连接等同于跨设备验收。
 
 ## 环境与保存范围

@@ -99,7 +99,7 @@ pnpm --filter @teamcross/web dev
 # 工程门槛
 go test ./...
 go vet ./...
-go test -race ./internal/collab ./internal/mcp ./internal/sharing
+go test -race ./internal/collab ./internal/mcp ./internal/sharing ./internal/nativecodex
 pnpm --filter @teamcross/web check
 pnpm --filter @teamcross/web test
 pnpm --filter @teamcross/web build
@@ -112,6 +112,8 @@ TEAMCROSS_LIVE_DIR=/private/tmp/teamcross-fresh-fixture \
   go test ./internal/collab -run '^TestLiveCodex$' -v -count=1 -timeout=7m
 ```
 
-实际验证结果与未完成项目见 [验收记录](docs/validation.md)。原生 Desktop 指定 WebSocket 入口属于当前本机版本的实验接口，不等同于公开稳定的远程产品合同。
+实际验证结果与未完成项目见 [验收记录](docs/agent-wiki/sources/validation/native-collaboration-2026-09-09.md)，后续修改按 [验证门槛](docs/agent-wiki/sources/validation/test-gates.md) 选择检查。原生 Desktop 指定 WebSocket 入口属于当前本机版本的实验接口，不等同于公开稳定的远程产品合同。
 
-工程导航：[架构](docs/architecture.md) · [接口](docs/protocol.md) · [产品流程](docs/product-flows.md)。
+工程知识按 `sources/` 与 `wiki/` 分层维护。首次进入仓库先读 [AGENTS.md](AGENTS.md) 和 [Agent Wiki 索引](docs/agent-wiki/wiki/index.md)，完整导航见 [文档入口](docs/README.md)。
+
+直接阅读：[架构](docs/agent-wiki/sources/architecture.md) · [接口](docs/agent-wiki/sources/protocol.md) · [产品流程](docs/agent-wiki/sources/product-flows.md)。
