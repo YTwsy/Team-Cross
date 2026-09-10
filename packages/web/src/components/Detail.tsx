@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { invitationText } from "../types";
+import { useEffect, useState } from "react";
 import { api, errorText, useResource } from "../api";
 import {
   type Collaboration,
@@ -34,8 +35,10 @@ function Context({
   const [file, setFile] = useState("");
   const context = useResource<History | Changes | { text: string }>(
     online && (tab !== "file" || file)
-      ? `collaborations/${id}/context?kind=${tab}&path=${encodeURIComponent(file)}&revision=${sequence}`
+      ? `collaborations/${id}/context?kind=${tab}&path=${encodeURIComponent(file)}`
       : null,
+    0,
+    sequence,
   );
   let body;
   if (context.data) {
@@ -143,7 +146,7 @@ function Context({
             closed ? "使用新邀请加入后可查看上下文" : "连接恢复后可查看上下文"
           }
         />
-      ) : context.loading ? (
+      ) : context.loading && !context.data ? (
         <Loading />
       ) : (
         body || <Empty icon="folder" title="输入相对路径以查看文件" />
@@ -159,9 +162,15 @@ export function Detail({ id }: { id: string }) {
   const c = resource.data;
   const [modal, setModal] = useState<
     "clients" | "assist" | "invite" | "end" | null
-  >(null);
+  >(() => (sessionStorage.getItem(`teamcross.invite.${id}`) ? "invite" : null));
   const [busy, setBusy] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(
+    () => sessionStorage.getItem(`teamcross.create.${id}`) || "",
+  );
+  useEffect(() => {
+    sessionStorage.removeItem(`teamcross.create.${id}`);
+    sessionStorage.removeItem(`teamcross.invite.${id}`);
+  }, [id]);
   const [comment, setComment] = useState("");
   const [reference, setReference] = useState("");
   async function action(value: string) {
@@ -176,6 +185,8 @@ export function Detail({ id }: { id: string }) {
       resource.reload();
       if (value === "share") setModal("invite");
       if (value === "end") setModal(null);
+      if (value === "start" && c.runtimeState === "released")
+        setModal("clients");
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -277,7 +288,9 @@ export function Detail({ id }: { id: string }) {
                   ? "协作需要处理"
                   : !c.online
                     ? owner
-                      ? "恢复协作，继续上次的工作"
+                      ? c.runtimeState === "releasing"
+                        ? "正在释放协作会话"
+                        : "恢复协作，继续上次的工作"
                       : "正在等待发起者连接"
                     : c.approvals
                       ? "Codex 需要你的回应"
@@ -292,7 +305,9 @@ export function Detail({ id }: { id: string }) {
                 ? "会话与代码仍保留在发起者的 Mac 上。继续参与时，请向同事获取新邀请。"
                 : !c.online
                   ? owner
-                    ? "恢复同一个会话与目录，不会重新创建分支。"
+                    ? c.runtimeState === "releasing"
+                      ? "正在关闭这次协作的后台运行时，会话与代码继续保留。"
+                      : "恢复同一个会话与目录，不会重新创建分支。"
                     : "确认两台 Mac 在同一局域网，并让发起者保持共享。"
                   : c.approvals
                     ? "请在当前 Codex 客户端中查看并回应请求。"
@@ -302,7 +317,7 @@ export function Detail({ id }: { id: string }) {
                         ? c.connected
                           ? `${c.client || "Codex"} 已连接，继续在客户端中工作。`
                           : "选择喜欢的 Codex 客户端，接着已有上下文继续。"
-                        : "你可以先用自己的 Codex 读取上下文，或等待交接。"}
+                        : "先查看下方的共享上下文，需要操作时可以申请输入。"}
             </p>
           </div>
         </div>
@@ -319,10 +334,14 @@ export function Detail({ id }: { id: string }) {
           ) : !c.online && owner && c.state === "ready" ? (
             <button
               className="button primary"
-              disabled={!!busy}
+              disabled={!!busy || c.runtimeState === "releasing"}
               onClick={() => void action("start")}
             >
-              {busy === "start" ? "正在恢复…" : "恢复运行时"}
+              {busy === "start"
+                ? "正在恢复…"
+                : c.runtimeState === "released"
+                  ? "恢复并打开 Codex"
+                  : "恢复运行时"}
               <Icon name="refresh" size={16} />
             </button>
           ) : (
@@ -334,12 +353,12 @@ export function Detail({ id }: { id: string }) {
               {mine ? "打开 Codex" : "用自己的 Codex 辅助"}
             </button>
           )}
-          {owner && c.online && (
+          {owner && c.online && !c.participantJoined && (
             <button
               className="button"
               disabled={!!busy}
               onClick={() =>
-                c.sharing ? setModal("invite") : void action("share")
+                c.invitation ? setModal("invite") : void action("share")
               }
             >
               <Icon name="link" size={17} />
@@ -352,7 +371,13 @@ export function Detail({ id }: { id: string }) {
         <div className="detail-main">
           <Context
             id={id}
-            online={c.online}
+            online={
+              c.online ||
+              (owner &&
+                c.state === "ready" &&
+                c.runtimeState !== "releasing" &&
+                c.runtimeState !== "starting")
+            }
             sequence={c.sequence}
             closed={closed}
           />
@@ -438,19 +463,45 @@ export function Detail({ id }: { id: string }) {
                   {c.sharing
                     ? c.writer === "remote"
                       ? "已获输入权"
-                      : "可加入协作"
+                      : c.participantOnline
+                        ? "已加入 · 在线查看"
+                        : c.participantJoined
+                          ? "已加入 · 暂时离线"
+                          : c.invitationState === "left"
+                            ? "同事已离开"
+                            : "等待同事加入"
                     : "共享未开启"}
                 </span>
               </div>
             </div>
+            {owner && c.inputRequested && (
+              <div className="notice" role="status">
+                同事正在申请输入，请在准备好后交接。
+              </div>
+            )}
             {owner && c.sharing && (
               <button
                 className="button full-width"
-                disabled={!!busy || (mine && c.busy)}
+                disabled={
+                  !!busy || (mine && (c.busy || c.participantJoined === false))
+                }
                 onClick={() => void action(mine ? "handoff" : "reclaim")}
               >
                 <Icon name="people" size={16} />
                 {mine ? "将输入交给同事" : "接回输入"}
+              </button>
+            )}
+            {!owner && c.sharing && !mine && (
+              <button
+                className="button full-width"
+                disabled={!!busy || !c.online}
+                onClick={() =>
+                  void action(
+                    c.inputRequested ? "cancel_input" : "request_input",
+                  )
+                }
+              >
+                {c.inputRequested ? "取消输入申请" : "申请输入"}
               </button>
             )}
             {!owner && c.sharing && mine && (
@@ -481,9 +532,15 @@ export function Detail({ id }: { id: string }) {
             </div>
             <p>{c.sharing ? "局域网共享中" : "共享已关闭"}</p>
             <p className="muted small-text">
-              {c.sharing && c.expiresAt
-                ? `邀请有效至 ${new Date(c.expiresAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`
-                : "会话与代码保留在执行主机上，可随时重新打开。"}
+              {c.participantJoined && c.sharing
+                ? `${owner ? "同事" : "你"}已加入，访问持续有效，直到主动离开或结束共享。`
+                : c.sharing && c.expiresAt
+                  ? `首次加入期限：${new Date(c.expiresAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}。加入后不受此期限影响。`
+                  : c.sharing && c.invitationState === "expired"
+                    ? "邀请尚未使用且已到期，可以重新邀请同事。"
+                    : c.releasePending
+                      ? "当前执行和审批完成、专用客户端关闭后，会自动释放会话。"
+                      : "会话与代码保留在执行主机上，可随时重新打开。"}
             </p>
             {owner && c.sharing ? (
               <button
@@ -548,7 +605,7 @@ export function Detail({ id }: { id: string }) {
               {c.invitation ? (
                 <>
                   <Copy
-                    text={c.invitation}
+                    text={invitationText(c.invitation)}
                     label="复制邀请"
                     className="primary full-width"
                   />
@@ -562,17 +619,35 @@ export function Detail({ id }: { id: string }) {
                     />
                   </details>
                 </>
+              ) : c.participantJoined ? (
+                <p className="notice">
+                  同事已加入，访问持续有效，无需再次发送邀请。
+                </p>
+              ) : c.invitationState === "expired" ||
+                c.invitationState === "left" ? (
+                <button
+                  className="button primary"
+                  disabled={!!busy}
+                  onClick={() => void action("share")}
+                >
+                  生成新邀请
+                </button>
               ) : (
                 <Loading text="正在读取邀请…" />
               )}
               <p className="small-text muted">
-                同事加入后可先查看；你决定何时交出输入。
+                邀请仅限一人首次加入，有效期一小时。加入后持续有效；你决定何时交出输入。发起者退出
+                Team Cross 时会结束本次共享。
               </p>
             </>
           ) : modal === "end" ? (
             <>
               <p>
                 同事的直接连接和工具访问会关闭。协作会话、执行目录和所有代码继续保留。
+              </p>
+              <p>
+                当前执行和审批完成、专用客户端关闭后，会自动释放会话，之后可以从
+                Codex 重新打开。
               </p>
               <div className="form-footer">
                 <button className="button" onClick={() => setModal(null)}>

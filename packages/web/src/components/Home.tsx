@@ -35,7 +35,7 @@ export function Home() {
           </div>
           <div>
             <h2>加入协作</h2>
-            <p>有同事的邀请？用自己的 Codex 加入。</p>
+            <p>有同事的邀请？先看看共享上下文。</p>
           </div>
           <Icon name="arrow" />
         </a>

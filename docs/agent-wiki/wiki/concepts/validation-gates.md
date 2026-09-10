@@ -13,6 +13,14 @@
 
 ## 已记录的验收
 
+[2026-09-11 v0.1.1 分发](../../sources/validation/distribution-v0.1.1-2026-09-11.md) 记录 App 命令入口、Formula/Cask 双向互斥与失败回滚、升级保留数据、CLI 0.153.4 的真实 Luna 运行时回归及浏览器检查；原生菜单/系统批准、完整窗口矩阵和两台 Mac 仍未覆盖。
+
+[2026-09-10 邀请与原生会话释放](../../sources/validation/membership-and-release-2026-09-10.md) 记录持续加入资格、失联恢复、空闲释放、真实原生写入锁与 A/B 网关交接；区分专用 Desktop 进程验证和仍未完成的窗口交互。
+
+[2026-09-10 WebGUI 上下文刷新](../../sources/validation/webgui-context-refresh-2026-09-10.md) 记录刷新期间保留内容与滚动位置的回归、17 项前端测试、工程门槛和 12 种浏览器组合；使用模拟协作数据，不覆盖原生客户端或跨设备网络。
+
+[2026-09-10 首次体验与 macOS 安装](../../sources/validation/onboarding-macos-2026-09-10.md) 记录 CLI/App/DMG、隔离 Homebrew 安装升级、服务生命周期、App 邀请链接、浏览器与两种 TUI 入口的当前结果，并明确保留原生菜单/Desktop、完整 GUI 矩阵和两台 Mac LAN 等未完成项。
+
 [2026-09-09 原生协作验收](../../sources/validation/native-collaboration-2026-09-09.md) 记录初次重构和 main 迁移结果：同机独立 A/B、两种目录模式与四种客户端入口、审批、并行辅助、模型设置和恢复。真实调用均使用 Luna。
 
 该记录明确保留两台 Mac 的 LAN、不同真实模型和其他 Desktop 全局功能的未覆盖边界。后续变更应按范围重新验证，不能仅引用历史“通过”结论。

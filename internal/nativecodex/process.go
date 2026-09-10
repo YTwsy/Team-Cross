@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"teamcross/internal/buildinfo"
 	"time"
 
 	"github.com/coder/websocket"
@@ -162,7 +163,7 @@ func Start(ctx context.Context, binary, home, cwd, logPath string) (*Process, er
 	p.conn.SetReadLimit(32 << 20)
 	go p.read()
 	var initialized json.RawMessage
-	err = p.Call(ready, "initialize", map[string]any{"clientInfo": map[string]string{"name": "teamcross_native", "version": "0.1.0"}, "capabilities": map[string]bool{"experimentalApi": true}}, &initialized)
+	err = p.Call(ready, "initialize", map[string]any{"clientInfo": map[string]string{"name": "teamcross_native", "version": buildinfo.Version}, "capabilities": map[string]bool{"experimentalApi": true}}, &initialized)
 	p.Init = initialized
 	if err == nil {
 		err = p.conn.Write(ready, websocket.MessageText, []byte(`{"method":"initialized"}`))

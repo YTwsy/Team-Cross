@@ -71,6 +71,15 @@ export function Create() {
         previewHash: preview.previewHash,
         requestId: requestId.current,
       });
+      try {
+        await api(`collaborations/${c.id}/action`, {
+          action: "share",
+          epoch: c.epoch,
+        });
+      } catch (e) {
+        sessionStorage.setItem(`teamcross.create.${c.id}`, errorText(e));
+      }
+      sessionStorage.setItem(`teamcross.invite.${c.id}`, "1");
       location.hash = `/collaborations/${c.id}`;
     } catch (e) {
       setError(errorText(e));
@@ -328,7 +337,7 @@ export function Create() {
                 </>
               ) : (
                 <>
-                  创建协作 <Icon name="arrow" size={17} />
+                  创建并邀请 <Icon name="arrow" size={17} />
                 </>
               )}
             </button>

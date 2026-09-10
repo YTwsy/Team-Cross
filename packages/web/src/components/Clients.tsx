@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, errorText, useResource } from "../api";
 import { type ClientPlan, type Collaboration, type Info } from "../types";
 import { Copy, ErrorBox, Icon, Loading } from "./ui";
@@ -9,8 +9,19 @@ export function Clients({
   collaboration: Collaboration;
   initial?: "direct" | "assist";
 }) {
-  const [mode, setMode] = useState(initial);
-  const info = useResource<Info>("info");
+  const [mode, setMode] = useState<"direct" | "assist">(() =>
+    initial === "assist" ||
+    localStorage.getItem("teamcross.clientMode") === "assist"
+      ? "assist"
+      : "direct",
+  );
+  useEffect(() => {
+    localStorage.setItem("teamcross.clientMode", mode);
+  }, [mode]);
+  const info = useResource<Info>("info", 10000);
+  const [preferred, setPreferred] = useState(
+    () => localStorage.getItem("teamcross.client.v1") || "tui",
+  );
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [plan, setPlan] = useState<ClientPlan>();
@@ -20,12 +31,15 @@ export function Clients({
     setError("");
     setPlan(undefined);
     try {
-      setPlan(
-        await api<ClientPlan>(
-          `collaborations/${collaboration.id}/${mode === "direct" ? "open" : "assist"}`,
-          { client, launch },
-        ),
+      const result = await api<ClientPlan>(
+        `collaborations/${collaboration.id}/${mode === "direct" ? "open" : "assist"}`,
+        { client, launch },
       );
+      setPlan(result);
+      if (launch) {
+        localStorage.setItem("teamcross.client.v1", client);
+        setPreferred(client);
+      }
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -37,6 +51,7 @@ export function Clients({
     setError("");
     try {
       await api("mcp/setup", {});
+      await api("mcp/probe", {});
       info.reload();
     } catch (e) {
       setError(errorText(e));
@@ -82,7 +97,10 @@ export function Clients({
       )}
       {mode === "direct" && collaboration.connected && (
         <div className="notice">
-          已有一个直接操作客户端连接。切换前请关闭该客户端；随后打开新客户端会继续同一会话。
+          {collaboration.clientState === "session_ready"
+            ? "共享会话已打开。"
+            : "客户端已连接，等待在 Codex 中打开共享会话。"}
+          切换前请关闭当前直接客户端。
         </div>
       )}
       {mode === "assist" && (
@@ -91,7 +109,7 @@ export function Clients({
           <div>
             <h3>
               {info.data?.mcpConfigured
-                ? "本机 MCP 已接入"
+                ? "MCP 配置已保存"
                 : "一次接入，之后直接选择协作"}
             </h3>
             <p>
@@ -114,6 +132,24 @@ export function Clients({
                 {busy === "setup" ? "正在配置…" : "接入本机 Codex"}
               </button>
             )}
+            <p className="small-text muted">
+              协议检查：{info.data?.mcpProbed ? "通过" : "尚未检查"}；客户端：
+              {info.data?.mcpObservedAt &&
+              !info.data.mcpObservedAt.startsWith("0001")
+                ? "已收到工具调用"
+                : "等待实际工具调用"}
+            </p>
+            <button
+              className="text-link"
+              disabled={!!busy}
+              onClick={() =>
+                void api("mcp/probe", {})
+                  .then(() => info.reload())
+                  .catch((e) => setError(errorText(e)))
+              }
+            >
+              检查工具连接
+            </button>
             <ErrorBox message={info.error} retry={info.reload} />
           </div>
         </div>
@@ -123,6 +159,9 @@ export function Clients({
           <div className="client-card" key={client}>
             <Icon name={client === "tui" ? "terminal" : "desktop"} size={26} />
             <h3>{client === "tui" ? "Codex TUI" : "Codex Desktop"}</h3>
+            {preferred === client && (
+              <small className="muted">偏好的客户端</small>
+            )}
             <p>
               {client === "tui"
                 ? "在本机终端中打开"
@@ -134,6 +173,8 @@ export function Clients({
               className="button primary"
               disabled={
                 !!busy ||
+                !!info.data?.codexError ||
+                (client === "desktop" && !info.data?.desktopApp) ||
                 (mode === "direct" && (!mine || !collaboration.online)) ||
                 (mode === "assist" && !info.data?.mcpConfigured)
               }
@@ -146,6 +187,8 @@ export function Clients({
               className="text-link small-text"
               disabled={
                 !!busy ||
+                !!info.data?.codexError ||
+                (client === "desktop" && !info.data?.desktopApp) ||
                 (mode === "direct" && (!mine || !collaboration.online))
               }
               onClick={() => void open(client, false)}
@@ -155,7 +198,12 @@ export function Clients({
           </div>
         ))}
       </div>
-      <ErrorBox message={error} />
+      <ErrorBox message={error || info.data?.codexError} />
+      {(info.data?.codexError || !info.data?.desktopApp) && (
+        <a className="text-link" href="#/settings">
+          检查 Codex 客户端设置
+        </a>
+      )}
       {plan && (
         <div className="launch-result" role="status">
           {plan.launched && (

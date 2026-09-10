@@ -9,19 +9,31 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"teamcross/internal/buildinfo"
+	"teamcross/internal/service"
 	"testing"
 )
 
 func TestStdioDoesNotSendInputWhileListing(t *testing.T) {
 	calls := []string{}
+	dir, _ := service.Normalize(t.TempDir())
+	var connection service.Connection
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/control/status" {
+			json.NewEncoder(w).Encode(service.Status{Connection: connection, Running: true})
+			return
+		}
+		if r.URL.Path == "/api/mcp/observed" {
+			w.Write([]byte(`{}`))
+			return
+		}
 		calls = append(calls, r.Method+" "+r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`[]`))
 	}))
 	defer server.Close()
-	dir := t.TempDir()
-	b, _ := json.Marshal(map[string]string{"url": server.URL})
+	connection = service.Connection{URL: server.URL, PID: os.Getpid(), Instance: "test", Token: "test-token", Version: buildinfo.Version, Protocol: buildinfo.ControlProtocol, DataDir: dir}
+	b, _ := json.Marshal(connection)
 	os.WriteFile(filepath.Join(dir, "connection.json"), b, 0600)
 	input := strings.NewReader("{\"id\":1,\"method\":\"initialize\"}\n{\"method\":\"notifications/initialized\"}\n{\"id\":2,\"method\":\"tools/list\"}\n{\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"list_collaborations\",\"arguments\":{}}}\n")
 	var output bytes.Buffer

@@ -11,13 +11,13 @@
 | 仓库子目录映射 | `executionCwd` 指向来源子目录在所选工作目录中的对应位置 |
 | 起点变化 | 重新预览，不用旧的确认结果创建另一份现场 |
 | 恢复 | 继续同一 fork 和目录，不再次创建资源 |
-| 结束共享 | 关闭远端访问，保留本地会话和代码 |
+| 结束共享 | 立即撤销远端访问；空闲且专用客户端关闭后释放原生会话占用，保留会话和代码 |
 
 原目录创建不改文件，不代表后续 Agent 不能按用户输入修改原目录。`workspaceOwned` 不能当成结束共享时删除 worktree 的许可。
 
 ## 代码与检查
 
-[workspace.go](../../../../internal/workspace/workspace.go) 负责 Git 与文件路径；[app.go](../../../../internal/collab/app.go) 负责预览、创建和恢复；[network.go](../../../../internal/collab/network.go) 负责共享生命周期。
+[workspace.go](../../../../internal/workspace/workspace.go) 负责 Git 与文件路径；[app.go](../../../../internal/collab/app.go) 负责预览、创建和恢复；[network.go](../../../../internal/collab/network.go) 负责共享生命周期；[lifecycle.go](../../../../internal/collab/lifecycle.go) 负责空闲释放与旧连接隔离。
 
 优先运行 [目录测试](../../../../internal/workspace/workspace_test.go) 与 [创建恢复测试](../../../../internal/collab/collab_test.go)。涉及真实原生 fork 时使用 [专用 Luna 测试](../../sources/validation/test-gates.md)，不得拿用户已有工作目录当证明文件测试仓库。
 
