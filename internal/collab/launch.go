@@ -9,7 +9,11 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"teamcross/internal/buildinfo"
+	"teamcross/internal/cliinstall"
 	"teamcross/internal/nativecodex"
+	"teamcross/internal/problem"
+	"teamcross/internal/service"
 	"time"
 )
 
@@ -20,7 +24,8 @@ func (a *App) desktop() string {
 	if v != "" {
 		return v
 	}
-	for _, p := range []string{"/Applications/ChatGPT.app", "/Applications/Codex.app"} {
+	h, _ := os.UserHomeDir()
+	for _, p := range []string{"/Applications/ChatGPT.app", "/Applications/Codex.app", filepath.Join(h, "Applications", "Codex.app"), filepath.Join(h, "Applications", "ChatGPT.app")} {
 		if _, e := os.Stat(p); e == nil {
 			return p
 		}
@@ -60,7 +65,7 @@ func (a *App) ClientPlan(ctx context.Context, id, client string, launch bool) (m
 	if client == "desktop" {
 		app := a.desktop()
 		if stat, e := os.Stat(app); e != nil || !stat.IsDir() {
-			return nil, fmt.Errorf("未找到 Codex Desktop，请在设置中选择已安装的应用")
+			return nil, problem.New("client_missing", "未找到 Codex Desktop", "请在设置中选择已安装的应用，或选择 TUI")
 		}
 		data := filepath.Join(a.Config.DataDir, "clients", id, "desktop", "app-data")
 		if e = os.MkdirAll(data, 0700); e != nil {
@@ -101,8 +106,12 @@ func (a *App) Info(ctx context.Context) map[string]any {
 		}
 	}
 	executable, _ := os.Executable()
+	executable = service.StableExecutable(executable)
 	mcpCommand := "codex mcp add teamcross -- " + nativecodex.Quote(executable) + " mcp --data-dir " + nativecodex.Quote(a.Config.DataDir)
-	return map[string]any{"name": "Team Cross", "version": "0.2.0-experimental", "host": a.Host, "binary": binary, "codexVersion": version, "codexError": problem, "desktopApp": a.desktop(), "dataDir": a.Config.DataDir, "mcpCommand": mcpCommand, "mcpConfigured": a.mcpConfigured(ctx, binary), "time": time.Now()}
+	a.mu.Lock()
+	observed, probed := a.mcpObserved, a.mcpProbed
+	a.mu.Unlock()
+	return map[string]any{"mcpObservedAt": observed, "mcpProbed": probed, "name": "Team Cross", "version": buildinfo.Version, "installedVersion": service.InstalledVersion(ctx, executable), "cli": cliinstall.Inspect(executable, cliinstall.DefaultDir, os.Getenv("PATH")), "commit": buildinfo.Commit, "host": a.Host, "binary": binary, "codexVersion": version, "codexError": problem, "desktopApp": a.desktop(), "dataDir": a.Config.DataDir, "mcpCommand": mcpCommand, "mcpConfigured": a.mcpConfigured(ctx, binary), "time": time.Now()}
 }
 func (a *App) SetupMCP(ctx context.Context) error {
 	binary, e := a.binary()
@@ -110,6 +119,7 @@ func (a *App) SetupMCP(ctx context.Context) error {
 		return e
 	}
 	executable, e := os.Executable()
+	executable = service.StableExecutable(executable)
 	if e != nil {
 		return e
 	}
@@ -143,6 +153,7 @@ func (a *App) mcpConfigured(ctx context.Context, binary string) bool {
 		return false
 	}
 	executable, _ := os.Executable()
+	executable = service.StableExecutable(executable)
 	return v.Enabled && v.Transport.Command == executable && slices.Equal(v.Transport.Args, []string{"mcp", "--data-dir", a.Config.DataDir})
 }
 func (a *App) AssistPlan(ctx context.Context, id, client string, launch bool) (map[string]any, error) {
@@ -173,7 +184,7 @@ func (a *App) AssistPlan(ctx context.Context, id, client string, launch bool) (m
 	}
 	if launch {
 		if !a.mcpConfigured(ctx, binary) {
-			return nil, fmt.Errorf("请先完成一次性的 MCP 接入")
+			return nil, problem.New("mcp_not_configured", "尚未接入本机 Codex", "请点击接入，再重新加载已有客户端的工具")
 		}
 		if out, e := cmd.CombinedOutput(); e != nil {
 			return nil, fmt.Errorf("打开失败：%v %s", e, out)

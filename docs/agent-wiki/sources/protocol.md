@@ -6,18 +6,24 @@
 
 ## 本机管理 API
 
-默认 `http://127.0.0.1:43210/api`。仅接受 loopback Host；浏览器写入需同源。响应为 JSON，错误返回 `{ "error": "可读说明" }`。接收端也必须在自己的 Mac 运行 Core，由它连接远端。
+默认尝试 `http://127.0.0.1:43210/api`，占用时使用动态 loopback 端口，实际地址由本机连接文件和启动输出提供。仅接受 loopback Host；浏览器写入需同源。响应为 JSON，错误返回 `{ "code": "英文类型", "error": "可读说明", "recovery": "下一步（可选）" }`。接收端也必须在自己的 Mac 运行 Core，由它连接远端。
 
 | 方法与路径 | 含义 |
 | --- | --- |
 | `GET /info` | 客户端位置、版本、主机、MCP 配置状态 |
 | `POST /settings` | 保存 `binary`、`desktopApp` |
-| `POST /mcp/setup` | 写入一次性 Codex MCP 配置 |
+| `POST /mcp/setup` | 写入一次性 Codex MCP 配置（稳定 opt/App 路径） |
+| `POST /mcp/probe` | 运行独立 STDIO 握手与工具枚举探测，不启动模型 |
+| `POST /mcp/observed` | 本机凭据保护，记录实际工具调用时间 |
+| `GET /control/status` | 本机凭据保护，返回实例、版本、控制协议及活动协作数，不启动 Codex |
+| `POST /control/stop` | 本机凭据保护，`{force}`；活动协作未确认返回 409 |
+| `POST /invitations/pending` | 本机凭据保护，`{invitation}` 暂存并返回不含 secret 的随机 ID |
+| `POST /invitations/preview` | `{invitation}` 或 `{pendingId}`，只解析显示信息，不连接远端 |
 | `GET /sources?search=&cursor=` | 分页搜索原生来源会话 |
 | `POST /preview` | 检查来源的最新完成轮与 Git 起点 |
 | `GET /collaborations` | 本机发起与加入的协作 |
 | `POST /collaborations` | 创建新的协作 fork |
-| `POST /join` | `{invitation}` 连接一个邀请 |
+| `POST /join` | `{invitation}` 或 `{pendingId}`，连接邀请并幂等返回本机加入记录 |
 | `GET /collaborations/:id` | 状态、目录、输入者、批注 |
 | `GET /collaborations/:id/context?kind=&path=&after=&cursor=` | `history/changes/file/events` |
 | `POST /collaborations/:id/action` | `{action,epoch}` |
@@ -41,29 +47,39 @@
 
 预览返回 `source`、`sourceTurnId`、`workspace`、`targetDirectory`、`previewHash`。不接受 dirty patch 或未跟踪文件选项。创建哈希绑定来源会话、完成轮、模式、目录、Git HEAD 和分支；未提交文件只是原目录当前现场，不捕获为快照。
 
-`action` 包括：`start` 恢复运行时，`share` 生成邀请，`end` 结束共享，`handoff` 交给接收者，`reclaim` 发起者接回，`return` 接收者交还，`leave` 接收者离开。输入交接需要当前 `epoch`。
+`action` 包括：`start` 恢复运行时，`share` 生成邀请，`end` 结束共享，`handoff` 交给接收者，`reclaim` 发起者接回，`return` 接收者交还，`leave` 接收者离开，`request_input` / `cancel_input` 接收者申请或取消输入。申请同样校验 epoch，不自动交接。输入交接需要当前 `epoch`。
 
 ## LAN 分享
 
-邀请格式 `tcx2.<base64url(JSON)>`，版本 `2`，能力 `codex-collaboration-v2`。含协作 ID、显示名称、主机、候选 IP/端口、SHA-256 SPKI 指纹、随机 secret 和到期时间。客户端以指纹验证 TLS 主机，使用 `Authorization: Bearer <secret>`。
+原始邀请格式 `tcx2.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `2`，能力 `codex-collaboration-v2-membership`。含协作 ID、显示名称、主机、候选 IP/端口、SHA-256 SPKI 指纹、随机 secret 和到期时间。客户端以指纹验证 TLS 主机。`expiresAt` 只约束首次加入，以墙钟比较；旧能力邀请码明确拒绝，双方需使用本版。
+
+`GET /v2/invitation` 与 `POST /v2/join` 使用 `Authorization: Bearer <invite.secret>`。B 在加入前生成并持久化 32 字节随机 `credential`，A 首次接受后绑定该凭据并消费邀请码；相同凭据显式重试加入幂等。其他 `/v2/*` 路由均使用 `Bearer <credential>`，不接受邀请码或依据邀请码时限失效。TLS 验证以 SPKI pin 为准，不把证书日期作为成员到期时间。
 
 | 路径 | 功能 |
 | --- | --- |
+| `GET /v2/invitation` | 验证未使用邀请并发现地址，不读取协作上下文、不加入 |
+| `POST /v2/join` | `{credential}`，一次性确认加入；不同凭据不能重复使用同一邀请 |
+| `POST /v2/leave` | 主动离开，撤销成员凭据、关闭远端直接连接并将输入归还 A |
 | `GET /v2/status` | 此协作状态，不返回邀请 secret |
 | `GET /v2/context` | 此协作上下文 |
 | `POST /v2/rpc` | 有输入归属检查的原生请求 |
 | `POST /v2/respond` | 原生审批/输入回应 |
 | `POST /v2/annotations` | 添加批注 |
 | `POST /v2/return` | 接收者交还输入 |
+| `POST /v2/presence` | `{online}`，Core 心跳或本机退出；10 秒发送 / 30 秒在线窗口，不决定成员资格 |
+| `POST /v2/request_input` | `{epoch}`，申请输入 |
+| `POST /v2/cancel_input` | `{epoch}`，取消输入申请 |
 | `GET /v2/connect` | 原生 WebSocket upgrade |
 
-TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS 路径和凭据由本机 Core 管理。只读请求失败可重新查询候选地址；写入失败不自动重放。邀请过期或权限失效要求重新分享。
+TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS 路径和凭据由本机 Core 管理。只读请求失败可重新查询候选地址；写入失败不自动重放。未使用邀请到期、成员主动离开或共享结束后需新邀请；B 的 Core 重启从持久化凭据重连，不重新加入。
 
 ## 状态与事件
 
-协作状态 `preparing/ready/error`，接收者还可为 `left/ended/expired`。`online` 表示运行时是否连接，`busy` 表示轮次是否运行，`approvals` 表示待回应数量，`sharing` 表示共享是否开启，`connected` 表示是否已有直接客户端。
+协作状态 `preparing/ready/error`，接收者还可为 `joining/left/ended`。`online` 表示运行时是否连接，`busy` 表示轮次是否运行，`approvals` 表示待回应数量，`sharing` 表示共享是否开启，`connected` 表示是否已有直接客户端。`participantOnline` 表示参与方 Core 的有效心跳，`inputRequested` 表示有效输入申请；两者与直接客户端连接独立。`clientState` 为 `disconnected/connected/session_ready`，最后一种必须由该直接连接成功读取或恢复绑定的 thread 确认。
 
-`context?kind=history` 返回 `{thread,nextCursor}`；`thread.turns` 是最近一页的至多 8 轮，页内按时间正序排列。传回非空 `nextCursor` 到 `cursor` 可读取更早的一页；`null` 表示没有更多历史。元数据和分页读取均不创建或执行轮次。
+`participantJoined` 独立于在线心跳；`invitationState` 为 `pending/joined/expired/left`，只有 `pending` 状态向 A 返回邀请码和 `expiresAt`，B 状态不带加入期限。`runtimeState` 为 `running/starting/releasing/released/offline`，`releasePending` 表示共享关闭后仍在等待工作或客户端结束。退出过程完成后才显示 `released`；恢复等待旧进程完全退出。
+
+`context?kind=history` 返回 `{thread,nextCursor}`；`thread.turns` 是最近一页的至多 8 轮，页内按时间正序排列。传回非空 `nextCursor` 到 `cursor` 可读取更早的一页；`null` 表示没有更多历史。元数据和分页读取均不创建或执行轮次；会话释放后通过只读控制进程读取，不 `thread/resume`、不重新占用原生写入锁。
 
 `context?kind=events&after=N` 返回 `{events,cursor,approvals,busy,online}`。每个事件有 `sequence/method/params/time`；保留最近 600 项。长期对话以原生历史为准，跨服务重启不要把旧事件 cursor 当作永久日志位置。`get_collaboration` 的 `sequence` 可判断当前游标是否重置。
 
@@ -82,3 +98,19 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 ## 维护入口
 
 路由与转发以 [本机 HTTP](../../../internal/collab/http.go)、[共享连接](../../../internal/collab/network.go)、[原生 RPC](../../../internal/collab/rpc.go)、[邀请与 TLS](../../../internal/sharing/sharing.go) 和 [STDIO MCP](../../../internal/mcp/server.go) 为准。协议变化在同一提交中更新本页及对应测试；Wiki 页面引用本页，不另存一份路由表。
+
+## 后台控制与错误分类
+
+控制协议版本为 1，与 LAN v2 独立。`connection.json` 包含 `url/pid/instance/token/version/commit/protocol/dataDir`，0600 原子写入；公开状态省略 token。控制接口拒绝 Origin 并校验本机 Bearer token。普通页面继续通过现有同源检查访问管理接口。
+
+主要错误类型包括 `invitation_invalid`、`invitation_used`、`membership_invalid`、`invitation_expired`、`invitation_pending_expired`、`sharing_ended`、`host_unreachable`、`version_incompatible`、`instance_mismatch`、`client_missing`、`mcp_not_configured`、`input_changed`、`active_collaborations`。未分类错误为 `operation_failed`。远端错误保留 code/recovery，写入失败不自动重试。
+
+首次体验与生命周期详见 [分发与首次体验](distribution-and-onboarding.md)。
+
+## 命令入口与版本诊断
+
+`GET /info` 的 `version` 是当前运行 Core 的版本，`installedVersion` 是稳定安装位置的可执行文件报告的版本；读取失败返回空值，不把运行版本当作已安装版本。二者不同时，设置页提示退出并重新打开以应用更新。
+
+`cli` 包含 `executable/target/command/source/installed/canInstall/canRemove/conflict/pathReady`；`source` 为 `app/formula/standalone/unavailable`。命令定位与归属检查只读，不修改 shell 配置。`pathReady` 只反映进程实际继承的 PATH；Finder 下额外检查 Homebrew 位置不代表终端已配置这些目录。
+
+App helper 的 `cli-status`、`install-cli`、`uninstall-cli` 支持 `--json` 与绝对路径 `--cli-dir`，在 Core 启动逻辑之前处理。只有后两种命令可由菜单栏请求系统授权。冲突、权限不足与临时挂载 App 分别返回 `cli_conflict`、`cli_permission_denied`、`cli_app_not_installed`；独立 CLI 调用安装操作返回 `cli_requires_app`。

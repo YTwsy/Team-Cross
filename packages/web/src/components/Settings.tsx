@@ -41,6 +41,7 @@ export function Settings({
     setError("");
     try {
       await api("mcp/setup", {});
+      await api("mcp/probe", {});
       info.reload();
     } catch (e) {
       setError(errorText(e));
@@ -56,6 +57,50 @@ export function Settings({
       />
       <ErrorBox message={error || info.error} retry={info.reload} />
       <div className="settings-stack">
+        <section className="panel settings-section">
+          <div>
+            <h2>命令行工具</h2>
+            <p>在终端运行 teamcross，也可以打开协作空间。</p>
+          </div>
+          {info.data?.cli && (
+            <dl>
+              <dt>命令位置</dt>
+              <dd>{info.data.cli.command || "尚未在命令路径中找到"}</dd>
+              <dt>安装来源</dt>
+              <dd>
+                {info.data.cli.source === "formula"
+                  ? "Homebrew Formula"
+                  : info.data.cli.source === "app"
+                    ? "Team Cross App"
+                    : info.data.cli.source === "standalone"
+                      ? "独立命令"
+                      : "尚未检测到"}
+              </dd>
+              <dt>已安装版本</dt>
+              <dd>{info.data.installedVersion || "尚未确认"}</dd>
+              <dt>运行中的版本</dt>
+              <dd>{info.data.version}</dd>
+            </dl>
+          )}
+          {info.data?.installedVersion &&
+            info.data.installedVersion !== info.data.version && (
+              <p role="status">
+                已安装新版本。结束活动协作并退出 Team Cross
+                后，重新打开以应用更新。
+              </p>
+            )}
+          <p>
+            通过 DMG
+            安装后，可从菜单栏的“命令行工具…”安装或移除命令入口。Homebrew
+            安装由对应渠道管理。
+          </p>
+          {info.data?.cli?.conflict && (
+            <p>
+              检测到其他安装的命令：{info.data.cli.conflict}
+              。切换前请通过原安装渠道处理。
+            </p>
+          )}
+        </section>
         <section className="panel settings-section">
           <div>
             <h2>外观</h2>
@@ -172,6 +217,25 @@ export function Settings({
           <p className="small-text muted">
             配置会写入你当前的 Codex 配置。已打开的客户端需重新加载工具。
           </p>
+          <p className="small-text muted">
+            协议检查：{info.data?.mcpProbed ? "通过" : "尚未检查"}。实际客户端：
+            {info.data?.mcpObservedAt &&
+            !info.data.mcpObservedAt.startsWith("0001")
+              ? "已收到工具调用"
+              : "等待调用；请重新加载工具后列出协作"}
+            。
+          </p>
+          <button
+            className="button"
+            disabled={!!busy}
+            onClick={() =>
+              void api("mcp/probe", {})
+                .then(() => info.reload())
+                .catch((e) => setError(errorText(e)))
+            }
+          >
+            检查工具连接
+          </button>
           <details className="technical">
             <summary>手动配置与诊断</summary>
             {info.data && (

@@ -27,6 +27,13 @@ export type Collaboration = {
   busy: boolean;
   sharing: boolean;
   connected: boolean;
+  participantOnline?: boolean;
+  participantJoined?: boolean;
+  invitationState?: "pending" | "joined" | "expired" | "left";
+  runtimeState?: "running" | "starting" | "releasing" | "released" | "offline";
+  releasePending?: boolean;
+  inputRequested?: boolean;
+  clientState?: "disconnected" | "connected" | "session_ready";
   client?: string;
   approvals: number;
   epoch: number;
@@ -64,6 +71,13 @@ export type Preview = {
 export type Info = {
   host: string;
   version: string;
+  installedVersion?: string;
+  cli?: {
+    executable: string;
+    command?: string;
+    source: "unavailable" | "app" | "formula" | "standalone";
+    conflict?: string;
+  };
   binary: string;
   codexVersion: string;
   codexError: string;
@@ -71,6 +85,8 @@ export type Info = {
   dataDir: string;
   mcpCommand: string;
   mcpConfigured: boolean;
+  mcpProbed?: boolean;
+  mcpObservedAt?: string;
 };
 export type ClientPlan = { command: string; launched: boolean; note?: string };
 export type History = {
@@ -110,8 +126,17 @@ export function status(c: Collaboration) {
   if (c.state === "left") return { text: "已离开", tone: "muted" };
   if (c.state === "error") return { text: "需要处理", tone: "warning" };
   if (c.state === "preparing") return { text: "创建中", tone: "blue" };
+  if (c.state === "joining") return { text: "等待确认加入", tone: "warning" };
+  if (c.runtimeState === "releasing")
+    return { text: "正在释放会话", tone: "muted" };
+  if (c.runtimeState === "released")
+    return { text: "会话已释放", tone: "muted" };
   if (!c.online) return { text: "等待连接", tone: "muted" };
   if (c.approvals > 0) return { text: "等待审批", tone: "warning" };
   if (c.busy) return { text: "运行中", tone: "blue" };
   return { text: "等待输入", tone: "green" };
+}
+
+export function invitationText(token: string) {
+  return `邀请你加入 Team Cross 协作。双方需在同一局域网。邀请仅限一人首次加入，加入后持续有效，直到主动离开或发起者结束共享。\n\n已安装 App：teamcross://join?invite=${encodeURIComponent(token)}\n\n安装说明：https://github.com/YTwsy/Team-Cross#安装\n安装后再次打开上方链接，或在“加入协作”中粘贴以下邀请码：\n${token}`;
 }

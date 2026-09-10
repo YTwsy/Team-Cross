@@ -17,6 +17,7 @@
 | 邀请、输入交接、审批、断线与共享 | [输入协调与共享](docs/agent-wiki/wiki/concepts/input-and-sharing.md) |
 | 页面、上下文、批注与辅助工具 | [WebGUI 与本地 MCP](docs/agent-wiki/wiki/concepts/webgui-and-mcp.md) |
 | 选择测试与判断验收结论 | [验证门槛](docs/agent-wiki/wiki/concepts/validation-gates.md) |
+| 安装、CLI 入口、App 与 Homebrew 分发 | [分发与首次体验](docs/agent-wiki/sources/distribution-and-onboarding.md) |
 
 完整说明：[产品流程](docs/agent-wiki/sources/product-flows.md) · [架构](docs/agent-wiki/sources/architecture.md) · [协议](docs/agent-wiki/sources/protocol.md)。
 

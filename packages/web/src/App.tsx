@@ -44,8 +44,10 @@ export default function App() {
   const page =
     route === "/create" ? (
       <Create />
-    ) : route === "/join" ? (
-      <Join />
+    ) : route === "/join" || route.startsWith("/join/") ? (
+      <Join
+        pendingId={route.startsWith("/join/") ? route.slice(6) : undefined}
+      />
     ) : route === "/settings" ? (
       <Settings theme={theme} setTheme={setTheme} />
     ) : detailId ? (

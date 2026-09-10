@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>io.github.ytwsy.teamcross</string>
+<key>CFBundleName</key><string>Team Cross</string>
+<key>CFBundleExecutable</key><string>TeamCross</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>0.1.1</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>LSMinimumSystemVersion</key><string>14.0</string>
+<key>LSUIElement</key><true/>
+<key>NSHighResolutionCapable</key><true/>
+<key>NSLocalNetworkUsageDescription</key><string>Team Cross 在局域网中连接受邀协作者，分享所选会话的上下文。</string>
+<key>NSBonjourServices</key><array><string>_teamcross._tcp</string></array>
+<key>NSAppleEventsUsageDescription</key><string>按你的选择，在 Terminal 中打开 Codex 协作客户端。</string>
+<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>Team Cross 邀请</string><key>CFBundleURLSchemes</key><array><string>teamcross</string></array></dict></array>
+</dict></plist>

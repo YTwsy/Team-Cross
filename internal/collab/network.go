@@ -16,14 +16,11 @@ import (
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"teamcross/internal/nativecodex"
+	"teamcross/internal/problem"
 	"teamcross/internal/sharing"
 )
 
 func (s *Session) endShareLocked() {
-	if s.expiry != nil {
-		s.expiry.Stop()
-		s.expiry = nil
-	}
 	if s.share != nil {
 		s.share.Revoke()
 		s.app.mu.Lock()
@@ -33,23 +30,31 @@ func (s *Session) endShareLocked() {
 	}
 	if s.direct != nil && s.direct.role == "remote" {
 		s.direct.close()
+		s.direct = nil
 	}
 	s.writer = "owner"
+	s.inputRequested = false
+	s.remoteSeen = time.Time{}
 	s.epoch++
+	s.releaseWhenIdle = true
 }
 func (s *Session) Action(ctx context.Context, action string, expected ...uint64) error {
 	if action == "start" {
 		return s.start(ctx, true)
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer func() { s.releaseIfIdleLocked(); s.mu.Unlock() }()
 	if len(expected) > 0 && (action == "handoff" || action == "reclaim") && expected[0] != s.epoch {
 		return fmt.Errorf("输入状态已变化，请刷新后重试")
 	}
 	switch action {
 	case "share":
 		if s.share != nil {
-			return nil
+			state := s.share.InvitationState()
+			if state == "pending" || state == "joined" {
+				return nil
+			}
+			s.endShareLocked()
 		}
 		if !s.online || s.record.State != "ready" {
 			return fmt.Errorf("请先恢复协作运行时")
@@ -59,7 +64,7 @@ func (s *Session) Action(ctx context.Context, action string, expected ...uint64)
 			return e
 		}
 		s.share = rt
-		s.expiry = time.AfterFunc(time.Until(rt.Invitation.ExpiresAt), func() { s.mu.Lock(); defer s.mu.Unlock(); s.endShareLocked() })
+		s.releaseWhenIdle = false
 	case "end":
 		s.endShareLocked()
 	case "handoff":
@@ -74,6 +79,7 @@ func (s *Session) Action(ctx context.Context, action string, expected ...uint64)
 			s.direct = nil
 		}
 		s.writer = "remote"
+		s.inputRequested = false
 		s.epoch++
 	case "reclaim":
 		if s.direct != nil {
@@ -81,6 +87,7 @@ func (s *Session) Action(ctx context.Context, action string, expected ...uint64)
 			s.direct = nil
 		}
 		s.writer = "owner"
+		s.inputRequested = false
 		s.epoch++
 	default:
 		return fmt.Errorf("未知协作操作")
@@ -88,6 +95,61 @@ func (s *Session) Action(ctx context.Context, action string, expected ...uint64)
 	return nil
 }
 func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	allowed := s.share != nil && sharing.Authorized(r.Context(), s.share)
+	s.mu.Unlock()
+	if !allowed {
+		http.Error(w, "共享已结束", http.StatusGone)
+		return
+	}
+	if r.Method == "POST" && r.URL.Path == "/v2/leave" {
+		s.mu.Lock()
+		ok := s.share != nil && s.share.Leave(r.Context())
+		if ok {
+			if s.direct != nil && s.direct.role == "remote" {
+				s.direct.close()
+				s.direct = nil
+			}
+			s.writer, s.inputRequested, s.remoteSeen = "owner", false, time.Time{}
+			s.epoch++
+		}
+		s.mu.Unlock()
+		respond(w, map[string]bool{"ok": ok}, nil)
+		return
+	}
+	if r.Method == "POST" && (r.URL.Path == "/v2/presence" || r.URL.Path == "/v2/request_input" || r.URL.Path == "/v2/cancel_input") {
+		var in struct {
+			Online bool   `json:"online"`
+			Epoch  uint64 `json:"epoch"`
+		}
+		if !decode(w, r, &in) {
+			return
+		}
+		s.mu.Lock()
+		var e error
+		if s.share == nil || !sharing.Authorized(r.Context(), s.share) {
+			e = problem.New("sharing_ended", "共享已结束", "请获取新邀请")
+		} else if r.URL.Path == "/v2/presence" {
+			if in.Online {
+				if time.Since(s.remoteSeen) > 30*time.Second {
+					s.inputRequested = false
+				}
+				s.remoteSeen = time.Now()
+			} else {
+				s.remoteSeen = time.Time{}
+				s.inputRequested = false
+			}
+		} else if in.Epoch != s.epoch {
+			e = problem.New("input_changed", "输入归属已变化", "请刷新后重试")
+		} else {
+			s.inputRequested = r.URL.Path == "/v2/request_input" && s.writer != "remote"
+			s.remoteSeen = time.Now()
+		}
+		s.mu.Unlock()
+		respond(w, map[string]bool{"ok": e == nil}, e)
+		return
+	}
+
 	if r.URL.Path == "/v2/connect" {
 		s.attach(w, r, "remote")
 		return
@@ -108,7 +170,7 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		s.mu.Lock()
 		var e error
-		if in.Epoch != s.epoch || s.writer != "remote" {
+		if !sharing.Authorized(r.Context(), s.share) || in.Epoch != s.epoch || s.writer != "remote" {
 			e = fmt.Errorf("输入状态已变化，请刷新")
 		} else if s.busy {
 			e = fmt.Errorf("请等待当前轮完成后交还输入")
@@ -118,6 +180,7 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 				s.direct = nil
 			}
 			s.writer = "owner"
+			s.inputRequested = false
 			s.epoch++
 		}
 		s.mu.Unlock()
@@ -152,38 +215,95 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		if !decode(w, r, &in) {
 			return
 		}
-		out, e := s.annotate(in, "协作者")
+		out, e := s.annotate(in, "协作者", r.Context())
 		respond(w, out, e)
 		return
 	}
 	http.NotFound(w, r)
 }
 func (a *App) Join(ctx context.Context, token string) (*Joined, error) {
-	invitation, e := sharing.Decode(token)
-	if e != nil {
-		return nil, e
+	// Serialize local admission so two clicks cannot consume one invitation with
+	// different credentials. Network calls never hold App.mu.
+	a.joinMu.Lock()
+	defer a.joinMu.Unlock()
+	invitation, decodeErr := sharing.Decode(token)
+	if decodeErr != nil && problem.Describe(decodeErr).Code != "invitation_expired" {
+		return nil, decodeErr
+	}
+	a.mu.Lock()
+	var j *Joined
+	for _, old := range a.joined {
+		old.mu.Lock()
+		match := old.Invitation.ID == invitation.ID && old.Invitation.Secret == invitation.Secret && !old.left && old.Credential != ""
+		old.mu.Unlock()
+		if match {
+			j = old
+			break
+		}
+	}
+	a.mu.Unlock()
+	if j != nil {
+		j.mu.Lock()
+		confirmed, ended := j.confirmed, j.ended
+		j.mu.Unlock()
+		if ended {
+			return nil, problem.New("sharing_ended", "共享已结束", "请获取新邀请")
+		}
+		if confirmed {
+			j.startHeartbeat()
+			return j, nil
+		}
+		// Recovery is a read, never automatic replay of an admission or input.
+		if e := j.request(ctx, "GET", "/v2/status", nil, nil); e == nil {
+			j.mu.Lock()
+			j.confirmed = true
+			j.mu.Unlock()
+			if e = a.saveJoined(); e != nil {
+				return nil, e
+			}
+			j.startHeartbeat()
+			return j, nil
+		} else if code := problem.Describe(e).Code; code != "membership_invalid" {
+			return nil, e
+		}
+	}
+	if decodeErr != nil {
+		return nil, decodeErr
 	}
 	url, client, e := sharing.Connect(ctx, invitation)
 	if e != nil {
 		return nil, e
 	}
-	a.mu.Lock()
-	defer func() { a.mu.Unlock(); _ = a.saveJoined() }()
-	for _, old := range a.joined {
-		old.mu.Lock()
-		match := old.Invitation.ID == invitation.ID && old.Invitation.Secret == invitation.Secret && !old.left
-		old.mu.Unlock()
-		if match {
-			return old, nil
-		}
+	if j == nil {
+		j = &Joined{app: a, ID: "joined-" + uuid.NewString(), Invitation: invitation, Credential: sharing.NewCredential(), URL: url, Client: client, done: make(chan struct{})}
+		a.mu.Lock()
+		a.joined[j.ID] = j
+		a.mu.Unlock()
+	} else {
+		j.mu.Lock()
+		j.URL, j.Client = url, client
+		j.mu.Unlock()
 	}
-	j := &Joined{app: a, ID: "joined-" + uuid.NewString(), Invitation: invitation, URL: url, Client: client, done: make(chan struct{})}
-	a.joined[j.ID] = j
+	// Persist before the host accepts us; a lost response or B Core restart
+	// retains the only credential capable of recovering this membership.
+	if e = a.saveJoined(); e != nil {
+		return nil, e
+	}
+	if e = j.request(ctx, "POST", "/v2/join", map[string]string{"credential": j.Credential}, nil); e != nil {
+		return nil, e
+	}
+	j.mu.Lock()
+	j.confirmed = true
+	j.mu.Unlock()
+	if e = a.saveJoined(); e != nil {
+		return nil, e
+	}
+	j.startHeartbeat()
 	return j, nil
 }
 func (j *Joined) request(ctx context.Context, method, path string, in, out any) error {
 	j.mu.Lock()
-	if j.left || j.ended {
+	if j.left || j.ended || j.closed {
 		ended := j.ended
 		j.mu.Unlock()
 		if ended {
@@ -191,10 +311,10 @@ func (j *Joined) request(ctx context.Context, method, path string, in, out any) 
 		}
 		return fmt.Errorf("已离开协作")
 	}
-	url, client, inv := j.URL, j.Client, j.Invitation
+	url, client, inv, credential := j.URL, j.Client, j.Invitation, j.Credential
 	j.mu.Unlock()
-	if time.Now().After(inv.ExpiresAt) {
-		return fmt.Errorf("邀请已到期")
+	if path == "/v2/join" {
+		credential = inv.Secret
 	}
 	var body io.Reader
 	if in != nil {
@@ -205,12 +325,18 @@ func (j *Joined) request(ctx context.Context, method, path string, in, out any) 
 	if e != nil {
 		return e
 	}
-	req.Header.Set("Authorization", "Bearer "+inv.Secret)
+	req.Header.Set("Authorization", "Bearer "+credential)
 	req.Header.Set("Content-Type", "application/json")
 	res, e := client.Do(req)
 	if e != nil {
 		if method == "GET" {
-			next, nextClient, connectErr := sharing.Connect(ctx, inv)
+			next, nextClient, connectErr := sharing.Connect(ctx, inv, credential)
+			if connectErr != nil && problem.Describe(connectErr).Code != "host_unreachable" {
+				if problem.Describe(connectErr).Code == "sharing_ended" {
+					j.markEnded()
+				}
+				return connectErr
+			}
 			if connectErr == nil {
 				j.mu.Lock()
 				j.URL = next
@@ -221,7 +347,7 @@ func (j *Joined) request(ctx context.Context, method, path string, in, out any) 
 			}
 		}
 		if e != nil {
-			return fmt.Errorf("协作主机连接中断，请刷新后重试：%w", e)
+			return problem.New("host_unreachable", "协作主机连接中断", "请重新连接；状态不明的写入不会自动重发")
 		}
 	}
 	defer res.Body.Close()
@@ -230,20 +356,25 @@ func (j *Joined) request(ctx context.Context, method, path string, in, out any) 
 		return e
 	}
 	if res.StatusCode >= 400 {
-		if res.StatusCode == http.StatusGone {
-			j.mu.Lock()
-			j.ended = true
-			j.mu.Unlock()
-			_ = j.app.saveJoined()
+		if res.StatusCode == http.StatusGone && path != "/v2/join" {
+			j.markEnded()
 		}
 		var result struct {
-			Error string `json:"error"`
+			Error    string `json:"error"`
+			Code     string `json:"code"`
+			Recovery string `json:"recovery"`
 		}
 		_ = json.Unmarshal(b, &result)
 		if result.Error == "" {
 			result.Error = strings.TrimSpace(string(b))
 		}
-		return fmt.Errorf("%s", result.Error)
+		if result.Code == "" {
+			result.Code = "remote_error"
+			if res.StatusCode == 410 {
+				result.Code = "sharing_ended"
+			}
+		}
+		return problem.New(result.Code, result.Error, result.Recovery)
 	}
 	if out != nil {
 		return json.Unmarshal(b, out)
@@ -256,19 +387,28 @@ func (j *Joined) view(ctx context.Context) map[string]any {
 	var out map[string]any
 	e := j.request(ctx, "GET", "/v2/status", nil, &out)
 	j.mu.Lock()
-	defer j.mu.Unlock()
+	recovered := false
+	defer func() {
+		j.mu.Unlock()
+		if recovered {
+			_ = j.app.saveJoined()
+			j.startHeartbeat()
+		}
+	}()
 	if e != nil {
 		out = map[string]any{}
 		for k, v := range j.Last {
 			out[k] = v
 		}
 		out["online"] = false
+		out["runtimeState"] = "offline"
+		out["releasePending"] = false
 		out["error"] = e.Error()
-		if j.ended || time.Now().After(j.Invitation.ExpiresAt) {
+		if !j.confirmed {
+			out["state"] = "joining"
+		}
+		if j.ended {
 			out["state"] = "ended"
-			if time.Now().After(j.Invitation.ExpiresAt) {
-				out["state"] = "expired"
-			}
 			out["sharing"] = false
 			out["writer"] = "owner"
 			out["connected"] = false
@@ -284,6 +424,9 @@ func (j *Joined) view(ctx context.Context) map[string]any {
 		}
 		out["host"] = j.Invitation.Host
 	} else {
+		if !j.confirmed && !j.closed {
+			j.confirmed, recovered = true, true
+		}
 		j.Last = map[string]any{}
 		for k, v := range out {
 			j.Last[k] = v
@@ -294,22 +437,54 @@ func (j *Joined) view(ctx context.Context) map[string]any {
 	out["id"] = j.ID
 	out["role"] = "remote"
 	out["transport"] = "LAN"
-	out["expiresAt"] = j.Invitation.ExpiresAt
+	delete(out, "expiresAt")
 	return out
 }
-func (j *Joined) close() {
-	j.mu.Lock()
-	defer j.mu.Unlock()
-	if j.left {
-		return
-	}
-	j.left = true
-	if j.done != nil {
-		close(j.done)
-	}
+func (j *Joined) stopLocked() {
+	j.closed = true
+	j.closeOnce.Do(func() {
+		if j.done != nil {
+			close(j.done)
+		}
+	})
 	if j.server != nil {
 		_ = j.server.Close()
 	}
+}
+func (j *Joined) markEnded() {
+	j.mu.Lock()
+	j.ended = true
+	j.stopLocked()
+	j.mu.Unlock()
+	_ = j.app.saveJoined()
+}
+
+// Core shutdown only disconnects; it does not revoke membership on A.
+func (j *Joined) close() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	_ = j.request(ctx, "POST", "/v2/presence", map[string]bool{"online": false}, nil)
+	cancel()
+	j.mu.Lock()
+	j.stopLocked()
+	j.mu.Unlock()
+}
+func (j *Joined) leave(ctx context.Context) error {
+	j.mu.Lock()
+	ended, left := j.ended, j.left
+	j.mu.Unlock()
+	if !ended && !left {
+		if e := j.request(ctx, "POST", "/v2/leave", nil, nil); e != nil {
+			code := problem.Describe(e).Code
+			if code != "sharing_ended" && code != "membership_invalid" {
+				return e
+			}
+		}
+	}
+	j.mu.Lock()
+	j.left = true
+	j.stopLocked()
+	j.mu.Unlock()
+	return j.app.saveJoined()
 }
 func (j *Joined) attach(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Origin") != "" {
@@ -317,14 +492,14 @@ func (j *Joined) attach(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	j.mu.Lock()
-	if j.left {
+	if j.left || j.ended || j.closed || !j.confirmed {
 		j.mu.Unlock()
 		http.Error(w, "已离开", 410)
 		return
 	}
-	url, client, inv := j.URL, j.Client, j.Invitation
+	url, client, credential := j.URL, j.Client, j.Credential
 	j.mu.Unlock()
-	upstream, _, e := websocket.Dial(r.Context(), strings.Replace(url, "https:", "wss:", 1)+"/v2/connect", &websocket.DialOptions{HTTPClient: client, HTTPHeader: http.Header{"Authorization": []string{"Bearer " + inv.Secret}}})
+	upstream, _, e := websocket.Dial(r.Context(), strings.Replace(url, "https:", "wss:", 1)+"/v2/connect", &websocket.DialOptions{HTTPClient: client, HTTPHeader: http.Header{"Authorization": []string{"Bearer " + credential}}})
 	if e != nil {
 		http.Error(w, e.Error(), 502)
 		return
@@ -422,8 +597,8 @@ func (a *App) endpoint(id string) (string, error) {
 	if j != nil {
 		j.mu.Lock()
 		defer j.mu.Unlock()
-		if j.left {
-			return "", fmt.Errorf("已离开协作")
+		if j.left || j.ended || j.closed || !j.confirmed {
+			return "", fmt.Errorf("请先加入有效的协作")
 		}
 		if j.endpoint != "" {
 			return j.endpoint, nil
@@ -447,6 +622,8 @@ type joinedRecord struct {
 	URL        string             `json:"url"`
 	Last       map[string]any     `json:"last,omitempty"`
 	Ended      bool               `json:"ended,omitempty"`
+	Credential string             `json:"credential"`
+	Confirmed  bool               `json:"confirmed"`
 }
 
 func (a *App) saveJoined() error {
@@ -456,9 +633,40 @@ func (a *App) saveJoined() error {
 	for _, j := range a.joined {
 		j.mu.Lock()
 		if !j.left {
-			records = append(records, joinedRecord{ID: j.ID, Invitation: j.Invitation, URL: j.URL, Last: j.Last, Ended: j.ended})
+			records = append(records, joinedRecord{ID: j.ID, Invitation: j.Invitation, URL: j.URL, Last: j.Last, Ended: j.ended, Credential: j.Credential, Confirmed: j.confirmed})
 		}
 		j.mu.Unlock()
 	}
 	return writeJSONFile(filepath.Join(a.Config.DataDir, "joined.json"), records)
+}
+
+func (j *Joined) startHeartbeat() {
+	j.mu.Lock()
+	confirmed := j.confirmed
+	j.mu.Unlock()
+	if !confirmed {
+		return
+	}
+	j.heartbeatOnce.Do(func() {
+		go func() {
+			tick := time.NewTicker(10 * time.Second)
+			defer tick.Stop()
+			for {
+				j.mu.Lock()
+				finished := j.left || j.ended || j.closed || !j.confirmed
+				j.mu.Unlock()
+				if finished {
+					return
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				_ = j.request(ctx, "POST", "/v2/presence", map[string]bool{"online": true}, nil)
+				cancel()
+				select {
+				case <-j.done:
+					return
+				case <-tick.C:
+				}
+			}
+		}()
+	})
 }

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"teamcross/internal/problem"
 	"time"
 )
 
@@ -30,7 +31,7 @@ func respond(w http.ResponseWriter, value any, err error) {
 	w.Header().Set("Cache-Control", "no-store")
 	if err != nil {
 		w.WriteHeader(400)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		_ = json.NewEncoder(w).Encode(problem.Describe(err))
 		return
 	}
 	_ = json.NewEncoder(w).Encode(value)
@@ -55,7 +56,7 @@ func (a *App) View(ctx context.Context, id string) (map[string]any, error) {
 	}
 	return nil, fmt.Errorf("没有找到协作")
 }
-func (s *Session) annotate(in Annotation, author string) (Annotation, error) {
+func (s *Session) annotate(in Annotation, author string, contexts ...context.Context) (Annotation, error) {
 	text := strings.TrimSpace(in.Text)
 	if text == "" || len([]rune(text)) > 4000 {
 		return Annotation{}, fmt.Errorf("请输入 1–4000 字的批注")
@@ -69,6 +70,9 @@ func (s *Session) annotate(in Annotation, author string) (Annotation, error) {
 	in.CreatedAt = time.Now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if len(contexts) > 0 && !s.callerValidLocked(contexts[0]) {
+		return Annotation{}, fmt.Errorf("共享已结束")
+	}
 	s.record.Annotations = append(s.record.Annotations, in)
 	s.record.UpdatedAt = time.Now()
 	return in, s.saveLocked()
@@ -129,6 +133,9 @@ func (a *App) Handler(web http.Handler) http.Handler {
 func (a *App) http(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/")
 	ctx := r.Context()
+	if a.onboarding(w, r, path) {
+		return
+	}
 	switch path {
 	case "info":
 		respond(w, a.Info(ctx), nil)
@@ -199,11 +206,17 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		}
 		var in struct {
 			Invitation string `json:"invitation"`
+			PendingID  string `json:"pendingId"`
 		}
 		if !decode(w, r, &in) {
 			return
 		}
-		j, e := a.Join(ctx, in.Invitation)
+		token, e := a.invitation(in.Invitation, in.PendingID)
+		if e != nil {
+			respond(w, nil, e)
+			return
+		}
+		j, e := a.Join(ctx, token)
 		if e != nil {
 			respond(w, nil, e)
 			return
@@ -250,19 +263,18 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 			j := a.joined[id]
 			a.mu.Unlock()
 			if j != nil {
-				j.close()
-				_ = a.saveJoined()
-				respond(w, map[string]bool{"ok": true}, nil)
+				e := j.leave(ctx)
+				respond(w, map[string]bool{"ok": e == nil}, e)
 				return
 			}
 		}
-		if in.Action == "return" {
+		if in.Action == "return" || in.Action == "request_input" || in.Action == "cancel_input" {
 			a.mu.Lock()
 			j := a.joined[id]
 			a.mu.Unlock()
 			if j != nil {
 				var result any
-				e := j.request(ctx, "POST", "/v2/return", map[string]uint64{"epoch": in.Epoch}, &result)
+				e := j.request(ctx, "POST", "/v2/"+in.Action, map[string]uint64{"epoch": in.Epoch}, &result)
 				respond(w, result, e)
 				return
 			}

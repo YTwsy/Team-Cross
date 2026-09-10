@@ -11,4 +11,13 @@ test:
 	go test ./...
 	pnpm --filter @teamcross/web test
 dev:
-	go run ./cmd/teamcross serve --dev-web http://127.0.0.1:5173
+	go run ./cmd/teamcross serve --foreground --dev-web http://127.0.0.1:5173
+
+.PHONY: release verify-release verify-homebrew
+VERSION ?= 0.1.1-dev
+release:
+	python3 scripts/build-release.py --version $(VERSION)
+verify-release:
+	python3 scripts/verify-release.py dist/release/$(VERSION)
+verify-homebrew:
+	python3 scripts/verify-homebrew.py dist/release/$(VERSION)

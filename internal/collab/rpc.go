@@ -21,11 +21,17 @@ import (
 )
 
 func (s *Session) onMessage(m nativecodex.Message) {
+	s.onRuntimeMessage(0, m)
+}
+func (s *Session) onRuntimeMessage(generation uint64, m nativecodex.Message) {
 	if localAccountNotification(m.Method) {
 		return
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer func() { s.releaseIfIdleLocked(); s.mu.Unlock() }()
+	if s.closed || (generation != 0 && s.generation != generation) {
+		return
+	}
 	if m.Method == "teamcross/runtimeDisconnected" {
 		s.online = false
 		if s.direct != nil {
@@ -91,6 +97,12 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 		s.mu.Unlock()
 		return nil, fmt.Errorf("共享已结束")
 	}
+	if !s.callerValidLocked(ctx) {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("连接或输入归属已变化，请重新连接")
+	}
+	s.activeCalls++
+	defer s.finishCall()
 	if method == "thread/list" || method == "thread/loaded/list" {
 		s.mu.Unlock()
 		var read map[string]any
@@ -291,7 +303,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 			c.Error = err.Error()
 			if strings.Contains(err.Error(), `"code"`) {
 				c.State = "failed"
-				if method == "turn/start" {
+				if method == "turn/start" && s.process == p {
 					s.busy = false
 				}
 			}
@@ -308,7 +320,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 }
 func (s *Session) Respond(ctx context.Context, role string, id json.RawMessage, result any) error {
 	s.mu.Lock()
-	if role != s.writer || (role == "remote" && s.share == nil) {
+	if !s.callerValidLocked(ctx) || role != s.writer || (role == "remote" && s.share == nil) {
 		s.mu.Unlock()
 		return fmt.Errorf("请先取得输入权")
 	}
@@ -321,11 +333,17 @@ func (s *Session) Respond(ctx context.Context, role string, id json.RawMessage, 
 		s.mu.Unlock()
 		return fmt.Errorf("运行时未连接")
 	}
+	approval := s.approvals[string(id)]
 	delete(s.approvals, string(id))
+	s.activeCalls++
 	s.mu.Unlock()
+	defer s.finishCall()
 	if e := p.Reply(ctx, id, result); e != nil {
 		s.mu.Lock()
 		s.record.Error = "审批回应结果不明，请检查运行时"
+		if s.process == p {
+			s.approvals[string(id)] = approval
+		}
 		s.mu.Unlock()
 		return e
 	}
@@ -333,8 +351,16 @@ func (s *Session) Respond(ctx context.Context, role string, id json.RawMessage, 
 }
 func (s *Session) Context(ctx context.Context, kind, path string, after uint64, cursors ...string) (any, error) {
 	s.mu.Lock()
+	if !s.callerValidLocked(ctx) {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("共享已结束")
+	}
 	p := s.process
 	r := s.record
+	if p != nil {
+		s.activeCalls++
+		defer s.finishCall()
+	}
 	s.mu.Unlock()
 	switch kind {
 	case "events":
@@ -354,13 +380,14 @@ func (s *Session) Context(ctx context.Context, kind, path string, after uint64, 
 		status, _ := workspace.Git(ctx, r.ExecutionCwd, "status", "--short")
 		return map[string]any{"stat": string(out), "diff": string(diff), "status": string(status)}, e
 	default:
-		if p == nil {
-			return nil, fmt.Errorf("运行时未连接")
+		call := s.app.readerCall
+		if p != nil {
+			call = p.Call
 		}
 		var read struct {
 			Thread map[string]any `json:"thread"`
 		}
-		if e := p.Call(ctx, "thread/read", map[string]any{"threadId": r.SessionID, "includeTurns": false}, &read); e != nil {
+		if e := call(ctx, "thread/read", map[string]any{"threadId": r.SessionID, "includeTurns": false}, &read); e != nil {
 			return nil, e
 		}
 		params := map[string]any{"threadId": r.SessionID, "limit": 8, "itemsView": "full", "sortDirection": "desc"}
@@ -371,7 +398,7 @@ func (s *Session) Context(ctx context.Context, kind, path string, after uint64, 
 			Data       []json.RawMessage `json:"data"`
 			NextCursor *string           `json:"nextCursor"`
 		}
-		if e := p.Call(ctx, "thread/turns/list", params, &page); e != nil {
+		if e := call(ctx, "thread/turns/list", params, &page); e != nil {
 			return nil, e
 		}
 		slices.Reverse(page.Data)
@@ -385,7 +412,7 @@ func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
 		return
 	}
 	s.mu.Lock()
-	if s.writer != role || !s.online || s.record.State != "ready" || (role == "remote" && s.share == nil) {
+	if !s.callerValidLocked(r.Context()) || s.writer != role || !s.online || s.starting || s.record.State != "ready" || (role == "remote" && s.share == nil) {
 		s.mu.Unlock()
 		http.Error(w, "等待输入交接或恢复运行时", 403)
 		return
@@ -397,6 +424,9 @@ func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
 	}
 	d := &direct{subscribed: true, role: role, kind: "Codex", send: make(chan nativecodex.Message, 256), done: make(chan struct{})}
 	s.direct = d
+	if s.share == nil {
+		s.releaseWhenIdle = true
+	}
 	init := s.process.Initialization()
 	s.mu.Unlock()
 	defer func() {
@@ -405,6 +435,7 @@ func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
 		if s.direct == d {
 			s.direct = nil
 		}
+		s.releaseIfIdleLocked()
 		s.mu.Unlock()
 	}()
 	conn, err := websocket.Accept(w, r, nil)
@@ -413,7 +444,7 @@ func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
 	}
 	defer conn.CloseNow()
 	conn.SetReadLimit(32 << 20)
-	ctx, cancel := context.WithCancel(r.Context())
+	ctx, cancel := context.WithCancel(context.WithValue(r.Context(), directKey{}, d))
 	defer cancel()
 	go func() {
 		select {
@@ -495,6 +526,11 @@ func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
 			e = local.call(ctx, m.Method, params, &result)
 		} else {
 			result, e = s.RPC(ctx, role, m.Method, params, "direct:"+connectionID+":"+string(m.ID))
+		}
+		if e == nil && (m.Method == "thread/read" || m.Method == "thread/resume") && params["threadId"] == s.record.SessionID {
+			s.mu.Lock()
+			d.ready = true
+			s.mu.Unlock()
 		}
 		if len(m.ID) == 0 {
 			continue

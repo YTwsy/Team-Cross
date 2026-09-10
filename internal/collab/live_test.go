@@ -157,6 +157,7 @@ func TestLiveCodex(t *testing.T) {
 			t.Fatal("client model settings not observed")
 		}
 		t.Log("file execution confirmed", mode)
+		verifyLiveRelease(t, ctx, s)
 	}
 	result := map[string]any{"root": root, "repo": repo, "dataDir": a.Config.DataDir, "codexHome": home, "sourceId": source, "collaborations": ids, "model": liveModel, "createdAt": time.Now()}
 	if e = writeJSONFile(filepath.Join(root, "fixture.json"), result); e != nil {

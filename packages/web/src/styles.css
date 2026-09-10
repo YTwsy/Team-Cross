@@ -794,6 +794,7 @@ details[open] summary {
   max-height: 440px;
   overflow: auto;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   padding: 3px;
 }

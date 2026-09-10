@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"teamcross/internal/nativecodex"
+	"teamcross/internal/problem"
 	"teamcross/internal/sharing"
 	"teamcross/internal/workspace"
 )
@@ -81,8 +82,11 @@ func Open(cfg Config) (*App, error) {
 	var guests []joinedRecord
 	if readJSON(filepath.Join(cfg.DataDir, "joined.json"), &guests) == nil {
 		for _, g := range guests {
-			a.joined[g.ID] = &Joined{app: a, ID: g.ID, Invitation: g.Invitation, URL: g.URL, Client: sharing.Client(g.Invitation), Last: g.Last, ended: g.Ended, done: make(chan struct{})}
+			a.joined[g.ID] = &Joined{app: a, ID: g.ID, Invitation: g.Invitation, URL: g.URL, Client: sharing.Client(g.Invitation), Last: g.Last, Credential: g.Credential, confirmed: g.Confirmed, ended: g.Ended || g.Credential == "", done: make(chan struct{})}
 		}
+	}
+	for _, j := range a.joined {
+		j.startHeartbeat()
 	}
 	return a, nil
 }
@@ -115,12 +119,22 @@ func (a *App) binary() (string, error) {
 	v := a.settings.Binary
 	a.mu.Unlock()
 	if v != "" {
-		if stat, e := os.Stat(v); e != nil || !stat.Mode().IsRegular() {
-			return "", fmt.Errorf("Codex 路径不可用: %s", v)
+		if stat, e := os.Stat(v); e != nil || !stat.Mode().IsRegular() || stat.Mode().Perm()&0111 == 0 {
+			return "", problem.New("client_missing", "Codex 路径不可用", "请在设置中选择可执行的 Codex CLI")
 		}
 		return v, nil
 	}
-	return nativecodex.Binary()
+	if app := a.desktop(); app != "" {
+		path := filepath.Join(app, "Contents", "Resources", "codex")
+		if st, e := os.Stat(path); e == nil && st.Mode().IsRegular() && st.Mode().Perm()&0111 != 0 {
+			return path, nil
+		}
+	}
+	binary, e := nativecodex.Binary()
+	if e != nil {
+		return "", problem.New("client_missing", "未找到可用的 Codex CLI", "只查看共享上下文无需安装；发起或操作时请安装 Codex 或在设置中指定路径")
+	}
+	return binary, nil
 }
 func (a *App) startProcess(ctx context.Context, home, cwd, log string) (Runtime, error) {
 	binary, e := a.binary()
@@ -135,6 +149,12 @@ func (a *App) startProcess(ctx context.Context, home, cwd, log string) (Runtime,
 func (a *App) readerCall(ctx context.Context, method string, params, out any) error {
 	a.readerMu.Lock()
 	defer a.readerMu.Unlock()
+	a.mu.Lock()
+	closed := a.closed
+	a.mu.Unlock()
+	if closed {
+		return fmt.Errorf("Core 已退出")
+	}
 	if a.reader == nil || !a.reader.Alive() {
 		if a.reader != nil {
 			a.reader.Close()
@@ -296,6 +316,15 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 	if e = s.start(ctx, false); e != nil {
 		return fail(e)
 	}
+	s.mu.Lock()
+	if s.closed || s.process == nil {
+		s.mu.Unlock()
+		return fail(fmt.Errorf("Core 已退出，创建未完成"))
+	}
+	s.activeCalls++
+	runtime := s.process
+	s.mu.Unlock()
+	defer s.finishCall()
 	params := nativecodex.Overrides(r.SourceID, cwd)
 	inheritModel(params, p.Source)
 	params["lastTurnId"] = r.SourceTurnID
@@ -310,7 +339,7 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 			Cwd          string `json:"cwd"`
 		} `json:"thread"`
 	}
-	if e = s.process.Call(ctx, "thread/fork", params, &fork); e != nil {
+	if e = runtime.Call(ctx, "thread/fork", params, &fork); e != nil {
 		return fail(e)
 	}
 	if fork.Thread.ID == "" || fork.Thread.ID == r.SourceID || fork.Thread.ForkedFromID != r.SourceID || fork.Thread.Cwd != cwd {
@@ -326,11 +355,25 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 	if e != nil {
 		return fail(e)
 	}
-	_ = s.process.Call(ctx, "thread/name/set", map[string]any{"threadId": fork.Thread.ID, "name": title}, nil)
+	_ = runtime.Call(ctx, "thread/name/set", map[string]any{"threadId": fork.Thread.ID, "name": title}, nil)
 	return s, nil
 }
 func (s *Session) start(ctx context.Context, resume bool) error {
 	s.mu.Lock()
+	for s.stopping != nil {
+		done := s.stopping
+		s.mu.Unlock()
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		s.mu.Lock()
+	}
+	if s.closed {
+		s.mu.Unlock()
+		return fmt.Errorf("Core 已退出")
+	}
 	if s.process != nil && s.process.Alive() {
 		s.mu.Unlock()
 		return nil
@@ -347,8 +390,12 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 		return fmt.Errorf("该协作尚未成功创建，请检查创建失败原因")
 	}
 	old := s.process
+	s.generation++
+	generation := s.generation
+	s.online = false
+	s.releaseWhenIdle = false
 	s.mu.Unlock()
-	defer func() { s.mu.Lock(); s.starting = false; s.mu.Unlock() }()
+	defer func() { s.mu.Lock(); s.starting = false; s.releaseIfIdleLocked(); s.mu.Unlock() }()
 	if old != nil {
 		old.Close()
 	}
@@ -356,10 +403,15 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 	if e != nil {
 		return e
 	}
-	p.SetHandler(s.onMessage)
 	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		p.Close()
+		return fmt.Errorf("Core 已退出")
+	}
 	s.process = p
-	s.online = true
+	p.SetHandler(func(m nativecodex.Message) { s.onRuntimeMessage(generation, m) })
+	s.online = !resume
 	s.busy = false
 	s.approvals = map[string]Approval{}
 	s.mu.Unlock()
@@ -380,6 +432,11 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 		}
 		s.refreshModel(ctx, p)
 	}
+	s.mu.Lock()
+	if s.process == p && !s.closed {
+		s.online = p.Alive()
+	}
+	s.mu.Unlock()
 	return nil
 }
 func (a *App) Close() {
@@ -406,11 +463,15 @@ func (a *App) Close() {
 	}
 	for _, s := range sessions {
 		s.mu.Lock()
+		s.closed = true
+		s.generation++
 		s.endShareLocked()
 		if s.direct != nil {
 			s.direct.close()
 		}
 		p := s.process
+		stopping := s.stopping
+		s.process, s.online = nil, false
 		server := s.server
 		s.mu.Unlock()
 		if server != nil {
@@ -418,6 +479,9 @@ func (a *App) Close() {
 		}
 		if p != nil {
 			p.Close()
+		}
+		if stopping != nil {
+			<-stopping
 		}
 	}
 	a.mu.Lock()
@@ -453,12 +517,37 @@ func (s *Session) view() map[string]any {
 	defer s.mu.Unlock()
 	r := s.record
 	out := map[string]any{"id": r.ID, "title": r.Title, "sourceId": r.SourceID, "sourceTurnId": r.SourceTurnID, "sessionId": r.SessionID, "workspaceMode": r.WorkspaceMode, "executionCwd": r.ExecutionCwd, "repo": r.Repo, "head": r.Head, "branch": r.Branch, "workspaceOwned": r.WorkspaceOwned, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "writer": s.writer, "busy": s.busy, "online": s.online, "epoch": s.epoch, "sharing": s.share != nil, "connected": s.direct != nil, "sequence": s.sequence, "approvals": len(s.approvals), "annotations": r.Annotations, "model": r.Model, "modelProvider": r.ModelProvider, "reasoningEffort": r.ReasoningEffort}
+	out["participantOnline"] = s.share != nil && time.Since(s.remoteSeen) < 30*time.Second
+	out["inputRequested"] = out["participantOnline"] == true && s.inputRequested
+	out["clientState"] = "disconnected"
 	if s.direct != nil {
+		out["clientState"] = "connected"
+		if s.direct.ready {
+			out["clientState"] = "session_ready"
+		}
 		out["client"] = s.direct.kind
 	}
 	if s.share != nil {
-		out["invitation"] = s.share.Token()
-		out["expiresAt"] = s.share.Invitation.ExpiresAt
+		state := s.share.InvitationState()
+		out["invitationState"] = state
+		out["participantJoined"] = state == "joined"
+		if state == "pending" {
+			out["invitation"] = s.share.Token()
+			out["expiresAt"] = s.share.Invitation.ExpiresAt
+		}
+	}
+	out["runtimeState"] = "offline"
+	out["releasePending"] = s.releaseWhenIdle && s.share == nil && s.online
+	if s.online {
+		out["runtimeState"] = "running"
+	}
+	if s.starting {
+		out["runtimeState"] = "starting"
+	}
+	if s.stopping != nil {
+		out["runtimeState"] = "releasing"
+	} else if !s.online && s.releaseWhenIdle {
+		out["runtimeState"] = "released"
 	}
 	return out
 }

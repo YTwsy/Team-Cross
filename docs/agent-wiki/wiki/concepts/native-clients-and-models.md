@@ -22,3 +22,5 @@ B 的账户操作在 B 本机处理，不能修改 A 的账户或返回 A 的认
 [模型回归](../../../../internal/collab/model_test.go) · [启动配置回归](../../../../internal/nativecodex/process_test.go) · [本机登录与输入测试](../../../../internal/collab/collab_test.go) · [真实客户端门槛](../../sources/validation/test-gates.md)
 
 相关任务：[运行时](runtime-architecture.md) · [输入与共享](input-and-sharing.md) · [本地 MCP](webgui-and-mcp.md)
+
+直接客户端区分已连接与已打开对应共享会话；MCP 配置采用稳定 opt/App 路径。首次引导与安装入口见 [分发与首次体验](../../sources/distribution-and-onboarding.md)。

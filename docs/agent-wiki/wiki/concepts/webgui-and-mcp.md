@@ -18,6 +18,8 @@ WebGUI 是协作管理界面；完整对话和执行交互在 Codex 客户端。
 
 主要动作随连接、输入交接、运行和审批状态改变。批注可独立保存，读取或批注不隐式开始模型轮次。页面展示轻量历史，完整历史交给 Codex；MCP 可继续分页读取。
 
+同一上下文刷新时保留内容与阅读位置，首次加载或切换资源才显示加载占位；具体行为见 [上下文阅读](../../sources/product-flows.md#上下文阅读)，回归入口见 [上下文刷新测试](../../../../packages/web/src/test/context-refresh.test.tsx)。
+
 MCP 一次性配置连接本机 Core，后续通过工具定位协作。工具写入走现有 RPC 与输入协调，不另建绕过控制的发送通道；stdout 只输出协议消息。
 
 浅色为主要设计基准，支持系统/浅色/深色主题。检查空状态、失败、长路径、小窗口、焦点和键盘；更新 Web 源码后提交重建的嵌入式资源。
@@ -27,3 +29,5 @@ MCP 一次性配置连接本机 Core，后续通过工具定位协作。工具�
 [前端路径测试](../../../../packages/web/src/test/flows.test.tsx) · [MCP 测试](../../../../internal/mcp/server_test.go) · [浏览器与工程门槛](../../sources/validation/test-gates.md)
 
 相关任务：[产品模型](product-model-and-glossary.md) · [输入与共享](input-and-sharing.md) · [原生客户端](native-clients-and-models.md)
+
+首次流程支持创建并邀请、App 邀请确认后进入上下文，以及 MCP 配置/协议探测/实际调用分别展示。完整规则见 [分发与首次体验](../../sources/distribution-and-onboarding.md)。

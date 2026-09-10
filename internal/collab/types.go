@@ -105,57 +105,71 @@ type Record struct {
 	Commands        map[string]Command `json:"commands,omitempty"`
 }
 type direct struct {
-	subscribed bool
-	send       chan nativecodex.Message
-	done       chan struct{}
-	once       sync.Once
-	role       string
-	kind       string
+	subscribed    bool
+	ready         bool
+	send          chan nativecodex.Message
+	done          chan struct{}
+	heartbeatOnce sync.Once
+	once          sync.Once
+	role          string
+	kind          string
 }
 
 func (d *direct) close() { d.once.Do(func() { close(d.done) }) }
 
 type Session struct {
-	mu        sync.Mutex
-	record    Record
-	app       *App
-	process   Runtime
-	writer    string
-	busy      bool
-	online    bool
-	epoch     uint64
-	share     *sharing.Runtime
-	expiry    *time.Timer
-	direct    *direct
-	events    []Event
-	sequence  uint64
-	approvals map[string]Approval
-	listener  net.Listener
-	server    *http.Server
-	endpoint  string
-	starting  bool
+	mu              sync.Mutex
+	record          Record
+	app             *App
+	process         Runtime
+	writer          string
+	busy            bool
+	online          bool
+	epoch           uint64
+	share           *sharing.Runtime
+	releaseWhenIdle bool
+	stopping        chan struct{}
+	activeCalls     int
+	generation      uint64
+	closed          bool
+	direct          *direct
+	events          []Event
+	sequence        uint64
+	approvals       map[string]Approval
+	listener        net.Listener
+	server          *http.Server
+	endpoint        string
+	starting        bool
+	remoteSeen      time.Time
+	inputRequested  bool
 }
 type Joined struct {
-	app        *App
-	ended      bool
-	mu         sync.Mutex
-	ID         string
-	Invitation sharing.Invitation
-	URL        string
-	Client     *http.Client
-	Last       map[string]any
-	Error      string
-	listener   net.Listener
-	server     *http.Server
-	endpoint   string
-	left       bool
-	done       chan struct{}
+	app           *App
+	ended         bool
+	mu            sync.Mutex
+	ID            string
+	Invitation    sharing.Invitation
+	Credential    string
+	confirmed     bool
+	URL           string
+	Client        *http.Client
+	Last          map[string]any
+	Error         string
+	listener      net.Listener
+	server        *http.Server
+	endpoint      string
+	left          bool
+	closed        bool
+	closeOnce     sync.Once
+	done          chan struct{}
+	heartbeatOnce sync.Once
 }
 type Settings struct {
 	Binary     string `json:"binary"`
 	DesktopApp string `json:"desktopApp"`
 }
 type App struct {
+	joinMu        sync.Mutex
 	retiredShares []*sharing.Runtime
 	mu            sync.Mutex
 	Config        Config
@@ -168,4 +182,7 @@ type App struct {
 	sessions      map[string]*Session
 	joined        map[string]*Joined
 	closed        bool
+	pending       map[string]pendingInvite
+	mcpObserved   time.Time
+	mcpProbed     bool
 }
