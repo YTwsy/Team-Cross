@@ -25,13 +25,13 @@
 | `POST /collaborations` | 创建新的协作 fork |
 | `POST /join` | `{invitation}` 或 `{pendingId}`，连接邀请并幂等返回本机加入记录 |
 | `GET /collaborations/:id` | 状态、目录、输入者、批注 |
-| `GET /collaborations/:id/context?kind=&path=&after=&cursor=` | `history/changes/file/events` |
+| `GET /collaborations/:id/context?kind=&path=&after=&cursor=` | `history/changes/file/annotations/events` |
 | `POST /collaborations/:id/action` | `{action,epoch}` |
 | `POST /collaborations/:id/open` | `{client:tui|desktop,launch:boolean}` 直接客户端 |
 | `POST /collaborations/:id/assist` | 同上，打开用户自己的客户端 |
 | `POST /collaborations/:id/rpc` | `{method,params,requestId}` 协作原生调用 |
 | `POST /collaborations/:id/respond` | `{id,result}` 原生请求回应 |
-| `POST /collaborations/:id/annotations` | `{text,reference?}` |
+| `POST /collaborations/:id/annotations` | `{text,target?,reference?}` |
 
 创建及预览输入：
 
@@ -95,7 +95,29 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 
 原生网关支持 `thread/settings/update` 的模型与推理设置。它和带配置覆盖的 `thread/resume` 属于写入，需要当前输入者及 `requestId`；只读恢复查询不能绕过输入归属修改模型。`turn/start` 保留 `model/effort`，不指定时沿用当前会话。`thread/resume.config` 仅保留模型与推理相关配置。
 
+## 批注引用
+
+`Annotation` 包含 `id/text/author/createdAt`，可带 `target`。`reference` 只是人工参考说明，不参与自动定位。正文最多 4000 字；整体意见不传 `target`。主机生成作者、ID、时间并绑定所属协作的 `sessionId`，拒绝其他会话的定位。
+
+`target` 的公共字段为 `kind`、`sessionId`、`quote`。`quote` 保存批注时所选原文，最多 8000 字。不同目标使用以下字段：
+
+| kind | 定位字段 | 原文与版本含义 |
+| --- | --- | --- |
+| `history` | `turnId/itemId/startOffset/endOffset/cursor?` | 消息正文的 UTF-16 偏移，左闭右开；`cursor` 为读取该页时使用的游标，最近页省略 |
+| `file` | `path/startLine/endLine/contentHash` | `path` 相对 A 的 `executionCwd`；行号从 1 开始且含首尾；`quote` 为完整行，不带结尾分隔换行；`contentHash` 是读取到的整个文件的 SHA-256 |
+| `changes` | 同 file，另有 `side/baseRevision` | `side=old` 指向 `baseRevision` 的旧行，`side=new` 指向该次 diff 的新行；`contentHash` 是整个返回 diff 的 SHA-256，`quote` 不含 diff 的增删前缀 |
+
+`context?kind=file` 返回 `{path,text,contentHash}`。`kind=changes` 返回 `{stat,status,diff,contentHash,baseRevision,truncated}`；diff 路径相对执行目录，限制 256 KiB 并在完整行截断，`truncated` 表示只返回部分内容。`baseRevision` 为该次 diff 使用的具体 HEAD，不使用协作创建时的 HEAD 代替。
+
+`context?kind=annotations` 返回 `{annotations,sessionId,executionCwd}`，本机和 LAN 路由相同，MCP `read_context` 支持该 kind；`get_collaboration` 同样返回批注。`add_annotation` 支持完整的 `target` 对象。工具描述说明如何用 path、消息 ID 和历史游标读取原文，并提醒旧行属于基准提交。
+
+位置和 `contentHash` 是客户端提供的阅读快照，主机检查字段格式、相对路径、范围与片段长度，不将其作为已验证的当前代码事实，也不会保存时改写成新文件的指纹。文件可在编辑批注期间变化；处理前通过 Team Cross 读取 A 上的实际上下文，再核对片段与版本，不能把 A 上路径当成 B 本机同名文件。指纹不同不代表该片段一定变化，但不能据此直接高亮旧位置。消息按稳定 ID 和精确片段判断；未定位时继续保留引用。
+
+保存和读取批注不调用 `turn/start`、`turn/steer`，不改变输入者；写入失败不自动重放。保存到磁盘失败时撤回内存追加，避免显示未持久化的成功结果。成员权限沿用共享路由校验，结束共享后拒绝远端继续读写。
+
 ## 维护入口
+
+批注实现见 [annotation.go](../../../internal/collab/annotation.go)、[上下文组件](../../../packages/web/src/components/Context.tsx) 和 [批注组件](../../../packages/web/src/components/Annotations.tsx)。
 
 路由与转发以 [本机 HTTP](../../../internal/collab/http.go)、[共享连接](../../../internal/collab/network.go)、[原生 RPC](../../../internal/collab/rpc.go)、[邀请与 TLS](../../../internal/sharing/sharing.go) 和 [STDIO MCP](../../../internal/mcp/server.go) 为准。协议变化在同一提交中更新本页及对应测试；Wiki 页面引用本页，不另存一份路由表。
 

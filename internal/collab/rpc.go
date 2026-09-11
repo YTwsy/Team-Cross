@@ -365,20 +365,36 @@ func (s *Session) Context(ctx context.Context, kind, path string, after uint64, 
 	switch kind {
 	case "events":
 		return s.Events(after), nil
+	case "annotations":
+		return map[string]any{"annotations": r.Annotations, "sessionId": r.SessionID, "executionCwd": r.ExecutionCwd}, nil
 	case "file":
 		text, e := workspace.ReadFile(r.ExecutionCwd, path)
-		return map[string]any{"path": path, "text": text}, e
+		hash := sha256.Sum256([]byte(text))
+		return map[string]any{"path": filepath.ToSlash(filepath.Clean(path)), "text": text, "contentHash": hex.EncodeToString(hash[:])}, e
 	case "changes":
-		out, e := workspace.Git(ctx, r.ExecutionCwd, "diff", "HEAD", "--no-ext-diff", "--no-textconv", "--stat")
+		head, e := workspace.Git(ctx, r.ExecutionCwd, "rev-parse", "HEAD")
 		if e != nil {
 			return nil, e
 		}
-		diff, e := workspace.Git(ctx, r.ExecutionCwd, "diff", "HEAD", "--no-ext-diff", "--no-textconv", "--", ".")
+		base := strings.TrimSpace(string(head))
+		out, e := workspace.Git(ctx, r.ExecutionCwd, "diff", base, "--relative", "--no-color", "--no-ext-diff", "--no-textconv", "--stat", "--", ".")
+		if e != nil {
+			return nil, e
+		}
+		diff, e := workspace.Git(ctx, r.ExecutionCwd, "diff", base, "--relative", "--no-color", "--src-prefix=a/", "--dst-prefix=b/", "--no-ext-diff", "--no-textconv", "--", ".")
+		truncated := len(diff) > 256<<10
 		if len(diff) > 256<<10 {
 			diff = diff[:256<<10]
+			// Do not expose a partial UTF-8 character or partial line as an anchor.
+			if i := strings.LastIndexByte(string(diff), '\n'); i >= 0 {
+				diff = diff[:i+1]
+			} else {
+				diff = nil
+			}
 		}
 		status, _ := workspace.Git(ctx, r.ExecutionCwd, "status", "--short")
-		return map[string]any{"stat": string(out), "diff": string(diff), "status": string(status)}, e
+		hash := sha256.Sum256(diff)
+		return map[string]any{"stat": string(out), "diff": string(diff), "status": string(status), "contentHash": hex.EncodeToString(hash[:]), "baseRevision": base, "truncated": truncated}, e
 	default:
 		call := s.app.readerCall
 		if p != nil {

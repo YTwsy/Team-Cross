@@ -55,11 +55,31 @@ type Preview struct {
 	Hash            string            `json:"previewHash"`
 }
 type Annotation struct {
-	ID        string    `json:"id"`
-	Text      string    `json:"text"`
-	Reference string    `json:"reference,omitempty"`
-	Author    string    `json:"author"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID        string            `json:"id"`
+	Text      string            `json:"text"`
+	Reference string            `json:"reference,omitempty"`
+	Target    *AnnotationTarget `json:"target,omitempty"`
+	Author    string            `json:"author"`
+	CreatedAt time.Time         `json:"createdAt"`
+}
+
+// AnnotationTarget describes the content as it was displayed when selected.
+// ContentHash is a SHA-256 of the complete file or displayed diff, not Git HEAD.
+type AnnotationTarget struct {
+	Kind         string `json:"kind"`
+	SessionID    string `json:"sessionId,omitempty"`
+	Path         string `json:"path,omitempty"`
+	StartLine    int    `json:"startLine,omitempty"`
+	EndLine      int    `json:"endLine,omitempty"`
+	Side         string `json:"side,omitempty"`
+	TurnID       string `json:"turnId,omitempty"`
+	ItemID       string `json:"itemId,omitempty"`
+	StartOffset  int    `json:"startOffset,omitempty"`
+	EndOffset    int    `json:"endOffset,omitempty"`
+	Cursor       string `json:"cursor,omitempty"`
+	Quote        string `json:"quote"`
+	ContentHash  string `json:"contentHash,omitempty"`
+	BaseRevision string `json:"baseRevision,omitempty"`
 }
 type Event struct {
 	Sequence uint64          `json:"sequence"`

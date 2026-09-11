@@ -1,14 +1,10 @@
 import { invitationText } from "../types";
 import { useEffect, useState } from "react";
 import { api, errorText, useResource } from "../api";
-import {
-  type Collaboration,
-  type History,
-  type Changes,
-  projectName,
-  relativeTime,
-} from "../types";
+import { type Collaboration, projectName } from "../types";
 import { Clients } from "./Clients";
+import { Context } from "./Context";
+import { Annotations, type AnnotationRequest } from "./Annotations";
 import {
   Badge,
   Copy,
@@ -19,144 +15,6 @@ import {
   Modal,
   PageHeading,
 } from "./ui";
-function Context({
-  id,
-  sequence,
-  online,
-  closed,
-}: {
-  id: string;
-  sequence: number;
-  online: boolean;
-  closed: boolean;
-}) {
-  const [tab, setTab] = useState("history");
-  const [path, setPath] = useState("");
-  const [file, setFile] = useState("");
-  const context = useResource<History | Changes | { text: string }>(
-    online && (tab !== "file" || file)
-      ? `collaborations/${id}/context?kind=${tab}&path=${encodeURIComponent(file)}`
-      : null,
-    0,
-    sequence,
-  );
-  let body;
-  if (context.data) {
-    if (tab === "history" && "thread" in context.data) {
-      const turns = context.data.thread.turns || [];
-      body = turns.length ? (
-        <div className="history">
-          {turns.slice(-8).map((turn) => (
-            <div key={turn.id} className="history-turn">
-              {(turn.items || [])
-                .filter(
-                  (i) => i.type === "userMessage" || i.type === "agentMessage",
-                )
-                .map((item, index) => (
-                  <div className={`history-message ${item.type}`} key={index}>
-                    <span className="eyebrow">
-                      {item.type === "userMessage" ? "用户" : "Codex"}
-                    </span>
-                    <p>
-                      {item.text ||
-                        item.content?.map((c) => c.text || "").join("\n")}
-                    </p>
-                  </div>
-                ))}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <Empty icon="comment" title="还没有新的活动">
-          <p>在 Codex 中继续，最新的上下文会出现在这里。</p>
-        </Empty>
-      );
-    } else if (tab === "changes" && "diff" in context.data) {
-      body =
-        context.data.diff || context.data.status ? (
-          <>
-            <pre className="diff-summary">
-              {context.data.status}
-              {context.data.stat}
-            </pre>
-            <pre className="code-content">
-              {context.data.diff ||
-                "文件状态已列出；未跟踪文件可通过文件入口查看。"}
-            </pre>
-          </>
-        ) : (
-          <Empty icon="branch" title="当前没有代码改动" />
-        );
-    } else if ("text" in context.data)
-      body = <pre className="code-content">{context.data.text}</pre>;
-  }
-  return (
-    <section className="panel context-panel">
-      <div className="panel-heading">
-        <h2>协作上下文</h2>
-        <button
-          className="icon-button"
-          aria-label="刷新上下文"
-          disabled={!online}
-          onClick={context.reload}
-        >
-          <Icon name="refresh" size={17} />
-        </button>
-      </div>
-      <div className="tabs" role="tablist" aria-label="上下文类型">
-        {[
-          ["history", "最近对话"],
-          ["changes", "代码改动"],
-          ["file", "查看文件"],
-        ].map(([value, label]) => (
-          <button
-            role="tab"
-            key={value}
-            aria-selected={tab === value}
-            onClick={() => setTab(value!)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {tab === "file" && (
-        <form
-          className="file-search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setFile(path);
-          }}
-        >
-          <input
-            aria-label="相对执行目录的文件路径"
-            placeholder="相对执行目录的文件路径，例如 src/main.ts"
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-          />
-          <button className="button small" disabled={!path || !online}>
-            查看
-          </button>
-        </form>
-      )}
-      <ErrorBox message={context.error} retry={context.reload} />
-      {!online ? (
-        <Empty
-          icon="link"
-          title={
-            closed ? "使用新邀请加入后可查看上下文" : "连接恢复后可查看上下文"
-          }
-        />
-      ) : context.loading && !context.data ? (
-        <Loading />
-      ) : (
-        body || <Empty icon="folder" title="输入相对路径以查看文件" />
-      )}
-      <div className="panel-footnote">
-        这里只保留轻量上下文，完整对话与执行交互请在 Codex 中查看。
-      </div>
-    </section>
-  );
-}
 export function Detail({ id }: { id: string }) {
   const resource = useResource<Collaboration>(`collaborations/${id}`, 2500);
   const c = resource.data;
@@ -171,8 +29,10 @@ export function Detail({ id }: { id: string }) {
     sessionStorage.removeItem(`teamcross.create.${id}`);
     sessionStorage.removeItem(`teamcross.invite.${id}`);
   }, [id]);
-  const [comment, setComment] = useState("");
-  const [reference, setReference] = useState("");
+  const [annotationRequest, setAnnotationRequest] =
+    useState<AnnotationRequest>();
+  const [annotationLocation, setAnnotationLocation] =
+    useState<AnnotationRequest>();
   async function action(value: string) {
     if (!c) return;
     setBusy(value);
@@ -187,23 +47,6 @@ export function Detail({ id }: { id: string }) {
       if (value === "end") setModal(null);
       if (value === "start" && c.runtimeState === "released")
         setModal("clients");
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy("");
-    }
-  }
-  async function annotate() {
-    setBusy("annotation");
-    setError("");
-    try {
-      await api(`collaborations/${id}/annotations`, {
-        text: comment,
-        reference,
-      });
-      setComment("");
-      setReference("");
-      resource.reload();
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -371,6 +214,12 @@ export function Detail({ id }: { id: string }) {
         <div className="detail-main">
           <Context
             id={id}
+            sessionId={c.sessionId}
+            canAnnotate={owner || (c.online && !closed)}
+            onAnnotate={(target) =>
+              setAnnotationRequest({ target, serial: Date.now() })
+            }
+            location={annotationLocation}
             online={
               c.online ||
               (owner &&
@@ -381,69 +230,36 @@ export function Detail({ id }: { id: string }) {
             sequence={c.sequence}
             closed={closed}
           />
-          <section className="panel notes-panel">
-            <div className="panel-heading">
-              <h2>
-                批注 <span className="count">{c.annotations?.length || 0}</span>
-              </h2>
-              <Icon name="comment" size={18} />
-            </div>
-            {c.annotations?.length ? (
-              <div className="annotations">
-                {c.annotations.map((a) => (
-                  <article key={a.id}>
-                    <div>
-                      <span className="avatar small">{a.author[0]}</span>
-                      <strong>{a.author}</strong>
-                      <time>{relativeTime(a.createdAt)}</time>
-                    </div>
-                    {a.reference && <code>{a.reference}</code>}
-                    <p>{a.text}</p>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="muted note-empty">
-                留下一个想法，或为同事标记值得关注的地方。
-              </p>
-            )}
-            <form
-              className="annotation-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void annotate();
-              }}
-            >
-              <label className="sr-only" htmlFor="annotation">
-                添加批注
-              </label>
-              <textarea
-                id="annotation"
-                placeholder="添加批注…"
-                rows={3}
-                maxLength={4000}
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-              />
-              <div>
-                <input
-                  aria-label="批注引用（可选）"
-                  placeholder="引用文件或对话（可选）"
-                  maxLength={1000}
-                  value={reference}
-                  onChange={(e) => setReference(e.target.value)}
-                />
-                <button
-                  className="button small"
-                  disabled={!!busy || !comment.trim() || (!owner && !c.online)}
-                >
-                  添加批注
-                </button>
-              </div>
-            </form>
-          </section>
         </div>
         <aside className="detail-aside">
+          <Annotations
+            id={id}
+            annotations={c.annotations || []}
+            request={annotationRequest}
+            disabled={!owner && (!c.online || closed)}
+            onSaved={(annotation) => {
+              resource.setData((current) =>
+                current
+                  ? {
+                      ...current,
+                      annotations: [
+                        ...(current.annotations || []).filter(
+                          (item) => item.id !== annotation.id,
+                        ),
+                        annotation,
+                      ],
+                    }
+                  : current,
+              );
+              resource.reload();
+            }}
+            onLocate={(annotation) =>
+              setAnnotationLocation({
+                target: annotation.target,
+                serial: Date.now(),
+              })
+            }
+          />
           <section className="panel">
             <h3>参与协作</h3>
             <div className="participant">

@@ -64,6 +64,14 @@ func (s *Session) annotate(in Annotation, author string, contexts ...context.Con
 	if len(in.Reference) > 1000 {
 		return Annotation{}, fmt.Errorf("引用过长")
 	}
+	if in.Target != nil {
+		// Own this value before normalization or binding it to the shared fork.
+		target := *in.Target
+		in.Target = &target
+	}
+	if err := in.Target.validate(); err != nil {
+		return Annotation{}, err
+	}
 	in.ID = uuid.NewString()
 	in.Text = text
 	in.Author = author
@@ -73,9 +81,21 @@ func (s *Session) annotate(in Annotation, author string, contexts ...context.Con
 	if len(contexts) > 0 && !s.callerValidLocked(contexts[0]) {
 		return Annotation{}, fmt.Errorf("共享已结束")
 	}
+	if in.Target != nil {
+		if in.Target.SessionID != "" && in.Target.SessionID != s.record.SessionID {
+			return Annotation{}, fmt.Errorf("批注不属于当前协作会话")
+		}
+		in.Target.SessionID = s.record.SessionID
+	}
+	previousUpdatedAt := s.record.UpdatedAt
 	s.record.Annotations = append(s.record.Annotations, in)
 	s.record.UpdatedAt = time.Now()
-	return in, s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		s.record.Annotations = s.record.Annotations[:len(s.record.Annotations)-1]
+		s.record.UpdatedAt = previousUpdatedAt
+		return Annotation{}, err
+	}
+	return in, nil
 }
 func (a *App) target(ctx context.Context, id, method, path string, input any) (any, error) {
 	a.mu.Lock()

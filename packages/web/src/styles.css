@@ -1150,7 +1150,7 @@ details[open] summary {
 }
 .detail-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 250px;
+  grid-template-columns: minmax(0, 1fr) 310px;
   gap: 22px;
 }
 .detail-main {
@@ -1274,7 +1274,7 @@ details[open] summary {
   border-bottom: 1px solid var(--line);
   padding: 16px 0;
 }
-.annotations article > div {
+.annotation-author {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1306,23 +1306,265 @@ details[open] summary {
   font-size: 12px;
   margin: 10px 0 20px;
 }
-.annotation-form {
-  margin-top: 17px;
+.annotation-hint {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.8;
 }
-.annotation-form textarea {
-  font-size: 12px;
+.annotation-boundary {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  margin-top: 12px;
 }
-.annotation-form > div {
+.annotation-empty {
+  text-align: center;
+  padding: 28px 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.annotation-empty p {
+  margin: 8px 0 3px;
+  font-size: 13px;
+  color: var(--text);
+}
+.annotation-source {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.annotation-source:hover {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+}
+.annotation-source > span,
+.annotation-saved {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-top: 9px;
+  gap: 6px;
 }
-.annotation-form input {
+.annotation-source svg {
+  flex-shrink: 0;
+}
+.annotation-source blockquote,
+.annotation-preview blockquote,
+.annotation-location blockquote {
+  margin: 9px 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+.annotation-source blockquote {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.annotation-source-action {
+  color: var(--blue);
+  font-size: 10px;
+  margin-top: 6px;
+}
+.annotation-general {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-bottom: 7px;
+}
+.annotation-copy {
+  margin-top: 10px;
+  font-size: 10px;
+}
+.annotation-saved {
+  color: var(--green);
+  font-size: 11px;
+  margin-top: 12px;
+}
+.annotation-composer label {
+  display: block;
+  font-size: 12px;
+  margin: 18px 0 8px;
+}
+.annotation-composer textarea {
+  resize: vertical;
+  min-height: 120px;
+  font-size: 13px;
+}
+.annotation-preview {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--soft);
+  padding: 14px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.annotation-preview blockquote,
+.annotation-location blockquote {
+  max-height: 150px;
+  overflow: auto;
+}
+.annotation-composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+.annotation-composer-footer > span {
+  margin-right: auto;
+}
+.message-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.message-annotate {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   border: 0;
   background: none;
-  padding: 5px 0;
+  color: var(--muted);
   font-size: 10px;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+.message-annotate:hover {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+.context-selection {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+}
+.context-selection > span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.context-selection button {
+  flex-shrink: 0;
+}
+.context-selection.has-selection {
+  color: var(--blue);
+}
+.annotation-location {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--blue-soft);
+  border-radius: 8px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.annotation-location > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.annotation-location p {
+  margin-top: 4px;
+}
+[data-annotation-highlight] {
+  background: var(--warning-bg);
+  color: inherit;
+  box-shadow: inset 3px 0 var(--warning);
+}
+mark[data-annotation-highlight] {
+  box-shadow: none;
+}
+.annotated-code {
+  overflow: auto;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 0;
+  line-height: 1.9;
+}
+.code-line {
+  display: flex;
+  min-width: 100%;
+  width: max-content;
+  align-items: baseline;
+}
+.code-line > code {
+  white-space: pre;
+  padding: 0 14px 0 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 11px;
+}
+.code-gutter {
+  user-select: none;
+  display: flex;
+  flex-shrink: 0;
+  color: var(--muted);
+  font:
+    10px / 1.9 ui-monospace,
+    monospace;
+}
+.code-gutter span {
+  text-align: right;
+  min-width: 36px;
+  padding: 0 6px;
+}
+.code-annotate,
+.code-annotate-placeholder {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.code-annotate {
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  border-radius: 3px;
+  opacity: 0.35;
+}
+.code-line:hover .code-annotate,
+.code-annotate:focus-visible {
+  opacity: 1;
+  background: var(--blue-soft);
+}
+.code-line.added {
+  background: color-mix(in srgb, var(--green) 8%, transparent);
+}
+.code-line.removed {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+.code-line[data-annotation-highlight] {
+  background: var(--warning-bg);
+}
+.code-header {
+  color: var(--muted);
+}
+.context-pagination {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
 }
 .technical {
   color: var(--muted);
@@ -1717,7 +1959,7 @@ details[open] summary {
     font-size: 11px;
   }
   .detail-grid {
-    grid-template-columns: minmax(0, 1fr) 215px;
+    grid-template-columns: minmax(0, 1fr) 270px;
     gap: 16px;
   }
   .detail-aside .panel {
@@ -1895,6 +2137,9 @@ details[open] summary {
     gap: 15px;
   }
   .detail-aside .technical {
+    grid-column: 1 / -1;
+  }
+  .detail-aside .notes-panel {
     grid-column: 1 / -1;
   }
   .execution-strip {

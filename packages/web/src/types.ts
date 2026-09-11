@@ -1,8 +1,25 @@
 export type Mode = "existing" | "worktree";
+export type AnnotationTarget = {
+  kind: "history" | "file" | "changes";
+  sessionId?: string;
+  path?: string;
+  startLine?: number;
+  endLine?: number;
+  side?: "old" | "new";
+  turnId?: string;
+  itemId?: string;
+  startOffset?: number;
+  endOffset?: number;
+  cursor?: string;
+  quote: string;
+  contentHash?: string;
+  baseRevision?: string;
+};
 export type Annotation = {
   id: string;
   text: string;
   reference?: string;
+  target?: AnnotationTarget;
   author: string;
   createdAt: string;
 };
@@ -90,11 +107,13 @@ export type Info = {
 };
 export type ClientPlan = { command: string; launched: boolean; note?: string };
 export type History = {
+  nextCursor?: string | null;
   thread: {
     turns?: {
       id: string;
       status: string;
       items?: {
+        id?: string;
         type: string;
         text?: string;
         content?: { type: string; text?: string }[];
@@ -102,7 +121,15 @@ export type History = {
     }[];
   };
 };
-export type Changes = { stat: string; diff: string; status: string };
+export type Changes = {
+  stat: string;
+  diff: string;
+  status: string;
+  contentHash?: string;
+  baseRevision?: string;
+  truncated?: boolean;
+};
+export type FileContext = { path?: string; text: string; contentHash?: string };
 export const projectName = (path = "") =>
   path.split("/").filter(Boolean).at(-1) || "项目";
 export const sourceName = (s: Source) =>
