@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix='teamcross-package-') as temp:
     stage=pathlib.Path(temp); app=stage/'Team Cross.app'; mac=app/'Contents/MacOS'; resources=app/'Contents/Resources'
     mac.mkdir(parents=True); resources.mkdir()
     run('go','build','-trimpath','-ldflags',f'-s -w -X teamcross/internal/buildinfo.Version={a.version} -X teamcross/internal/buildinfo.Commit={commit}', '-o',str(resources/'teamcross'),'./cmd/teamcross',env=env)
-    run('xcrun','swiftc','-O','-target','arm64-apple-macosx14.0','-module-cache-path',str(ROOT/'bin/swift-cache'),str(ROOT/'apps/macos/TeamCross.swift'),'-o',str(mac/'TeamCross'),env=env)
+    run('xcrun','swiftc','-O','-target','arm64-apple-macosx14.0','-module-cache-path',str(ROOT/'bin/swift-cache'),str(ROOT/'apps/macos/AppInstance.swift'),str(ROOT/'apps/macos/TeamCross.swift'),'-o',str(mac/'TeamCross'),env=env)
     info=plistlib.loads((ROOT/'apps/macos/Info.plist').read_bytes());info['CFBundleShortVersionString']=a.version.split('-')[0].split('+')[0];info['CFBundleVersion']=build_number;info['TeamCrossVersion']=a.version
     (app/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
     identity=a.sign_identity or '-'

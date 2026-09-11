@@ -13,7 +13,7 @@ test:
 dev:
 	go run ./cmd/teamcross serve --foreground --dev-web http://127.0.0.1:5173
 
-.PHONY: release verify-release verify-homebrew
+.PHONY: release verify-release verify-homebrew verify-app-instance
 VERSION ?= 0.1.1-dev
 release:
 	python3 scripts/build-release.py --version $(VERSION)
@@ -21,3 +21,5 @@ verify-release:
 	python3 scripts/verify-release.py dist/release/$(VERSION)
 verify-homebrew:
 	python3 scripts/verify-homebrew.py dist/release/$(VERSION)
+verify-app-instance:
+	python3 scripts/verify-app-instance.py 'dist/release/$(VERSION)/Team Cross.app'

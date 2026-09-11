@@ -20,6 +20,7 @@ with tempfile.TemporaryDirectory(prefix='teamcross-install-') as temp:
         info=plistlib.loads((installed/'Contents/Info.plist').read_bytes());assert info['LSMinimumSystemVersion']=='14.0';assert info['CFBundleURLTypes'][0]['CFBundleURLSchemes']==['teamcross']
         run('codesign','--verify','--deep','--strict',str(installed))
         helper=installed/'Contents/Resources/teamcross';assert json.loads(subprocess.check_output([str(helper),'version','--json'],text=True))==version
+        run('python3',str(ROOT/'scripts/verify-app-instance.py'),str(installed))
         commands=root/'terminal commands';cliEnv=os.environ.copy();cliEnv['PATH']=str(commands)+':/usr/bin:/bin'
         def install_call(action):
             return json.loads(subprocess.check_output([str(helper),action,'--cli-dir',str(commands),'--json'],env=cliEnv,text=True,timeout=15))
@@ -40,4 +41,4 @@ with tempfile.TemporaryDirectory(prefix='teamcross-install-') as temp:
         finally: run(str(helper),'stop','--force','--data-dir',str(data),stdout=subprocess.DEVNULL)
     finally:
         if mounted: run('hdiutil','detach',str(mount),stdout=subprocess.DEVNULL)
-print(json.dumps({'checksums':True,'dmgInstall':True,'appSignatureIntegrity':True,'cliAppVersionParity':True,'appCLIInstallAndRemove':True,'existingCommandPreserved':True,'compatibleCoreReuse':True,'publicInstallation':False}))
+print(json.dumps({'checksums':True,'dmgInstall':True,'appSignatureIntegrity':True,'cliAppVersionParity':True,'appSingleInstance':True,'appCLIInstallAndRemove':True,'existingCommandPreserved':True,'compatibleCoreReuse':True,'publicInstallation':False}))
