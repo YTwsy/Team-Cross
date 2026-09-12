@@ -60,7 +60,7 @@ B 加入后直接进入上下文。每 10 秒由 B Core 发送心跳，A 以 30 
 
 直接客户端以连接建立、成功读取或恢复对应 thread 区分 `connected` 和 `session_ready`。Desktop 仍需手动打开会话时如实说明。配置发现支持显式 CLI、安装 App 内的 CLI、PATH 与系统/用户 Applications；实际版本可诊断，实验 Desktop 接口不视为公开稳定合同。
 
-MCP 配置保存稳定 opt/App 绝对路径。通过 Cask 命令链接调用时也解析回 App helper；不保存版本化 Cellar 路径或依赖 shell alias。配置存在、独立 STDIO 协议探测和实际客户端工具调用分别记录；仅配置成功不代表旧客户端已重载工具。协议探测不启动模型，也不记录为实际客户端调用。
+MCP 配置保存稳定 opt/App 绝对路径。通过 Cask 命令链接调用时也解析回 App helper；不保存版本化 Cellar 路径或依赖 shell alias。个人 Codex 或 Claude Code 分别配置；Claude 使用 user 范围原生配置命令，遇到当前项目同名覆盖或禁用时提示处理。配置存在、独立 STDIO 协议探测和各 Provider 实际客户端工具调用分别记录；仅配置成功不代表旧客户端已重载工具。协议探测不启动模型，也不记录为实际客户端调用。
 
 ## 检查与相关规范
 

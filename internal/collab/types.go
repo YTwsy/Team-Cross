@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/sharing"
 	"teamcross/internal/workspace"
@@ -23,10 +24,12 @@ type Runtime interface {
 
 type Config struct {
 	DataDir, Repo, Binary, DesktopApp string
+	ClaudeBinary, ClaudeHome          string
 	Loopback                          bool
 	StartProcess                      func(string, string, string, string) (Runtime, error)
 }
 type Source struct {
+	Provider        string  `json:"provider,omitempty"`
 	Model           string  `json:"model,omitempty"`
 	ModelProvider   string  `json:"modelProvider,omitempty"`
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
@@ -41,6 +44,7 @@ type Source struct {
 	} `json:"status"`
 }
 type CreateInput struct {
+	Provider      string `json:"provider,omitempty"`
 	SourceID      string `json:"sourceId"`
 	WorkspaceMode string `json:"workspaceMode"`
 	Title         string `json:"title"`
@@ -48,11 +52,12 @@ type CreateInput struct {
 	RequestID     string `json:"requestId"`
 }
 type Preview struct {
-	TargetDirectory string            `json:"targetDirectory"`
-	Source          Source            `json:"source"`
-	SourceTurnID    string            `json:"sourceTurnId"`
-	Workspace       workspace.Preview `json:"workspace"`
-	Hash            string            `json:"previewHash"`
+	SourceFingerprint string            `json:"-"`
+	TargetDirectory   string            `json:"targetDirectory"`
+	Source            Source            `json:"source"`
+	SourceTurnID      string            `json:"sourceTurnId"`
+	Workspace         workspace.Preview `json:"workspace"`
+	Hash              string            `json:"previewHash"`
 }
 type Annotation struct {
 	ID        string            `json:"id"`
@@ -100,6 +105,8 @@ type Command struct {
 	Error  string          `json:"error,omitempty"`
 }
 type Record struct {
+	Provider        string             `json:"provider,omitempty"`
+	NativeJobID     string             `json:"nativeJobId,omitempty"`
 	Model           string             `json:"model,omitempty"`
 	ModelProvider   string             `json:"modelProvider,omitempty"`
 	ReasoningEffort *string            `json:"reasoningEffort,omitempty"`
@@ -144,6 +151,8 @@ type Session struct {
 	process         Runtime
 	writer          string
 	busy            bool
+	nativeWaiting   string
+	nativeLastWrite time.Time
 	online          bool
 	epoch           uint64
 	share           *sharing.Runtime
@@ -185,11 +194,13 @@ type Joined struct {
 	heartbeatOnce sync.Once
 }
 type Settings struct {
-	Binary     string `json:"binary"`
-	DesktopApp string `json:"desktopApp"`
+	ClaudeBinary string `json:"claudeBinary"`
+	Binary       string `json:"binary"`
+	DesktopApp   string `json:"desktopApp"`
 }
 type App struct {
 	joinMu        sync.Mutex
+	mcpSetupMu    sync.Mutex
 	retiredShares []*sharing.Runtime
 	mu            sync.Mutex
 	Config        Config
@@ -197,12 +208,13 @@ type App struct {
 	URL           string
 	Token         string
 	settings      Settings
+	claudeClients map[string]*nativeclaude.Client
 	reader        Runtime
 	readerMu      sync.Mutex
 	sessions      map[string]*Session
 	joined        map[string]*Joined
 	closed        bool
 	pending       map[string]pendingInvite
-	mcpObserved   time.Time
+	mcpObserved   map[string]time.Time
 	mcpProbed     bool
 }

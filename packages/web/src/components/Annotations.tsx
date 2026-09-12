@@ -136,7 +136,7 @@ export function Annotations({
                   <p>{annotation.text}</p>
                   <Copy
                     className="annotation-copy"
-                    label="复制给 Codex"
+                    label="复制给辅助客户端"
                     text={`使用 Team Cross 读取协作 ${id} 的批注（read_context，kind=annotations），查看批注 ${annotation.id}。请结合其 target 定位与 quote 原文片段分析这条意见，先核对当前内容是否变化。`}
                   />
                 </article>
@@ -150,7 +150,7 @@ export function Annotations({
           </div>
         )}
         <p className="annotation-hint annotation-boundary">
-          批注会保存到协作。需要 Codex 处理时，在 Codex 中提出。
+          批注会保存到协作，可通过 Team Cross 工具读取，或复制给辅助客户端。
         </p>
       </section>
       {open && (

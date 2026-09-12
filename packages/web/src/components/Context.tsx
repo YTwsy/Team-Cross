@@ -26,6 +26,7 @@ export function Context({
   canAnnotate,
   onAnnotate,
   location,
+  agentName = "Codex",
 }: {
   id: string;
   sessionId: string;
@@ -35,6 +36,7 @@ export function Context({
   canAnnotate: boolean;
   onAnnotate: (target: AnnotationTarget) => void;
   location?: AnnotationRequest;
+  agentName?: string;
 }) {
   const [tab, setTab] = useState("history");
   const [path, setPath] = useState("");
@@ -295,7 +297,7 @@ export function Context({
                     >
                       <div className="message-heading">
                         <span className="eyebrow">
-                          {item.type === "userMessage" ? "用户" : "Codex"}
+                          {item.type === "userMessage" ? "用户" : agentName}
                         </span>
                         {canAnnotate && item.id && excerpt.trim() && (
                           <button
@@ -342,7 +344,7 @@ export function Context({
         </div>
       ) : (
         <Empty icon="comment" title="还没有新的活动">
-          <p>在 Codex 中继续，最新的上下文会出现在这里。</p>
+          <p>在 {agentName} 中继续，最新的上下文会出现在这里。</p>
         </Empty>
       );
     } else if (tab === "changes" && "diff" in data) {
@@ -368,7 +370,7 @@ export function Context({
             )}
             {data.truncated && (
               <p className="muted small-text">
-                改动较大，仅展示前 256 KiB。其余内容请查看文件或在 Codex
+                改动较大，仅展示前 256 KiB。其余内容请查看文件或在 {agentName}
                 中阅读。
               </p>
             )}
@@ -527,7 +529,7 @@ export function Context({
           </div>
         )}
       <div className="panel-footnote">
-        这里只保留轻量上下文，完整对话与执行交互请在 Codex 中查看。
+        这里只保留轻量上下文，完整对话与执行交互请在 {agentName} 中查看。
       </div>
     </section>
   );

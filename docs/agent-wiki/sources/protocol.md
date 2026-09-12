@@ -11,15 +11,15 @@
 | 方法与路径 | 含义 |
 | --- | --- |
 | `GET /info` | 客户端位置、版本、主机、MCP 配置状态 |
-| `POST /settings` | 保存 `binary`、`desktopApp` |
-| `POST /mcp/setup` | 写入一次性 Codex MCP 配置（稳定 opt/App 路径） |
+| `POST /settings` | 保存 `binary`、`desktopApp`、`claudeBinary` |
+| `POST /mcp/setup` | `{provider:codex|claude}` 写入个人 MCP 配置，省略默认 Codex（稳定 opt/App 路径） |
 | `POST /mcp/probe` | 运行独立 STDIO 握手与工具枚举探测，不启动模型 |
-| `POST /mcp/observed` | 本机凭据保护，记录实际工具调用时间 |
+| `POST /mcp/observed` | 本机凭据保护，`{provider:codex|claude}` 分别记录实际工具调用时间；未知客户端不记入 |
 | `GET /control/status` | 本机凭据保护，返回实例、版本、控制协议及活动协作数，不启动 Codex |
 | `POST /control/stop` | 本机凭据保护，`{force}`；活动协作未确认返回 409 |
 | `POST /invitations/pending` | 本机凭据保护，`{invitation}` 暂存并返回不含 secret 的随机 ID |
 | `POST /invitations/preview` | `{invitation}` 或 `{pendingId}`，只解析显示信息，不连接远端 |
-| `GET /sources?search=&cursor=` | 分页搜索原生来源会话 |
+| `GET /sources?provider=codex|claude&search=&cursor=` | 分页搜索原生来源会话 |
 | `POST /preview` | 检查来源的最新完成轮与 Git 起点 |
 | `GET /collaborations` | 本机发起与加入的协作 |
 | `POST /collaborations` | 创建新的协作 fork |
@@ -28,7 +28,7 @@
 | `GET /collaborations/:id/context?kind=&path=&after=&cursor=` | `history/changes/file/annotations/events` |
 | `POST /collaborations/:id/action` | `{action,epoch}` |
 | `POST /collaborations/:id/open` | `{client:tui|desktop,launch:boolean}` 直接客户端 |
-| `POST /collaborations/:id/assist` | 同上，打开用户自己的客户端 |
+| `POST /collaborations/:id/assist` | `{provider:codex|claude,client:tui|desktop,launch:boolean}`，Provider 选择个人客户端，省略默认 Codex；Claude 仅 TUI |
 | `POST /collaborations/:id/rpc` | `{method,params,requestId}` 协作原生调用 |
 | `POST /collaborations/:id/respond` | `{id,result}` 原生请求回应 |
 | `POST /collaborations/:id/annotations` | `{text,target?,reference?}` |
@@ -37,6 +37,7 @@
 
 ```json
 {
+  "provider": "codex",
   "sourceId": "来源原生会话 UUID",
   "workspaceMode": "existing",
   "requestId": "本次创建 UUID",
@@ -84,6 +85,8 @@ TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS 路径和凭�
 `context?kind=events&after=N` 返回 `{events,cursor,approvals,busy,online}`。每个事件有 `sequence/method/params/time`；保留最近 600 项。长期对话以原生历史为准，跨服务重启不要把旧事件 cursor 当作永久日志位置。`get_collaboration` 的 `sequence` 可判断当前游标是否重置。
 
 原生写入请求必须有 `requestId`。一次原生客户端连接会得到新的连接标识，与客户端 RPC ID 一起构成写入 ID，连接断开后不会自动重新执行旧 RPC。`completed` 表示 RPC 得到响应，轮次最终结果需等待 `turn/completed`。
+
+`info.mcpClients.codex|claude` 各含 `configured`、`command`、`configError?`、`observedAt`；配置检测限定本机辅助目录。`mcpProbed` 是共用工具服务的独立协议检查。兼容 CLI 诊断的顶层 `mcpConfigured/mcpCommand/mcpObservedAt` 仍对应 Codex。实际调用根据 MCP 初始化声明的客户端名识别，未知名不冒充 Codex；该信息只用于诊断，不授予协作权限。
 
 STDIO MCP 采用逐行 JSON-RPC 2.0，协议版本 `2024-11-05`；只在 stdout 输出协议消息。工具输入和结果遵循上述管理 API。
 
@@ -136,3 +139,15 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 `cli` 包含 `executable/target/command/source/installed/canInstall/canRemove/conflict/pathReady`；`source` 为 `app/formula/standalone/unavailable`。命令定位与归属检查只读，不修改 shell 配置。`pathReady` 只反映进程实际继承的 PATH；Finder 下额外检查 Homebrew 位置不代表终端已配置这些目录。
 
 App helper 的 `cli-status`、`install-cli`、`uninstall-cli` 支持 `--json` 与绝对路径 `--cli-dir`，在 Core 启动逻辑之前处理。只有后两种命令可由菜单栏请求系统授权。冲突、权限不足与临时挂载 App 分别返回 `cli_conflict`、`cli_permission_denied`、`cli_app_not_installed`；独立 CLI 调用安装操作返回 `cli_requires_app`。
+
+## Claude 实验性协议
+
+`provider` 省略时为 `codex`，另接受 `claude`；其他值拒绝。创建请求的幂等比较包含 Provider；Claude 的预览哈希额外绑定来源 JSONL 指纹。`GET /info` 增加 `claudeBinary/claudeVersion/claudeError`。完整运行时契约见 [Claude 原生 TUI](decisions/claude-native-tui.md)。
+
+Claude 状态返回 `provider:claude`、`nativeJobId`、`nativeWaiting`，以及 `capabilities`：`nativeTui/sendInput=true`，`nativeDesktop/steerInput/interruptTurn/respondToRequest=false`。`approvals` 不包含 Claude TUI 内部的待审批请求；不能据此推断没有等待交互。模型与推理强度来自最近持久化的原生 assistant 消息，尚未执行下一轮时不提前宣布 TUI 设置已确认。
+
+同一 `/v2/connect` 根据协作 Provider 分发。Claude 首帧为 JSON `{op:"attach",cols,rows,attachId,caps}`；A 返回原生连接 ACK，之后 binary 帧是终端字节，text 帧仅允许同一 `attachId` 的 resize。不存在任意原生命令穿透。成员认证、单个直接客户端、输入归属和 epoch 继续生效。`session_ready` 要求原生 ACK nonce 对应且包含已加载消息的 `content_paint`。
+
+Claude 控制 RPC 支持绑定会话的 `thread/read`、`thread/turns/list`、`thread/list`、`thread/loaded/list`、`thread/unsubscribe` 和空闲时 `turn/start`。后者只接受一段非空、至多 256 KiB 的文本，不接受模型覆盖；返回 `{accepted:true,provider:"claude"}` 表示 worker 接收，不伪造 turn ID。补充、中断、审批和设置方法返回 `native_client_required`。历史分页中 `turn.id` 是原生用户消息 UUID，供阅读与批注定位，不作为原生控制用 turn ID。
+
+Claude 事件使用 `teamcross/claudeState`、`teamcross/claudeHistory` 与已确认的 `thread/settings/updated`；状态轮询不是 Codex 的 `turn/completed` 流。控制端需要同时读状态和历史确认结果。原生 TUI 原始输入没有请求 ID 或逐包执行确认，连接层不会缓存或重放；它不提供 RPC 的幂等接收承诺。

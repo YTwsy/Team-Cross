@@ -2,11 +2,13 @@
 
 ## 两种参与方式
 
-直接 TUI 与专用 Desktop 连接同一个协作 fork；普通本地 TUI/Desktop 通过 MCP 辅助。共享会话在 A 执行，辅助会话保留自己的本地上下文，双方按需交换选定信息。
+直接 TUI 与专用 Desktop 连接同一个协作 fork；个人 Codex TUI/Desktop 或 Claude Code TUI 通过 MCP 辅助。共享会话在 A 执行，辅助会话保留自己的本地上下文，双方按需交换选定信息。
 
-采用 Codex app-server 作为原生协议入口，让历史、输入、事件和审批沿原生会话继续。Team Cross 不需要先定义能容纳各类 Provider 完整历史的新会话格式。首轮只接入 Codex。
+采用 Codex app-server 作为原生协议入口，让历史、输入、事件和审批沿原生会话继续。Team Cross 不需要先定义能容纳各类 Provider 完整历史的新会话格式。Codex 为现有主线；Claude 的实验性原生 job 接入与限制另见 [Claude 原生 TUI](claude-native-tui.md)。
 
 专用 Desktop 使用独立 `CODEX_HOME` 和应用数据目录，避免与普通 Desktop 的实例状态混用。其指定 WebSocket 启动入口仍需按客户端版本实测；共用 app-server 不足以证明所有 Desktop 菜单或全局功能均兼容。
+
+个人辅助客户端与目标协作的 Provider 独立。安装、配置检测、普通 TUI 打开与实际调用证据复用本机 Core；具体权限与控制能力仍以目标协作为准。Claude 个人配置和验证边界见 [Claude 个人辅助模式](claude-native-tui.md#个人-claude-code-辅助模式)。
 
 ## 本机账户与共享执行
 

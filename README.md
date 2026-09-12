@@ -2,7 +2,7 @@
 
 **Team Cross 让团队在不改变既有工作区和工作流的前提下，安全地分享、审阅、临时移交或继续一个 coding-agent Session，让同事用自己的客户端一起继续。**
 
-Team Cross 是 macOS 上的本地协作工具。发起者选择一个来源会话，创建新的原生 Codex fork，再向同事发送临时局域网邀请。会话、模型调用与代码执行保留在发起者的 Mac；参与者可以使用本机 TUI、专用 Desktop，或让自己的 Codex 通过工具辅助协作。
+Team Cross 是 macOS 上的本地协作工具。发起者选择一个来源会话，创建新的原生会话 fork，再向同事发送临时局域网邀请。会话、模型调用与代码执行保留在发起者的 Mac；参与者可以使用本机 TUI、专用 Desktop，或让自己的 Codex / Claude Code 通过工具辅助协作。
 
 ## 产品方向
 
@@ -34,7 +34,7 @@ Agent Session 入手，为具体的一次工作增加共同视图、可定位批
 
 首次打开如果受到系统提示，先尝试打开 App，再按 [Apple 的说明](https://support.apple.com/zh-cn/102445) 在“系统设置 → 隐私与安全性”中允许打开。构建清单记录每个安装包的签名和公证状态。
 
-查看共享上下文不需要先安装 Codex 或准备本地仓库。发起协作、直接操作或使用 MCP 辅助时，按页面提示使用已安装的 Codex。原生客户端窗口验证基线为 `codex-cli 0.153.1`、Codex Desktop `26.901.31953`；本轮另用 CLI `0.153.4` 通过真实运行时与网关回归。不同入口的实际覆盖见 [验收记录](docs/agent-wiki/sources/validation/distribution-v0.1.1-2026-09-11.md)，后续版本的实验接口需要重新验证。
+查看共享上下文不需要先安装 Codex 或准备本地仓库。发起协作、直接操作或使用 MCP 辅助时，按页面提示使用对应的 Codex 或 Claude Code。原生客户端窗口验证基线为 `codex-cli 0.153.1`、Codex Desktop `26.901.31953`；本轮另用 CLI `0.153.4` 通过真实运行时与网关回归。不同入口的实际覆盖见 [验收记录](docs/agent-wiki/sources/validation/distribution-v0.1.1-2026-09-11.md)，后续版本的实验接口需要重新验证。
 
 ## 打开 Team Cross
 
@@ -48,7 +48,7 @@ teamcross serve
 
 同一用户、同一数据目录的新版 App 副本也共用一个菜单栏入口。再次打开其他副本时，打开页面或邀请预览的请求会交给已有 App；第二份 App 仅退出自身，不停止协作服务。升级前仍应按安装说明退出旧版 App。
 
-默认数据目录仍为 `~/Library/Application Support/Team Cross Next`。同一用户、同一规范化数据目录只运行一个 Core。默认端口 `43210` 被占用时自动选择可用端口，以启动输出为准；显式 `--listen` 冲突会报错。`--data-dir`、`--no-open`、`--codex-bin` 和 `--desktop-app` 可用于高级配置，`--repo` 仅影响本机辅助上下文，不选择共享仓库。
+默认数据目录仍为 `~/Library/Application Support/Team Cross Next`。同一用户、同一规范化数据目录只运行一个 Core。默认端口 `43210` 被占用时自动选择可用端口，以启动输出为准；显式 `--listen` 冲突会报错。`--data-dir`、`--no-open`、`--codex-bin`、`--claude-bin` 和 `--desktop-app` 可用于高级配置，`--repo` 仅影响本机辅助上下文，不选择共享仓库。
 
 ```sh
 teamcross status --json
@@ -63,7 +63,7 @@ teamcross stop --force
 
 ## 发起协作
 
-1. 在首页选择“发起协作”，搜索并选择一个已有已完成对话的 Codex 会话。
+1. 在首页选择“发起协作”，搜索并选择 Codex 或实验性的 Claude Code 来源，再选择已有已完成对话的会话。
 2. 选择执行目录，查看起点，按需修改自动生成的名称，选择“创建并邀请”。共享失败时保留已创建的协作，在详情重试邀请，不重复创建 fork。
 
 | 目录模式 | 创建时发生什么 | 后续代码在哪里执行 |
@@ -86,11 +86,17 @@ teamcross join 'tcx2.…'
 加入后可以选择两种参与方式，之后也能同时打开另一种入口：
 
 - **直接操作：** 使用本机 Codex TUI，或专用于该协作的独立 Codex Desktop。客户端连接同一个共享 fork，实际执行在发起者主机。同一协作只保留一个直接客户端，切换前关闭原直接客户端。
-- **用自己的 Codex 辅助：** 保持自己的普通 TUI/Desktop 会话，通过 Team Cross 工具选择目标、读取历史、查看文件和改动、参与输入或添加批注。这些会话拥有各自的本地上下文。
+- **用自己的客户端辅助：** 选择个人 Codex（TUI/Desktop）或 Claude Code TUI，保持自己的普通会话，通过 Team Cross 工具选择目标、读取历史、查看文件和改动、参与输入或添加批注。这些会话拥有各自的本地上下文。
 
-参与方在线状态由 Core 心跳维持，关闭浏览器不会被当作离开。接收者可申请或取消申请输入；发起者明确交接或接回，接收者也可以交还输入。申请本身不会自动交接或启动模型。直接客户端和辅助工具的写入统一检查输入归属，读取可以并行。当前轮运行中可通过 Codex 或 MCP 补充、中断，审批在原生客户端或辅助工具中回应。
+参与方在线状态由 Core 心跳维持，关闭浏览器不会被当作离开。接收者可申请或取消申请输入；发起者明确交接或接回，接收者也可以交还输入。申请本身不会自动交接或启动模型。直接客户端和辅助工具的写入统一检查输入归属，读取可以并行。Codex 协作可通过原生客户端或 MCP 补充、中断、回应审批；Claude 协作的这些操作使用原生 TUI。
 
 界面分别展示启动请求、客户端连接和共享会话就绪状态；连接成功不等于会话已打开。专用 Desktop 第一次打开时可能需要完成登录或跳过引导，之后从左侧打开协作会话。它与原有 Desktop 使用独立应用数据目录；账户登录与客户端偏好在使用者本机处理，共享会话的模型调用仍由发起者运行时承担。此入口面向协作会话的历史、输入、审批与代码操作，Desktop 的其他全局功能不在首轮兼容承诺中。
+
+## Claude Code 原生 TUI（实验性）
+
+创建页选择「Claude Code · 实验性」。最低要求 Claude Code `2.1.268`，A/B 都需不低于该版本；`2.1.268` 是已实测基线，后续正式版本不因版本号不同而拒绝；可在设置页指定 CLI 路径，或启动时传入 `--claude-bin`。A 上一个原生后台 job 承担执行，当前输入者的原生 TUI 处理输入、审批与中断。读取历史、创建 fork 和恢复不会发送业务 prompt。
+
+WebGUI 与辅助工具可查看上下文、添加批注，并在空闲时发送文本。Claude 的补充、中断、审批与模型选择目前需要在原生 TUI 中操作；共享 worker 尚未接入 Claude Desktop、Computer Use、插件或自定义 MCP，也不承诺与 Codex 的 OS 权限隔离等价。Claude 使用 A 的 API 路由；OAuth / Keychain 登录流程尚未验收。详见 [Claude 接入契约](docs/agent-wiki/sources/decisions/claude-native-tui.md) 与 [2026-09-12 实测记录](docs/agent-wiki/sources/validation/claude-native-tui-2026-09-12.md)。
 
 ## 模型与推理强度
 
@@ -100,15 +106,18 @@ teamcross join 'tcx2.…'
 
 ## 一次性接入 MCP
 
-在“设置与连接”中点击“接入本机 Codex”，或使用该页面给出的准确命令：
+在“设置与连接”或“用自己的客户端辅助”中选择 Codex / Claude Code，点击对应的“接入本机”按钮。也可以使用该页面给出的准确命令：
 
 ```sh
 codex mcp add teamcross -- /absolute/path/to/teamcross mcp
+claude mcp add --transport stdio --scope user teamcross -- /absolute/path/to/teamcross mcp
 ```
 
-若使用自定义数据目录，在 `mcp` 后追加 `--data-dir /absolute/path`。配置使用稳定的 Homebrew `opt` 路径或已安装 App 内的绝对路径。TUI 和 Desktop 共用 Codex 配置；已有会话需重新加载工具。设置页分别显示配置、协议探测和实际工具调用证据；MCP 握手不启动 Core，首次工具调用可无浏览器启动 Core。
+若使用自定义数据目录，在 `mcp` 后追加 `--data-dir /absolute/path`。配置使用稳定的 Homebrew `opt` 路径或已安装 App 内的绝对路径。Codex TUI 和 Desktop 共用配置；Claude 写入个人 user 范围配置，已有客户端请在 `/mcp` 中重新连接或重新打开。设置页分别显示配置、协议探测，以及 Codex / Claude 各自的实际工具调用证据；MCP 握手不启动 Core，首次工具调用可无浏览器启动 Core。
 
-可以告诉自己的 Codex：“使用 Team Cross 列出协作，查看这次协作的上下文和当前状态。”工具支持：
+个人 Claude 与 Codex 复用同一套 Team Cross 工具，可以辅助任一 Provider 的协作；实际写入能力取决于目标协作及当前输入归属。个人对话与模型调用在本机，发往共享会话的任务在 A 执行。对应结果见 [个人 Claude MCP 验收](docs/agent-wiki/sources/validation/claude-assist-2026-09-12.md)。项目同名配置、显式禁用或组织策略可能影响工具加载，页面检测不覆盖其他目录。
+
+可以告诉自己的客户端：“使用 Team Cross 列出协作，查看这次协作的上下文和当前状态。”工具支持：
 
 | 工具 | 用途 |
 | --- | --- |

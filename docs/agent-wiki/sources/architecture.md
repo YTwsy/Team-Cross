@@ -98,3 +98,7 @@ Team Cross Next/
 ## 桌面分发与后台启动
 
 CLI、App 和 MCP 的共用启动、发现、版本检查和退出机制见 [分发与首次体验](distribution-and-onboarding.md)。默认 serve 现在是后台启动，开发使用 --foreground。
+
+## Claude 实验性执行端
+
+Claude 的源码历史、后台 job 与终端字节由 [nativeclaude](../../../internal/nativeclaude/) 处理，[协作适配](../../../internal/collab/claude.go) 复用目录、输入归属、TLS 成员、MCP 与生命周期。单 worker、惰性 fork、最低版本和控制能力边界见 [Claude 接入契约](decisions/claude-native-tui.md)；上述 Codex app-server RPC 语义不自动适用于 Claude。

@@ -2378,3 +2378,11 @@ mark[data-annotation-highlight] {
   font-size: 11px;
   line-height: 1.65;
 }
+
+.provider-picker {
+  margin-bottom: 1rem;
+}
+
+.client-grid:has(> .client-card:only-child) {
+  grid-template-columns: 1fr;
+}

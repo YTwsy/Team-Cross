@@ -61,6 +61,7 @@ func run(args []string) error {
 	dev := flags.String("dev-web", "", "前端开发地址")
 	loopback := flags.Bool("test-loopback", false, "邀请包含同机测试地址")
 	binary := flags.String("codex-bin", "", "Codex CLI 路径")
+	claudeBinary := flags.String("claude-bin", "", "Claude Code CLI 路径")
 	desktop := flags.String("desktop-app", "", "Codex Desktop 应用路径")
 	cliDir := flags.String("cli-dir", cliinstall.DefaultDir, "App 命令入口目录")
 	if e := flags.Parse(args); e != nil {
@@ -185,7 +186,7 @@ func run(args []string) error {
 		}
 	})
 	if command == "serve" && *foreground {
-		return serve(ctx, cancel, collab.Config{DataDir: *data, Repo: *repo, Binary: *binary, DesktopApp: *desktop, Loopback: *loopback}, *listen, explicitListen, *dev, *noOpen)
+		return serve(ctx, cancel, collab.Config{DataDir: *data, Repo: *repo, Binary: *binary, ClaudeBinary: *claudeBinary, DesktopApp: *desktop, Loopback: *loopback}, *listen, explicitListen, *dev, *noOpen)
 	}
 	extra := []string{"--repo", *repo}
 	if explicitListen {
@@ -193,6 +194,9 @@ func run(args []string) error {
 	}
 	if *binary != "" {
 		extra = append(extra, "--codex-bin", *binary)
+	}
+	if *claudeBinary != "" {
+		extra = append(extra, "--claude-bin", *claudeBinary)
 	}
 	if *desktop != "" {
 		extra = append(extra, "--desktop-app", *desktop)

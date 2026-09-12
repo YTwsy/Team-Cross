@@ -24,6 +24,16 @@ export type Annotation = {
   createdAt: string;
 };
 export type Collaboration = {
+  provider?: Provider;
+  nativeWaiting?: string;
+  capabilities?: {
+    nativeTui: boolean;
+    nativeDesktop: boolean;
+    sendInput: boolean;
+    steerInput: boolean;
+    interruptTurn: boolean;
+    respondToRequest: boolean;
+  };
   id: string;
   title: string;
   sourceId: string;
@@ -63,6 +73,7 @@ export type Collaboration = {
   reasoningEffort?: string | null;
 };
 export type Source = {
+  provider?: Provider;
   id: string;
   name?: string;
   preview: string;
@@ -85,7 +96,18 @@ export type Preview = {
   };
   targetDirectory?: string;
 };
+export type Provider = "codex" | "claude";
+export type MCPClientStatus = {
+  configured: boolean;
+  command: string;
+  configError?: string;
+  observedAt?: string;
+};
 export type Info = {
+  mcpClients?: Record<Provider, MCPClientStatus>;
+  claudeBinary?: string;
+  claudeVersion?: string;
+  claudeError?: string;
   host: string;
   version: string;
   installedVersion?: string;
@@ -159,6 +181,7 @@ export function status(c: Collaboration) {
   if (c.runtimeState === "released")
     return { text: "会话已释放", tone: "muted" };
   if (!c.online) return { text: "等待连接", tone: "muted" };
+  if (c.nativeWaiting) return { text: "等待原生交互", tone: "warning" };
   if (c.approvals > 0) return { text: "等待审批", tone: "warning" };
   if (c.busy) return { text: "运行中", tone: "blue" };
   return { text: "等待输入", tone: "green" };

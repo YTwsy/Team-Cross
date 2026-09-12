@@ -3,6 +3,7 @@ package collab
 import (
 	"context"
 	"teamcross/internal/sharing"
+	"time"
 )
 
 // Closing this Session's dedicated app-server is the native writer-lock release
@@ -12,6 +13,9 @@ func (s *Session) releaseIfIdleLocked() {
 		return
 	}
 	if s.process.Alive() && (s.busy || len(s.approvals) != 0) {
+		return
+	}
+	if s.record.Provider == "claude" && time.Since(s.nativeLastWrite) < 3*time.Second {
 		return
 	}
 	p := s.process

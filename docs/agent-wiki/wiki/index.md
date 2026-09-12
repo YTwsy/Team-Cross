@@ -27,6 +27,9 @@
 - [2026-09-10 邀请与原生会话释放](../sources/validation/membership-and-release-2026-09-10.md)：成员期限、断线恢复、原生写入锁和客户端关闭边界。
 - [2026-09-11 v0.1.1 分发](../sources/validation/distribution-v0.1.1-2026-09-11.md)：App 命令注册、Homebrew 互斥与回滚、同机真实运行时和页面复核。
 - [2026-09-11 菜单栏 App 跨副本去重](../sources/validation/app-instance-2026-09-11.md)：真实 App 副本并发、邀请转交、确认去重、无响应恢复、Core 保留与本机修复。
+- [2026-09-12 个人 Claude 辅助 MCP](../sources/validation/claude-assist-2026-09-12.md)：个人配置、真实工具读写、输入归属、去重、访问撤销与页面打开。
+- [2026-09-12 Claude 验收](../sources/validation/claude-native-tui-2026-09-12.md)：真实 Luna、TUI/MCP 共用 worker、审批交接与恢复。
+- [Claude 原生 TUI 接入](../sources/decisions/claude-native-tui.md)：实验性 Provider、后台 job、原生审批、接力与明确能力边界。
 - [主线迁移记录](../../../IMPLEMENTATION.md)：旧现场归档与提交来源。
 
 ## 维护

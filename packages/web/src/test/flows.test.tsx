@@ -66,6 +66,148 @@ beforeEach(() => {
   sessionStorage.clear();
   location.hash = "/";
 });
+
+describe("个人 Claude Code 辅助模式", () => {
+  const info = {
+    binary: "/codex",
+    claudeBinary: "/claude",
+    claudeVersion: "2.1.268 (Claude Code)",
+    desktopApp: "/Codex.app",
+    mcpProbed: true,
+    mcpClients: {
+      codex: {
+        configured: true,
+        command: "codex mcp add",
+        observedAt: "2026-09-12T01:00:00Z",
+      },
+      claude: {
+        configured: false,
+        command: "claude mcp add",
+        observedAt: "0001-01-01T00:00:00Z",
+      },
+    },
+  };
+  it("Codex 工具调用不会把 Claude 误报为已接入，安装明确选择个人客户端", async () => {
+    let installed = false;
+    mockFetch((path) => {
+      if (path === "mcp/setup") {
+        installed = true;
+        return { ok: true };
+      }
+      if (path === "mcp/probe") return { ready: true };
+      return {
+        ...info,
+        mcpClients: {
+          ...info.mcpClients,
+          claude: { ...info.mcpClients.claude, configured: installed },
+        },
+      };
+    });
+    const user = userEvent.setup();
+    render(<Clients collaboration={collaboration} initial="assist" />);
+    await user.click(
+      await screen.findByRole("button", { name: "Claude Code" }),
+    );
+    expect(screen.getByText(/等待实际工具调用/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "打开" })).toBeDisabled();
+    expect(
+      screen.queryByRole("heading", { name: "Codex Desktop" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "接入本机 Claude Code" }),
+    );
+    await screen.findByText("Claude Code MCP 配置已保存");
+    expect(calls.find((c) => c.path === "mcp/setup")?.body).toEqual({
+      provider: "claude",
+    });
+    expect(screen.getByText(/等待实际工具调用/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "打开" })).toBeEnabled();
+  });
+  it("个人 Claude 可辅助 Codex 协作，等待交接时也能打开个人会话", async () => {
+    mockFetch((path) =>
+      path.endsWith("/assist")
+        ? { command: "personal-claude-command", launched: false }
+        : {
+            ...info,
+            mcpClients: {
+              ...info.mcpClients,
+              claude: { ...info.mcpClients.claude, configured: true },
+            },
+          },
+    );
+    const user = userEvent.setup();
+    render(<Clients collaboration={collaboration} initial="assist" />);
+    await user.click(
+      await screen.findByRole("button", { name: "Claude Code" }),
+    );
+    await user.click(screen.getByRole("button", { name: "查看启动命令" }));
+    await screen.findByText("personal-claude-command");
+    expect(calls.find((c) => c.path.endsWith("/assist"))?.body).toEqual({
+      provider: "claude",
+      client: "tui",
+      launch: false,
+    });
+    expect(
+      calls.some(
+        (c) =>
+          c.path.endsWith("/open") ||
+          c.path.endsWith("/action") ||
+          c.path.endsWith("/rpc"),
+      ),
+    ).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Codex" }));
+    expect(
+      screen.queryByText("personal-claude-command"),
+    ).not.toBeInTheDocument();
+  });
+  it("Claude 协作默认选择个人 Claude，缺少 Codex 不阻断辅助入口", async () => {
+    mockFetch(() => ({
+      ...info,
+      codexError: "未安装 Codex",
+      mcpClients: {
+        ...info.mcpClients,
+        claude: { ...info.mcpClients.claude, configured: true },
+      },
+    }));
+    render(
+      <Clients
+        collaboration={{ ...collaboration, provider: "claude" }}
+        initial="assist"
+      />,
+    );
+    await screen.findByText("Claude Code MCP 配置已保存");
+    expect(screen.getByRole("button", { name: "Claude Code" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "打开" })).toBeEnabled();
+    expect(screen.queryByText("未安装 Codex")).not.toBeInTheDocument();
+  });
+  it("设置页说明同名覆盖并禁止误启动", async () => {
+    mockFetch(() => ({
+      ...info,
+      mcpClients: {
+        ...info.mcpClients,
+        claude: {
+          ...info.mcpClients.claude,
+          configError: "当前项目已禁用 teamcross",
+        },
+      },
+    }));
+    const user = userEvent.setup();
+    render(<Settings theme="light" setTheme={() => {}} />);
+    await user.click(
+      await screen.findByRole("button", { name: "Claude Code" }),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "当前项目已禁用 teamcross",
+    );
+    expect(
+      screen.getByRole("button", { name: "接入本机 Claude Code" }),
+    ).toBeDisabled();
+    expect(calls.every((c) => c.body === undefined)).toBe(true);
+  });
+});
 describe("产品路径", () => {
   it("安装版本变化时保留运行版本并提示重启，不自动停止服务", async () => {
     mockFetch(() => ({
@@ -125,7 +267,7 @@ describe("产品路径", () => {
       screen.queryByRole("button", { name: "打开 Codex" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /用自己的 Codex 辅助/ }),
+      screen.getByRole("button", { name: /用自己的客户端辅助/ }),
     ).toBeDisabled();
     expect(calls.every((c) => c.body === undefined)).toBe(true);
   });
@@ -280,9 +422,9 @@ describe("产品路径", () => {
         .every((b) => (b as HTMLButtonElement).disabled),
     ).toBe(true);
     await user.click(
-      screen.getByRole("button", { name: "用自己的 Codex 辅助" }),
+      screen.getByRole("button", { name: "用自己的客户端辅助" }),
     );
-    await screen.findByText("MCP 配置已保存");
+    await screen.findByText("Codex MCP 配置已保存");
     expect(
       screen
         .getAllByRole("button", { name: "打开" })
@@ -389,5 +531,128 @@ describe("首次使用连续路径", () => {
     );
     expect(screen.getByText(/等待在 Codex 中打开共享会话/)).toBeVisible();
     expect(screen.queryByText("共享会话已打开。")).not.toBeInTheDocument();
+  });
+});
+
+describe("Claude 原生协作", () => {
+  it("切换客户端清空旧来源，并在预览和创建中保留 provider", async () => {
+    mockFetch((path) =>
+      path.startsWith("sources")
+        ? {
+            data: [
+              {
+                ...source,
+                name: path.includes("provider=claude")
+                  ? "Claude 来源"
+                  : "Codex 来源",
+              },
+            ],
+          }
+        : path === "preview"
+          ? {
+              previewHash: "claude-preview",
+              workspace: {
+                sourceCwd: source.cwd,
+                head: "abcdef",
+                branch: "main",
+                dirty: false,
+              },
+            }
+          : { ...collaboration, id: "claude-fork", provider: "claude" },
+    );
+    const user = userEvent.setup();
+    render(<Create />);
+    await user.click(await screen.findByRole("radio", { name: /Codex 来源/ }));
+    await user.click(
+      screen.getByRole("button", { name: "Claude Code · 实验性" }),
+    );
+    expect(screen.getByRole("button", { name: /下一步/ })).toBeDisabled();
+    expect(
+      screen.queryByRole("radio", { name: /Codex 来源/ }),
+    ).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("radio", { name: /Claude 来源/ }));
+    await user.click(screen.getByRole("button", { name: /下一步/ }));
+    await screen.findByText("确认起点");
+    await user.click(screen.getByRole("button", { name: /创建并邀请/ }));
+    await waitFor(() =>
+      expect(location.hash).toBe("#/collaborations/claude-fork"),
+    );
+    const writes = calls.filter((c) =>
+      ["preview", "collaborations"].includes(c.path),
+    );
+    expect(writes).toHaveLength(2);
+    expect(writes.every((c) => c.body.provider === "claude")).toBe(true);
+  });
+  it("过期的 Codex 分页结果不会出现在 Claude 列表", async () => {
+    let resolvePage!: (value: unknown) => void;
+    mockFetch((path) => {
+      if (path.includes("cursor="))
+        return new Promise((resolve) => {
+          resolvePage = resolve;
+        });
+      return path.includes("provider=claude")
+        ? { data: [{ ...source, id: "claude", name: "Claude 来源" }] }
+        : { data: [source], nextCursor: "page-two" };
+    });
+    const user = userEvent.setup();
+    render(<Create />);
+    await user.click(await screen.findByRole("button", { name: "加载更多" }));
+    await user.click(
+      screen.getByRole("button", { name: "Claude Code · 实验性" }),
+    );
+    await screen.findByRole("radio", { name: /Claude 来源/ });
+    resolvePage({
+      data: [{ ...source, id: "late", name: "过期分页" }],
+      nextCursor: null,
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("radio", { name: /过期分页/ }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+  it("Claude 仅显示原生 TUI，Codex 缺失不阻止打开 Claude", async () => {
+    mockFetch(() => ({
+      claudeBinary: "/claude",
+      claudeVersion: "2.1.268",
+      codexError: "未安装 Codex",
+    }));
+    render(
+      <Clients
+        collaboration={{
+          ...collaboration,
+          provider: "claude",
+          writer: "remote",
+        }}
+      />,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Claude Code TUI" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Codex Desktop" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "打开" })).toBeEnabled();
+    expect(screen.getByText(/原生 TUI 审批、补充和中断/)).toBeVisible();
+  });
+  it("Claude 等待审批时显示原生 TUI 回应提示", async () => {
+    mockFetch((path) =>
+      path.includes("/context")
+        ? { thread: { turns: [] } }
+        : {
+            ...collaboration,
+            provider: "claude",
+            nativeWaiting: "permission",
+            busy: true,
+          },
+    );
+    render(<Detail id="c1" />);
+    expect(
+      await screen.findByRole("heading", { name: "Claude Code 需要你的回应" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText("请在当前 Claude Code 客户端中查看并回应请求。"),
+    ).toBeVisible();
+    expect(screen.queryByText("Codex 正在执行")).not.toBeInTheDocument();
   });
 });

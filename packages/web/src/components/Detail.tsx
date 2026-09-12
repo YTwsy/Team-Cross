@@ -64,6 +64,8 @@ export function Detail({ id }: { id: string }) {
         {resource.loading && <Loading />}
       </>
     );
+  const agentName = c.provider === "claude" ? "Claude Code" : "Codex";
+  const waiting = c.approvals > 0 || !!c.nativeWaiting;
   const owner = c.role === "owner";
   const mine = c.role === c.writer;
   const closed = ["ended", "left", "expired"].includes(c.state);
@@ -135,10 +137,10 @@ export function Detail({ id }: { id: string }) {
                         ? "正在释放协作会话"
                         : "恢复协作，继续上次的工作"
                       : "正在等待发起者连接"
-                    : c.approvals
-                      ? "Codex 需要你的回应"
+                    : waiting
+                      ? `${agentName} 需要你的回应`
                       : c.busy
-                        ? "Codex 正在执行"
+                        ? `${agentName} 正在执行`
                         : mine
                           ? "准备好继续了"
                           : "同事正在掌握输入"}
@@ -152,14 +154,14 @@ export function Detail({ id }: { id: string }) {
                       ? "正在关闭这次协作的后台运行时，会话与代码继续保留。"
                       : "恢复同一个会话与目录，不会重新创建分支。"
                     : "确认两台 Mac 在同一局域网，并让发起者保持共享。"
-                  : c.approvals
-                    ? "请在当前 Codex 客户端中查看并回应请求。"
+                  : waiting
+                    ? `请在当前 ${agentName} 客户端中查看并回应请求。`
                     : c.busy
-                      ? `代码操作发生在 ${c.host}，可以在 Codex 中补充或中断。`
+                      ? `代码操作发生在 ${c.host}，可以在 ${agentName} 中补充或中断。`
                       : mine
                         ? c.connected
-                          ? `${c.client || "Codex"} 已连接，继续在客户端中工作。`
-                          : "选择喜欢的 Codex 客户端，接着已有上下文继续。"
+                          ? `${c.client || agentName} 已连接，继续在客户端中工作。`
+                          : `打开 ${agentName} 客户端，接着已有上下文继续。`
                         : "先查看下方的共享上下文，需要操作时可以申请输入。"}
             </p>
           </div>
@@ -183,7 +185,7 @@ export function Detail({ id }: { id: string }) {
               {busy === "start"
                 ? "正在恢复…"
                 : c.runtimeState === "released"
-                  ? "恢复并打开 Codex"
+                  ? `恢复并打开 ${agentName}`
                   : "恢复运行时"}
               <Icon name="refresh" size={16} />
             </button>
@@ -193,7 +195,7 @@ export function Detail({ id }: { id: string }) {
               onClick={() => setModal(mine ? "clients" : "assist")}
             >
               <Icon name={mine ? "terminal" : "people"} size={18} />
-              {mine ? "打开 Codex" : "用自己的 Codex 辅助"}
+              {mine ? `打开 ${agentName}` : "用自己的客户端辅助"}
             </button>
           )}
           {owner && c.online && !c.participantJoined && (
@@ -215,6 +217,7 @@ export function Detail({ id }: { id: string }) {
           <Context
             id={id}
             sessionId={c.sessionId}
+            agentName={agentName}
             canAnnotate={owner || (c.online && !closed)}
             onAnnotate={(target) =>
               setAnnotationRequest({ target, serial: Date.now() })
@@ -338,7 +341,7 @@ export function Detail({ id }: { id: string }) {
               disabled={closed}
               onClick={() => setModal("assist")}
             >
-              使用自己的 Codex 辅助 <Icon name="arrow" size={14} />
+              使用自己的客户端辅助 <Icon name="arrow" size={14} />
             </button>
           </section>
           <section className="panel">
@@ -378,6 +381,11 @@ export function Detail({ id }: { id: string }) {
           <details className="technical">
             <summary>技术信息</summary>
             <dl>
+              <dt>原生客户端</dt>
+              <dd>
+                {agentName}
+                {c.provider === "claude" ? " · 实验性" : ""}
+              </dd>
               <dt>协作 ID</dt>
               <dd>{c.id}</dd>
               <dt>来源会话</dt>
@@ -389,9 +397,9 @@ export function Detail({ id }: { id: string }) {
               <dt>基线提交</dt>
               <dd>{c.head}</dd>
               <dt>{c.online ? "当前模型" : "最近确认的模型"}</dt>
-              <dd>{c.model || "等待 Codex 确认"}</dd>
+              <dd>{c.model || `等待 ${agentName} 确认`}</dd>
               <dt>推理强度</dt>
-              <dd>{c.reasoningEffort || "Codex 默认"}</dd>
+              <dd>{c.reasoningEffort || `${agentName} 默认`}</dd>
             </dl>
           </details>
         </aside>
@@ -403,7 +411,9 @@ export function Detail({ id }: { id: string }) {
               ? "邀请同事加入"
               : modal === "end"
                 ? "结束这次共享？"
-                : "用 Codex 继续"
+                : modal === "assist"
+                  ? "用个人客户端辅助"
+                  : `用 ${agentName} 继续`
           }
           onClose={() => setModal(null)}
         >
@@ -463,7 +473,7 @@ export function Detail({ id }: { id: string }) {
               </p>
               <p>
                 当前执行和审批完成、专用客户端关闭后，会自动释放会话，之后可以从
-                Codex 重新打开。
+                Team Cross 恢复同一个会话。
               </p>
               <div className="form-footer">
                 <button className="button" onClick={() => setModal(null)}>

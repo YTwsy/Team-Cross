@@ -21,3 +21,5 @@ Team Cross 从已有 Codex 来源会话创建新的协作 fork，在 A 的执行
 类型从 [types.go](../../../../internal/collab/types.go) 开始，界面入口在 [App.tsx](../../../../packages/web/src/App.tsx) 和 [页面组件](../../../../packages/web/src/components/)。命名变更应同时检查来源、API 字段、界面文案与 [产品路径测试](../../../../packages/web/src/test/flows.test.tsx)。
 
 相关任务：[目录与生命周期](workspace-and-lifecycle.md) · [WebGUI 与 MCP](webgui-and-mcp.md) · [验证](validation-gates.md)
+
+当前 Provider 包含 Codex 与实验性的 Claude Code 原生 TUI。两者共享协作、目录与输入归属语义；客户端和控制方法支持范围按 [Claude 接入契约](../../sources/decisions/claude-native-tui.md) 区分。

@@ -1,0 +1,51 @@
+{
+  "scope": "one Mac, two real Cores, separate personal and shared Claude sessions",
+  "model": "gpt-5.6-luna",
+  "cli_version": "2.1.268 (Claude Code)",
+  "worker_before": {
+    "pid": 52018,
+    "id": "de21b35a",
+    "cwd": "/private/tmp/teamcross-claude-assist-live-20260912-c/repo",
+    "kind": "background",
+    "startedAt": 1789227080218,
+    "sessionId": "de21b35a-58a2-423b-8b3e-570816c203d5",
+    "name": "Claude 个人辅助 · MCP 实测",
+    "status": "idle",
+    "state": "blocked"
+  },
+  "native_setup_idempotent": true,
+  "unrelated_config_preserved": true,
+  "setup_and_probe_generations": 0,
+  "personal_read_only_before_handoff": true,
+  "client_observation_separate": true,
+  "annotation_from_personal_client": true,
+  "non_writer_send_denied": true,
+  "writer_send_on_a": true,
+  "same_request_deduplicated": true,
+  "worker_after": {
+    "pid": 52018,
+    "id": "de21b35a",
+    "cwd": "/private/tmp/teamcross-claude-assist-live-20260912-c/repo",
+    "kind": "background",
+    "startedAt": 1789227080218,
+    "sessionId": "de21b35a-58a2-423b-8b3e-570816c203d5",
+    "name": "Claude 个人辅助 · MCP 实测",
+    "status": "idle",
+    "state": "done"
+  },
+  "personal_session_id": "15891a9d-147f-4a45-8509-8d7525e6f842",
+  "shared_session_id": "de21b35a-58a2-423b-8b3e-570816c203d5",
+  "personal_and_shared_sessions_distinct": true,
+  "direct_and_auxiliary_same_target": true,
+  "source_unchanged": true,
+  "ui_url": "http://127.0.0.1:59506",
+  "ui_detail": "http://127.0.0.1:59506/#/collaborations/joined-1594f0f6-0848-48dc-aa41-062fa157c2e8",
+  "ended_share_access_revoked": true,
+  "generation_requests": 16,
+  "models_observed": [
+    "gpt-5.6-luna"
+  ],
+  "fixture_dir": "/private/tmp/teamcross-claude-assist-live-20260912-c",
+  "ui_fixture_dir": "/private/tmp/teamcross-claude-assist-live-20260912-a",
+  "ui_native_launch_verified": true
+}

@@ -138,7 +138,7 @@ export default function App() {
           <span>你的工作现场，与同事相连</span>
           <span className="local-pill">
             <Icon name="desktop" size={14} />
-            macOS · Codex
+            macOS · 原生会话
           </span>
         </div>
         <div className="page" key={route}>

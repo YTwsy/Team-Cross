@@ -53,6 +53,55 @@ func TestStdioDoesNotSendInputWhileListing(t *testing.T) {
 		}
 	}
 }
+func TestStdioReportsActualClientOnlyOnToolCall(t *testing.T) {
+	for _, row := range []struct{ name, provider string }{{"claude-code", "claude"}, {"codex-mcp-client", "codex"}, {"teamcross-probe", ""}, {"", ""}} {
+		t.Run(row.name, func(t *testing.T) {
+			dir, _ := service.Normalize(t.TempDir())
+			var connection service.Connection
+			observed := []string{}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != "Bearer test-token" {
+					t.Error("missing local authentication")
+				}
+				if r.URL.Path == "/api/control/status" {
+					json.NewEncoder(w).Encode(service.Status{Connection: connection, Running: true})
+					return
+				}
+				if r.URL.Path == "/api/mcp/observed" {
+					var v struct {
+						Provider string `json:"provider"`
+					}
+					json.NewDecoder(r.Body).Decode(&v)
+					observed = append(observed, v.Provider)
+				}
+				w.Write([]byte(`[]`))
+			}))
+			defer server.Close()
+			connection = service.Connection{URL: server.URL, PID: os.Getpid(), Instance: "test", Token: "test-token", Version: buildinfo.Version, Protocol: buildinfo.ControlProtocol, DataDir: dir}
+			b, _ := json.Marshal(connection)
+			os.WriteFile(filepath.Join(dir, "connection.json"), b, 0600)
+			init := `{"id":1,"method":"initialize","params":{"clientInfo":{"name":"` + row.name + `"}}}` + "\n" + `{"id":2,"method":"tools/list"}` + "\n"
+			var output bytes.Buffer
+			if err := Serve(context.Background(), dir, strings.NewReader(init), &output); err != nil {
+				t.Fatal(err)
+			}
+			if len(observed) != 0 {
+				t.Fatal("protocol probe reported an actual client")
+			}
+			call := `{"id":3,"method":"tools/call","params":{"name":"list_collaborations","arguments":{}}}` + "\n"
+			if err := Serve(context.Background(), dir, strings.NewReader(init+call), &output); err != nil {
+				t.Fatal(err)
+			}
+			if row.provider == "" {
+				if len(observed) != 0 {
+					t.Fatal(observed)
+				}
+			} else if len(observed) != 1 || observed[0] != row.provider {
+				t.Fatal(observed)
+			}
+		})
+	}
+}
 func TestSendPreservesTextAndId(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var v map[string]any

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -16,7 +17,9 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
+	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
+	"teamcross/internal/problem"
 	"teamcross/internal/workspace"
 )
 
@@ -39,6 +42,20 @@ func (s *Session) onRuntimeMessage(generation uint64, m nativecodex.Message) {
 		}
 		return
 	}
+	if m.Method == "teamcross/claudeState" {
+		var state struct {
+			Busy       bool   `json:"busy"`
+			WaitingFor string `json:"waitingFor"`
+		}
+		if json.Unmarshal(m.Params, &state) == nil {
+			unchanged := s.busy == state.Busy && s.nativeWaiting == state.WaitingFor
+			s.busy = state.Busy
+			s.nativeWaiting = state.WaitingFor
+			if unchanged {
+				return
+			}
+		}
+	}
 	s.sequence++
 	s.observeModelLocked(m.Method, m.Params)
 	s.events = append(s.events, Event{Sequence: s.sequence, Method: m.Method, Params: m.Params, Time: time.Now()})
@@ -48,8 +65,10 @@ func (s *Session) onRuntimeMessage(generation uint64, m nativecodex.Message) {
 	if m.Method == "turn/started" {
 		s.busy = true
 	}
-	if m.Method == "turn/completed" {
-		s.busy = false
+	if m.Method == "turn/completed" || m.Method == "teamcross/claudeHistory" {
+		if m.Method == "turn/completed" {
+			s.busy = false
+		}
 		s.record.UpdatedAt = time.Now()
 		_ = s.saveLocked()
 	}
@@ -100,6 +119,12 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	if !s.callerValidLocked(ctx) {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("连接或输入归属已变化，请重新连接")
+	}
+	if r.Provider == "claude" {
+		if e := claudeMethod(method, params); e != nil {
+			s.mu.Unlock()
+			return nil, e
+		}
 	}
 	s.activeCalls++
 	defer s.finishCall()
@@ -301,7 +326,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 		if err != nil {
 			c.State = "unknown"
 			c.Error = err.Error()
-			if strings.Contains(err.Error(), `"code"`) {
+			if errors.Is(err, nativeclaude.ErrRejected) || strings.Contains(err.Error(), `"code"`) {
 				c.State = "failed"
 				if method == "turn/start" && s.process == p {
 					s.busy = false
@@ -323,6 +348,10 @@ func (s *Session) Respond(ctx context.Context, role string, id json.RawMessage, 
 	if !s.callerValidLocked(ctx) || role != s.writer || (role == "remote" && s.share == nil) {
 		s.mu.Unlock()
 		return fmt.Errorf("请先取得输入权")
+	}
+	if s.record.Provider == "claude" {
+		s.mu.Unlock()
+		return problem.New("native_client_required", "请在 Claude 原生 TUI 中回应审批", "")
 	}
 	if _, ok := s.approvals[string(id)]; !ok {
 		s.mu.Unlock()
@@ -362,6 +391,9 @@ func (s *Session) Context(ctx context.Context, kind, path string, after uint64, 
 		defer s.finishCall()
 	}
 	s.mu.Unlock()
+	if r.Provider == "claude" && (kind == "" || kind == "history") {
+		return claudeContext(r, cursors)
+	}
 	switch kind {
 	case "events":
 		return s.Events(after), nil
@@ -423,6 +455,13 @@ func (s *Session) Context(ctx context.Context, kind, path string, after uint64, 
 	}
 }
 func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
+	s.mu.Lock()
+	claude := s.record.Provider == "claude"
+	s.mu.Unlock()
+	if claude {
+		s.attachClaude(w, r, role)
+		return
+	}
 	if r.Header.Get("Origin") != "" {
 		http.Error(w, "请使用原生客户端连接", 403)
 		return

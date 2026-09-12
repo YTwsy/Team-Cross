@@ -180,11 +180,17 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		e := a.SetupMCP(ctx)
+		var in struct {
+			Provider string `json:"provider"`
+		}
+		if !decode(w, r, &in) {
+			return
+		}
+		e := a.SetupMCP(ctx, in.Provider)
 		respond(w, map[string]bool{"ok": e == nil}, e)
 		return
 	case "sources":
-		out, e := a.Sources(ctx, r.URL.Query().Get("search"), r.URL.Query().Get("cursor"))
+		out, e := a.SourcesFor(ctx, r.URL.Query().Get("provider"), r.URL.Query().Get("search"), r.URL.Query().Get("cursor"))
 		respond(w, out, e)
 		return
 	case "preview":
@@ -315,8 +321,9 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		respond(w, s.view(), e)
 	case "open", "assist":
 		var in struct {
-			Client string `json:"client"`
-			Launch bool   `json:"launch"`
+			Provider string `json:"provider"`
+			Client   string `json:"client"`
+			Launch   bool   `json:"launch"`
 		}
 		if !decode(w, r, &in) {
 			return
@@ -324,7 +331,7 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		var out map[string]any
 		var e error
 		if action == "assist" {
-			out, e = a.AssistPlan(ctx, id, in.Client, in.Launch)
+			out, e = a.AssistPlan(ctx, id, in.Provider, in.Client, in.Launch)
 		} else {
 			out, e = a.ClientPlan(ctx, id, in.Client, in.Launch)
 		}

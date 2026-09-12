@@ -1,0 +1,22 @@
+[
+  {
+    "pid": 39378,
+    "ppid": 39363,
+    "command": "/private/tmp/teamcross-claude-feature-bin mcp --data-dir /private/tmp/teamcross-claude-assist-live-20260912-a/core-b"
+  },
+  {
+    "pid": 39363,
+    "ppid": 39184,
+    "command": "/Users/wsy/.nvm/versions/node/v24.18.0/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe --model gpt-5.6-luna --effort low --tools  --permission-mode manual --allowedTools mcp__teamcross__list_collaborations,mcp__teamcross__get_collaboration,mcp__teamcross__read_context,mcp__teamcross__add_annotation,mcp__teamcross__send_input --no-chrome"
+  },
+  {
+    "pid": 45946,
+    "ppid": 45925,
+    "command": "/private/tmp/teamcross-claude-feature-bin mcp --data-dir /private/tmp/teamcross-claude-assist-live-20260912-a/core-b"
+  },
+  {
+    "pid": 45925,
+    "ppid": 45401,
+    "command": "/Users/wsy/.nvm/versions/node/v24.18.0/bin/claude"
+  }
+]

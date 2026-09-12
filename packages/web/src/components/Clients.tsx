@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { api, errorText, useResource } from "../api";
-import { type ClientPlan, type Collaboration, type Info } from "../types";
-import { Copy, ErrorBox, Icon, Loading } from "./ui";
+import {
+  type ClientPlan,
+  type Collaboration,
+  type Info,
+  type Provider,
+} from "../types";
+import { Copy, ErrorBox, Icon } from "./ui";
+import { MCPConnection, mcpStatus } from "./MCPConnection";
 export function Clients({
   collaboration,
   initial = "direct",
@@ -22,9 +28,26 @@ export function Clients({
   const [preferred, setPreferred] = useState(
     () => localStorage.getItem("teamcross.client.v1") || "tui",
   );
+  const [assistProvider, setAssistProvider] = useState<Provider>(() => {
+    const saved = localStorage.getItem("teamcross.assistProvider");
+    return saved === "claude" || saved === "codex"
+      ? saved
+      : collaboration.provider === "claude"
+        ? "claude"
+        : "codex";
+  });
+  const [connecting, setConnecting] = useState(false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [plan, setPlan] = useState<ClientPlan>();
+  const claude =
+    (mode === "direct" ? collaboration.provider : assistProvider) === "claude";
+  const name = claude ? "Claude Code" : "Codex";
+  const mcp = mcpStatus(info.data, assistProvider);
+  const clientError = claude ? info.data?.claudeError : info.data?.codexError;
+  const directClients = claude
+    ? (["tui"] as const)
+    : (["tui", "desktop"] as const);
   const mine = collaboration.writer === collaboration.role;
   async function open(client: string, launch: boolean) {
     setBusy(client);
@@ -33,7 +56,11 @@ export function Clients({
     try {
       const result = await api<ClientPlan>(
         `collaborations/${collaboration.id}/${mode === "direct" ? "open" : "assist"}`,
-        { client, launch },
+        {
+          client,
+          launch,
+          ...(mode === "assist" ? { provider: assistProvider } : {}),
+        },
       );
       setPlan(result);
       if (launch) {
@@ -46,24 +73,12 @@ export function Clients({
       setBusy("");
     }
   }
-  async function setup() {
-    setBusy("setup");
-    setError("");
-    try {
-      await api("mcp/setup", {});
-      await api("mcp/probe", {});
-      info.reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy("");
-    }
-  }
   return (
     <div className="clients">
       <div className="segmented full" aria-label="参与方式">
         <button
           aria-pressed={mode === "direct"}
+          disabled={!!busy || connecting}
           onClick={() => {
             setMode("direct");
             setPlan(undefined);
@@ -74,91 +89,68 @@ export function Clients({
         </button>
         <button
           aria-pressed={mode === "assist"}
+          disabled={!!busy || connecting}
           onClick={() => {
             setMode("assist");
             setPlan(undefined);
             setError("");
           }}
         >
-          用自己的 Codex 辅助
+          用自己的客户端辅助
         </button>
       </div>
       <p className="client-description">
         {mode === "direct"
           ? `连接共享会话，代码与模型调用在 ${collaboration.host} 上执行。`
-          : "继续与你自己的 Codex 对话，通过 Team Cross 工具查看和参与这次协作。"}
+          : `继续与你自己的 ${name} 对话，通过 Team Cross 工具查看和参与这次协作。个人对话使用本机的模型设置。`}
       </p>
       {mode === "direct" && (!mine || !collaboration.online) && (
         <div className="notice">
           {!collaboration.online
             ? "等待发起者恢复协作运行时后，即可打开客户端。"
-            : "当前由另一位参与者输入。交接完成后，即可直接操作；现在仍可使用自己的 Codex 读取上下文。"}
+            : "当前由另一位参与者输入。交接完成后，即可直接操作；现在仍可使用个人辅助客户端读取上下文。"}
         </div>
       )}
       {mode === "direct" && collaboration.connected && (
         <div className="notice">
           {collaboration.clientState === "session_ready"
             ? "共享会话已打开。"
-            : "客户端已连接，等待在 Codex 中打开共享会话。"}
+            : `客户端已连接，等待在 ${claude ? "Claude" : "Codex"} 中打开共享会话。`}
           切换前请关闭当前直接客户端。
         </div>
       )}
       {mode === "assist" && (
-        <div className="mcp-guide">
-          <div className="guide-number">1</div>
-          <div>
-            <h3>
-              {info.data?.mcpConfigured
-                ? "MCP 配置已保存"
-                : "一次接入，之后直接选择协作"}
-            </h3>
-            <p>
-              接入后，普通 TUI 和 Desktop 都能使用 Team Cross
-              工具。已打开的会话可能需要重新打开以加载工具。
-            </p>
-            {info.loading ? (
-              <Loading />
-            ) : info.data?.mcpConfigured ? (
-              <span className="badge green">
-                <Icon name="check" size={14} />
-                已配置
-              </span>
-            ) : (
-              <button
-                className="button small"
-                disabled={!!busy || !!info.error}
-                onClick={() => void setup()}
-              >
-                {busy === "setup" ? "正在配置…" : "接入本机 Codex"}
-              </button>
-            )}
-            <p className="small-text muted">
-              协议检查：{info.data?.mcpProbed ? "通过" : "尚未检查"}；客户端：
-              {info.data?.mcpObservedAt &&
-              !info.data.mcpObservedAt.startsWith("0001")
-                ? "已收到工具调用"
-                : "等待实际工具调用"}
-            </p>
-            <button
-              className="text-link"
-              disabled={!!busy}
-              onClick={() =>
-                void api("mcp/probe", {})
-                  .then(() => info.reload())
-                  .catch((e) => setError(errorText(e)))
-              }
-            >
-              检查工具连接
-            </button>
-            <ErrorBox message={info.error} retry={info.reload} />
-          </div>
-        </div>
+        <MCPConnection
+          info={info.data}
+          provider={assistProvider}
+          onProviderChange={(provider) => {
+            setAssistProvider(provider);
+            localStorage.setItem("teamcross.assistProvider", provider);
+            setPlan(undefined);
+            setError("");
+          }}
+          reload={info.reload}
+          disabled={!!busy}
+          onBusyChange={setConnecting}
+        />
+      )}
+      {collaboration.provider === "claude" && (
+        <p className="notice">
+          Claude 协作当前通过原生 TUI
+          审批、补充和中断。辅助工具可读取上下文、添加批注，并在空闲时发送文本。
+        </p>
       )}
       <div className="client-grid">
-        {(["tui", "desktop"] as const).map((client) => (
+        {directClients.map((client) => (
           <div className="client-card" key={client}>
             <Icon name={client === "tui" ? "terminal" : "desktop"} size={26} />
-            <h3>{client === "tui" ? "Codex TUI" : "Codex Desktop"}</h3>
+            <h3>
+              {client === "tui"
+                ? claude
+                  ? "Claude Code TUI"
+                  : "Codex TUI"
+                : "Codex Desktop"}
+            </h3>
             {preferred === client && (
               <small className="muted">偏好的客户端</small>
             )}
@@ -173,10 +165,11 @@ export function Clients({
               className="button primary"
               disabled={
                 !!busy ||
-                !!info.data?.codexError ||
+                connecting ||
+                !!clientError ||
                 (client === "desktop" && !info.data?.desktopApp) ||
                 (mode === "direct" && (!mine || !collaboration.online)) ||
-                (mode === "assist" && !info.data?.mcpConfigured)
+                (mode === "assist" && (!mcp.configured || !!mcp.configError))
               }
               onClick={() => void open(client, true)}
             >
@@ -187,7 +180,8 @@ export function Clients({
               className="text-link small-text"
               disabled={
                 !!busy ||
-                !!info.data?.codexError ||
+                connecting ||
+                !!clientError ||
                 (client === "desktop" && !info.data?.desktopApp) ||
                 (mode === "direct" && (!mine || !collaboration.online))
               }
@@ -198,10 +192,10 @@ export function Clients({
           </div>
         ))}
       </div>
-      <ErrorBox message={error || info.data?.codexError} />
-      {(info.data?.codexError || !info.data?.desktopApp) && (
+      <ErrorBox message={error || clientError || info.error} />
+      {(clientError || (!claude && !info.data?.desktopApp)) && (
         <a className="text-link" href="#/settings">
-          检查 Codex 客户端设置
+          检查客户端设置
         </a>
       )}
       {plan && (
@@ -209,7 +203,9 @@ export function Clients({
           {plan.launched && (
             <p>
               <Icon name="check" size={17} />
-              已发送打开请求，连接状态会显示在协作详情中。
+              {mode === "direct"
+                ? "已发送打开请求，连接状态会显示在协作详情中。"
+                : `已发送打开请求，请在个人 ${name} 中选择这次协作。`}
             </p>
           )}
           {plan.note && <p className="muted">{plan.note}</p>}
@@ -222,13 +218,13 @@ export function Clients({
       )}
       {mode === "assist" && (
         <div className="assistant-prompt">
-          <span className="eyebrow">可以这样告诉自己的 Codex</span>
+          <span className="eyebrow">可以这样告诉自己的 {name}</span>
           <p>
             使用 Team Cross 查看「{collaboration.title}」的上下文和当前状态。
           </p>
           <Copy
             text={`使用 Team Cross 工具查看协作 ${collaboration.id}（${collaboration.title}）的上下文和当前状态。`}
-            label="复制给 Codex"
+            label={`复制给 ${name}`}
           />
         </div>
       )}
