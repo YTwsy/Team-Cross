@@ -1150,7 +1150,7 @@ details[open] summary {
 }
 .detail-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 310px;
+  grid-template-columns: minmax(0, 1fr) 350px;
   gap: 22px;
 }
 .detail-main {
@@ -1381,7 +1381,6 @@ details[open] summary {
   margin-bottom: 7px;
 }
 .annotation-copy {
-  margin-top: 10px;
   font-size: 10px;
 }
 .annotation-saved {
@@ -1396,7 +1395,7 @@ details[open] summary {
 }
 .annotation-composer textarea {
   resize: vertical;
-  min-height: 120px;
+  min-height: 88px;
   font-size: 13px;
 }
 .annotation-preview {
@@ -1418,10 +1417,90 @@ details[open] summary {
   justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
-  margin-top: 18px;
+  margin-top: 10px;
 }
 .annotation-composer-footer > span {
   margin-right: auto;
+}
+.annotation-composer {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--soft);
+  scroll-margin: 20px;
+}
+.annotation-composer:focus-within {
+  border-color: var(--blue);
+}
+.annotation-composer-heading,
+.annotation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.annotation-composer-heading {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.annotation-panel-caption,
+.annotation-reply-count {
+  color: var(--muted);
+  font-size: 10px;
+}
+.annotation-composer .annotation-preview {
+  padding: 9px;
+  margin-bottom: 10px;
+  background: var(--panel);
+}
+.annotation-replies {
+  margin: 16px 0 12px 5px;
+  padding-left: 13px;
+  border-left: 2px solid var(--line);
+}
+.annotation-reply {
+  margin-top: 14px;
+}
+.annotation-reply .avatar {
+  width: 22px;
+  height: 22px;
+  font-size: 9px;
+}
+.annotation-reply p {
+  margin: 6px 0;
+}
+.annotation-reply-composer {
+  margin-top: 12px;
+}
+.annotation-reply-composer label {
+  display: block;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+.annotation-reply-composer textarea {
+  resize: vertical;
+  min-height: 76px;
+  font-size: 12px;
+}
+.annotation-drafts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.annotation-drafts button {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.notes-panel .text-button {
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  padding: 0;
+  font-size: 11px;
+  cursor: pointer;
 }
 .message-heading {
   display: flex;

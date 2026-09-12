@@ -64,6 +64,7 @@ func run(args []string) error {
 	claudeBinary := flags.String("claude-bin", "", "Claude Code CLI 路径")
 	desktop := flags.String("desktop-app", "", "Codex Desktop 应用路径")
 	cliDir := flags.String("cli-dir", cliinstall.DefaultDir, "App 命令入口目录")
+	runtimeID := flags.String("runtime-id", "", "共享运行时批注工具的协作 ID")
 	if e := flags.Parse(args); e != nil {
 		if errors.Is(e, flag.ErrHelp) {
 			return nil
@@ -116,6 +117,9 @@ func run(args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if command == "mcp" {
+		if *runtimeID != "" {
+			return mcp.ServeRuntime(ctx, *data, *runtimeID, os.Getenv(mcp.RuntimeTokenEnv), os.Stdin, os.Stdout)
+		}
 		return mcp.Serve(ctx, *data, os.Stdin, os.Stdout)
 	}
 	if command == "status" || command == "doctor" || command == "stop" {

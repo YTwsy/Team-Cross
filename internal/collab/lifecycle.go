@@ -41,6 +41,11 @@ func (s *Session) finishCall() {
 type directKey struct{}
 
 func (s *Session) callerValidLocked(ctx context.Context) bool {
+	if token, ok := ctx.Value(runtimeAnnotationKey{}).(string); ok {
+		if s.closed || !s.online || s.process == nil || !s.annotationAccess || token == "" || token != s.record.AnnotationToken {
+			return false
+		}
+	}
 	if !sharing.Authorized(ctx, s.share) {
 		return false
 	}

@@ -24,7 +24,7 @@ flowchart LR
 - `internal/nativecodex`：启动和初始化独立 app-server，通过一个长期 WebSocket 进行 RPC、事件及 server request 分发。
 - `internal/collab`：协作记录、原生协议网关、输入协调、邀请与加入、TUI/Desktop 启动、HTTP 管理接口。
 - `internal/sharing`：临时 TLS listener、指纹绑定、局域网邀请与连接。
-- `internal/mcp`：本地 STDIO MCP。每次调用读取本地 Core 连接文件，服务重启后无需重新配置 MCP。
+- `internal/mcp`：个人辅助 STDIO 与共享运行时批注 STDIO。后者只有当前协作的读取/回复工具和独立凭据，每次调用重新读取 Core 地址，不启动 Core 或复用管理凭据。
 - `packages/web`：新 React/Vite 界面，生产资源编译到 `internal/webassets/dist` 后嵌入 Go 二进制。
 
 ## 原生运行时
@@ -38,6 +38,8 @@ flowchart LR
 Desktop 使用本机安装版本的指定 WebSocket 入口，配合单独的 `CODEX_HOME` 与 Electron 数据目录，通过 `open -n` 启动。是否所有 Desktop 操作都适合远程执行需要按实际客户端版本验收；不能仅凭 app-server 协议相同宣布完整兼容。
 
 客户端本机代理单独处理 `account/login/start`、登录完成通知、`getAuthStatus` 和客户端偏好写入。读取已有登录状态可以使用 B 的本机账户；修改账户时启动专用客户端配置的本机 app-server，避免改写 B 的普通 Codex 配置。远端共享网关不传出 A 的登录 token、MCP 配置或完整个人配置。登录路由与共享会话执行路由分别验收。
+
+共享运行时自动接入当前协作的批注工具，因此直接 Codex TUI/Desktop 与 Claude TUI 的 Agent 能读取和回复批注。工具不创建轮次、不切换输入者；回复作为原批注下的单层列表保存，作者明确区分人工和 Provider。凭据及生命周期见 [协议](protocol.md#共享运行时的批注工具)。
 
 轻量历史使用 `thread/read` 的元数据与 `thread/turns/list` 分页组合，不反复要求上游加载完整历史。每页 8 轮，按时间正序返回，MCP 可用 `nextCursor` 继续读取。
 

@@ -14,7 +14,7 @@ Claude Code 是新增的实验性 Provider。Codex 原有 app-server 路径继�
 | 审批、补充、中断、模型设置 API | 返回 `native_client_required`，要求当前输入者使用 Claude 原生 TUI |
 | Claude Desktop / 全局客户端功能 | 未接入；不将 Codex Desktop 连接到 Claude worker |
 
-Claude 的 `capabilities` 随状态返回；调用者应先检查实际支持的入口。`nativeWaiting` 报告 worker 的交互等待状态，不把它转换成伪造的 Codex 审批 ID 或待审批数量。Claude 不提供 Codex 的完整结构化事件流；WebGUI 保留轻量历史，完整工具过程以原生 TUI 为准。批注由 WebGUI 或辅助客户端的 Team Cross MCP 读取；当前 Claude worker 未加载 Team Cross MCP。
+Claude 的 `capabilities` 随状态返回；调用者应先检查实际支持的入口。`nativeWaiting` 报告 worker 的交互等待状态，不把它转换成伪造的 Codex 审批 ID 或待审批数量。Claude 不提供 Codex 的完整结构化事件流；WebGUI 保留轻量历史，完整工具过程以原生 TUI 为准。新建 Claude worker 内置仅面向当前协作的 `teamcross_annotations` MCP，原生 TUI 中可要求 Agent 读取批注和回复，并答复原批注。WebGUI 与个人辅助 MCP 使用同一份讨论数据。保存不会主动启动模型。
 
 ## 个人 Claude Code 辅助模式
 
@@ -24,7 +24,7 @@ Claude 使用原生 `mcp add --transport stdio --scope user` 写入 user 范围�
 
 检测仅读配置，不执行任意 MCP server。页面区分配置已保存、Team Cross STDIO 协议探测、实际客户端工具调用；最后一项来自 MCP `initialize.clientInfo.name` 和随后的 `tools/call`，Codex / Claude 分别记录，本次 Core 运行中有效。未知客户端不归到任一 Provider，独立协议探测不产生实际调用证据。客户端名称只是诊断信息，不用于授权。其他工作目录配置、组织策略或已有客户端未重载，仍以实际工具调用结果为准。
 
-打开个人 Claude 是在本机辅助目录启动普通 TUI，沿用本机个人配置、登录、模型与上下文，不带共享 sessionId、attach、模型覆盖或临时 MCP 配置。个人会话有自己的 ID；本地对话由本机模型处理，工具发往共享会话的输入仍由 A 的共享运行时执行。MCP 工具调用本身的原生确认在个人客户端完成；目标 Claude worker 的命令审批、补充、中断仍需当前输入者通过直接 TUI 完成。共享 worker 不因安装个人 MCP 自动加载该工具。
+打开个人 Claude 是在本机辅助目录启动普通 TUI，沿用本机个人配置、登录、模型与上下文，不带共享 sessionId、attach、模型覆盖或临时 MCP 配置。个人会话有自己的 ID；本地对话由本机模型处理，工具发往共享会话的输入仍由 A 的共享运行时执行。MCP 工具调用本身的原生确认在个人客户端完成；目标 Claude worker 的命令审批、补充、中断仍需当前输入者通过直接 TUI 完成。共享 worker 使用自身受限的批注 MCP，不因安装个人 MCP 自动加载完整辅助工具。
 
 ## 单一执行端
 
@@ -32,7 +32,7 @@ A 每次协作使用独立的 `collaborations/<id>/claude-home`，保存所选�
 
 原生 `--fork-session --bg` 会延迟生成新 JSONL，首次输入前反复停止和恢复可能丢失来源引用。适配在交付前持久化新的消息 UUID、父链映射与 `forkedFrom`，排除 sidechain/progress，保留原生 fork 需要的附件和元数据，并绑定用户选定的执行目录。工作目录编码与已验证版本一致。新会话文件以 0600 独占创建、同步落盘后才启动 worker；文件缺失或损坏直接报错，不通过来源历史回退掩盖空会话。
 
-恢复先检查协作 worker 是否仍存活，Core 异常退出后可重新绑定同一 worker；已保存的 done 进度标签不代表进程仍存活；已停止时只运行 `--resume <协作 sessionId> --bg`，让原生 job 使用自身保存的启动状态。额外传入创建时的模型、设置等参数会触发新副本，不能在恢复时重用整套创建参数。恢复后校验 sessionId 与执行目录，不接受另一个会话。
+恢复先检查协作 worker 是否仍存活，Core 异常退出后可重新绑定同一 worker；已保存的 done 进度标签不代表进程仍存活；已停止时只运行 `--resume <协作 sessionId> --bg`，让原生 job 使用自身保存的启动状态。额外传入创建时的模型、设置等参数会触发新副本，不能在恢复时重用整套创建参数。新版本创建的 worker 沿用持久化批注 MCP 配置；旧 worker 不通过改写 job 状态补装，需新建协作。恢复后校验 sessionId 与执行目录，不接受另一个会话。
 
 Claude ACP 的 SDK `query()` / `canUseTool` 模式有助于理解结构化控制与权限回调，但它会持有自己的 SDK 执行进程。这里采用原生 job 的终端入口，避免与 TUI 并排启动第二个执行端。该路径不依赖安装 Node Agent SDK 或 ACP adapter。
 
@@ -58,9 +58,9 @@ B 的 claude attach
 
 模型和推理强度继承来源已保存值；未保存时使用 A 的原生设置。后续由当前输入者在 TUI 选择。页面只在原生历史确认后更新显示，因此尚未发送下一轮时可能显示最近一次已确认值。测试中的 `gpt-5.6-luna` 不写入产品默认值。
 
-路由配置只在 A 的协作配置中保存，采用 0600 权限；仅继承 `ANTHROPIC_*`、明确的模型列表和 HTTP 代理环境字段，不继承 shell 启动变量、个人 hooks 或插件配置。创建时禁用 hooks/插件/外部 MCP/Chrome 集成，工具范围为 Bash、Read、Write、Edit、Glob、Grep、AskUserQuestion，默认 manual 模式，Bash/Write/Edit 需原生确认。
+路由配置只在 A 的协作配置中保存，采用 0600 权限；仅继承 `ANTHROPIC_*`、明确的模型列表和 HTTP 代理环境字段，不继承 shell 启动变量、个人 hooks 或插件配置。创建时禁用 hooks/插件/其他外部 MCP/Chrome 集成，只加载内置的当前协作批注 MCP，工具范围为 Bash、Read、Write、Edit、Glob、Grep、AskUserQuestion，默认 manual 模式，Bash/Write/Edit 需原生确认。
 
-这套权限是 Claude 自身的权限机制，不等同于 Codex 的操作系统权限配置。当前不承诺 Claude Computer Use、插件、自定义 MCP、全局 slash 命令或 OS 沙箱与 Codex 等价；原生 TUI 的设置功能也不构成防止参与者改变权限的安全沙箱。分享前应了解当前实验性范围。API 路由已实测；OAuth、Keychain 登录流程需独立验证。
+这套权限是 Claude 自身的权限机制，不等同于 Codex 的操作系统权限配置。当前不承诺 Claude Computer Use、插件、其他自定义 MCP、全局 slash 命令或 OS 沙箱与 Codex 等价；原生 TUI 的设置功能也不构成防止参与者改变权限的安全沙箱。分享前应了解当前实验性范围。API 路由已实测；OAuth、Keychain 登录流程需独立验证。
 
 共享开放期间断开 TUI 保留 worker。结束共享后等待原生 busy/等待交互结束、受理中的请求和直接连接清空，再停止协作专用 job 与 supervisor。仅停止有本次协作所有权标记的配置目录；历史、原目录和新 worktree 继续保留。实时 `status` 优先于可能在中断后保留的 `state=working` 进度标签。状态轮询之间最后一次终端写入有短暂释放保护。本机连接层在 Core 异常退出后，仅清理带匹配所有权记录、无进程监听且 inode 未变化的 Unix socket。
 

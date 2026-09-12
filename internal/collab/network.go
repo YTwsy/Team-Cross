@@ -37,6 +37,7 @@ func (s *Session) endShareLocked() {
 	s.remoteSeen = time.Time{}
 	s.epoch++
 	s.releaseWhenIdle = true
+	s.annotationAccess = false
 }
 func (s *Session) Action(ctx context.Context, action string, expected ...uint64) error {
 	if action == "start" {
@@ -65,6 +66,7 @@ func (s *Session) Action(ctx context.Context, action string, expected ...uint64)
 		}
 		s.share = rt
 		s.releaseWhenIdle = false
+		s.annotationAccess = true
 	case "end":
 		s.endShareLocked()
 	case "handoff":
@@ -216,6 +218,15 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out, e := s.annotate(in, "协作者", r.Context())
+		respond(w, out, e)
+		return
+	}
+	if r.Method == "POST" && r.URL.Path == "/v2/annotation-replies" {
+		var in AnnotationReplyInput
+		if !decodeAnnotationReply(w, r, &in) {
+			return
+		}
+		out, e := s.replyAnnotation(r.Context(), in, "协作者")
 		respond(w, out, e)
 		return
 	}

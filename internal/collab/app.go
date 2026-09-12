@@ -140,7 +140,7 @@ func (a *App) binary() (string, error) {
 	}
 	return binary, nil
 }
-func (a *App) startProcess(ctx context.Context, home, cwd, log string) (Runtime, error) {
+func (a *App) startProcess(ctx context.Context, home, cwd, log string, overrides ...string) (Runtime, error) {
 	binary, e := a.binary()
 	if e != nil {
 		return nil, e
@@ -148,7 +148,7 @@ func (a *App) startProcess(ctx context.Context, home, cwd, log string) (Runtime,
 	if a.Config.StartProcess != nil {
 		return a.Config.StartProcess(binary, home, cwd, log)
 	}
-	return nativecodex.Start(ctx, binary, home, cwd, log)
+	return nativecodex.Start(ctx, binary, home, cwd, log, overrides...)
 }
 func (a *App) readerCall(ctx context.Context, method string, params, out any) error {
 	a.readerMu.Lock()
@@ -406,6 +406,7 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 		return fmt.Errorf("Core 已退出")
 	}
 	if s.process != nil && s.process.Alive() {
+		s.annotationAccess = true
 		s.mu.Unlock()
 		return nil
 	}
@@ -435,7 +436,21 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 	if r.Provider == "claude" {
 		p, e = s.app.restoreClaude(ctx, r)
 	} else {
-		p, e = s.app.startProcess(ctx, r.ProviderHome, r.ExecutionCwd, filepath.Join(s.app.Config.DataDir, "collaborations", r.ID, "runtime.log"))
+		var launch annotationLaunch
+		launch, e = s.annotationLaunch()
+		if e == nil {
+			var names []string
+			if s.app.Config.StartProcess == nil {
+				var binary string
+				binary, e = s.app.binary()
+				if e == nil {
+					names, e = nativecodex.MCPServerNames(ctx, binary, r.ProviderHome, r.ExecutionCwd)
+				}
+			}
+			if e == nil {
+				p, e = s.app.startProcess(ctx, r.ProviderHome, r.ExecutionCwd, filepath.Join(s.app.Config.DataDir, "collaborations", r.ID, "runtime.log"), launch.codexOverrides(names)...)
+			}
+		}
 	}
 	if e != nil {
 		return e
@@ -447,6 +462,7 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 		return fmt.Errorf("Core 已退出")
 	}
 	s.process = p
+	s.annotationAccess = true
 	p.SetHandler(func(m nativecodex.Message) { s.onRuntimeMessage(generation, m) })
 	s.online = !resume
 	s.busy = false

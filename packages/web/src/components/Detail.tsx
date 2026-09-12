@@ -236,6 +236,7 @@ export function Detail({ id }: { id: string }) {
         </div>
         <aside className="detail-aside">
           <Annotations
+            key={id}
             id={id}
             annotations={c.annotations || []}
             request={annotationRequest}
@@ -245,12 +246,13 @@ export function Detail({ id }: { id: string }) {
                 current
                   ? {
                       ...current,
-                      annotations: [
-                        ...(current.annotations || []).filter(
-                          (item) => item.id !== annotation.id,
-                        ),
-                        annotation,
-                      ],
+                      annotations: current.annotations?.some(
+                        (item) => item.id === annotation.id,
+                      )
+                        ? current.annotations.map((item) =>
+                            item.id === annotation.id ? annotation : item,
+                          )
+                        : [...(current.annotations || []), annotation],
                     }
                   : current,
               );

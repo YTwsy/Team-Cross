@@ -24,6 +24,7 @@
 - [验证契约](../sources/validation/test-gates.md)、[2026-09-10 安装与首次体验](../sources/validation/onboarding-macos-2026-09-10.md)、[2026-09-09 原生协作](../sources/validation/native-collaboration-2026-09-09.md)：应做什么和已验证什么。
 - [2026-09-10 WebGUI 上下文刷新](../sources/validation/webgui-context-refresh-2026-09-10.md)：自动及手动刷新、阅读位置回归与浏览器证据。
 - [2026-09-11 WebGUI 原处批注](../sources/validation/webgui-annotations-2026-09-11.md)：原文定位、批注快照、MCP 往返、变化提示与浏览器证据。
+- [2026-09-13 批注闭环](../sources/validation/annotations-2026-09-13.md)：直接原生 TUI 的读取/回复/恢复、MCP 隔离、内嵌编辑与单层回复、浏览器证据及 Desktop 尚未覆盖的窗口边界。
 - [2026-09-10 邀请与原生会话释放](../sources/validation/membership-and-release-2026-09-10.md)：成员期限、断线恢复、原生写入锁和客户端关闭边界。
 - [2026-09-11 v0.1.1 分发](../sources/validation/distribution-v0.1.1-2026-09-11.md)：App 命令注册、Homebrew 互斥与回滚、同机真实运行时和页面复核。
 - [2026-09-11 菜单栏 App 跨副本去重](../sources/validation/app-instance-2026-09-11.md)：真实 App 副本并发、邀请转交、确认去重、无响应恢复、Core 保留与本机修复。

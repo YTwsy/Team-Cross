@@ -1,0 +1,184 @@
+{
+  "model": "gpt-5.6-luna",
+  "source_id": "3d949d76-0157-4dfd-b0d7-fbc163d28b31",
+  "fork_id": "62b50286-8641-424d-8ac5-67b7b523f994",
+  "fork_before_first_input": {
+    "generation_count": 0,
+    "transcript_exists": false,
+    "source_unchanged": true
+  },
+  "fork_result": {
+    "session_id": "62b50286-8641-424d-8ac5-67b7b523f994",
+    "result": "TCX_LUNA_20260911",
+    "is_error": false,
+    "terminal_reason": "completed",
+    "duration_ms": 2919,
+    "modelUsage": {
+      "gpt-5.6-luna": {
+        "inputTokens": 2473,
+        "outputTokens": 22,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.012915,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 8,
+        "canonicalModel": "gpt-5.6-luna",
+        "provider": "firstParty",
+        "costBasis": "unknown"
+      }
+    }
+  },
+  "fork_new_id": true,
+  "fork_inherits_history": true,
+  "fork_persisted": true,
+  "source_unchanged_after_fork": true,
+  "resume_result": {
+    "session_id": "62b50286-8641-424d-8ac5-67b7b523f994",
+    "result": "TCX_LUNA_20260911",
+    "is_error": false,
+    "terminal_reason": "completed",
+    "duration_ms": 2456,
+    "modelUsage": {
+      "gpt-5.6-luna": {
+        "inputTokens": 1015,
+        "outputTokens": 12,
+        "cacheReadInputTokens": 1536,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.006143000000000001,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 0,
+        "canonicalModel": "gpt-5.6-luna",
+        "provider": "firstParty",
+        "costBasis": "unknown"
+      }
+    }
+  },
+  "resume_same_id": true,
+  "approval_deny": {
+    "request_id": "73290d10-6720-404d-91ef-ad1eb659d4ab",
+    "tool": "Bash",
+    "input": {
+      "command": "printf 'TCX_APPROVAL_DENY\\n' > /private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo/approval-deny.txt",
+      "description": "Write the approval test marker"
+    },
+    "exists_before_reply": false,
+    "exists_while_pending": false,
+    "result": {
+      "session_id": "62b50286-8641-424d-8ac5-67b7b523f994",
+      "result": "DENIED",
+      "is_error": false,
+      "terminal_reason": "completed",
+      "duration_ms": 10242,
+      "modelUsage": {
+        "gpt-5.6-luna": {
+          "inputTokens": 2409,
+          "outputTokens": 115,
+          "cacheReadInputTokens": 5632,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.017736000000000002,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 29,
+          "canonicalModel": "gpt-5.6-luna",
+          "provider": "firstParty",
+          "costBasis": "unknown"
+        }
+      }
+    },
+    "exists_after_reply": false,
+    "content": null
+  },
+  "approval_allow": {
+    "request_id": "f9012d9d-6181-4522-a607-3a7e61f8248a",
+    "tool": "Bash",
+    "input": {
+      "command": "printf 'TCX_APPROVAL_ALLOW\\n' > /private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo/approval-allow.txt",
+      "description": "Write the approval test marker"
+    },
+    "exists_before_reply": false,
+    "exists_while_pending": false,
+    "result": {
+      "session_id": "62b50286-8641-424d-8ac5-67b7b523f994",
+      "result": "DONE",
+      "is_error": false,
+      "terminal_reason": "completed",
+      "duration_ms": 10343,
+      "modelUsage": {
+        "gpt-5.6-luna": {
+          "inputTokens": 3300,
+          "outputTokens": 204,
+          "cacheReadInputTokens": 10752,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.026976000000000003,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 46,
+          "canonicalModel": "gpt-5.6-luna",
+          "provider": "firstParty",
+          "costBasis": "unknown"
+        }
+      }
+    },
+    "exists_after_reply": true,
+    "content": "TCX_APPROVAL_ALLOW\n"
+  },
+  "interrupt_pending": {
+    "request_id": "e1818dce-6d73-4611-8d16-2462d8c34c7f",
+    "control_ack": {
+      "type": "control_response",
+      "response": {
+        "subtype": "success",
+        "request_id": "47fd1422-2bc3-4121-89bd-6da8e926c4e2",
+        "response": {
+          "still_queued": []
+        }
+      }
+    },
+    "file_exists_after_late_allow": false,
+    "observed_cancellations": [
+      {
+        "type": "control_cancel_request",
+        "request_id": "e1818dce-6d73-4611-8d16-2462d8c34c7f"
+      }
+    ]
+  },
+  "worktree_result": {
+    "session_id": "666ae9eb-c12b-4010-aa2a-a93bf95ce4a7",
+    "result": "TCX_LUNA_20260911\n/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/worktree",
+    "is_error": false,
+    "terminal_reason": "completed",
+    "duration_ms": 3517,
+    "modelUsage": {
+      "gpt-5.6-luna": {
+        "inputTokens": 2690,
+        "outputTokens": 78,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0154,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 41,
+        "canonicalModel": "gpt-5.6-luna",
+        "provider": "firstParty",
+        "costBasis": "unknown"
+      }
+    }
+  },
+  "worktree_init": [
+    {
+      "cwd": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/worktree",
+      "session_id": "666ae9eb-c12b-4010-aa2a-a93bf95ce4a7",
+      "model": "gpt-5.6-luna"
+    }
+  ],
+  "worktree_history_inherited": true,
+  "source_unchanged_at_end": true,
+  "generation_requests": 8
+}

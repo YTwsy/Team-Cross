@@ -24,7 +24,7 @@ let calls: { path: string; body: any }[];
 let file: { path: string; text: string; contentHash: string };
 let rejectSave: boolean;
 let history: (cursor: string | null) => unknown;
-const note = (target: AnnotationTarget): Annotation => ({
+const note = (target?: AnnotationTarget): Annotation => ({
   id: "saved",
   text: "请核对这里",
   target,
@@ -83,6 +83,36 @@ beforeEach(() => {
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       calls.push({ path, body });
       const url = new URL(path, "http://localhost");
+      if (body && path.endsWith("/annotation-replies")) {
+        if (rejectSave)
+          return new Response(
+            JSON.stringify({ error: "保存失败，请检查连接" }),
+            { status: 503 },
+          );
+        const annotation = current.annotations.find(
+          (item) => item.id === body.annotationId,
+        )!;
+        const updated = {
+          ...annotation,
+          replies: [
+            ...(annotation.replies || []),
+            {
+              id: "reply",
+              requestId: body.requestId,
+              text: body.text,
+              author: "协作者",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        };
+        current = {
+          ...current,
+          annotations: current.annotations.map((item) =>
+            item.id === updated.id ? updated : item,
+          ),
+        };
+        return new Response(JSON.stringify(updated));
+      }
       if (body && path.endsWith("/annotations")) {
         if (rejectSave)
           return new Response(
@@ -137,14 +167,17 @@ describe("原处批注", () => {
       message,
     );
     await user.click(screen.getByRole("button", { name: "批注所选内容" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent("中文🙂");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "添加批注" })).toHaveTextContent(
+      "中文🙂",
+    );
     await user.type(screen.getByLabelText("你的意见"), "请解释第二处");
     fireEvent.keyDown(screen.getByLabelText("你的意见"), {
       key: "Enter",
       metaKey: true,
     });
     await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      expect(screen.getByLabelText("你的意见")).toHaveValue(""),
     );
     const writes = calls.filter((call) => call.body);
     expect(writes).toHaveLength(1);
@@ -175,7 +208,7 @@ describe("原处批注", () => {
     await user.type(screen.getByLabelText("你的意见"), "核对这两行");
     await user.click(screen.getByRole("button", { name: "保存批注" }));
     await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      expect(screen.getByLabelText("你的意见")).toHaveValue(""),
     );
     expect(calls.find((call) => call.body)?.body.target).toMatchObject({
       kind: "file",
@@ -198,7 +231,7 @@ describe("原处批注", () => {
     expect(screen.getByText("replacement()")).toBeVisible();
   });
 
-  it("保存失败保留正文和引用，关闭后可继续草稿", async () => {
+  it("保存失败保留正文和引用，切换整体意见后可继续原草稿", async () => {
     const user = userEvent.setup();
     rejectSave = true;
     render(<Detail id="annotations" />);
@@ -209,12 +242,87 @@ describe("原处批注", () => {
     await user.click(screen.getByRole("button", { name: "保存批注" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("保存失败");
     expect(screen.getByLabelText("你的意见")).toHaveValue("保留的草稿");
-    await user.click(screen.getByRole("button", { name: "暂存草稿" }));
-    await user.click(screen.getByRole("button", { name: "继续草稿" }));
+    await user.click(screen.getByRole("button", { name: "写整体意见" }));
+    await user.type(screen.getByLabelText("你的意见"), "另一份整体草稿");
+    await user.click(screen.getByRole("button", { name: /继续草稿 · 对话/ }));
     expect(screen.getByLabelText("你的意见")).toHaveValue("保留的草稿");
     expect(
-      within(screen.getByRole("dialog")).getByText(original),
+      within(screen.getByRole("form", { name: "添加批注" })).getByText(
+        original,
+      ),
     ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "写整体意见" }));
+    expect(screen.getByLabelText("你的意见")).toHaveValue("另一份整体草稿");
+  });
+
+  it("直接写整体意见无需按钮或弹窗，回复保持原批注数量和位置", async () => {
+    const user = userEvent.setup();
+    render(<Detail id="annotations" />);
+    await user.type(await screen.findByLabelText("你的意见"), "整体检查意见");
+    await user.click(screen.getByRole("button", { name: "保存批注" }));
+    const discussion = await screen.findByRole("article", {
+      name: "批注：整体检查意见",
+    });
+    await user.click(within(discussion).getByRole("button", { name: "回复" }));
+    await user.type(
+      screen.getByLabelText("回复这条批注"),
+      "已核对，会补充说明",
+    );
+    fireEvent.keyDown(screen.getByLabelText("回复这条批注"), {
+      key: "Enter",
+      ctrlKey: true,
+      isComposing: true,
+    });
+    expect(
+      calls.filter((call) => call.path.endsWith("/annotation-replies")),
+    ).toHaveLength(0);
+    fireEvent.keyDown(screen.getByLabelText("回复这条批注"), {
+      key: "Enter",
+      ctrlKey: true,
+    });
+    await screen.findByText("回复已保存");
+    expect(current.annotations).toHaveLength(1);
+    expect(current.annotations[0]!.replies).toHaveLength(1);
+    expect(
+      within(discussion).getByRole("group", { name: "1 条回复" }),
+    ).toHaveTextContent("已核对，会补充说明");
+    expect(
+      within(discussion).queryByRole("button", { name: "批注这条消息" }),
+    ).not.toBeInTheDocument();
+    const writes = calls.filter((call) => call.body);
+    expect(writes.map((call) => call.path.split("/").at(-1))).toEqual([
+      "annotations",
+      "annotation-replies",
+    ]);
+    expect(writes[1]!.body).toEqual({
+      annotationId: "saved",
+      text: "已核对，会补充说明",
+      requestId: expect.any(String),
+    });
+  });
+
+  it("回复失败或收起保留草稿，重试沿用 requestId", async () => {
+    const user = userEvent.setup();
+    current.annotations = [
+      { ...note(), text: "已有意见" },
+    ];
+    render(<Detail id="annotations" />);
+    await user.click(await screen.findByRole("button", { name: "回复" }));
+    await user.type(screen.getByLabelText("回复这条批注"), "暂存回复");
+    rejectSave = true;
+    await user.click(screen.getByRole("button", { name: "保存回复" }));
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "收起回复" }));
+    await user.click(screen.getByRole("button", { name: "继续回复" }));
+    expect(screen.getByLabelText("回复这条批注")).toHaveValue("暂存回复");
+    rejectSave = false;
+    await user.click(screen.getByRole("button", { name: "保存回复" }));
+    await screen.findByText("回复已保存");
+    const replies = calls.filter((call) =>
+      call.path.endsWith("/annotation-replies"),
+    );
+    expect(replies).toHaveLength(2);
+    expect(replies[1]!.body.requestId).toBe(replies[0]!.body.requestId);
   });
 
   it("历史批注离开最近八轮后按游标查找并高亮原片段", async () => {

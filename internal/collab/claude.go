@@ -156,7 +156,11 @@ func (s *Session) createClaude(ctx context.Context, preview Preview, title strin
 	if err != nil {
 		return err
 	}
-	driver, err := nativeclaude.Fork(ctx, nativeclaude.Config{Binary: binary, Home: r.ProviderHome, Cwd: r.ExecutionCwd, SourceHome: home, Log: filepath.Join(filepath.Dir(r.ProviderHome), "runtime.log")}, source, title)
+	launch, err := s.annotationLaunch()
+	if err != nil {
+		return err
+	}
+	driver, err := nativeclaude.Fork(ctx, nativeclaude.Config{Binary: binary, Home: r.ProviderHome, Cwd: r.ExecutionCwd, SourceHome: home, Log: filepath.Join(filepath.Dir(r.ProviderHome), "runtime.log"), MCPConfig: launch.claudeConfig()}, source, title)
 	if err != nil {
 		return err
 	}
@@ -174,6 +178,7 @@ func (s *Session) createClaude(ctx context.Context, preview Preview, title strin
 	s.record.State = "ready"
 	s.record.UpdatedAt = time.Now()
 	s.process = p
+	s.annotationAccess = true
 	s.online = true
 	s.generation++
 	generation := s.generation

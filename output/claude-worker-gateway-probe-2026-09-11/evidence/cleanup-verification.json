@@ -1,0 +1,12 @@
+{
+  "known_test_processes_remaining": [],
+  "lsof_exit_code": 1,
+  "lsof_output": "",
+  "test_sockets_exist": {
+    "/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/a-control.sock": false,
+    "/tmp/cc-daemon-501/64dc4dea/control.sock": false,
+    "/tmp/cc-daemon-501/64dc4dea/tcx-backend.sock": false,
+    "/tmp/cc-daemon-501/df14bfd9/control.sock": false,
+    "/tmp/cc-daemon-501/df14bfd9/tcx-b-backend.sock": false
+  }
+}

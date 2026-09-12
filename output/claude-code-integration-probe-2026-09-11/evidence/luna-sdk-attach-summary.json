@@ -1,0 +1,71 @@
+{
+  "model": "gpt-5.6-luna",
+  "session_id": "945a2f16-5a20-4eab-a645-f73334fea8b3",
+  "offline_fork_resume": {
+    "session_id": "945a2f16-5a20-4eab-a645-f73334fea8b3",
+    "result": "TCX_LUNA_20260911",
+    "is_error": false
+  },
+  "sdk_pid": 25491,
+  "agents_while_sdk_live": {
+    "code": 0,
+    "stdout": "[\n  {\n    \"id\": \"cbcf42a6\",\n    \"cwd\": \"/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo\",\n    \"kind\": \"background\",\n    \"startedAt\": 1789122565384,\n    \"sessionId\": \"cbcf42a6-0252-47c6-b870-9f5c42c1c3eb\",\n    \"name\": \"TCX Claude background probe\",\n    \"state\": \"done\"\n  },\n  {\n    \"id\": \"ef18f7f1\",\n    \"cwd\": \"/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo\",\n    \"kind\": \"background\",\n    \"startedAt\": 1789137858374,\n    \"sessionId\": \"ef18f7f1-0c0c-496f-ac5f-669a0561c24d\",\n    \"name\": \"TCX Luna native approval\",\n    \"state\": \"stopped\"\n  },\n  {\n    \"id\": \"6154a4e9\",\n    \"cwd\": \"/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo\",\n    \"kind\": \"background\",\n    \"startedAt\": 1789137897665,\n    \"sessionId\": \"6154a4e9-fba9-44e6-ae61-0c74b944c303\",\n    \"name\": \"TCX Luna native approval\",\n    \"state\": \"stopped\"\n  },\n  {\n    \"id\": \"7f22a8af\",\n    \"cwd\": \"/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo\",\n    \"kind\": \"background\",\n    \"startedAt\": 1789137985625,\n    \"sessionId\": \"7f22a8af-908e-44f8-a13f-178bd050e321\",\n    \"name\": \"TCX Luna native approval\",\n    \"state\": \"stopped\"\n  },\n  {\n    \"id\": \"8e05faad\",\n    \"cwd\": \"/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo\",\n    \"kind\": \"background\",\n    \"startedAt\": 1789138181230,\n    \"sessionId\": \"8e05faad-accc-48c8-8920-c139831daf11\",\n    \"name\": \"TCX Luna native approval\",\n    \"state\": \"done\"\n  },\n  {\n    \"pid\": 25491,\n    \"cwd\": \"/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo\",\n    \"kind\": \"interactive\",\n    \"startedAt\": 1789138325127,\n    \"sessionId\": \"945a2f16-5a20-4eab-a645-f73334fea8b3\",\n    \"name\": \"repo-74\"\n  }\n]\n",
+    "stderr": ""
+  },
+  "sdk-attach-by-id": {
+    "pid": 25527,
+    "exit_code_before_close": 1,
+    "screen": "No job matching '945a2f16-5a20-4eab-a645-f73334fea8b3'. Run 'claude agents' to list running sessions.\n\n"
+  },
+  "sdk-resume-native": {
+    "pid": 25528,
+    "exit_code_before_close": null,
+    "screen": "\"gpt-5.6-luna\" isn't described by this version's model catalog; update Claude Code, or map it with behavesAs on a modelPicker row (or modelOverrides, if it is a provider id of a model this version knows). Until then auto-compact keeps this session within 200k tokens (the context window it assumes); if the model accepts more, append [1m] to the model name for 1M, or set CLAUDE_CODE_MAX_CONTEXT_TOKENS to its real window; CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT=1 restores the previous wait-for-the-API behavior.\n\n78\n▐▛███▛█ClaudeCodev2.1.268\n▝▜██████▀gpt-5.6-luna·APIUsageBilling\n▝▝▝▝/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo\n❯Thisisanisolatedintegrationtest.RemembertheliteralmarkerTCX_LUNA_20260911.Donotusetools.Replywith\nexactlythatmarker.\n⏺TCX_LUNA_20260911\n❯ReplywiththerememberedTCXmarkeronly.Donotusetools.\n⏺TCX_LUNA_20260911\n●high·/effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯  \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n⏸manualmodeon·?forshortcuts·←foragents\n/statusShowClaudeCodestatusincludingversion,model,account,APIconnectivity,andtool\nstatuses\n/statuslineSetupClaudeCode'sstatuslineUI\n/ideManageIDEintegrationsandshowstatus\n/usageShowsessioncost,planusage,andactivitystats\n/status \n\n⏺ TCX_LUNA_20260911\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n Settings  Status   Config   Uage   Stats\nVersion:2.1.268\n  Seson ame:              TCX official offline fork\n Session ID:       945a2f16-5a20-4eab-a645-f73334fea8b3\nSessionkind:interactive\n  Peer address:   uds:/tmp/cc-socks/25528.sock\ncwd:/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo\n  Authtoken:               ANTHROPIC_AUTH_TOKEN\nAnthropicbaseURL:http://127.0.0.1:65504\n\nModel:gpt-5.6-luna\nSettingsources:Commandlinearguments\nManagedsettings(remote):notfetched—notavailablewithacustomANTHROPIC_BASE_URL\nOrganizationpolicy:notfetchedwithacustomANTHROPIC_BASE_URL\nEsctocancel\n\n\n\n\n\n\n\n\n"
+  },
+  "structured_question": {
+    "request": {
+      "type": "control_request",
+      "request_id": "7538026e-3cb3-4424-832b-628cfa06737b",
+      "request": {
+        "subtype": "can_use_tool",
+        "tool_name": "AskUserQuestion",
+        "display_name": "AskUserQuestion",
+        "input": {
+          "questions": [
+            {
+              "question": "Pick the fixture value?",
+              "header": "Fixture value",
+              "options": [
+                {
+                  "label": "ALPHA",
+                  "description": "Use the ALPHA fixture value."
+                },
+                {
+                  "label": "BETA",
+                  "description": "Use the BETA fixture value."
+                }
+              ],
+              "multiSelect": false
+            }
+          ]
+        },
+        "tool_use_id": "call_9E4EI6KKsvXkSfIcP2meptto",
+        "requires_user_interaction": true
+      }
+    },
+    "answer": {
+      "Pick the fixture value?": "ALPHA"
+    },
+    "result": {
+      "session_id": "945a2f16-5a20-4eab-a645-f73334fea8b3",
+      "result": "ALPHA",
+      "is_error": false
+    }
+  },
+  "daemon_stop": {
+    "code": 0,
+    "stdout": "no daemon running\n",
+    "stderr": ""
+  },
+  "generation_requests": 3
+}

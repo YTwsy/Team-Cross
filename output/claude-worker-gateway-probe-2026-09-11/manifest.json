@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-11",
+  "teamCrossHead": "8869b6452f7e595382212d1ced1da32e4a47c726",
+  "claudeCliVersion": "2.1.268",
+  "officialSdkVersion": "0.3.268",
+  "acpPackageVersion": "0.76.0",
+  "acpCommit": "4deace40379a62eb642559454930af4c590b3d49",
+  "acpSource": "https://github.com/agentclientprotocol/claude-agent-acp",
+  "model": "gpt-5.6-luna",
+  "generationAttemptsAcrossHarnessIterations": 13,
+  "fullSuccessfulRoundGenerationAttempts": 7,
+  "separateClientGenerationAttempts": 0,
+  "fixtureRoot": "/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn",
+  "productCodeModified": false,
+  "twoMacValidation": false
+}

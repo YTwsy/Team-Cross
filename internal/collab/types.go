@@ -24,6 +24,7 @@ type Runtime interface {
 
 type Config struct {
 	DataDir, Repo, Binary, DesktopApp string
+	Executable                        string
 	ClaudeBinary, ClaudeHome          string
 	Loopback                          bool
 	StartProcess                      func(string, string, string, string) (Runtime, error)
@@ -66,6 +67,22 @@ type Annotation struct {
 	Target    *AnnotationTarget `json:"target,omitempty"`
 	Author    string            `json:"author"`
 	CreatedAt time.Time         `json:"createdAt"`
+	Replies   []AnnotationReply `json:"replies,omitempty"`
+}
+
+// Replies belong to a root annotation, never to another reply or source range.
+type AnnotationReply struct {
+	ID        string    `json:"id"`
+	RequestID string    `json:"requestId"`
+	Text      string    `json:"text"`
+	Author    string    `json:"author"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+type AnnotationReplyInput struct {
+	AnnotationID string `json:"annotationId"`
+	Text         string `json:"text"`
+	RequestID    string `json:"requestId"`
 }
 
 // AnnotationTarget describes the content as it was displayed when selected.
@@ -105,6 +122,7 @@ type Command struct {
 	Error  string          `json:"error,omitempty"`
 }
 type Record struct {
+	AnnotationToken string             `json:"annotationToken,omitempty"`
 	Provider        string             `json:"provider,omitempty"`
 	NativeJobID     string             `json:"nativeJobId,omitempty"`
 	Model           string             `json:"model,omitempty"`
@@ -145,32 +163,33 @@ type direct struct {
 func (d *direct) close() { d.once.Do(func() { close(d.done) }) }
 
 type Session struct {
-	mu              sync.Mutex
-	record          Record
-	app             *App
-	process         Runtime
-	writer          string
-	busy            bool
-	nativeWaiting   string
-	nativeLastWrite time.Time
-	online          bool
-	epoch           uint64
-	share           *sharing.Runtime
-	releaseWhenIdle bool
-	stopping        chan struct{}
-	activeCalls     int
-	generation      uint64
-	closed          bool
-	direct          *direct
-	events          []Event
-	sequence        uint64
-	approvals       map[string]Approval
-	listener        net.Listener
-	server          *http.Server
-	endpoint        string
-	starting        bool
-	remoteSeen      time.Time
-	inputRequested  bool
+	mu               sync.Mutex
+	record           Record
+	app              *App
+	process          Runtime
+	writer           string
+	busy             bool
+	nativeWaiting    string
+	nativeLastWrite  time.Time
+	online           bool
+	epoch            uint64
+	share            *sharing.Runtime
+	releaseWhenIdle  bool
+	annotationAccess bool
+	stopping         chan struct{}
+	activeCalls      int
+	generation       uint64
+	closed           bool
+	direct           *direct
+	events           []Event
+	sequence         uint64
+	approvals        map[string]Approval
+	listener         net.Listener
+	server           *http.Server
+	endpoint         string
+	starting         bool
+	remoteSeen       time.Time
+	inputRequested   bool
 }
 type Joined struct {
 	app           *App

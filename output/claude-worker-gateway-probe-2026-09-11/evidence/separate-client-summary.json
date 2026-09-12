@@ -1,0 +1,135 @@
+{
+  "model": "gpt-5.6-luna",
+  "generation_allowed": false,
+  "scope": "same Mac, distinct Claude config and cwd, B daemon facade over loopback TCP",
+  "launch": {
+    "code": 0,
+    "stdout": "backgrounded · 9727c9a8 · TCX independent native client (idle — send a prompt to start)\n  claude agents             list sessions\n  claude attach 9727c9a8    open in this terminal\n  claude logs 9727c9a8      show recent output\n  claude stop 9727c9a8      stop this session\n",
+    "stderr": "Starting background service…\nnote: background session c5a0243f keeps its own saved options, so the flags you passed started a copy as 9727c9a8. Without flags, the same command continues c5a0243f itself.\n"
+  },
+  "config_daemon_status": {
+    "code": 0,
+    "stdout": "pid:     31425\nversion: 2.1.268\nuptime:  0s\norigin:  transient — started on-demand by `claude --bg` (pid 31421) in /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo\nconfig:  /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/config/daemon.json\nlog:     /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/config/daemon.log\n\nbg sessions:\n  sock dir:     /tmp/cc-daemon-501/64dc4dea\n  control.sock: reachable\n  bg workers:   1 running (control.sock), 1 in roster.json\n  roster.json:  updated 0s ago\n  daemon.log:   6.8KB at /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/config/daemon.log\n\nholding this daemon open:\n  1 bg worker running (daemon waits for them to settle)\n\nto let it idle-exit: wait for (or cancel) bg workers and close any `claude agents`\n",
+    "stderr": ""
+  },
+  "b_initial_agents": {
+    "code": 0,
+    "stdout": "[]\n",
+    "stderr": ""
+  },
+  "config-b_daemon_status": {
+    "code": 1,
+    "stdout": "not running\n\nbg sessions:\n  sock dir:     /tmp/cc-daemon-501/df14bfd9\n  control.sock: unreachable (connect ENOENT /tmp/cc-daemon-501/df14bfd9/control.sock)\n  bg workers:   0 in roster.json (control unreachable)\n  roster.json:  absent\n  daemon.log:   absent\n",
+    "stderr": ""
+  },
+  "separate_socket_dirs": true,
+  "b_transcripts_before": 0,
+  "b_job_registration": "empty local jobs/<short-id> directory; no copied state or transcript",
+  "b_screen": "\n\n  Attaching…\n\n\n❯RememberTCX_WORKER_SEED.ReplyexactlyTCX_SEED_OK.Donotusetools.\n⏺TCX_SEED_OK\n❯UseBashtoruntheexactcommandbelow.Askforpermissionwhenrequired.Afteritsucceedsreplyexactly\nTCX_HANDOFF_DONE.Usenoothertoolsandnoalternativecommand.\nprintf'TCX_HANDOFF_OK\\n'>\n/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/handoff-approved-c5a0243f.txt\nRan1shellcommand\n⏺TCX_HANDOFF_DONE\n✻Churnedfor12s·done11:27PM\n❯ReplyexactlyTCX_A_CONTROL_OK.Donotusetools.\n⏺TCX_A_CONTROL_OK\n✻Workedfor7s·done11:27PM\n❯UseBashtoruntheexactcommandbelow,askingpermissionifrequired.Usenoothertools.Donotruninthe\nbackground.\nprintf'started\\n'>\n/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-started-c5a0243f.txt;sleep20;printf\n'finished\\n'>/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-finished-c5a0243f.txt\nRan1shellcommand\n⎿ Interrupted·WhatshouldClaudedoinstead?\n⎿ Interrupted·WhatshouldClaudedoinstead?\n●high·/effort\n────────────────────────────────────────────────────────────────────────────────────────TCXindependentnativeclient─\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n⏸manualmodeon·←foragents\n ",
+  "a_history_visible_to_b": true,
+  "b_attach_alive": true,
+  "host_auth_supplied_by_gateway": true,
+  "b_native_auth_present": false,
+  "b_transcripts_after": 0,
+  "worker": {
+    "pid": 31436,
+    "id": "9727c9a8",
+    "cwd": "/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo",
+    "kind": "background",
+    "startedAt": 1789140884968,
+    "sessionId": "9727c9a8-856e-4f4c-a83a-9b9eb03ce395",
+    "name": "TCX independent native client",
+    "status": "idle",
+    "state": "blocked"
+  },
+  "gateway_events": [
+    {
+      "time": 1789140884.894322,
+      "event": "control",
+      "role": "B",
+      "epoch": 1,
+      "op": "nudge",
+      "attach_id": null
+    },
+    {
+      "time": 1789140884.896047,
+      "event": "control",
+      "role": "B",
+      "epoch": 1,
+      "op": "has",
+      "attach_id": null
+    },
+    {
+      "time": 1789140884.8973892,
+      "event": "control",
+      "role": "B",
+      "epoch": 1,
+      "op": "attach",
+      "attach_id": "2fa7ee01-06c6-410f-96fc-1c4041d62ad6"
+    },
+    {
+      "time": 1789140888.154586,
+      "event": "control",
+      "role": "B",
+      "epoch": 1,
+      "op": "nudge",
+      "attach_id": null
+    },
+    {
+      "time": 1789140888.155956,
+      "event": "control",
+      "role": "B",
+      "epoch": 1,
+      "op": "has",
+      "attach_id": null
+    },
+    {
+      "time": 1789140888.156994,
+      "event": "backend_auth_translation",
+      "role": "B",
+      "client_auth_present": false,
+      "client_uses_different_token": true
+    },
+    {
+      "time": 1789140888.1570199,
+      "event": "control",
+      "role": "B",
+      "epoch": 1,
+      "op": "attach",
+      "attach_id": "b9a8caeb-5ffe-4a0f-b054-cf10c6f16bdf"
+    },
+    {
+      "time": 1789140893.299948,
+      "event": "control",
+      "role": "B",
+      "epoch": 1,
+      "op": "list",
+      "attach_id": null
+    }
+  ],
+  "stop": {
+    "code": 0,
+    "stdout": "stopped 9727c9a8\n",
+    "stderr": ""
+  },
+  "b_daemon_stop": {
+    "code": 0,
+    "stdout": "no daemon running\n",
+    "stderr": ""
+  },
+  "a_daemon_stop": {
+    "code": 0,
+    "stdout": "stopped\nnote: the next `claude agents` or `claude --bg` will start a new one\n",
+    "stderr": ""
+  },
+  "generations": 0,
+  "model_requests": [
+    {
+      "time": 1789140885.082649,
+      "method": "GET",
+      "path": "/v1/models?limit=1000",
+      "model": null,
+      "status": 200
+    }
+  ]
+}

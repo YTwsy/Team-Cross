@@ -1,0 +1,24 @@
+{
+  "sdkVersion": "0.3.268",
+  "sourceId": "3d949d76-0157-4dfd-b0d7-fbc163d28b31",
+  "forkId": "945a2f16-5a20-4eab-a645-f73334fea8b3",
+  "sourceUnchanged": true,
+  "newId": true,
+  "sourceMessageCount": 3,
+  "forkMessageCount": 3,
+  "contentPreserved": true,
+  "messageIdsRemapped": true,
+  "persistedBeforeFirstInput": true,
+  "metadata": {
+    "sessionId": "945a2f16-5a20-4eab-a645-f73334fea8b3",
+    "summary": "TCX official offline fork",
+    "lastModified": 1789138254595,
+    "fileSize": 23617,
+    "customTitle": "TCX official offline fork",
+    "firstPrompt": "This is an isolated integration test. Remember the literal marker TCX_LUNA_20260911. Do not use tools. Reply with exactly that marker.",
+    "gitBranch": "master",
+    "cwd": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo",
+    "createdAt": 1789137641474
+  },
+  "fetches": 0
+}

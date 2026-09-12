@@ -17,6 +17,8 @@ B 的账户操作在 B 本机处理，不能修改 A 的账户或返回 A 的认
 
 模型选择从来源、持久化会话与当前输入者的原生配置取得。设置失败不更新显示；离线显示最近确认值；不要把真实测试的 Luna/low 配置写入产品运行时。
 
+共享运行时的批注工具绑定当前协作，直接 TUI/Desktop 可读取并回复原批注，不启动额外模型轮次。Codex 创建/恢复接入；Claude 新建后沿用原生启动配置，旧 worker 需新建协作。凭据和结束/恢复边界见 [协议](../../sources/protocol.md#共享运行时的批注工具)。
+
 ## 检查入口
 
 [模型回归](../../../../internal/collab/model_test.go) · [启动配置回归](../../../../internal/nativecodex/process_test.go) · [本机登录与输入测试](../../../../internal/collab/collab_test.go) · [真实客户端门槛](../../sources/validation/test-gates.md)

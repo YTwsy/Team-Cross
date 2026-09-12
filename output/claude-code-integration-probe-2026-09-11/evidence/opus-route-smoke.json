@@ -1,0 +1,6 @@
+{
+  "requested_model": "claude-opus-5",
+  "status": 400,
+  "error": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"unknown provider for model claude-opus-5\"}}",
+  "elapsed_seconds": 0.01
+}

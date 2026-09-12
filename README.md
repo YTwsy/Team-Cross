@@ -96,7 +96,7 @@ teamcross join 'tcx2.…'
 
 创建页选择「Claude Code · 实验性」。最低要求 Claude Code `2.1.268`，A/B 都需不低于该版本；`2.1.268` 是已实测基线，后续正式版本不因版本号不同而拒绝；可在设置页指定 CLI 路径，或启动时传入 `--claude-bin`。A 上一个原生后台 job 承担执行，当前输入者的原生 TUI 处理输入、审批与中断。读取历史、创建 fork 和恢复不会发送业务 prompt。
 
-WebGUI 与辅助工具可查看上下文、添加批注，并在空闲时发送文本。Claude 的补充、中断、审批与模型选择目前需要在原生 TUI 中操作；共享 worker 尚未接入 Claude Desktop、Computer Use、插件或自定义 MCP，也不承诺与 Codex 的 OS 权限隔离等价。Claude 使用 A 的 API 路由；OAuth / Keychain 登录流程尚未验收。详见 [Claude 接入契约](docs/agent-wiki/sources/decisions/claude-native-tui.md) 与 [2026-09-12 实测记录](docs/agent-wiki/sources/validation/claude-native-tui-2026-09-12.md)。
+WebGUI 与辅助工具可查看上下文、添加批注，并在空闲时发送文本。Claude 的补充、中断、审批与模型选择目前需要在原生 TUI 中操作；共享 worker 内置当前协作的批注读取与回复工具，尚未接入 Claude Desktop、Computer Use、插件或其他自定义 MCP，也不承诺与 Codex 的 OS 权限隔离等价。Claude 使用 A 的 API 路由；OAuth / Keychain 登录流程尚未验收。详见 [Claude 接入契约](docs/agent-wiki/sources/decisions/claude-native-tui.md) 与 [2026-09-12 实测记录](docs/agent-wiki/sources/validation/claude-native-tui-2026-09-12.md)。
 
 ## 模型与推理强度
 
@@ -128,16 +128,21 @@ claude mcp add --transport stdio --scope user teamcross -- /absolute/path/to/tea
 | `interrupt_turn` | 中断指定当前轮 |
 | `respond_to_request` | 回应原生审批或用户输入请求 |
 | `add_annotation` | 保存整体意见，或带原文与结构化位置的批注；不自动注入模型 |
+| `reply_to_annotation` | 回复已有原批注，返回原批注及全部回复；不创建嵌套批注 |
 
 发送成功和执行完成分别表示不同状态。断线或响应超时时先查询实际结果，不自动重复写入。工具不会自动为输入添加参与者身份。
 
 历史默认返回最近 8 轮；工具可将 `nextCursor` 传入 `read_context` 的 `cursor` 读取更早内容。WebGUI 可翻阅更早的一页，完整对话在 Codex 中查看。
 
-在 WebGUI 选中对话文字、点击“批注这条消息”，或点击代码行旁的 `+`，即可针对原文保存意见。拖选同一文件、同一侧的连续代码行可添加多行批注；整体意见从批注面板添加。编辑时自动展示引用位置和原文，支持 `⌘/Ctrl + Enter` 保存；草稿只保留在当前页面。
+WebGUI 的批注面板可以直接填写整体意见。选中对话文字、点击“批注这条消息”，或点击代码行旁的 `+`，会在同一页面的编辑框中展示引用位置和原文。拖选同一文件、同一侧的连续代码行可添加多行批注，不再弹出编辑窗口。不同引用分别保留当前页草稿，支持 `⌘/Ctrl + Enter` 保存。
+
+每条批注下可展开“回复”，按时间顺序讨论原来的意见。回复只有一层，始终归属原批注；人工和共享 Agent 的作者分别显示。收起回复或保存失败会保留当前页草稿，重试使用相同请求标识避免重复保存。上下文刷新保留草稿；浏览器整页刷新或离开页面不保证保留草稿。
 
 点击已保存批注的“查看原位置”可以返回对应对话或代码。代码批注记录文件、行号、改动前后、内容指纹与当时片段；原文变化时保留片段并提示核对，不把旧行号当成当前内容。对话批注绑定原生 turn/item 和选中文字的范围，可在历史分页中查找。
 
-保存批注不会自动启动或补充模型轮次。需要自己的 Codex 处理时，可以复制批注面板的提示，或告诉它：“使用 Team Cross 读取这次协作的批注，核对引用的原文后分析。”工具通过 `read_context` 的 `kind=annotations` 取得意见和定位信息；模型仍需读取实际上下文再判断。
+直接 Codex TUI、专用 Codex Desktop 和直接 Claude Code TUI 的共享运行时内置当前协作的批注工具，无需安装个人辅助 MCP。可以直接告诉它：“读取 Team Cross 批注和回复，核对原文后分析，并回复这条批注。”共享工具 `read_annotations` 和 `reply_to_annotation` 只访问当前协作；个人辅助客户端继续使用 `read_context kind=annotations` 和 `reply_to_annotation`。
+
+保存批注或回复不会自动启动或补充模型轮次。模型需在用户提出要求后读取实际上下文，再判断如何处理；共享 Agent 的回复明确标为 Codex 或 Claude Code。新建协作会自动接入；Codex 旧协作恢复运行时后接入。Claude 旧 worker 的原生启动参数不会被改写，需要新建协作使用新工具；本版本创建的 Claude 协作恢复时会保留接入。
 
 ## 结束与恢复
 

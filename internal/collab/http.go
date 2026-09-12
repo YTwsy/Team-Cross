@@ -73,6 +73,7 @@ func (s *Session) annotate(in Annotation, author string, contexts ...context.Con
 		return Annotation{}, err
 	}
 	in.ID = uuid.NewString()
+	in.Replies = nil // Client-supplied replies and author identities are never imported.
 	in.Text = text
 	in.Author = author
 	in.CreatedAt = time.Now()
@@ -122,6 +123,8 @@ func (a *App) target(ctx context.Context, id, method, path string, input any) (a
 		return map[string]bool{"ok": true}, s.Respond(ctx, "owner", in.ID, in.Result)
 	case "annotations":
 		return s.annotate(input.(Annotation), "发起者")
+	case "annotation-replies":
+		return s.replyAnnotation(ctx, input.(AnnotationReplyInput), "发起者")
 	}
 	return nil, fmt.Errorf("操作不受支持")
 }
@@ -153,6 +156,10 @@ func (a *App) Handler(web http.Handler) http.Handler {
 func (a *App) http(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/")
 	ctx := r.Context()
+	if strings.HasPrefix(path, "runtime-annotations/") {
+		a.runtimeAnnotationsHTTP(w, r, strings.TrimPrefix(path, "runtime-annotations/"))
+		return
+	}
 	if a.onboarding(w, r, path) {
 		return
 	}
@@ -357,7 +364,25 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		}
 		out, e := a.target(ctx, id, "POST", "annotations", in)
 		respond(w, out, e)
+	case "annotation-replies":
+		var in AnnotationReplyInput
+		if !decodeAnnotationReply(w, r, &in) {
+			return
+		}
+		out, e := a.target(ctx, id, "POST", "annotation-replies", in)
+		respond(w, out, e)
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func decodeAnnotationReply(w http.ResponseWriter, r *http.Request, out *AnnotationReplyInput) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(out); err != nil {
+		respond(w, nil, fmt.Errorf("回复仅接受 annotationId、text 和 requestId: %w", err))
+		return false
+	}
+	return true
 }

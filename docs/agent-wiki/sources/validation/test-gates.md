@@ -48,6 +48,7 @@ go build -o bin/teamcross ./cmd/teamcross
 | [verify-release.py](../../../../scripts/verify-release.py) / [verify-homebrew.py](../../../../scripts/verify-homebrew.py) | CLI/App/DMG、App 命令安装、独立 Homebrew 前缀安装、双向互斥、升级与卸载 |
 | [verify-app-instance.py](../../../../scripts/verify-app-instance.py) | 两个真实 App 副本与 macOS URL/退出事件；隔离 Core、请求去重、路径别名、无响应与异常退出恢复；测试邀请不联系远端或调用模型 |
 | [flows.test.tsx](../../../../packages/web/src/test/flows.test.tsx) | 首页、创建、邀请失败、输入交接状态与模型显示 |
+| [annotation_reply_test.go](../../../../internal/collab/annotation_reply_test.go) / [runtime_test.go](../../../../internal/mcp/runtime_test.go) / [annotations.test.tsx](../../../../packages/web/src/test/annotations.test.tsx) | 单层回复、去重、并发快照、访问撤销、受限运行时工具、内嵌草稿与键盘保存 |
 
 ## 真实模型和客户端
 
@@ -105,3 +106,25 @@ python3 scripts/verify-claude-native.py \
 UI 按钮打开另需可访问 macOS 桌面自动化的本机 Core；沙箱中的 `osascript` 失败不能当成产品按钮成功。协议检查、实际客户端工具调用、启动请求与进程/原生 TUI 就绪分别记录。关闭 PTY 后再等待客户端退出，并独立清理每个测试资源，某个 TUI 退出异常不能跳过其他 Core 和验收材料保存。
 
 配置与数值版本回归见 [mcp_test.go](../../../../internal/nativeclaude/mcp_test.go)，跨 Provider 辅助与 Codex 控制能力回归见 [assist_test.go](../../../../internal/collab/assist_test.go)。
+
+## 共享原生批注工具
+
+使用 [verify-annotations.py](../../../../scripts/verify-annotations.py)，分别为 Codex 和 Claude 选择新的空测试目录：
+
+```sh
+python3 scripts/verify-annotations.py \
+  --provider codex \
+  --fixture-dir /private/tmp/teamcross-annotations-fresh-codex \
+  --teamcross-bin /absolute/path/to/teamcross \
+  --codex-bin /absolute/path/to/codex
+
+python3 scripts/verify-annotations.py \
+  --provider claude \
+  --fixture-dir /private/tmp/teamcross-annotations-fresh-claude \
+  --teamcross-bin /absolute/path/to/teamcross \
+  --claude-bin /absolute/path/to/claude
+```
+
+脚本通过直接 TUI 读取只有批注与人工回复中才有的标记，再回复原批注，并验证结束共享后恢复同一会话仍能读取。真实模型只使用 Luna，Claude 沿用本页的 loopback guard；Codex 使用专用配置和已有登录凭据，不修改个人配置。检查继承的个人 MCP 被禁用；只接受本次批注工具对应的确认，不跳过所有审批。
+
+`--keep-preview-seconds` 可暂留 fixture 供 WebGUI / 专用 Desktop 检查；写入 fixture 的 `finish-preview` 可提前结束。Desktop 须另外确认窗口内的实际读取与回复，进程启动或网关连接不等价于完成验收。当前结果见 [2026-09-13 批注验证](annotations-2026-09-13.md)。

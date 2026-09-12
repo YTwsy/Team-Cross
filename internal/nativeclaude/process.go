@@ -31,7 +31,7 @@ const VerifiedVersion = "2.1.268"
 // transport outcome. Callers may report failure without suggesting a replay.
 var ErrRejected = errors.New("Claude 未接收此输入")
 
-type Config struct{ Binary, Home, Cwd, SourceHome, Log string }
+type Config struct{ Binary, Home, Cwd, SourceHome, Log, MCPConfig string }
 type Job struct {
 	ID         string `json:"id"`
 	SessionID  string `json:"sessionId"`
@@ -324,7 +324,11 @@ func Fork(ctx context.Context, c Config, source History, title string) (*Process
 	if err := writeJSON(filepath.Join(c.Home, "teamcross-runtime.json"), p.meta); err != nil {
 		return nil, err
 	}
-	args := []string{"--resume", id, "--bg", "--name", title, "--settings", filepath.Join(c.Home, "settings.json"), "--setting-sources", "", "--strict-mcp-config", "--mcp-config", `{"mcpServers":{}}`, "--permission-mode", "manual", "--tools", "Bash,Read,Write,Edit,Glob,Grep,AskUserQuestion", "--no-chrome"}
+	mcpConfig := c.MCPConfig
+	if mcpConfig == "" {
+		mcpConfig = `{"mcpServers":{}}`
+	}
+	args := []string{"--resume", id, "--bg", "--name", title, "--settings", filepath.Join(c.Home, "settings.json"), "--setting-sources", "", "--strict-mcp-config", "--mcp-config", mcpConfig, "--permission-mode", "manual", "--tools", "Bash,Read,Write,Edit,Glob,Grep,AskUserQuestion", "--no-chrome"}
 	if source.Model != "" {
 		args = append(args, "--model", source.Model)
 	}

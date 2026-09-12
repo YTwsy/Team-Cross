@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/google/uuid"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"teamcross/internal/nativecodex"
@@ -50,7 +51,14 @@ func TestLiveCodex(t *testing.T) {
 	if _, e := workspace.Git(ctx, repo, "commit", "-m", "Dedicated collaboration fixture"); e != nil {
 		t.Fatal(e)
 	}
-	a, e := Open(Config{DataDir: filepath.Join(root, "data"), Repo: repo, Loopback: true})
+	// The shared runtime launches the actual STDIO entry, not this Go test binary.
+	executable := filepath.Join(root, "teamcross")
+	build := exec.CommandContext(ctx, "go", "build", "-o", executable, "./cmd/teamcross")
+	build.Dir = "../.."
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build runtime MCP entry: %v %s", err, out)
+	}
+	a, e := Open(Config{DataDir: filepath.Join(root, "data"), Repo: repo, Loopback: true, Executable: executable})
 	if e != nil {
 		t.Fatal(e)
 	}

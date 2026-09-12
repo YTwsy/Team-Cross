@@ -1,13 +1,63 @@
 package collab
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/google/uuid"
 )
+
+func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, author string) (Annotation, error) {
+	in.Text = strings.TrimSpace(in.Text)
+	if !utf8.ValidString(in.Text) || in.Text == "" || utf8.RuneCountInString(in.Text) > 4000 {
+		return Annotation{}, fmt.Errorf("请输入 1–4000 字的回复")
+	}
+	if in.AnnotationID == "" || len(in.AnnotationID) > 200 || strings.TrimSpace(in.RequestID) == "" || len(in.RequestID) > 200 {
+		return Annotation{}, fmt.Errorf("回复需要原批注 ID 和有效的 requestId")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || !s.callerValidLocked(ctx) {
+		return Annotation{}, fmt.Errorf("共享已结束或连接已变化")
+	}
+	index := -1
+	for i, annotation := range s.record.Annotations {
+		if annotation.ID == in.AnnotationID {
+			index = i
+		}
+		for _, reply := range annotation.Replies {
+			if reply.RequestID == in.RequestID && reply.Author == author {
+				if annotation.ID != in.AnnotationID || reply.Text != in.Text {
+					return Annotation{}, fmt.Errorf("此 requestId 已用于其他回复，请先核对已保存的结果")
+				}
+				return annotation, nil
+			}
+		}
+	}
+	if index < 0 {
+		return Annotation{}, fmt.Errorf("没有找到原批注；回复只能属于当前协作的一条原批注")
+	}
+	previous, updated := s.record.Annotations, s.record.UpdatedAt
+	annotation := previous[index]
+	annotation.Replies = append(append([]AnnotationReply(nil), annotation.Replies...), AnnotationReply{
+		ID: uuid.NewString(), RequestID: in.RequestID, Text: in.Text, Author: author, CreatedAt: time.Now(),
+	})
+	// Context and view readers can still hold the previous snapshot outside mu.
+	s.record.Annotations = append([]Annotation(nil), previous...)
+	s.record.Annotations[index] = annotation
+	s.record.UpdatedAt = time.Now()
+	if err := s.saveLocked(); err != nil {
+		s.record.Annotations, s.record.UpdatedAt = previous, updated
+		return Annotation{}, err
+	}
+	return annotation, nil
+}
 
 func (t *AnnotationTarget) validate() error {
 	if t == nil {

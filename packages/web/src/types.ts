@@ -22,6 +22,14 @@ export type Annotation = {
   target?: AnnotationTarget;
   author: string;
   createdAt: string;
+  replies?: AnnotationReply[];
+};
+export type AnnotationReply = {
+  id: string;
+  requestId: string;
+  text: string;
+  author: string;
+  createdAt: string;
 };
 export type Collaboration = {
   provider?: Provider;
