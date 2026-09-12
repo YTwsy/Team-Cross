@@ -28,6 +28,12 @@
 
 截图位于 `output/playwright/personal-desktop-20260913/`，测试数据与打开参数保留在 `/private/tmp/teamcross-personal-desktop-20260913/`。测试浏览器按独立会话关闭，测试 Core 按专用数据目录停止；没有操作用户已有会话或安装中的服务。
 
+## 版本构建与安装
+
+本轮 `0.1.3` 候选产物通过 DMG 校验和、挂载安装、ad-hoc 签名完整性、App/CLI 版本一致性、菜单栏 App 跨副本协调、命令安装/移除与兼容 Core 复用检查；隔离 Homebrew 前缀中的 Formula/Cask 安装、升级、互斥和卸载保留数据检查通过。产物面向 arm64、macOS 14.0 及以上，未使用 Developer ID 签名或公证，未发布到远端或替换已有安装。每份构建的提交、校验和与签名状态以其 `release.json` 为准。
+
+安装验收首次在新 App 的退出检查超时。诊断确认 fixture 在启动 helper 记录 `serve` 后立即发送退出，此时 App 尚未完成启动回调、仍处于 `busy`，退出事件被忽略。[verify-app-instance.py](../../../../scripts/verify-app-instance.py) 现等待启动后的 `status` 回读再发送一次退出事件，保留停止 Core 和数据保留断言；修正后完整安装检查通过。
+
 ## Desktop 能力边界
 
 本机应用包静态实现包含 `codex://threads/<id>` 的生成与处理：按 ID 读取会话成功后导航，不以侧边栏已有项目为前置条件。该证据仅支持当前版本存在对应入口。

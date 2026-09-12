@@ -166,6 +166,11 @@ with tempfile.TemporaryDirectory(prefix="teamcross-app-instance-") as temp:
         # Explicitly quitting a primary still stops its own Core normally.
         idle.touch()
         for pid in [replacement, other]:
+            # The helper logs serve before the App's completion clears busy.
+            # The following status refresh confirms startup has returned to
+            # the App before sending the single explicit quit event.
+            wait_for(lambda: any(event["parent"] == pid for event in events("status")),
+                     "App did not finish startup before explicit quit")
             run(str(driver), "quit", str(pid))
             wait_for(lambda: not alive(pid), "explicit primary quit failed")
         assert not status().get("running") and not status(independent).get("running")
