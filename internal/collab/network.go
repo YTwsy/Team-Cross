@@ -395,54 +395,71 @@ func (j *Joined) request(ctx context.Context, method, path string, in, out any) 
 func (j *Joined) view(ctx context.Context) map[string]any {
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
-	var out map[string]any
-	e := j.request(ctx, "GET", "/v2/status", nil, &out)
+	var fresh map[string]any
+	e := j.request(ctx, "GET", "/v2/status", nil, &fresh)
 	j.mu.Lock()
 	recovered := false
-	defer func() {
-		j.mu.Unlock()
-		if recovered {
-			_ = j.app.saveJoined()
-			j.startHeartbeat()
-		}
-	}()
 	if e != nil {
-		out = map[string]any{}
-		for k, v := range j.Last {
-			out[k] = v
-		}
-		out["online"] = false
-		out["runtimeState"] = "offline"
-		out["releasePending"] = false
-		out["error"] = e.Error()
-		if !j.confirmed {
-			out["state"] = "joining"
-		}
-		if j.ended {
-			out["state"] = "ended"
-			out["sharing"] = false
-			out["writer"] = "owner"
-			out["connected"] = false
-			out["busy"] = false
-			out["approvals"] = 0
-		}
-		if j.left {
-			out["state"] = "left"
-			out["sharing"] = false
-		}
-		if out["title"] == nil {
-			out["title"] = j.Invitation.Title
-		}
-		out["host"] = j.Invitation.Host
+		j.Error = e.Error()
 	} else {
 		if !j.confirmed && !j.closed {
 			j.confirmed, recovered = true, true
 		}
 		j.Last = map[string]any{}
-		for k, v := range out {
+		for k, v := range fresh {
 			j.Last[k] = v
 		}
 		j.Error = ""
+	}
+	j.statusChecked = true
+	out := j.cachedViewLocked()
+	j.mu.Unlock()
+	if recovered {
+		_ = j.app.saveJoined()
+		j.startHeartbeat()
+	}
+	return out
+}
+
+func (j *Joined) cachedView() map[string]any {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.cachedViewLocked()
+}
+
+func (j *Joined) cachedViewLocked() map[string]any {
+	out := map[string]any{}
+	for k, v := range j.Last {
+		out[k] = v
+	}
+	if !j.statusChecked || j.Error != "" {
+		out["online"] = false
+		out["runtimeState"] = "offline"
+		out["releasePending"] = false
+	}
+	if j.Error != "" {
+		out["error"] = j.Error
+	}
+	if !j.confirmed {
+		out["state"] = "joining"
+	}
+	if j.ended {
+		out["state"] = "ended"
+		out["sharing"] = false
+		out["writer"] = "owner"
+		out["connected"] = false
+		out["busy"] = false
+		out["approvals"] = 0
+	}
+	if j.left {
+		out["state"] = "left"
+		out["sharing"] = false
+	}
+	if out["title"] == nil {
+		out["title"] = j.Invitation.Title
+	}
+	if out["host"] == nil {
+		out["host"] = j.Invitation.Host
 	}
 	out["remoteId"] = j.Invitation.ID
 	out["id"] = j.ID
@@ -450,6 +467,22 @@ func (j *Joined) view(ctx context.Context) map[string]any {
 	out["transport"] = "LAN"
 	delete(out, "expiresAt")
 	return out
+}
+
+func (j *Joined) refreshView() {
+	j.mu.Lock()
+	if j.refreshing || j.left || j.ended || j.closed {
+		j.mu.Unlock()
+		return
+	}
+	j.refreshing = true
+	j.mu.Unlock()
+	go func() {
+		_ = j.view(context.Background())
+		j.mu.Lock()
+		j.refreshing = false
+		j.mu.Unlock()
+	}()
 }
 func (j *Joined) stopLocked() {
 	j.closed = true

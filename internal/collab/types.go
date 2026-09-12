@@ -211,6 +211,8 @@ type Joined struct {
 	closeOnce     sync.Once
 	done          chan struct{}
 	heartbeatOnce sync.Once
+	statusChecked bool
+	refreshing    bool
 }
 type Settings struct {
 	ClaudeBinary string `json:"claudeBinary"`

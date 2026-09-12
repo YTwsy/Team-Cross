@@ -634,7 +634,10 @@ func (a *App) List(ctx context.Context) []map[string]any {
 		list = append(list, s.view())
 	}
 	for _, j := range js {
-		list = append(list, j.view(ctx))
+		list = append(list, j.cachedView())
+		if ctx.Err() == nil {
+			j.refreshView()
+		}
 	}
 	sort.Slice(list, func(i, j int) bool { return fmt.Sprint(list[i]["createdAt"]) > fmt.Sprint(list[j]["createdAt"]) })
 	return list
