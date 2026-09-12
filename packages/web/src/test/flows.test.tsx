@@ -67,6 +67,111 @@ beforeEach(() => {
   location.hash = "/";
 });
 
+describe("邀请者在个人 Codex 中打开协作", () => {
+  it("同事正在操作时不自动跳转，点击才打开已有 fork", async () => {
+    mockFetch((path) => {
+      if (path.endsWith("/personal-desktop"))
+        return {
+          launched: true,
+          note: "已请求个人 Codex 打开此协作会话，请在 Desktop 中查看。",
+        };
+      if (path.includes("/context")) return { thread: { turns: [] } };
+      return {
+        ...collaboration,
+        role: "owner",
+        writer: "remote",
+        busy: true,
+        sequence: 20,
+        runtimeState: "running",
+      };
+    });
+    const user = userEvent.setup();
+    render(<Detail id="c1" />);
+    const button = await screen.findByRole("button", {
+      name: "在个人 Codex 中打开",
+    });
+    expect(button).toBeEnabled();
+    expect(calls.every((call) => call.body === undefined)).toBe(true);
+    await user.click(button);
+    expect(
+      await screen.findByText(/已请求个人 Codex 打开此协作会话/),
+    ).toHaveAttribute("role", "status");
+    expect(calls.filter((call) => call.body !== undefined)).toEqual([
+      { path: "collaborations/c1/personal-desktop", body: { launch: true } },
+    ]);
+  });
+
+  it.each([
+    { role: "remote" },
+    { role: "owner", provider: "claude" },
+    { role: "owner", sessionId: "" },
+    { role: "owner", sessionId: collaboration.sourceId },
+  ])("不显示不适用的个人 Codex 入口：%j", async (overrides) => {
+    mockFetch((path) =>
+      path.includes("/context")
+        ? { thread: { turns: [] } }
+        : { ...collaboration, ...overrides },
+    );
+    render(<Detail id="c1" />);
+    await screen.findByRole("heading", { name: "协作" });
+    expect(
+      screen.queryByRole("button", { name: /在个人 Codex 中/ }),
+    ).not.toBeInTheDocument();
+    expect(calls.every((call) => call.body === undefined)).toBe(true);
+  });
+
+  it.each([
+    ["running", false, "在个人 Codex 中打开"],
+    ["releasing", false, "在个人 Codex 中打开"],
+    ["released", true, "在个人 Codex 中打开"],
+    ["released", false, "在个人 Codex 中继续"],
+  ])(
+    "仅释放后提供继续入口：%s / sharing=%s",
+    async (runtimeState, sharing, label) => {
+      mockFetch((path) =>
+        path.includes("/context")
+          ? { thread: { turns: [] } }
+          : {
+              ...collaboration,
+              role: "owner",
+              online: runtimeState === "running",
+              runtimeState,
+              sharing,
+            },
+      );
+      render(<Detail id="c1" />);
+      expect(await screen.findByRole("button", { name: label })).toBeEnabled();
+    },
+  );
+
+  it("打开失败可重试，不误报已打开或恢复运行时", async () => {
+    let attempts = 0;
+    mockFetch((path) => {
+      if (path.endsWith("/personal-desktop")) {
+        attempts++;
+        return attempts === 1
+          ? new Error("未找到 Codex Desktop")
+          : { launched: true, note: "已请求个人 Codex 打开此协作会话。" };
+      }
+      return path.includes("/context")
+        ? { thread: { turns: [] } }
+        : { ...collaboration, role: "owner", online: false };
+    });
+    const user = userEvent.setup();
+    render(<Detail id="c1" />);
+    const button = await screen.findByRole("button", {
+      name: "在个人 Codex 中打开",
+    });
+    await user.click(button);
+    await screen.findByText("未找到 Codex Desktop");
+    expect(screen.queryByText(/已请求个人 Codex/)).not.toBeInTheDocument();
+    await user.click(button);
+    await screen.findByText(/已请求个人 Codex/);
+    expect(calls.filter((call) => call.body !== undefined)).toHaveLength(2);
+    expect(calls.some((call) => call.path.endsWith("/action"))).toBe(false);
+  });
+});
+
 describe("个人 Claude Code 辅助模式", () => {
   const info = {
     binary: "/codex",

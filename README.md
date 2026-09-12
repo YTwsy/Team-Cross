@@ -73,6 +73,8 @@ teamcross stop --force
 
 创建不发送业务指令。来源会话和 Git 起点发生变化时，需要重新查看起点。当前支持普通 Git 仓库；含 submodule 的仓库暂不支持。
 
+Codex 协作创建成功后，发起者可在详情顶部点击“在个人 Codex 中打开”，直接定位新的协作会话，无需先在 Desktop 列表中找到它。创建、同事对话和输入交接不会自动切换你的页面。该入口打开你平时使用的 Desktop；共享期间的操作继续使用直接客户端或辅助工具。结束共享并释放会话后，入口变为“在个人 Codex 中继续”。系统打开请求成功不代表新对话已实时同步。
+
 ## 邀请与加入
 
 发起者创建后取得包含 App 链接、邀请码和安装指引的邀请。已安装的接收者点击 `teamcross://join?invite=…`，确认协作名、主机和访问范围后进入上下文页。未安装者先安装，再次点击链接；也可在“加入协作”中粘贴原始邀请码或 App 链接。显式 CLI 加入会自动启动 Core 并直接进入详情：
@@ -164,7 +166,7 @@ make verify-release
 make verify-homebrew
 ```
 
-本地开发构建默认 `0.1.1-dev`，输出位于 `dist/release/0.1.1-dev/`。发布构建使用 `make release VERSION=0.1.1`，要求干净 checkout，并在重建 Web 资源后再次核对。使用相同 `VERSION` 运行两个安装验证目标。完整参数、隔离安装和签名入口见 [分发与首次体验](docs/agent-wiki/sources/distribution-and-onboarding.md)。
+本地开发构建默认 `0.1.3-dev`，输出位于 `dist/release/0.1.3-dev/`。版本构建使用 `make release VERSION=0.1.3`，要求干净 checkout，并在重建 Web 资源后再次核对。使用相同 `VERSION` 运行两个安装验证目标。构建不上传产物。完整参数、隔离安装和签名入口见 [分发与首次体验](docs/agent-wiki/sources/distribution-and-onboarding.md)。
 
 
 ```sh

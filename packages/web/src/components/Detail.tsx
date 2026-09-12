@@ -1,7 +1,7 @@
 import { invitationText } from "../types";
 import { useEffect, useState } from "react";
 import { api, errorText, useResource } from "../api";
-import { type Collaboration, projectName } from "../types";
+import { type ClientPlan, type Collaboration, projectName } from "../types";
 import { Clients } from "./Clients";
 import { Context } from "./Context";
 import { Annotations, type AnnotationRequest } from "./Annotations";
@@ -22,12 +22,14 @@ export function Detail({ id }: { id: string }) {
     "clients" | "assist" | "invite" | "end" | null
   >(() => (sessionStorage.getItem(`teamcross.invite.${id}`) ? "invite" : null));
   const [busy, setBusy] = useState("");
+  const [personalOpenNote, setPersonalOpenNote] = useState("");
   const [error, setError] = useState(
     () => sessionStorage.getItem(`teamcross.create.${id}`) || "",
   );
   useEffect(() => {
     sessionStorage.removeItem(`teamcross.create.${id}`);
     sessionStorage.removeItem(`teamcross.invite.${id}`);
+    setPersonalOpenNote("");
   }, [id]);
   const [annotationRequest, setAnnotationRequest] =
     useState<AnnotationRequest>();
@@ -53,6 +55,22 @@ export function Detail({ id }: { id: string }) {
       setBusy("");
     }
   }
+  async function openPersonalCodex() {
+    setBusy("personal-desktop");
+    setError("");
+    setPersonalOpenNote("");
+    try {
+      const result = await api<ClientPlan>(
+        `collaborations/${id}/personal-desktop`,
+        { launch: true },
+      );
+      setPersonalOpenNote(result.note || "已请求个人 Codex 打开此协作会话。");
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy("");
+    }
+  }
   if (!c)
     return (
       <>
@@ -69,6 +87,13 @@ export function Detail({ id }: { id: string }) {
   const owner = c.role === "owner";
   const mine = c.role === c.writer;
   const closed = ["ended", "left", "expired"].includes(c.state);
+  const canOpenPersonalCodex =
+    owner &&
+    c.provider !== "claude" &&
+    !!c.sessionId &&
+    c.sessionId !== c.sourceId;
+  const canContinueInPersonalCodex =
+    !c.sharing && c.runtimeState === "released";
   return (
     <>
       <a href="#/" className="back-link">
@@ -198,6 +223,21 @@ export function Detail({ id }: { id: string }) {
               {mine ? `打开 ${agentName}` : "用自己的客户端辅助"}
             </button>
           )}
+          {canOpenPersonalCodex && (
+            <button
+              className="button"
+              disabled={!!busy}
+              onClick={() => void openPersonalCodex()}
+              title="直接定位此协作，无需从 Desktop 列表中查找"
+            >
+              <Icon name="desktop" size={17} />
+              {busy === "personal-desktop"
+                ? "正在打开…"
+                : canContinueInPersonalCodex
+                  ? "在个人 Codex 中继续"
+                  : "在个人 Codex 中打开"}
+            </button>
+          )}
           {owner && c.online && !c.participantJoined && (
             <button
               className="button"
@@ -212,6 +252,11 @@ export function Detail({ id }: { id: string }) {
           )}
         </div>
       </section>
+      {personalOpenNote && (
+        <p className="notice" role="status">
+          {personalOpenNote}
+        </p>
+      )}
       <div className="detail-grid">
         <div className="detail-main">
           <Context

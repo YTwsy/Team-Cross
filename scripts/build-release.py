@@ -5,7 +5,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 def run(*args, **kw): subprocess.run(args, cwd=ROOT, check=True, **kw)
 def digest(p): return hashlib.sha256(p.read_bytes()).hexdigest()
 p = argparse.ArgumentParser()
-p.add_argument('--version', default='0.1.1-dev')
+p.add_argument('--version', default='0.1.3-dev')
 p.add_argument('--output', help='Version-specific output directory (default: dist/release/VERSION)')
 p.add_argument('--base-url', help='Release asset base URL; no upload is performed')
 p.add_argument('--sign-identity', help='Developer ID Application identity')

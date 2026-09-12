@@ -13,6 +13,8 @@
 
 ## 已记录的验收
 
+[2026-09-13 个人 Desktop 定位 fork](../../sources/validation/personal-desktop-2026-09-13.md) 记录邀请者主动打开、同源与本机归属检查、不恢复运行时、48 项 Web 回归以及 6 种尺寸/主题组合。浏览器点击由真实 Core 处理，系统打开由测试替身记录；Desktop 实际窗口显示受电脑控制工具限制，未覆盖。
+
 [2026-09-13 批注闭环](../../sources/validation/annotations-2026-09-13.md) 记录两个直接 TUI 的实际读取/回复/恢复、Codex MCP 隔离、WebGUI 内嵌编辑与单层回复、38 项 Web 回归和 6 种尺寸/主题组合。专用 Desktop 只确认进程和连接，窗口内工具调用仍未覆盖；属于同机两个 Core。
 
 [2026-09-12 个人 Claude 辅助 MCP](../../sources/validation/claude-assist-2026-09-12.md) 记录个人 MCP 原生安装、实际 TUI 工具调用、A 上读写、交接、去重、访问撤销与浏览器按钮打开。属于同机两套隔离 Core；较新 CLI 仅验证最低版本逻辑。

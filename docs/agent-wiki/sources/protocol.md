@@ -28,6 +28,7 @@
 | `GET /collaborations/:id/context?kind=&path=&after=&cursor=` | `history/changes/file/annotations/events` |
 | `POST /collaborations/:id/action` | `{action,epoch}` |
 | `POST /collaborations/:id/open` | `{client:tui|desktop,launch:boolean}` 直接客户端 |
+| `POST /collaborations/:id/personal-desktop` | `{launch:boolean}`，仅本机发起的 Codex 协作；在个人 Desktop 定位已保存的 fork |
 | `POST /collaborations/:id/assist` | `{provider:codex|claude,client:tui|desktop,launch:boolean}`，Provider 选择个人客户端，省略默认 Codex；Claude 仅 TUI |
 | `POST /collaborations/:id/rpc` | `{method,params,requestId}` 协作原生调用 |
 | `POST /collaborations/:id/respond` | `{id,result}` 原生请求回应 |
@@ -51,6 +52,8 @@
 预览返回 `source`、`sourceTurnId`、`workspace`、`targetDirectory`、`previewHash`。不接受 dirty patch 或未跟踪文件选项。创建哈希绑定来源会话、完成轮、模式、目录、Git HEAD 和分支；未提交文件只是原目录当前现场，不捕获为快照。
 
 `action` 包括：`start` 恢复运行时，`share` 生成邀请，`end` 结束共享，`handoff` 交给接收者，`reclaim` 发起者接回，`return` 接收者交还，`leave` 接收者离开，`request_input` / `cancel_input` 接收者申请或取消输入。申请同样校验 epoch，不自动交接。输入交接需要当前 `epoch`。
+
+`personal-desktop` 从本机持久化协作记录读取 `sessionId`，生成 `codex://threads/<sessionId>`，不使用来源 `sourceId` 或请求体提供的会话 ID/URL。返回 `{sessionId,url,command,launched,note}`；`launch:false` 仅生成命令，`launch:true` 通过 `open -a <Desktop路径> <URL>` 请求打开普通 Desktop，`launched` 只表示系统打开请求成功，不证明页面、侧边栏或新消息已刷新。此入口不要求当前输入权或在线运行时，不 fork、resume、发送 prompt、连接共享网关或更改共享状态；不适用于接收者或 Claude 协作。
 
 ## LAN 分享
 

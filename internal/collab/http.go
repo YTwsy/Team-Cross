@@ -326,6 +326,15 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		}
 		e = s.Action(ctx, in.Action, in.Epoch)
 		respond(w, s.view(), e)
+	case "personal-desktop":
+		var in struct {
+			Launch bool `json:"launch"`
+		}
+		if !decode(w, r, &in) {
+			return
+		}
+		out, e := a.PersonalDesktopPlan(ctx, id, in.Launch)
+		respond(w, out, e)
 	case "open", "assist":
 		var in struct {
 			Provider string `json:"provider"`

@@ -5,6 +5,7 @@
 ## 代码定位
 
 - [launch.go](../../../../internal/collab/launch.go)：检测客户端、生成启动计划和 MCP 配置入口。
+- [personal_desktop.go](../../../../internal/collab/personal_desktop.go)：邀请者通过持久化 fork ID 在个人 Desktop 中定位协作；只在点击时打开，不交接输入或恢复运行时。
 - [local_client.go](../../../../internal/collab/local_client.go)：本机账户与偏好路由。
 - [process.go](../../../../internal/nativecodex/process.go)：原生进程、独立客户端配置与 TUI 命令。
 - [model.go](../../../../internal/collab/model.go)、[rpc.go](../../../../internal/collab/rpc.go)：模型继承、原生确认、设置通知与写入约束。
@@ -12,6 +13,8 @@
 ## 修改时守住的边界
 
 Desktop 使用独立应用数据目录和指定 WebSocket 入口。进程启动成功不能代替历史、审批和 A 上执行的验证；首次登录或引导是单独的客户端状态。
+
+详情中的“在个人 Codex 中打开”使用普通 Desktop 的深链接，与直接客户端入口分开；创建成功即提供，远端活动不触发页面跳转。共享关闭且运行时释放后才显示“在个人 Codex 中继续”。系统打开请求成功不等于页面或后续对话同步成功。
 
 B 的账户操作在 B 本机处理，不能修改 A 的账户或返回 A 的认证 token。共享代码执行仍在 A。
 
