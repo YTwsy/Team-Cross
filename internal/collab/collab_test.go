@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"teamcross/internal/nativecodex"
+	"teamcross/internal/sharing"
 	"teamcross/internal/workspace"
 	"testing"
 	"time"
@@ -308,6 +309,80 @@ func TestHostOriginAndScopedAccess(t *testing.T) {
 			t.Fatal(w.Code, test)
 		}
 	}
+}
+
+func TestListReturnsCachedJoinedStatusWhileRefreshing(t *testing.T) {
+	refreshStarted := make(chan struct{}, 1)
+	releaseRefresh := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v2/status" {
+			select {
+			case refreshStarted <- struct{}{}:
+			default:
+			}
+			select {
+			case <-releaseRefresh:
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"title":        "远端新状态",
+					"createdAt":    "2026-09-10T10:00:00Z",
+					"updatedAt":    "2026-09-10T11:00:00Z",
+					"state":        "ready",
+					"online":       true,
+					"runtimeState": "running",
+				})
+			case <-r.Context().Done():
+			}
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	}))
+	t.Cleanup(server.Close)
+	a, _, _ := fixture(t)
+	j := &Joined{
+		app:        a,
+		ID:         "joined-cached",
+		Invitation: sharing.Invitation{ID: "remote-cached", Title: "邀请标题", Host: "A 的 Mac"},
+		Credential: "credential",
+		URL:        server.URL,
+		Client:     server.Client(),
+		Last: map[string]any{
+			"title":     "本机快照",
+			"createdAt": "2026-09-10T10:00:00Z",
+			"updatedAt": "2026-09-10T10:30:00Z",
+			"state":     "ready",
+			"online":    true,
+		},
+		confirmed: true,
+		done:      make(chan struct{}),
+	}
+	a.mu.Lock()
+	a.joined[j.ID] = j
+	a.mu.Unlock()
+
+	listed := make(chan []map[string]any, 1)
+	go func() { listed <- a.List(context.Background()) }()
+	var list []map[string]any
+	select {
+	case list = <-listed:
+	case <-time.After(500 * time.Millisecond):
+		close(releaseRefresh)
+		t.Fatal("collaboration list waited for the remote status request")
+	}
+	if len(list) != 1 || list[0]["title"] != "本机快照" || list[0]["online"] != false {
+		close(releaseRefresh)
+		t.Fatal("list did not return the offline local snapshot", list)
+	}
+	select {
+	case <-refreshStarted:
+	case <-time.After(time.Second):
+		close(releaseRefresh)
+		t.Fatal("remote status was not refreshed in the background")
+	}
+	close(releaseRefresh)
+	eventually(t, func() bool {
+		view := j.cachedView()
+		return view["title"] == "远端新状态" && view["online"] == true
+	})
 }
 
 func TestParticipantLoginStaysLocal(t *testing.T) {

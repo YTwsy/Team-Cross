@@ -1,0 +1,221 @@
+{
+  "initialize_no_generation": true,
+  "source_result": {
+    "duration_api_ms": 3211,
+    "stop_reason": "end_turn",
+    "session_id": "3d949d76-0157-4dfd-b0d7-fbc163d28b31",
+    "total_cost_usd": 0.0126,
+    "usage": {
+      "input_tokens": 2390,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 26,
+      "output_tokens_details": {
+        "thinking_tokens": 12
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "",
+      "iterations": [],
+      "speed": "standard"
+    },
+    "modelUsage": {
+      "gpt-5.6-luna": {
+        "inputTokens": 2390,
+        "outputTokens": 26,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.0126,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 12,
+        "canonicalModel": "gpt-5.6-luna",
+        "provider": "firstParty",
+        "costBasis": "unknown"
+      }
+    },
+    "permission_denials": [],
+    "terminal_reason": "completed",
+    "fast_mode_state": "off",
+    "fast_mode_disabled_reason": "sdk_opt_in_required",
+    "subagent_stats": {
+      "spawned": 0,
+      "requested": {
+        "background": 0,
+        "foreground": 0,
+        "unset": 0
+      },
+      "started_in_background": 0,
+      "max_depth": 0,
+      "spawned_by_subagents": 0,
+      "completed": 0,
+      "failed": 0,
+      "killed": {
+        "parent": 0,
+        "user": 0,
+        "system": 0
+      },
+      "refused": {
+        "depth_limit": 0,
+        "concurrency_limit": 0,
+        "budget": 0
+      },
+      "by_type": {}
+    },
+    "is_error": false,
+    "num_turns": 1,
+    "subtype": "success",
+    "api_error_status": null,
+    "result": "TCX_LUNA_20260911",
+    "ttft_ms": 2439,
+    "type": "result",
+    "duration_ms": 3251,
+    "uuid": "368a8b37-1628-46f2-8dbe-47b90409d187",
+    "ttft_stream_ms": 1733,
+    "time_to_request_ms": 40,
+    "first_content_frame_ms": 2438,
+    "user_message_uuid": "c7c73c00-3ad1-468d-b63e-aa07f7d86c2d",
+    "user_message_uuids": [
+      "c7c73c00-3ad1-468d-b63e-aa07f7d86c2d"
+    ],
+    "request_sent_wall_ms": 1789137641504,
+    "queued_turn_count": 0,
+    "result_index": 0
+  },
+  "source_sessions": [
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/955b6618-7a99-4265-8574-4634dc21dfdc.jsonl",
+      "bytes": 6061,
+      "sha256": "4cc2df3c670b9643bf2c3eb3f7a7862fd7a7359a0fa7ff67c1fddbcb883d98b0"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/2afa2347-8b2b-4997-aeca-e65157ed125b.jsonl",
+      "bytes": 6130,
+      "sha256": "21928a1a4aaa60188b01a6b387016393e6dfbc36e72a1eca8b10d19265e6a573"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/42b4e7d3-1088-4495-be01-806dcc4c051e.jsonl",
+      "bytes": 14130,
+      "sha256": "2479c9c8a468b8206e3fd5b27996f6d5de41479999b6886fefcd694b4595e17e"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/3f203d9e-c1aa-4bc1-a1ff-6e40830a59cf.jsonl",
+      "bytes": 5899,
+      "sha256": "6c8aac5336f04743d3afb710a4db1e07a4e0b3eb3bdadeaade2e0dfb943ee5b3"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/8ae4f3ea-a4d1-4d2c-957f-c087537768d7.jsonl",
+      "bytes": 7474,
+      "sha256": "7937802e3916cdeb5acafb5b316463daf85ce53ac1ba5381df8ae1e73081b718"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/a0270195-c4d5-4bd3-a880-78ef6655c9ee.jsonl",
+      "bytes": 15326,
+      "sha256": "4b7dc389a3e8c26689eba21be8fe869a248d17cfe8b9357783c358b4a5756121"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/15846454-cd37-4b36-bcf5-e4da61f5f2fd.jsonl",
+      "bytes": 5631,
+      "sha256": "d8941aa329a9242a465c15380c53966c36710b6d911bd37631b6c765f5479f38"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/3d949d76-0157-4dfd-b0d7-fbc163d28b31.jsonl",
+      "bytes": 23043,
+      "sha256": "de6159578ee0d6a21b82e84593d140d43a582db620dbb7fb88f232e7218377a7"
+    }
+  ],
+  "fork_no_prompt_generations": 0,
+  "fork_no_prompt_sessions_live": [
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/955b6618-7a99-4265-8574-4634dc21dfdc.jsonl",
+      "bytes": 6061,
+      "sha256": "4cc2df3c670b9643bf2c3eb3f7a7862fd7a7359a0fa7ff67c1fddbcb883d98b0"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/2afa2347-8b2b-4997-aeca-e65157ed125b.jsonl",
+      "bytes": 6130,
+      "sha256": "21928a1a4aaa60188b01a6b387016393e6dfbc36e72a1eca8b10d19265e6a573"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/42b4e7d3-1088-4495-be01-806dcc4c051e.jsonl",
+      "bytes": 14130,
+      "sha256": "2479c9c8a468b8206e3fd5b27996f6d5de41479999b6886fefcd694b4595e17e"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/3f203d9e-c1aa-4bc1-a1ff-6e40830a59cf.jsonl",
+      "bytes": 5899,
+      "sha256": "6c8aac5336f04743d3afb710a4db1e07a4e0b3eb3bdadeaade2e0dfb943ee5b3"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/8ae4f3ea-a4d1-4d2c-957f-c087537768d7.jsonl",
+      "bytes": 7474,
+      "sha256": "7937802e3916cdeb5acafb5b316463daf85ce53ac1ba5381df8ae1e73081b718"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/a0270195-c4d5-4bd3-a880-78ef6655c9ee.jsonl",
+      "bytes": 15326,
+      "sha256": "4b7dc389a3e8c26689eba21be8fe869a248d17cfe8b9357783c358b4a5756121"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/15846454-cd37-4b36-bcf5-e4da61f5f2fd.jsonl",
+      "bytes": 5631,
+      "sha256": "d8941aa329a9242a465c15380c53966c36710b6d911bd37631b6c765f5479f38"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/3d949d76-0157-4dfd-b0d7-fbc163d28b31.jsonl",
+      "bytes": 23043,
+      "sha256": "de6159578ee0d6a21b82e84593d140d43a582db620dbb7fb88f232e7218377a7"
+    }
+  ],
+  "fork_no_prompt_sessions_closed": [
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/955b6618-7a99-4265-8574-4634dc21dfdc.jsonl",
+      "bytes": 6061,
+      "sha256": "4cc2df3c670b9643bf2c3eb3f7a7862fd7a7359a0fa7ff67c1fddbcb883d98b0"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/2afa2347-8b2b-4997-aeca-e65157ed125b.jsonl",
+      "bytes": 6130,
+      "sha256": "21928a1a4aaa60188b01a6b387016393e6dfbc36e72a1eca8b10d19265e6a573"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/42b4e7d3-1088-4495-be01-806dcc4c051e.jsonl",
+      "bytes": 14130,
+      "sha256": "2479c9c8a468b8206e3fd5b27996f6d5de41479999b6886fefcd694b4595e17e"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/3f203d9e-c1aa-4bc1-a1ff-6e40830a59cf.jsonl",
+      "bytes": 5899,
+      "sha256": "6c8aac5336f04743d3afb710a4db1e07a4e0b3eb3bdadeaade2e0dfb943ee5b3"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/8ae4f3ea-a4d1-4d2c-957f-c087537768d7.jsonl",
+      "bytes": 7474,
+      "sha256": "7937802e3916cdeb5acafb5b316463daf85ce53ac1ba5381df8ae1e73081b718"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/a0270195-c4d5-4bd3-a880-78ef6655c9ee.jsonl",
+      "bytes": 15326,
+      "sha256": "4b7dc389a3e8c26689eba21be8fe869a248d17cfe8b9357783c358b4a5756121"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/15846454-cd37-4b36-bcf5-e4da61f5f2fd.jsonl",
+      "bytes": 5631,
+      "sha256": "d8941aa329a9242a465c15380c53966c36710b6d911bd37631b6c765f5479f38"
+    },
+    {
+      "path": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/config/projects/-private-tmp-teamcross-claude-probe-20260911-p6yo8o8--repo/3d949d76-0157-4dfd-b0d7-fbc163d28b31.jsonl",
+      "bytes": 23043,
+      "sha256": "de6159578ee0d6a21b82e84593d140d43a582db620dbb7fb88f232e7218377a7"
+    }
+  ],
+  "source_id": "3d949d76-0157-4dfd-b0d7-fbc163d28b31"
+}

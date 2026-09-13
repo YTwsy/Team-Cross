@@ -6,10 +6,10 @@
 
 | 产品用词 | 含义与代码字段 |
 | --- | --- |
-| 来源会话 | A 已有的原生 Codex 会话，保存为 `sourceId`；不是共享后继续写入的会话 |
-| 来源起点 | 预览确认的已完成轮 `sourceTurnId`，创建 fork 时作为 `lastTurnId` |
+| 来源会话 | A 已有的所选 Provider 原生会话，保存为 `sourceId`；不是共享后继续写入的会话 |
+| 来源起点 | 预览确认的已完成轮 `sourceTurnId`；Codex 传 `lastTurnId`，Claude 绑定已完成的来源快照 |
 | 协作 | Team Cross 管理的记录 `Record`，有自己的 `id`，关联来源、fork、执行目录、命令状态与批注 |
-| 协作会话 / fork | 创建出的新原生 Codex 会话，保存为 `sessionId`；客户端切换和恢复继续该 ID |
+| 协作会话 / fork | 创建出的新原生会话，保存为 `sessionId`；客户端切换和恢复继续该 ID |
 | 原生 Thread | Codex 协议中的会话对象，RPC 使用 `threadId`；不是旧版 Team Cross 的 Thread 聚合模型 |
 | 原生 Turn / 轮次 | Codex 一次输入后的运行过程；不是必须由用户创建或填写的 Round |
 | 执行主机 | 持有共享运行时并执行代码的 A；B 的本机客户端与辅助会话不改变共享执行位置 |
@@ -22,7 +22,7 @@
 | 输入交接版本 | `epoch`，用于拒绝已经过时的输入交接操作 |
 | 请求 ID | `requestId`，用于区分并查询写入；RPC 响应与整轮执行完成不同 |
 | 批注 | `Annotation`，可带引用的人类反馈，保存后不自动触发模型调用 |
-| 模型设置 | Codex 确认的 `model`、`modelProvider`、`reasoningEffort`；表示会话配置，不是逐轮执行遥测 |
+| 模型设置 | 原生运行时确认的 `model`、`modelProvider`、`reasoningEffort`；表示会话配置，不是逐轮执行遥测 |
 
 ## 状态应分别理解
 
@@ -32,7 +32,7 @@
 
 ## 产品边界
 
-直接操作与本地辅助都可以使用 TUI 或 Desktop。“独立会话”指辅助者有自己的会话 ID 与本地上下文，不限定为某一种界面。辅助者通过工具访问共享协作，而不是先合并双方完整历史。
+Codex 的直接操作与本地辅助可使用 TUI 或 Desktop；Claude 实验性直接入口与个人辅助入口均为原生 TUI，能力边界见 [Claude 接入契约](decisions/claude-native-tui.md)。“独立会话”指辅助者有自己的会话 ID 与本地上下文，不限定为某一种界面。辅助者通过工具访问共享协作，而不是先合并双方完整历史。
 
 来源使用原目录时，创建操作保持 Git 现场；用户后续让协作 Agent 修改文件，则会直接修改原目录中的文件。新 worktree 只从确认的 HEAD 检出，不复制 staged、unstaged、untracked 或 ignored 内容。
 

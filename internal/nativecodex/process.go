@@ -74,6 +74,43 @@ func Version(ctx context.Context, binary string) (string, error) {
 	return strings.TrimSpace(string(data)), err
 }
 
+// MCPServerNames reads the effective home/project configuration without
+// starting any server. Codex merges MCP tables across layers, so a worker must
+// disable inherited entries individually before adding its scoped tools.
+func MCPServerNames(ctx context.Context, binary, home, cwd string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, binary, "mcp", "list", "--json")
+	cmd.Dir, cmd.Env = cwd, environment(home)
+	data, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("无法读取 Codex MCP 配置，请检查客户端配置")
+	}
+	var entries []struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return nil, fmt.Errorf("Codex 未返回有效的 MCP 配置列表")
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name)
+	}
+	return names, nil
+}
+
+func environment(home string) []string {
+	var env []string
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if key == "CODEX_HOME" || strings.HasPrefix(key, "CODEX_THREAD") || strings.HasPrefix(key, "CODEX_TURN") || strings.HasPrefix(key, "CODEX_SESSION") || strings.HasPrefix(key, "CODEX_APP_SERVER") {
+			continue
+		}
+		env = append(env, entry)
+	}
+	return append(env, "CODEX_HOME="+home)
+}
+
 // WriteConfig only writes a Team Cross-owned directory, never the user's config.
 func WriteConfig(home string) error {
 	if err := os.MkdirAll(home, 0700); err != nil {
@@ -102,7 +139,7 @@ enabled = false
 `), 0600)
 }
 
-func Start(ctx context.Context, binary, home, cwd, logPath string) (*Process, error) {
+func Start(ctx context.Context, binary, home, cwd, logPath string, overrides ...string) (*Process, error) {
 	// Reserve a loopback port. The readiness handshake detects a lost bind race.
 	l, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
@@ -128,16 +165,12 @@ func Start(ctx context.Context, binary, home, cwd, logPath string) (*Process, er
 	} {
 		args = append(args, "-c", value)
 	}
+	for _, value := range overrides {
+		args = append(args, "-c", value)
+	}
 	p.cmd = exec.Command(binary, args...)
 	p.cmd.Dir = cwd
-	for _, entry := range os.Environ() {
-		key, _, _ := strings.Cut(entry, "=")
-		if key == "CODEX_HOME" || strings.HasPrefix(key, "CODEX_THREAD") || strings.HasPrefix(key, "CODEX_TURN") || strings.HasPrefix(key, "CODEX_SESSION") || strings.HasPrefix(key, "CODEX_APP_SERVER") {
-			continue
-		}
-		p.cmd.Env = append(p.cmd.Env, entry)
-	}
-	p.cmd.Env = append(p.cmd.Env, "CODEX_HOME="+home)
+	p.cmd.Env = environment(home)
 	p.cmd.Stdout, p.cmd.Stderr = log, log
 	if err = p.cmd.Start(); err != nil {
 		_ = log.Close()

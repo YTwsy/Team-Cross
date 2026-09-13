@@ -11,12 +11,65 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
     private var pendingURLs: [String] = []
     private var baseURL: URL?
     private var refreshing = false
-    private let dataDir = ProcessInfo.processInfo.environment["TEAMCROSS_DATA_DIR"]
+    private var dataDir = ProcessInfo.processInfo.environment["TEAMCROSS_DATA_DIR"]
     private let cliDir = ProcessInfo.processInfo.environment["TEAMCROSS_CLI_DIR"]
     private var executable: URL { Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/teamcross") }
+    private var instance: AppInstance?
+    private var startupTimer: Timer?
+    private var startupDeadline = Date.distantFuture
+    private var forwarding = false
+    private var forwardedRequest: AppInstance.Request?
+    private var shellOnlyExit = false
+    private var pendingRoute: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        do {
+            instance = try AppInstance(dataDirectory: dataDir)
+            dataDir = instance?.dataDirectory
+        } catch {
+            showError(error.localizedDescription); finishShellOnly(); return
+        }
+        startupDeadline = Date().addingTimeInterval(10)
+        // Let initial URL Apple events arrive before deciding to open Home.
+        startupTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in self?.coordinateStartup() }
+    }
+    private func coordinateStartup() {
+        guard !forwarding, !shellOnlyExit, let instance else { return }
+        do {
+            if try instance.claim(receive: { [weak self] request in
+                guard let self, !self.quitting, self.pendingURLs.count + request.urls.count <= 32 else { return false }
+                if request.urls.isEmpty { self.pendingRoute = "" }
+                else { self.pendingURLs.append(contentsOf: request.urls) }
+                self.drainRequests()
+                return true
+            }) {
+                startupTimer?.invalidate(); startupTimer = nil
+                createMenu()
+                return
+            }
+        } catch {
+            showError(error.localizedDescription); finishShellOnly(); return
+        }
+        guard Date() < startupDeadline else {
+            showError("已有 Team Cross App 暂时无法接收打开请求。请从现有菜单栏入口打开协作空间，或稍后重试。")
+            finishShellOnly(); return
+        }
+        if forwardedRequest == nil { forwardedRequest = AppInstance.Request(urls: pendingURLs) }
+        guard let request = forwardedRequest else { return }
+        forwarding = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let accepted = instance.forward(request)
+            DispatchQueue.main.async {
+                self.forwarding = false
+                guard accepted else { return }
+                self.pendingURLs.removeFirst(request.urls.count)
+                self.forwardedRequest = nil
+                if self.pendingURLs.isEmpty { self.finishShellOnly() }
+            }
+        }
+    }
+    private func createMenu() {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "person.2.fill", accessibilityDescription: "Team Cross")
         item.button?.image?.isTemplate = true
@@ -33,8 +86,12 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
         add("退出 Team Cross", #selector(quit), to: menu, key: "q")
         item.menu = menu
         if !receivedURL { launch(route: "") }
-        drainInvites()
+        drainRequests()
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.refresh() }
+    }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if item != nil { launch(route: "") }
+        return false
     }
     private func add(_ title: String, _ action: Selector, to menu: NSMenu, key: String = "") {
         let entry = NSMenuItem(title: title, action: action, keyEquivalent: key); entry.target = self; menu.addItem(entry)
@@ -44,10 +101,14 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
             receivedURL = true
             pendingURLs.append(url.absoluteString)
         }
-        if item != nil { drainInvites() }
+        if item != nil { drainRequests() }
     }
-    private func drainInvites() {
-        guard !busy, !pendingURLs.isEmpty else { return }
+    private func drainRequests() {
+        guard item != nil, !busy, !quitting else { return }
+        guard !pendingURLs.isEmpty else {
+            if let route = pendingRoute { pendingRoute = nil; openRoute(route) }
+            return
+        }
         let invitation = pendingURLs.removeFirst()
         busy = true
         call(["join", "--preview", "--stdin", "--no-open", "--json"], input: invitation) { result in
@@ -56,7 +117,7 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
             case .success(let value): self.openResult(value)
             case .failure(let error): self.showError(error.localizedDescription)
             }
-            self.refresh(); self.drainInvites()
+            self.refresh(); self.drainRequests()
         }
     }
     private func call(_ args: [String], input: String? = nil, administrator: Bool = false, completion: @escaping (Result<[String: Any], Error>) -> Void) {
@@ -98,14 +159,18 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
         }
     }
     private func launch(route: String) {
-        guard !busy else { return }; busy = true
+        pendingRoute = route
+        drainRequests()
+    }
+    private func openRoute(_ route: String) {
+        busy = true
         call(["serve", "--no-open", "--json"]) { result in
             self.busy = false
             switch result {
             case .success(let value): self.openResult(value, route: route)
             case .failure(let error): self.statusItem.title = "服务未启动"; self.showError(error.localizedDescription)
             }
-            self.refresh(); self.drainInvites()
+            self.refresh(); self.drainRequests()
         }
     }
     private func refresh() {
@@ -126,6 +191,7 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
         guard !busy, !quitting else { return }; busy = true
         call(["cli-status", "--json"]) { result in
             self.busy = false
+            defer { self.drainRequests() }
             guard case .success(let status) = result else {
                 if case .failure(let error) = result { self.showError(error.localizedDescription) }; return
             }
@@ -155,6 +221,7 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
         busy = true
         call([command, "--json"], administrator: administrator) { result in
             self.busy = false
+            defer { self.drainRequests() }
             switch result {
             case .success(let value):
                 NSApp.activate(ignoringOtherApps: true)
@@ -191,15 +258,28 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
         }
     }
     private func finishQuit() { timer?.invalidate(); NSApp.terminate(nil) }
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if quitting { return .terminateNow }; quit(); return .terminateCancel
+    private func finishShellOnly() {
+        shellOnlyExit = true
+        startupTimer?.invalidate()
+        NSApp.terminate(nil)
     }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if shellOnlyExit || quitting { return .terminateNow }
+        if item == nil { shellOnlyExit = true; return .terminateNow }
+        quit(); return .terminateCancel
+    }
+    func applicationWillTerminate(_ notification: Notification) { instance?.close() }
     private func showError(_ message: String) {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert(); alert.messageText = "Team Cross 需要处理"; alert.informativeText = message
         alert.addButton(withTitle: "知道了"); alert.runModal()
     }
 }
-let delegate = TeamCrossDelegate()
-NSApplication.shared.delegate = delegate
-NSApplication.shared.run()
+@main
+enum TeamCrossApplication {
+    static func main() {
+        let delegate = TeamCrossDelegate()
+        NSApplication.shared.delegate = delegate
+        withExtendedLifetime(delegate) { NSApplication.shared.run() }
+    }
+}

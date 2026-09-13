@@ -1,0 +1,20 @@
+[
+  {
+    "pid": 45925,
+    "process": "45925 45401 /Users/wsy/.nvm/versions/node/v24.18.0/bin/claude",
+    "cwd_verified": true,
+    "terminated": true
+  },
+  {
+    "pid": 45946,
+    "process": "45946 45925 /private/tmp/teamcross-claude-feature-bin mcp --data-dir /private/tmp/teamcross-claude-assist-live-20260912-a/core-b",
+    "cwd_verified": true,
+    "terminated": true
+  },
+  {
+    "pid": 45401,
+    "process": "45401 45399 -zsh",
+    "cwd_verified": true,
+    "terminated": true
+  }
+]

@@ -113,8 +113,22 @@ func (a *App) onboarding(w http.ResponseWriter, r *http.Request, path string) bo
 			w.WriteHeader(403)
 			return true
 		}
+		var in struct {
+			Provider string `json:"provider"`
+		}
+		if !decode(w, r, &in) {
+			return true
+		}
+		// This is client-reported diagnostic evidence, never an authorization.
+		if in.Provider != "codex" && in.Provider != "claude" {
+			respond(w, map[string]bool{"ok": false}, nil)
+			return true
+		}
 		a.mu.Lock()
-		a.mcpObserved = time.Now()
+		if a.mcpObserved == nil {
+			a.mcpObserved = map[string]time.Time{}
+		}
+		a.mcpObserved[in.Provider] = time.Now()
 		a.mu.Unlock()
 		respond(w, map[string]bool{"ok": true}, nil)
 		return true

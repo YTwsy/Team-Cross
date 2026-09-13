@@ -53,6 +53,55 @@ func TestStdioDoesNotSendInputWhileListing(t *testing.T) {
 		}
 	}
 }
+func TestStdioReportsActualClientOnlyOnToolCall(t *testing.T) {
+	for _, row := range []struct{ name, provider string }{{"claude-code", "claude"}, {"codex-mcp-client", "codex"}, {"teamcross-probe", ""}, {"", ""}} {
+		t.Run(row.name, func(t *testing.T) {
+			dir, _ := service.Normalize(t.TempDir())
+			var connection service.Connection
+			observed := []string{}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != "Bearer test-token" {
+					t.Error("missing local authentication")
+				}
+				if r.URL.Path == "/api/control/status" {
+					json.NewEncoder(w).Encode(service.Status{Connection: connection, Running: true})
+					return
+				}
+				if r.URL.Path == "/api/mcp/observed" {
+					var v struct {
+						Provider string `json:"provider"`
+					}
+					json.NewDecoder(r.Body).Decode(&v)
+					observed = append(observed, v.Provider)
+				}
+				w.Write([]byte(`[]`))
+			}))
+			defer server.Close()
+			connection = service.Connection{URL: server.URL, PID: os.Getpid(), Instance: "test", Token: "test-token", Version: buildinfo.Version, Protocol: buildinfo.ControlProtocol, DataDir: dir}
+			b, _ := json.Marshal(connection)
+			os.WriteFile(filepath.Join(dir, "connection.json"), b, 0600)
+			init := `{"id":1,"method":"initialize","params":{"clientInfo":{"name":"` + row.name + `"}}}` + "\n" + `{"id":2,"method":"tools/list"}` + "\n"
+			var output bytes.Buffer
+			if err := Serve(context.Background(), dir, strings.NewReader(init), &output); err != nil {
+				t.Fatal(err)
+			}
+			if len(observed) != 0 {
+				t.Fatal("protocol probe reported an actual client")
+			}
+			call := `{"id":3,"method":"tools/call","params":{"name":"list_collaborations","arguments":{}}}` + "\n"
+			if err := Serve(context.Background(), dir, strings.NewReader(init+call), &output); err != nil {
+				t.Fatal(err)
+			}
+			if row.provider == "" {
+				if len(observed) != 0 {
+					t.Fatal(observed)
+				}
+			} else if len(observed) != 1 || observed[0] != row.provider {
+				t.Fatal(observed)
+			}
+		})
+	}
+}
 func TestSendPreservesTextAndId(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var v map[string]any
@@ -71,5 +120,37 @@ func TestSendPreservesTextAndId(t *testing.T) {
 	backend := Backend{URL: server.URL, Client: server.Client()}
 	if _, e := backend.Invoke(context.Background(), "send_input", map[string]any{"id": "abc", "requestId": "stable-id", "mode": "steer", "turnId": "turn1", "text": "选定内容"}); e != nil {
 		t.Fatal(e)
+	}
+}
+
+func TestAnnotationsCarryStructuredSourceThroughMCP(t *testing.T) {
+	target := map[string]any{"kind": "changes", "path": "src/示例.ts", "startLine": float64(12), "endLine": float64(12), "side": "old", "quote": "removed()", "contentHash": strings.Repeat("a", 64), "baseRevision": strings.Repeat("b", 40)}
+	calls := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method+" "+r.URL.RequestURI())
+		if r.Method == "POST" {
+			var input map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				t.Fatal(err)
+			}
+			got, _ := json.Marshal(input["target"])
+			want, _ := json.Marshal(target)
+			if string(got) != string(want) || input["text"] != "检查被删的调用" {
+				t.Error(input)
+			}
+		}
+		json.NewEncoder(w).Encode(map[string]any{"annotations": []any{map[string]any{"text": "检查被删的调用", "target": target}}})
+	}))
+	defer server.Close()
+	backend := Backend{URL: server.URL, Client: server.Client()}
+	if _, err := backend.Invoke(context.Background(), "add_annotation", map[string]any{"id": "collaboration", "text": "检查被删的调用", "target": target}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := backend.Invoke(context.Background(), "read_context", map[string]any{"id": "collaboration", "kind": "annotations"})
+	if err != nil || !bytes.Contains(result, []byte(`"side":"old"`)) || !bytes.Contains(result, []byte(`"quote":"removed()"`)) {
+		t.Fatal(string(result), err)
+	}
+	if len(calls) != 2 || calls[0] != "POST /api/collaborations/collaboration/annotations" || calls[1] != "GET /api/collaborations/collaboration/context?kind=annotations" {
+		t.Fatal(calls)
 	}
 }

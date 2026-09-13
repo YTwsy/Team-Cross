@@ -1,0 +1,67 @@
+
+
+  Attaching…
+
+
+▐▛███▛█ClaudeCodev2.1.268
+▝▜██████▀gpt-5.6-luna·APIUsageBilling
+▝▝▝▝/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo
+❯Thisisanisolatedintegrationtest.RemembertheliteralmarkerTCX_LUNA_20260911.Donotusetools.Replywith
+exactlythatmarker.
+⏺TCX_LUNA_20260911
+❯UsetheBashtooloncetorunthisexactcommand:printf'TCX_NATIVE_TUI\n'>
+/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo/approval-native-tui-complete.txt.Donotuseanyother
+tool.AfteritcompletesreplyTCX_NATIVE_DONE.
+Ran1shellcommand
+⏺TCX_NATIVE_DONE
+✻Bakedfor11s·done10:49PM
+●high·/effort
+─────────────────────────────────────────────────────────────────────────────────────────────TCXLunanativeapproval─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⏸manualmodeon·←foragents
+ 
+
+✻ Baked for 11s ·dn10:49 PM
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+ Settings  Status   Config   Uage   Stats
+Version:2.1.268
+  Seson ame:              TCX Lunanative approval
+ Session ID:       8e05faad-accc-48c8-8920-c139831daf11
+Sessionkind:backgroundjob·attached
+  Peer address:   uds:/tmp/cc-socks/24676.sock
+cwd:/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo
+  Auth token:             ANTHROPIC_AUTH_TOKEN
+ Anthropic bas URL:         http://127..0.1:4828
+
+Model:gpt-5.6-luna
+ Setting sources:  Commandlinearguments
+Managedsettings(remote):notfetched—notavailablewithacustomANTHROPIC_BASE_URL
+  Organization policy:notfetchedwithacustomANTHROPIC_BASE_URL
+  Esc to cancel
+
+
+
+
+ ▐▛███▛█   ClaudeCdv2.1.268
+▝▜██████▀  gpt-5.6-luna · API Usage Billing
+▝▝ ▝▝    /private/tmp/teamcros-claude-probe-20260911-p6yo8o8_/repo
+
+❯Thi s a isolatedintegration test.Remember the literalmarkerTCX_LUNA_20260911.Donotusetools.Replywith
+exactly thatmarker.
+
+⏺TCX_LUNA_20260911
+
+❯Use the Bashtooloncetorun this exact command:printf'TCX_NATIVE_TUI\n'>
+/private/tmp/tamcross-claude-probe-2026911-pyo8o8_/repo/approval-native-tui-complete.txt.Donotuseanyother
+tool.AfteritcompletesreplyTCX_NATIVE_DONE.
+
+Ran 1 shell command
+
+⏺TCX_NATIVE_DONE
+✻Baked for 11s ·done10:49PM
+●high·/effort
+─────────────────────────────────────────────────────────────────────────────────────────────TCXLunanativeapproval─
+❯  
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⏸manualmodeon·←foragents78

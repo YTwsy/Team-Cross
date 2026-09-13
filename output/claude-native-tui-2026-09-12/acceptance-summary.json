@@ -1,0 +1,40 @@
+{
+  "scope": "one Mac, two real Cores, TLS membership gateway",
+  "model": "gpt-5.6-luna",
+  "cli_version": "2.1.268 (Claude Code)",
+  "source_id": "8508f62d-4c69-4851-91f5-84f44e835bb0",
+  "collaborations": {
+    "existing": {
+      "id": "e66c58bc-d26d-49ad-b7f4-801c2a7d0f66",
+      "sessionId": "4e512f0a-da52-464a-8723-90989234d24a",
+      "cwd": "/private/tmp/teamcross-claude-feature-live-20260912-k/repo",
+      "jobId": "4e512f0a"
+    },
+    "worktree": {
+      "id": "efbcafb1-a335-44fe-a720-d7cd310f93fd",
+      "sessionId": "ded0804d-e4ca-4129-9a98-75d86805f7b4",
+      "cwd": "/private/tmp/teamcross-claude-feature-live-20260912-k/core-a/collaborations/efbcafb1-a335-44fe-a720-d7cd310f93fd/worktree",
+      "jobId": "ded0804d"
+    }
+  },
+  "workspace_and_preinput_restore": true,
+  "approval_handoff": true,
+  "pending_tool_ids_persisted": false,
+  "completed_approval_tool_id": "call_8Yq6xW11WY4LIs3Z19Nh00GB",
+  "actual_mcp_send": true,
+  "control_send_deduplicated": true,
+  "native_interrupt": true,
+  "same_worker": true,
+  "worktree_execution": true,
+  "effort_selection_restored": true,
+  "restore_after_input": true,
+  "core_crash_same_worker": true,
+  "source_unchanged": true,
+  "b_history_files": 0,
+  "generation_requests": 10,
+  "models_observed": [
+    "gpt-5.6-luna"
+  ],
+  "worker_pid_before": 17924,
+  "worker_pid_after": 17924
+}

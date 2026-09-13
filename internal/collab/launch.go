@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"teamcross/internal/buildinfo"
 	"teamcross/internal/cliinstall"
+	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/problem"
 	"teamcross/internal/service"
@@ -46,6 +47,9 @@ func (a *App) ClientPlan(ctx context.Context, id, client string, launch bool) (m
 	role, _ := view["role"].(string)
 	if view["writer"] != role {
 		return nil, fmt.Errorf("请先完成输入交接")
+	}
+	if view["provider"] == "claude" {
+		return a.claudeClientPlan(ctx, id, client, launch, view)
 	}
 	endpoint, e := a.endpoint(id)
 	if e != nil {
@@ -109,11 +113,42 @@ func (a *App) Info(ctx context.Context) map[string]any {
 	executable = service.StableExecutable(executable)
 	mcpCommand := "codex mcp add teamcross -- " + nativecodex.Quote(executable) + " mcp --data-dir " + nativecodex.Quote(a.Config.DataDir)
 	a.mu.Lock()
-	observed, probed := a.mcpObserved, a.mcpProbed
+	observed, claudeObserved, probed := a.mcpObserved["codex"], a.mcpObserved["claude"], a.mcpProbed
 	a.mu.Unlock()
-	return map[string]any{"mcpObservedAt": observed, "mcpProbed": probed, "name": "Team Cross", "version": buildinfo.Version, "installedVersion": service.InstalledVersion(ctx, executable), "cli": cliinstall.Inspect(executable, cliinstall.DefaultDir, os.Getenv("PATH")), "commit": buildinfo.Commit, "host": a.Host, "binary": binary, "codexVersion": version, "codexError": problem, "desktopApp": a.desktop(), "dataDir": a.Config.DataDir, "mcpCommand": mcpCommand, "mcpConfigured": a.mcpConfigured(ctx, binary), "time": time.Now()}
+	claudeBinary, claudeVersion, claudeError := a.claudeInfo(ctx)
+	claude := a.personalClaudeMCP(claudeBinary, executable)
+	claudeConfigured, claudeConfigError := claude.Inspect()
+	claudeCommand := a.claudePersonalCommand(claudeBinary) + " mcp add --transport stdio --scope user teamcross -- " + nativecodex.Quote(executable) + " mcp --data-dir " + nativecodex.Quote(a.Config.DataDir)
+	codexConfigured := a.mcpConfigured(ctx, binary)
+	clients := map[string]MCPClientStatus{
+		"codex":  {Configured: codexConfigured, Command: mcpCommand, ObservedAt: observed},
+		"claude": {Configured: claudeConfigured, Command: claudeCommand, ObservedAt: claudeObserved},
+	}
+	if claudeConfigError != nil {
+		status := clients["claude"]
+		status.ConfigError = claudeConfigError.Error()
+		clients["claude"] = status
+	}
+	return map[string]any{"mcpClients": clients, "claudeBinary": claudeBinary, "claudeVersion": claudeVersion, "claudeError": claudeError, "mcpObservedAt": observed, "mcpProbed": probed, "name": "Team Cross", "version": buildinfo.Version, "installedVersion": service.InstalledVersion(ctx, executable), "cli": cliinstall.Inspect(executable, cliinstall.DefaultDir, os.Getenv("PATH")), "commit": buildinfo.Commit, "host": a.Host, "binary": binary, "codexVersion": version, "codexError": problem, "desktopApp": a.desktop(), "dataDir": a.Config.DataDir, "mcpCommand": mcpCommand, "mcpConfigured": codexConfigured, "time": time.Now()}
 }
-func (a *App) SetupMCP(ctx context.Context) error {
+func (a *App) SetupMCP(ctx context.Context, provider string) error {
+	provider, e := providerName(provider)
+	if e != nil {
+		return e
+	}
+	a.mcpSetupMu.Lock()
+	defer a.mcpSetupMu.Unlock()
+	if provider == "claude" {
+		binary, e := a.claudeBinary()
+		if e != nil {
+			return e
+		}
+		executable, e := os.Executable()
+		if e != nil {
+			return e
+		}
+		return a.personalClaudeMCP(binary, service.StableExecutable(executable)).Setup(ctx)
+	}
 	binary, e := a.binary()
 	if e != nil {
 		return e
@@ -156,9 +191,16 @@ func (a *App) mcpConfigured(ctx context.Context, binary string) bool {
 	executable = service.StableExecutable(executable)
 	return v.Enabled && v.Transport.Command == executable && slices.Equal(v.Transport.Args, []string{"mcp", "--data-dir", a.Config.DataDir})
 }
-func (a *App) AssistPlan(ctx context.Context, id, client string, launch bool) (map[string]any, error) {
+func (a *App) AssistPlan(ctx context.Context, id, provider, client string, launch bool) (map[string]any, error) {
+	provider, e := providerName(provider)
+	if e != nil {
+		return nil, e
+	}
 	if _, e := a.View(ctx, id); e != nil {
 		return nil, e
+	}
+	if provider == "claude" {
+		return a.claudeAssistPlan(ctx, client, launch)
 	}
 	binary, e := a.binary()
 	if e != nil {
@@ -190,5 +232,66 @@ func (a *App) AssistPlan(ctx context.Context, id, client string, launch bool) (m
 			return nil, fmt.Errorf("打开失败：%v %s", e, out)
 		}
 	}
-	return map[string]any{"command": command, "launched": launch, "note": "在你自己的 Codex 中使用 Team Cross 工具选择这次协作。"}, nil
+	return map[string]any{"provider": provider, "command": command, "launched": launch, "note": "在你自己的 Codex 中使用 Team Cross 工具选择这次协作。"}, nil
+}
+
+type MCPClientStatus struct {
+	Configured  bool      `json:"configured"`
+	Command     string    `json:"command"`
+	ConfigError string    `json:"configError,omitempty"`
+	ObservedAt  time.Time `json:"observedAt"`
+}
+
+func (a *App) personalClaudeMCP(binary, executable string) nativeclaude.PersonalMCP {
+	return nativeclaude.PersonalMCP{Binary: binary, Home: a.Config.ClaudeHome, Cwd: a.Config.Repo, Command: executable, DataDir: a.Config.DataDir}
+}
+
+func (a *App) claudePersonalCommand(binary string) string {
+	if binary == "" {
+		binary = "claude"
+	}
+	command := "env -u CLAUDECODE"
+	home := a.Config.ClaudeHome
+	if home == "" {
+		home = os.Getenv("CLAUDE_CONFIG_DIR")
+	}
+	if home != "" {
+		if absolute, err := filepath.Abs(home); err == nil {
+			home = absolute
+		}
+		command += " CLAUDE_CONFIG_DIR=" + nativecodex.Quote(home)
+	}
+	return command + " " + nativecodex.Quote(binary)
+}
+
+func (a *App) claudeAssistPlan(ctx context.Context, client string, launch bool) (map[string]any, error) {
+	if client != "tui" {
+		return nil, fmt.Errorf("Claude Code 辅助模式目前支持 TUI")
+	}
+	binary, e := a.claudeBinary()
+	if e != nil {
+		return nil, e
+	}
+	if e = nativeclaude.CheckVersion(ctx, binary); e != nil {
+		return nil, e
+	}
+	command := "cd " + nativecodex.Quote(a.Config.Repo) + " && " + a.claudePersonalCommand(binary)
+	if launch {
+		executable, e := os.Executable()
+		if e != nil {
+			return nil, e
+		}
+		configured, e := a.personalClaudeMCP(binary, service.StableExecutable(executable)).Inspect()
+		if e != nil {
+			return nil, e
+		}
+		if !configured {
+			return nil, problem.New("mcp_not_configured", "尚未接入本机 Claude Code", "请先接入，再打开个人客户端加载工具")
+		}
+		cmd := exec.CommandContext(ctx, "osascript", "-e", "tell application \"Terminal\"\nactivate\ndo script "+strconv.Quote(command)+"\nend tell")
+		if out, e := cmd.CombinedOutput(); e != nil {
+			return nil, fmt.Errorf("打开失败：%v %s", e, out)
+		}
+	}
+	return map[string]any{"provider": "claude", "command": command, "launched": launch, "note": "在你自己的 Claude Code 中使用 Team Cross 工具选择这次协作。个人对话使用本机模型设置；发送到协作的任务仍在发起者的主机执行。"}, nil
 }

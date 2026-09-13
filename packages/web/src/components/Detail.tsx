@@ -1,14 +1,10 @@
 import { invitationText } from "../types";
 import { useEffect, useState } from "react";
 import { api, errorText, useResource } from "../api";
-import {
-  type Collaboration,
-  type History,
-  type Changes,
-  projectName,
-  relativeTime,
-} from "../types";
+import { type ClientPlan, type Collaboration, projectName } from "../types";
 import { Clients } from "./Clients";
+import { Context } from "./Context";
+import { Annotations, type AnnotationRequest } from "./Annotations";
 import {
   Badge,
   Copy,
@@ -19,144 +15,66 @@ import {
   Modal,
   PageHeading,
 } from "./ui";
-function Context({
-  id,
-  sequence,
-  online,
-  closed,
+
+function TechnicalInformation({
+  collaboration: c,
+  agentName,
 }: {
-  id: string;
-  sequence: number;
-  online: boolean;
-  closed: boolean;
+  collaboration: Collaboration;
+  agentName: string;
 }) {
-  const [tab, setTab] = useState("history");
-  const [path, setPath] = useState("");
-  const [file, setFile] = useState("");
-  const context = useResource<History | Changes | { text: string }>(
-    online && (tab !== "file" || file)
-      ? `collaborations/${id}/context?kind=${tab}&path=${encodeURIComponent(file)}`
-      : null,
-    0,
-    sequence,
-  );
-  let body;
-  if (context.data) {
-    if (tab === "history" && "thread" in context.data) {
-      const turns = context.data.thread.turns || [];
-      body = turns.length ? (
-        <div className="history">
-          {turns.slice(-8).map((turn) => (
-            <div key={turn.id} className="history-turn">
-              {(turn.items || [])
-                .filter(
-                  (i) => i.type === "userMessage" || i.type === "agentMessage",
-                )
-                .map((item, index) => (
-                  <div className={`history-message ${item.type}`} key={index}>
-                    <span className="eyebrow">
-                      {item.type === "userMessage" ? "用户" : "Codex"}
-                    </span>
-                    <p>
-                      {item.text ||
-                        item.content?.map((c) => c.text || "").join("\n")}
-                    </p>
-                  </div>
-                ))}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <Empty icon="comment" title="还没有新的活动">
-          <p>在 Codex 中继续，最新的上下文会出现在这里。</p>
-        </Empty>
-      );
-    } else if (tab === "changes" && "diff" in context.data) {
-      body =
-        context.data.diff || context.data.status ? (
-          <>
-            <pre className="diff-summary">
-              {context.data.status}
-              {context.data.stat}
-            </pre>
-            <pre className="code-content">
-              {context.data.diff ||
-                "文件状态已列出；未跟踪文件可通过文件入口查看。"}
-            </pre>
-          </>
-        ) : (
-          <Empty icon="branch" title="当前没有代码改动" />
-        );
-    } else if ("text" in context.data)
-      body = <pre className="code-content">{context.data.text}</pre>;
-  }
   return (
-    <section className="panel context-panel">
-      <div className="panel-heading">
-        <h2>协作上下文</h2>
-        <button
-          className="icon-button"
-          aria-label="刷新上下文"
-          disabled={!online}
-          onClick={context.reload}
-        >
-          <Icon name="refresh" size={17} />
-        </button>
+    <div className="context-technical">
+      <div className="context-technical-heading">
+        <span className="entry-icon">
+          <Icon name="terminal" size={20} />
+        </span>
+        <div>
+          <h3>运行与会话</h3>
+          <p>当前协作记录与运行时最近确认的信息。</p>
+        </div>
       </div>
-      <div className="tabs" role="tablist" aria-label="上下文类型">
-        {[
-          ["history", "最近对话"],
-          ["changes", "代码改动"],
-          ["file", "查看文件"],
-        ].map(([value, label]) => (
-          <button
-            role="tab"
-            key={value}
-            aria-selected={tab === value}
-            onClick={() => setTab(value!)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {tab === "file" && (
-        <form
-          className="file-search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setFile(path);
-          }}
-        >
-          <input
-            aria-label="相对执行目录的文件路径"
-            placeholder="相对执行目录的文件路径，例如 src/main.ts"
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-          />
-          <button className="button small" disabled={!path || !online}>
-            查看
-          </button>
-        </form>
-      )}
-      <ErrorBox message={context.error} retry={context.reload} />
-      {!online ? (
-        <Empty
-          icon="link"
-          title={
-            closed ? "使用新邀请加入后可查看上下文" : "连接恢复后可查看上下文"
-          }
-        />
-      ) : context.loading && !context.data ? (
-        <Loading />
-      ) : (
-        body || <Empty icon="folder" title="输入相对路径以查看文件" />
-      )}
-      <div className="panel-footnote">
-        这里只保留轻量上下文，完整对话与执行交互请在 Codex 中查看。
-      </div>
-    </section>
+      <dl>
+        <div>
+          <dt>原生客户端</dt>
+          <dd>
+            {agentName}
+            {c.provider === "claude" ? " · 实验性" : ""}
+          </dd>
+        </div>
+        <div>
+          <dt>协作 ID</dt>
+          <dd>{c.id}</dd>
+        </div>
+        <div>
+          <dt>来源会话</dt>
+          <dd>{c.sourceId}</dd>
+        </div>
+        <div>
+          <dt>协作会话</dt>
+          <dd>{c.sessionId}</dd>
+        </div>
+        <div>
+          <dt>Git 分支</dt>
+          <dd>{c.branch}</dd>
+        </div>
+        <div>
+          <dt>基线提交</dt>
+          <dd>{c.head}</dd>
+        </div>
+        <div>
+          <dt>{c.online ? "当前模型" : "最近确认的模型"}</dt>
+          <dd>{c.model || `等待 ${agentName} 确认`}</dd>
+        </div>
+        <div>
+          <dt>推理强度</dt>
+          <dd>{c.reasoningEffort || `${agentName} 默认`}</dd>
+        </div>
+      </dl>
+    </div>
   );
 }
+
 export function Detail({ id }: { id: string }) {
   const resource = useResource<Collaboration>(`collaborations/${id}`, 2500);
   const c = resource.data;
@@ -164,15 +82,19 @@ export function Detail({ id }: { id: string }) {
     "clients" | "assist" | "invite" | "end" | null
   >(() => (sessionStorage.getItem(`teamcross.invite.${id}`) ? "invite" : null));
   const [busy, setBusy] = useState("");
+  const [personalOpenNote, setPersonalOpenNote] = useState("");
   const [error, setError] = useState(
     () => sessionStorage.getItem(`teamcross.create.${id}`) || "",
   );
   useEffect(() => {
     sessionStorage.removeItem(`teamcross.create.${id}`);
     sessionStorage.removeItem(`teamcross.invite.${id}`);
+    setPersonalOpenNote("");
   }, [id]);
-  const [comment, setComment] = useState("");
-  const [reference, setReference] = useState("");
+  const [annotationRequest, setAnnotationRequest] =
+    useState<AnnotationRequest>();
+  const [annotationLocation, setAnnotationLocation] =
+    useState<AnnotationRequest>();
   async function action(value: string) {
     if (!c) return;
     setBusy(value);
@@ -193,17 +115,16 @@ export function Detail({ id }: { id: string }) {
       setBusy("");
     }
   }
-  async function annotate() {
-    setBusy("annotation");
+  async function openPersonalCodex() {
+    setBusy("personal-desktop");
     setError("");
+    setPersonalOpenNote("");
     try {
-      await api(`collaborations/${id}/annotations`, {
-        text: comment,
-        reference,
-      });
-      setComment("");
-      setReference("");
-      resource.reload();
+      const result = await api<ClientPlan>(
+        `collaborations/${id}/personal-desktop`,
+        { launch: true },
+      );
+      setPersonalOpenNote(result.note || "已请求个人 Codex 打开此协作会话。");
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -221,9 +142,28 @@ export function Detail({ id }: { id: string }) {
         {resource.loading && <Loading />}
       </>
     );
+  const agentName = c.provider === "claude" ? "Claude Code" : "Codex";
+  const waiting = c.approvals > 0 || !!c.nativeWaiting;
   const owner = c.role === "owner";
   const mine = c.role === c.writer;
   const closed = ["ended", "left", "expired"].includes(c.state);
+  const canOpenPersonalCodex =
+    owner &&
+    c.provider !== "claude" &&
+    !!c.sessionId &&
+    c.sessionId !== c.sourceId;
+  const canContinueInPersonalCodex =
+    !c.sharing && c.runtimeState === "released";
+  const sharingDescription =
+    c.participantJoined && c.sharing
+      ? `${owner ? "同事" : "你"}已加入，访问持续有效，直到主动离开或结束共享。`
+      : c.sharing && c.expiresAt
+        ? `首次加入期限：${new Date(c.expiresAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}。加入后不受此期限影响。`
+        : c.sharing && c.invitationState === "expired"
+          ? "邀请尚未使用且已到期，可以重新邀请同事。"
+          : c.releasePending
+            ? "当前执行和审批完成、专用客户端关闭后，会自动释放会话。"
+            : "会话与代码保留在执行主机上，可随时重新打开。";
   return (
     <>
       <a href="#/" className="back-link">
@@ -270,6 +210,46 @@ export function Detail({ id }: { id: string }) {
             </strong>
           </span>
         </div>
+        <div className="execution-sharing">
+          <details className="sharing-inspector">
+            <summary aria-label="查看共享状态详情" title={sharingDescription}>
+              <span className={`share-state-icon ${c.sharing ? "active" : ""}`}>
+                <Icon name="link" size={16} />
+              </span>
+              <span>
+                <small>共享状态</small>
+                <strong>{c.sharing ? "局域网共享中" : "共享已关闭"}</strong>
+              </span>
+              <Icon name="arrow" size={12} />
+            </summary>
+            <div className="sharing-inspector-popover">
+              <div className="sharing-inspector-heading">
+                <h3>共享状态</h3>
+                <span className={`dot ${c.sharing ? "green-dot" : ""}`} />
+              </div>
+              <strong className="sharing-inspector-value">
+                {c.sharing ? "局域网共享中" : "共享已关闭"}
+              </strong>
+              <p>{sharingDescription}</p>
+              {owner && c.sharing ? (
+                <button
+                  className="text-link danger"
+                  onClick={() => setModal("end")}
+                >
+                  结束共享
+                </button>
+              ) : !owner && c.state !== "left" ? (
+                <button
+                  className="text-link"
+                  disabled={!!busy}
+                  onClick={() => void action("leave")}
+                >
+                  离开协作
+                </button>
+              ) : null}
+            </div>
+          </details>
+        </div>
       </div>
       <section className="action-panel">
         <div className="action-copy">
@@ -292,10 +272,10 @@ export function Detail({ id }: { id: string }) {
                         ? "正在释放协作会话"
                         : "恢复协作，继续上次的工作"
                       : "正在等待发起者连接"
-                    : c.approvals
-                      ? "Codex 需要你的回应"
+                    : waiting
+                      ? `${agentName} 需要你的回应`
                       : c.busy
-                        ? "Codex 正在执行"
+                        ? `${agentName} 正在执行`
                         : mine
                           ? "准备好继续了"
                           : "同事正在掌握输入"}
@@ -309,14 +289,14 @@ export function Detail({ id }: { id: string }) {
                       ? "正在关闭这次协作的后台运行时，会话与代码继续保留。"
                       : "恢复同一个会话与目录，不会重新创建分支。"
                     : "确认两台 Mac 在同一局域网，并让发起者保持共享。"
-                  : c.approvals
-                    ? "请在当前 Codex 客户端中查看并回应请求。"
+                  : waiting
+                    ? `请在当前 ${agentName} 客户端中查看并回应请求。`
                     : c.busy
-                      ? `代码操作发生在 ${c.host}，可以在 Codex 中补充或中断。`
+                      ? `代码操作发生在 ${c.host}，可以在 ${agentName} 中补充或中断。`
                       : mine
                         ? c.connected
-                          ? `${c.client || "Codex"} 已连接，继续在客户端中工作。`
-                          : "选择喜欢的 Codex 客户端，接着已有上下文继续。"
+                          ? `${c.client || agentName} 已连接，继续在客户端中工作。`
+                          : `打开 ${agentName} 客户端，接着已有上下文继续。`
                         : "先查看下方的共享上下文，需要操作时可以申请输入。"}
             </p>
           </div>
@@ -340,7 +320,7 @@ export function Detail({ id }: { id: string }) {
               {busy === "start"
                 ? "正在恢复…"
                 : c.runtimeState === "released"
-                  ? "恢复并打开 Codex"
+                  ? `恢复并打开 ${agentName}`
                   : "恢复运行时"}
               <Icon name="refresh" size={16} />
             </button>
@@ -350,7 +330,22 @@ export function Detail({ id }: { id: string }) {
               onClick={() => setModal(mine ? "clients" : "assist")}
             >
               <Icon name={mine ? "terminal" : "people"} size={18} />
-              {mine ? "打开 Codex" : "用自己的 Codex 辅助"}
+              {mine ? `打开 ${agentName}` : "用自己的客户端辅助"}
+            </button>
+          )}
+          {canOpenPersonalCodex && (
+            <button
+              className="button"
+              disabled={!!busy}
+              onClick={() => void openPersonalCodex()}
+              title="直接定位此协作，无需从 Desktop 列表中查找"
+            >
+              <Icon name="desktop" size={17} />
+              {busy === "personal-desktop"
+                ? "正在打开…"
+                : canContinueInPersonalCodex
+                  ? "在个人 Codex 中继续"
+                  : "在个人 Codex 中打开"}
             </button>
           )}
           {owner && c.online && !c.participantJoined && (
@@ -367,10 +362,25 @@ export function Detail({ id }: { id: string }) {
           )}
         </div>
       </section>
+      {personalOpenNote && (
+        <p className="notice" role="status">
+          {personalOpenNote}
+        </p>
+      )}
       <div className="detail-grid">
         <div className="detail-main">
           <Context
             id={id}
+            sessionId={c.sessionId}
+            agentName={agentName}
+            technical={
+              <TechnicalInformation collaboration={c} agentName={agentName} />
+            }
+            canAnnotate={owner || (c.online && !closed)}
+            onAnnotate={(target) =>
+              setAnnotationRequest({ target, serial: Date.now() })
+            }
+            location={annotationLocation}
             online={
               c.online ||
               (owner &&
@@ -381,97 +391,43 @@ export function Detail({ id }: { id: string }) {
             sequence={c.sequence}
             closed={closed}
           />
-          <section className="panel notes-panel">
-            <div className="panel-heading">
-              <h2>
-                批注 <span className="count">{c.annotations?.length || 0}</span>
-              </h2>
-              <Icon name="comment" size={18} />
-            </div>
-            {c.annotations?.length ? (
-              <div className="annotations">
-                {c.annotations.map((a) => (
-                  <article key={a.id}>
-                    <div>
-                      <span className="avatar small">{a.author[0]}</span>
-                      <strong>{a.author}</strong>
-                      <time>{relativeTime(a.createdAt)}</time>
-                    </div>
-                    {a.reference && <code>{a.reference}</code>}
-                    <p>{a.text}</p>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="muted note-empty">
-                留下一个想法，或为同事标记值得关注的地方。
-              </p>
-            )}
-            <form
-              className="annotation-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void annotate();
-              }}
-            >
-              <label className="sr-only" htmlFor="annotation">
-                添加批注
-              </label>
-              <textarea
-                id="annotation"
-                placeholder="添加批注…"
-                rows={3}
-                maxLength={4000}
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-              />
-              <div>
-                <input
-                  aria-label="批注引用（可选）"
-                  placeholder="引用文件或对话（可选）"
-                  maxLength={1000}
-                  value={reference}
-                  onChange={(e) => setReference(e.target.value)}
-                />
-                <button
-                  className="button small"
-                  disabled={!!busy || !comment.trim() || (!owner && !c.online)}
-                >
-                  添加批注
-                </button>
-              </div>
-            </form>
-          </section>
         </div>
         <aside className="detail-aside">
-          <section className="panel">
-            <h3>参与协作</h3>
-            <div className="participant">
-              <span className="avatar self">{owner ? "我" : "A"}</span>
-              <div>
-                <strong>{owner ? "我" : "发起者"}</strong>
-                <span>
-                  执行主机 · {c.writer === "owner" ? "正在输入" : "可查看"}
-                </span>
-              </div>
+          <section className="panel participants-panel">
+            <div className="panel-heading">
+              <h2>参与协作</h2>
+              <span className="participants-caption">
+                {c.participantJoined ? "已加入" : "等待加入"}
+              </span>
             </div>
-            <div className="participant">
-              <span className="avatar">{owner ? "同" : "我"}</span>
-              <div>
-                <strong>{owner ? "同事" : "我"}</strong>
-                <span>
-                  {c.sharing
-                    ? c.writer === "remote"
-                      ? "已获输入权"
-                      : c.participantOnline
-                        ? "已加入 · 在线查看"
-                        : c.participantJoined
-                          ? "已加入 · 暂时离线"
-                          : c.invitationState === "left"
-                            ? "同事已离开"
-                            : "等待同事加入"
-                    : "共享未开启"}
-                </span>
+            <div className="aside-participant-list">
+              <div className="participant">
+                <span className="avatar self">{owner ? "我" : "A"}</span>
+                <div>
+                  <strong>{owner ? "我" : "发起者"}</strong>
+                  <span>
+                    执行主机 · {c.writer === "owner" ? "正在输入" : "可查看"}
+                  </span>
+                </div>
+              </div>
+              <div className="participant">
+                <span className="avatar">{owner ? "同" : "我"}</span>
+                <div>
+                  <strong>{owner ? "同事" : "我"}</strong>
+                  <span>
+                    {c.sharing
+                      ? c.writer === "remote"
+                        ? "已获输入权"
+                        : c.participantOnline
+                          ? "已加入 · 在线查看"
+                          : c.participantJoined
+                            ? "已加入 · 暂时离线"
+                            : c.invitationState === "left"
+                              ? "同事已离开"
+                              : "等待同事加入"
+                      : "共享未开启"}
+                  </span>
+                </div>
               </div>
             </div>
             {owner && c.inputRequested && (
@@ -479,105 +435,87 @@ export function Detail({ id }: { id: string }) {
                 同事正在申请输入，请在准备好后交接。
               </div>
             )}
-            {owner && c.sharing && (
+            <div className="participants-actions">
+              {owner && c.sharing && (
+                <button
+                  className="button small"
+                  disabled={
+                    !!busy ||
+                    (mine && (c.busy || c.participantJoined === false))
+                  }
+                  onClick={() => void action(mine ? "handoff" : "reclaim")}
+                >
+                  <Icon name="people" size={14} />
+                  {mine ? "将输入交给同事" : "接回输入"}
+                </button>
+              )}
+              {!owner && c.sharing && !mine && (
+                <button
+                  className="button small"
+                  disabled={!!busy || !c.online}
+                  onClick={() =>
+                    void action(
+                      c.inputRequested ? "cancel_input" : "request_input",
+                    )
+                  }
+                >
+                  {c.inputRequested ? "取消输入申请" : "申请输入"}
+                </button>
+              )}
+              {!owner && c.sharing && mine && (
+                <button
+                  className="button small"
+                  disabled={!!busy || c.busy}
+                  onClick={() => void action("return")}
+                >
+                  <Icon name="people" size={14} />
+                  交还输入
+                </button>
+              )}
               <button
-                className="button full-width"
-                disabled={
-                  !!busy || (mine && (c.busy || c.participantJoined === false))
-                }
-                onClick={() => void action(mine ? "handoff" : "reclaim")}
+                className="text-link small-text"
+                disabled={closed}
+                onClick={() => setModal("assist")}
               >
-                <Icon name="people" size={16} />
-                {mine ? "将输入交给同事" : "接回输入"}
+                使用自己的客户端辅助 <Icon name="arrow" size={14} />
               </button>
-            )}
-            {!owner && c.sharing && !mine && (
-              <button
-                className="button full-width"
-                disabled={!!busy || !c.online}
-                onClick={() =>
-                  void action(
-                    c.inputRequested ? "cancel_input" : "request_input",
-                  )
-                }
-              >
-                {c.inputRequested ? "取消输入申请" : "申请输入"}
-              </button>
-            )}
-            {!owner && c.sharing && mine && (
-              <button
-                className="button full-width"
-                disabled={!!busy || c.busy}
-                onClick={() => void action("return")}
-              >
-                <Icon name="people" size={16} />
-                交还输入
-              </button>
-            )}
-            {owner && c.sharing && c.busy && mine && (
-              <p className="small-text muted">当前轮完成后可以交出输入。</p>
-            )}
-            <button
-              className="text-link small-text"
-              disabled={closed}
-              onClick={() => setModal("assist")}
-            >
-              使用自己的 Codex 辅助 <Icon name="arrow" size={14} />
-            </button>
-          </section>
-          <section className="panel">
-            <div className="panel-heading">
-              <h3>共享状态</h3>
-              <span className={`dot ${c.sharing ? "green-dot" : ""}`} />
             </div>
-            <p>{c.sharing ? "局域网共享中" : "共享已关闭"}</p>
-            <p className="muted small-text">
-              {c.participantJoined && c.sharing
-                ? `${owner ? "同事" : "你"}已加入，访问持续有效，直到主动离开或结束共享。`
-                : c.sharing && c.expiresAt
-                  ? `首次加入期限：${new Date(c.expiresAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}。加入后不受此期限影响。`
-                  : c.sharing && c.invitationState === "expired"
-                    ? "邀请尚未使用且已到期，可以重新邀请同事。"
-                    : c.releasePending
-                      ? "当前执行和审批完成、专用客户端关闭后，会自动释放会话。"
-                      : "会话与代码保留在执行主机上，可随时重新打开。"}
-            </p>
-            {owner && c.sharing ? (
-              <button
-                className="text-link danger"
-                onClick={() => setModal("end")}
-              >
-                结束共享
-              </button>
-            ) : !owner && c.state !== "left" ? (
-              <button
-                className="text-link"
-                disabled={!!busy}
-                onClick={() => void action("leave")}
-              >
-                离开协作
-              </button>
-            ) : null}
+            {owner && c.sharing && c.busy && mine && (
+              <p className="small-text muted participants-action-note">
+                当前轮完成后可以交出输入。
+              </p>
+            )}
           </section>
-          <details className="technical">
-            <summary>技术信息</summary>
-            <dl>
-              <dt>协作 ID</dt>
-              <dd>{c.id}</dd>
-              <dt>来源会话</dt>
-              <dd>{c.sourceId}</dd>
-              <dt>协作会话</dt>
-              <dd>{c.sessionId}</dd>
-              <dt>Git 分支</dt>
-              <dd>{c.branch}</dd>
-              <dt>基线提交</dt>
-              <dd>{c.head}</dd>
-              <dt>{c.online ? "当前模型" : "最近确认的模型"}</dt>
-              <dd>{c.model || "等待 Codex 确认"}</dd>
-              <dt>推理强度</dt>
-              <dd>{c.reasoningEffort || "Codex 默认"}</dd>
-            </dl>
-          </details>
+          <Annotations
+            key={id}
+            id={id}
+            annotations={c.annotations || []}
+            request={annotationRequest}
+            disabled={!owner && (!c.online || closed)}
+            onSaved={(annotation) => {
+              resource.setData((current) =>
+                current
+                  ? {
+                      ...current,
+                      annotations: current.annotations?.some(
+                        (item) => item.id === annotation.id,
+                      )
+                        ? current.annotations.map((item) =>
+                            item.id === annotation.id ? annotation : item,
+                          )
+                        : [...(current.annotations || []), annotation],
+                    }
+                  : current,
+              );
+              resource.reload();
+            }}
+            onLocate={(annotation) =>
+              setAnnotationLocation({
+                target: annotation.target,
+                serial: Date.now(),
+              })
+            }
+          />
         </aside>
       </div>
       {modal && (
@@ -587,7 +525,9 @@ export function Detail({ id }: { id: string }) {
               ? "邀请同事加入"
               : modal === "end"
                 ? "结束这次共享？"
-                : "用 Codex 继续"
+                : modal === "assist"
+                  ? "用个人客户端辅助"
+                  : `用 ${agentName} 继续`
           }
           onClose={() => setModal(null)}
         >
@@ -647,7 +587,7 @@ export function Detail({ id }: { id: string }) {
               </p>
               <p>
                 当前执行和审批完成、专用客户端关闭后，会自动释放会话，之后可以从
-                Codex 重新打开。
+                Team Cross 恢复同一个会话。
               </p>
               <div className="form-footer">
                 <button className="button" onClick={() => setModal(null)}>

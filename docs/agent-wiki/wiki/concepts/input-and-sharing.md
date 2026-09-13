@@ -23,3 +23,5 @@
 相关任务：[目录与生命周期](workspace-and-lifecycle.md) · [原生客户端](native-clients-and-models.md) · [验证](validation-gates.md)
 
 参与方在线由 Core 心跳维持；B 可申请或取消输入，仍需 A 明确交接。App 退出停止本机服务，B 退出不终止 A。见 [分发与首次体验](../../sources/distribution-and-onboarding.md)。
+
+Claude 终端输入同样受当前输入者与 epoch 约束；审批留在同一个原生 worker，接回输入后由新 TUI 处理。MCP 当前只支持空闲文本发送，审批/补充/中断返回 `native_client_required`。见 [Claude 接入契约](../../sources/decisions/claude-native-tui.md)。

@@ -1,0 +1,47 @@
+{
+  "detailViewports": [
+    {
+      "page": "detail",
+      "theme": "light",
+      "width": 1440,
+      "height": 1000,
+      "scroll": 1425
+    },
+    {
+      "height": 1000,
+      "page": "detail",
+      "scroll": 1009,
+      "theme": "light",
+      "width": 1024
+    },
+    {
+      "height": 1000,
+      "page": "detail",
+      "scroll": 753,
+      "theme": "light",
+      "width": 768
+    },
+    {
+      "height": 1000,
+      "page": "detail",
+      "scroll": 753,
+      "theme": "dark",
+      "width": 768
+    },
+    {
+      "height": 1000,
+      "page": "detail",
+      "scroll": 1009,
+      "theme": "dark",
+      "width": 1024
+    },
+    {
+      "height": 1000,
+      "page": "detail",
+      "scroll": 1425,
+      "theme": "dark",
+      "width": 1440
+    }
+  ],
+  "consoleWarningsAndErrors": []
+}

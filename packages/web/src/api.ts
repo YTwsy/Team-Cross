@@ -54,6 +54,7 @@ export function useResource<T>(
   refreshKey = 0,
 ) {
   const [data, setData] = useState<T>();
+  const [dataPath, setDataPath] = useState<string>();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
@@ -76,6 +77,7 @@ export function useResource<T>(
         const next = await api<T>(path!, undefined, abort.signal);
         if (!abort.signal.aborted) {
           setData(next);
+          setDataPath(path!);
           setError("");
         }
       } catch (e) {
@@ -93,5 +95,5 @@ export function useResource<T>(
       clearTimeout(timer);
     };
   }, [path, interval, revision, refreshKey]);
-  return { data, error, loading, reload, setData };
+  return { data, dataPath, error, loading, reload, setData };
 }

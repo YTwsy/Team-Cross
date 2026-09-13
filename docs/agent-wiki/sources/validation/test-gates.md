@@ -13,6 +13,7 @@
 | 原生协议、客户端启动或账户路由 | 除协议测试外，使用专门会话实测对应 TUI/Desktop；分别验证登录、历史、输入、审批和 A 上执行 |
 | 模型与推理设置 | 来源继承、客户端选择、失败不更新显示、通知、恢复与写入归属；真实调用仅使用 Luna |
 | WebGUI | 类型检查、交互测试、production build，更新嵌入式资源，并进行实际浏览器和截图复核 |
+| 菜单栏 App 启动、转交或退出 | Swift 检查和构建；在图形登录会话执行真实双副本并发、数据目录别名、邀请转交与确认重试、无响应恢复、独立目录、异常退出后复用 Core、显式退出停止服务 |
 
 ## 工程命令
 
@@ -21,7 +22,7 @@
 ```sh
 go test ./...
 go vet ./...
-go test -race ./internal/collab ./internal/mcp ./internal/sharing ./internal/nativecodex ./internal/service ./internal/cliinstall
+go test -race ./internal/collab ./internal/mcp ./internal/sharing ./internal/nativecodex ./internal/nativeclaude ./internal/service ./internal/cliinstall
 pnpm --filter @teamcross/web check
 pnpm --filter @teamcross/web test
 pnpm --filter @teamcross/web build
@@ -45,7 +46,9 @@ go build -o bin/teamcross ./cmd/teamcross
 | [service_test.go](../../../../internal/service/service_test.go) / [onboarding_test.go](../../../../internal/collab/onboarding_test.go) | 实例身份、控制协议、稳定 opt 路径、邀请预览、Core 心跳与输入申请 |
 | [cliinstall_test.go](../../../../internal/cliinstall/cliinstall_test.go) | 参数与带引号路径、未知命令保护、并发安装、重复移除和 App 更新后的命令行为 |
 | [verify-release.py](../../../../scripts/verify-release.py) / [verify-homebrew.py](../../../../scripts/verify-homebrew.py) | CLI/App/DMG、App 命令安装、独立 Homebrew 前缀安装、双向互斥、升级与卸载 |
+| [verify-app-instance.py](../../../../scripts/verify-app-instance.py) | 两个真实 App 副本与 macOS URL/退出事件；隔离 Core、请求去重、路径别名、无响应与异常退出恢复；测试邀请不联系远端或调用模型 |
 | [flows.test.tsx](../../../../packages/web/src/test/flows.test.tsx) | 首页、创建、邀请失败、输入交接状态与模型显示 |
+| [annotation_reply_test.go](../../../../internal/collab/annotation_reply_test.go) / [runtime_test.go](../../../../internal/mcp/runtime_test.go) / [annotations.test.tsx](../../../../packages/web/src/test/annotations.test.tsx) | 单层回复、去重、并发快照、访问撤销、受限运行时工具、内嵌草稿与键盘保存 |
 
 ## 真实模型和客户端
 
@@ -78,3 +81,50 @@ TEAMCROSS_LIVE_EXISTING_FIXTURE=/private/tmp/teamcross-fresh-fixture \
 完成后关闭本次启动的专用 Desktop/TUI、Core、app-server、浏览器页面及其测试辅助进程。先确认 PID、父子关系或测试数据目录，再退出对应实例；保留用户正在使用的 Codex 和其他浏览器内容，不按程序名批量终止。测试会话、仓库和验收材料按本次约定保留。
 
 新增实际验收记录应注明日期、版本、环境、执行的检查及未覆盖范围；同步 [验收导航](../../wiki/concepts/validation-gates.md)。
+
+## Claude 原生 TUI
+
+Claude 的 Go 回归位于 `internal/nativeclaude` 与 `internal/collab/claude_test.go`；覆盖历史链、过期起点、来源配置隔离、终端白名单、取消、断线不重放、TLS 成员访问、输入收回、就绪判断和不支持的 API。
+
+真实验收使用 [verify-claude-native.py](../../../../scripts/verify-claude-native.py)，显式传入一个新的空测试目录、当前构建 CLI 和不低于 `2.1.268` 的 Claude 正式版（实际运行版本写入验收记录）：
+
+```sh
+python3 scripts/verify-claude-native.py \
+  --fixture-dir /private/tmp/teamcross-claude-fresh-fixture \
+  --teamcross-bin /absolute/path/to/teamcross \
+  --claude-bin /absolute/path/to/claude
+```
+
+脚本只使用本机 CliProxyAPI 中的 `gpt-5.6-luna`。凭据仅在 loopback guard 内存中使用，测试配置写入占位 token；所有实际模型请求逐个检查模型名。脚本建立专用来源、原目录/worktree fork、两个真实 Core 与原生 TUI，校验执行端、审批交接、发送、恢复与清理。`--keep-preview-seconds` 可暂留测试 Core 供页面复核，创建测试目录下的 `finish-preview` 可提前结束。此脚本属于同机验证，不能代替真实双 Mac LAN 验收。
+
+## 个人 Claude 辅助 MCP
+
+使用 [verify-claude-assist.py](../../../../scripts/verify-claude-assist.py)；参数形式与原生脚本相同，使用新的空测试目录。脚本运行真实 `claude mcp add --scope user`，验证重复配置与其他条目保留，然后通过普通个人 TUI 加载用户配置。禁止用显式 `--mcp-config` 注入替代个人配置验收。
+
+门槛包括：工具列举、A 上文件/历史/批注读取、非输入者发送拒绝、交接后发送、相同请求 ID 去重、个人与共享会话分离、同一 worker 的直接 TUI 接入、结束共享后工具访问撤销。测试可为明确列出的 Team Cross 工具设置允许清单，不使用全局跳过权限；个人 TUI 不授予本地 shell/file 工具。所有模型请求继续只允许 CliProxyAPI 的 `gpt-5.6-luna`。
+
+UI 按钮打开另需可访问 macOS 桌面自动化的本机 Core；沙箱中的 `osascript` 失败不能当成产品按钮成功。协议检查、实际客户端工具调用、启动请求与进程/原生 TUI 就绪分别记录。关闭 PTY 后再等待客户端退出，并独立清理每个测试资源，某个 TUI 退出异常不能跳过其他 Core 和验收材料保存。
+
+配置与数值版本回归见 [mcp_test.go](../../../../internal/nativeclaude/mcp_test.go)，跨 Provider 辅助与 Codex 控制能力回归见 [assist_test.go](../../../../internal/collab/assist_test.go)。
+
+## 共享原生批注工具
+
+使用 [verify-annotations.py](../../../../scripts/verify-annotations.py)，分别为 Codex 和 Claude 选择新的空测试目录：
+
+```sh
+python3 scripts/verify-annotations.py \
+  --provider codex \
+  --fixture-dir /private/tmp/teamcross-annotations-fresh-codex \
+  --teamcross-bin /absolute/path/to/teamcross \
+  --codex-bin /absolute/path/to/codex
+
+python3 scripts/verify-annotations.py \
+  --provider claude \
+  --fixture-dir /private/tmp/teamcross-annotations-fresh-claude \
+  --teamcross-bin /absolute/path/to/teamcross \
+  --claude-bin /absolute/path/to/claude
+```
+
+脚本通过直接 TUI 读取只有批注与人工回复中才有的标记，再回复原批注，并验证结束共享后恢复同一会话仍能读取。真实模型只使用 Luna，Claude 沿用本页的 loopback guard；Codex 使用专用配置和已有登录凭据，不修改个人配置。检查继承的个人 MCP 被禁用；只接受本次批注工具对应的确认，不跳过所有审批。
+
+`--keep-preview-seconds` 可暂留 fixture 供 WebGUI / 专用 Desktop 检查；写入 fixture 的 `finish-preview` 可提前结束。Desktop 须另外确认窗口内的实际读取与回复，进程启动或网关连接不等价于完成验收。当前结果见 [2026-09-13 批注验证](annotations-2026-09-13.md)。

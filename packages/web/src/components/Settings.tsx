@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, errorText, useResource } from "../api";
-import { type Info } from "../types";
-import { Copy, ErrorBox, Icon, Loading, PageHeading } from "./ui";
+import { type Info, type Provider } from "../types";
+import { ErrorBox, Icon, Loading, PageHeading } from "./ui";
 export type Theme = "system" | "light" | "dark";
+import { MCPConnection } from "./MCPConnection";
 export function Settings({
   theme,
   setTheme,
@@ -12,13 +13,17 @@ export function Settings({
 }) {
   const info = useResource<Info>("info");
   const [binary, setBinary] = useState("");
+  const [claudeBinary, setClaudeBinary] = useState("");
   const [desktop, setDesktop] = useState("");
+  const [provider, setProvider] = useState<Provider>("codex");
+  const [connecting, setConnecting] = useState(false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   useEffect(() => {
     if (info.data) {
       setBinary(info.data.binary || "");
+      setClaudeBinary(info.data.claudeBinary || "");
       setDesktop(info.data.desktopApp || "");
     }
   }, [info.data]);
@@ -27,21 +32,8 @@ export function Settings({
     setError("");
     setSaved(false);
     try {
-      await api("settings", { binary, desktopApp: desktop });
+      await api("settings", { binary, desktopApp: desktop, claudeBinary });
       setSaved(true);
-      info.reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy("");
-    }
-  }
-  async function setup() {
-    setBusy("mcp");
-    setError("");
-    try {
-      await api("mcp/setup", {});
-      await api("mcp/probe", {});
       info.reload();
     } catch (e) {
       setError(errorText(e));
@@ -51,10 +43,7 @@ export function Settings({
   }
   return (
     <>
-      <PageHeading
-        title="设置与连接"
-        subtitle="让 Team Cross 与你日常使用的 Codex 配合。"
-      />
+      <PageHeading title="设置与连接" subtitle="配置原生客户端与协作工具。" />
       <ErrorBox message={error || info.error} retry={info.reload} />
       <div className="settings-stack">
         <section className="panel settings-section">
@@ -134,7 +123,7 @@ export function Settings({
         <section className="panel settings-section">
           <div className="panel-heading">
             <div>
-              <h2>Codex 客户端</h2>
+              <h2>原生客户端</h2>
               <p>用于读取本机会话和打开客户端。</p>
             </div>
             <span
@@ -174,11 +163,28 @@ export function Settings({
                 />
                 <small>直接操作会使用独立的数据目录启动专用实例。</small>
               </label>
+              <label className="field">
+                Claude Code CLI 路径
+                <input
+                  value={claudeBinary}
+                  onChange={(e) => setClaudeBinary(e.target.value)}
+                  placeholder="自动检测"
+                />
+                <small>
+                  {info.data?.claudeVersion ||
+                    "实验性接入要求 2.1.268 或更高版本"}
+                </small>
+              </label>
+              {info.data?.claudeError && (
+                <p className="small-text muted">
+                  Claude Code：{info.data.claudeError}
+                </p>
+              )}
               <div className="form-footer">
                 <span role="status" className="muted">
                   {saved ? "设置已保存，对新启动的客户端生效。" : ""}
                 </span>
-                <button className="button" disabled={!!busy}>
+                <button className="button" disabled={!!busy || connecting}>
                   {busy === "save" ? "正在保存…" : "保存设置"}
                 </button>
               </div>
@@ -191,68 +197,21 @@ export function Settings({
               <Icon name="people" size={23} />
             </span>
             <div>
-              <h2>用自己的 Codex 辅助协作</h2>
-              <p>通过本地 MCP 工具接入，TUI 与 Desktop 共用一次配置。</p>
+              <h2>用自己的客户端辅助协作</h2>
+              <p>为个人 Codex 或 Claude Code 安装 Team Cross 工具。</p>
             </div>
           </div>
           <div className="notice">
-            接入后，让 Codex
-            列出协作并选择目标，即可读取历史、查看文件与改动、参与输入和回应请求。
+            让个人客户端列出协作并选择目标，即可读取上下文、留下批注，并在持有输入权时使用目标协作支持的操作。
           </div>
-          <button
-            className="button primary"
-            disabled={!!busy || !info.data || info.data.mcpConfigured}
-            onClick={() => void setup()}
-          >
-            {busy === "mcp"
-              ? "正在接入…"
-              : info.data?.mcpConfigured
-                ? "已接入本机 Codex"
-                : "接入本机 Codex"}
-            <Icon
-              name={info.data?.mcpConfigured ? "check" : "plus"}
-              size={17}
-            />
-          </button>
-          <p className="small-text muted">
-            配置会写入你当前的 Codex 配置。已打开的客户端需重新加载工具。
-          </p>
-          <p className="small-text muted">
-            协议检查：{info.data?.mcpProbed ? "通过" : "尚未检查"}。实际客户端：
-            {info.data?.mcpObservedAt &&
-            !info.data.mcpObservedAt.startsWith("0001")
-              ? "已收到工具调用"
-              : "等待调用；请重新加载工具后列出协作"}
-            。
-          </p>
-          <button
-            className="button"
+          <MCPConnection
+            info={info.data}
+            provider={provider}
+            onProviderChange={setProvider}
+            reload={info.reload}
             disabled={!!busy}
-            onClick={() =>
-              void api("mcp/probe", {})
-                .then(() => info.reload())
-                .catch((e) => setError(errorText(e)))
-            }
-          >
-            检查工具连接
-          </button>
-          <details className="technical">
-            <summary>手动配置与诊断</summary>
-            {info.data && (
-              <>
-                <pre>{info.data.mcpCommand}</pre>
-                <Copy text={info.data.mcpCommand} label="复制配置命令" />
-                <dl>
-                  <dt>执行主机</dt>
-                  <dd>{info.data.host}</dd>
-                  <dt>数据目录</dt>
-                  <dd>{info.data.dataDir}</dd>
-                  <dt>版本</dt>
-                  <dd>{info.data.version}</dd>
-                </dl>
-              </>
-            )}
-          </details>
+            onBusyChange={setConnecting}
+          />
         </section>
       </div>
     </>

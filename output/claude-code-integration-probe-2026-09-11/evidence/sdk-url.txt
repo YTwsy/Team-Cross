@@ -1,0 +1,2 @@
+Error: --sdk-url rejected: host "127.0.0.1" is not an approved Anthropic endpoint. This flag is reserved for Remote Control worker processes connecting to Anthropic's backend.
+

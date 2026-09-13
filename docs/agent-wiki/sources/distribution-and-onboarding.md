@@ -12,6 +12,8 @@
 make release
 make verify-release
 make verify-homebrew
+# 单独检查真实菜单栏 App 的跨副本启动，需要 macOS 图形登录会话：
+make verify-app-instance
 # 在干净 checkout 构建候选版本；产物目录已有清单时需另选输出目录：
 make release VERSION=0.1.1
 make verify-release VERSION=0.1.1
@@ -38,6 +40,12 @@ Formula 与 Cask 均在安装时检查另一渠道的成功安装收据，验证
 
 数据目录规范化（含符号链接），`start.lock` 串行化并发启动，`core.lock` 覆盖完整服务生命周期。`connection.json` 以 0600 原子写入实例身份、PID、URL、版本、控制协议、数据目录与本机控制 token。健康检查不启动 Codex，核对身份与协议后才复用；连接失效可启动新实例，不兼容或身份不匹配则报告处理入口。
 
+菜单栏外壳在创建图标之前，由 [AppInstance](../../../apps/macos/AppInstance.swift) 取得同一规范化数据目录的 `app.lock`。它与 `core.lock` 独立；锁文件不删除，文件描述符不传给 helper。不同数据目录可以保留独立 App，路径别名不能绕过去重。
+
+取得锁的 App 建立按本机用户与数据目录区分的 [CFMessagePort](https://developer.apple.com/documentation/CoreFoundation/CFMessagePort) 接收入口。后来的副本将首页或 `teamcross://join` 请求直接交给已有 App，不广播或落盘邀请。接收方对请求 ID 去重并回复入队确认；确认不表示已加入协作，邀请仍进入原有预览流程。客户端忙时排队处理，通信暂时不可用时有界重试；超时提示用户使用已有入口，不创建第二个图标，也不停止 Core。
+
+副本转交完成和启动失败使用仅退出外壳的路径；只有用户对主 App 执行“退出 Team Cross”才进入原有停止服务流程。异常退出后系统释放外壳锁，下次启动可重新取得锁并复用存活的 Core。Finder 再次打开已有 App 时处理 reopen 事件，正常打开协作空间。旧版 App 不具备此协调协议，升级前仍需先退出旧外壳；新版本不按名称强制结束未知旧进程。
+
 默认 43210 占用时回退到动态 loopback 端口；显式端口冲突不回退。控制 API 必须使用本机 token，拒绝浏览器 Origin；不凭陈旧 PID 或程序名终止进程。`status --json` 查询状态；`doctor --json` 检查客户端和 MCP；`stop` 对活动协作要求 `--force`，并等待生命周期锁释放。
 
 浏览器和终端关闭不影响 Core。App“退出 Team Cross”停止本机服务，活动协作先确认；B 退出只断开 B，A 的运行时不随之停止。Core 停止保留 fork、目录、代码和加入记录；恢复与邀请失效继续遵循既有生命周期规则。不自动重放模型写入，也不自动恢复已撤销的共享。
@@ -52,11 +60,11 @@ B 加入后直接进入上下文。每 10 秒由 B Core 发送心跳，A 以 30 
 
 直接客户端以连接建立、成功读取或恢复对应 thread 区分 `connected` 和 `session_ready`。Desktop 仍需手动打开会话时如实说明。配置发现支持显式 CLI、安装 App 内的 CLI、PATH 与系统/用户 Applications；实际版本可诊断，实验 Desktop 接口不视为公开稳定合同。
 
-MCP 配置保存稳定 opt/App 绝对路径。通过 Cask 命令链接调用时也解析回 App helper；不保存版本化 Cellar 路径或依赖 shell alias。配置存在、独立 STDIO 协议探测和实际客户端工具调用分别记录；仅配置成功不代表旧客户端已重载工具。协议探测不启动模型，也不记录为实际客户端调用。
+MCP 配置保存稳定 opt/App 绝对路径。通过 Cask 命令链接调用时也解析回 App helper；不保存版本化 Cellar 路径或依赖 shell alias。个人 Codex 或 Claude Code 分别配置；Claude 使用 user 范围原生配置命令，遇到当前项目同名覆盖或禁用时提示处理。配置存在、独立 STDIO 协议探测和各 Provider 实际客户端工具调用分别记录；仅配置成功不代表旧客户端已重载工具。协议探测不启动模型，也不记录为实际客户端调用。
 
 ## 检查与相关规范
 
-[安装验证](../../../scripts/verify-release.py) 验证校验文件、DMG 挂载/安装、CLI/App 版本一致与实例复用；[生命周期验证](../../../scripts/verify-lifecycle.py) 验证并发启动、符号链接路径、端口冲突、鉴权停止、MCP 延迟启动、崩溃恢复及数据保留。工程、真实客户端、浏览器和清理门槛继续按 [验证契约](validation/test-gates.md)。同机不能证明两台 Mac LAN，未签名本地产物不能证明公开安装或正式公证通过。
+[安装验证](../../../scripts/verify-release.py) 验证校验文件、DMG 挂载/安装、CLI/App 版本一致与实例复用，并调用 [App 副本验证](../../../scripts/verify-app-instance.py)。后者从两个临时 App 副本通过真实 macOS 启动/URL/退出事件验证外壳去重、请求确认、卡住后的恢复及 Core 保留；邀请 helper 使用测试内容，Core 使用包内真实二进制，不打开浏览器或调用模型。[生命周期验证](../../../scripts/verify-lifecycle.py) 验证 Core 并发启动、符号链接路径、端口冲突、鉴权停止、MCP 延迟启动、崩溃恢复及数据保留。工程、真实客户端、浏览器和清理门槛继续按 [验证契约](validation/test-gates.md)。同机不能证明两台 Mac LAN，未签名本地产物不能证明公开安装或正式公证通过。
 
 相关来源：[产品流程](product-flows.md) · [架构](architecture.md) · [协议](protocol.md) · [输入协调](decisions/input-and-sharing.md)。
 

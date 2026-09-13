@@ -42,7 +42,7 @@ docs/agent-wiki/
 
 [产品核心与词汇](sources/product-core-and-glossary.md) 负责语义，[产品流程](sources/product-flows.md) 负责用户动作，[架构](sources/architecture.md) 负责职责，[协议](sources/protocol.md) 负责字段与路由。Wiki 只保留任务所需摘要，不另行复制完整协议表。
 
-本次恢复的是知识组织方式。当前内容以 main 的 Codex 原生协作为基准；旧 Thread、Round、Evidence、managed Bridge、Claude 和旧传输方案仍属于历史实现。需要考据时查看 [迁移记录](../../IMPLEMENTATION.md) 指向的归档提交。
+本次恢复的是知识组织方式。当前内容以 main 的 Codex 原生协作为基准；旧 Thread、Round、Evidence、managed Bridge、旧 Claude Bridge 和旧传输方案仍属于历史实现。新的实验性 Claude 原生 TUI 以 [当前接入契约](sources/decisions/claude-native-tui.md) 为准。需要考据时查看 [迁移记录](../../IMPLEMENTATION.md) 指向的归档提交。
 
 ## 更新流程
 

@@ -3,6 +3,7 @@ package collab
 import (
 	"context"
 	"teamcross/internal/sharing"
+	"time"
 )
 
 // Closing this Session's dedicated app-server is the native writer-lock release
@@ -12,6 +13,9 @@ func (s *Session) releaseIfIdleLocked() {
 		return
 	}
 	if s.process.Alive() && (s.busy || len(s.approvals) != 0) {
+		return
+	}
+	if s.record.Provider == "claude" && time.Since(s.nativeLastWrite) < 3*time.Second {
 		return
 	}
 	p := s.process
@@ -37,6 +41,11 @@ func (s *Session) finishCall() {
 type directKey struct{}
 
 func (s *Session) callerValidLocked(ctx context.Context) bool {
+	if token, ok := ctx.Value(runtimeAnnotationKey{}).(string); ok {
+		if s.closed || !s.online || s.process == nil || !s.annotationAccess || token == "" || token != s.record.AnnotationToken {
+			return false
+		}
+	}
 	if !sharing.Authorized(ctx, s.share) {
 		return false
 	}

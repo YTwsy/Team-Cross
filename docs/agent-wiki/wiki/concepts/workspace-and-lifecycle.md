@@ -22,3 +22,5 @@
 优先运行 [目录测试](../../../../internal/workspace/workspace_test.go) 与 [创建恢复测试](../../../../internal/collab/collab_test.go)。涉及真实原生 fork 时使用 [专用 Luna 测试](../../sources/validation/test-gates.md)，不得拿用户已有工作目录当证明文件测试仓库。
 
 相关任务：[输入与共享](input-and-sharing.md) · [模型设置](native-clients-and-models.md) · [验证](validation-gates.md)
+
+Claude 的后台 fork 可能在首条输入前只保存来源引用；恢复时优先重新绑定仍存活的 worker，否则按原生 job 参数继续同一 ID。不能复用创建时的完整命令行。见 [Claude 接入契约](../../sources/decisions/claude-native-tui.md)。

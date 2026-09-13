@@ -1,0 +1,74 @@
+{
+  "initialize_no_generation": true,
+  "source_result": {
+    "duration_api_ms": 0,
+    "stop_reason": "stop_sequence",
+    "session_id": "955b6618-7a99-4265-8574-4634dc21dfdc",
+    "total_cost_usd": 0,
+    "usage": {
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 0,
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "",
+      "iterations": [],
+      "speed": "standard"
+    },
+    "modelUsage": {},
+    "permission_denials": [],
+    "terminal_reason": "api_error",
+    "fast_mode_state": "off",
+    "fast_mode_disabled_reason": "sdk_opt_in_required",
+    "subagent_stats": {
+      "spawned": 0,
+      "requested": {
+        "background": 0,
+        "foreground": 0,
+        "unset": 0
+      },
+      "started_in_background": 0,
+      "max_depth": 0,
+      "spawned_by_subagents": 0,
+      "completed": 0,
+      "failed": 0,
+      "killed": {
+        "parent": 0,
+        "user": 0,
+        "system": 0
+      },
+      "refused": {
+        "depth_limit": 0,
+        "concurrency_limit": 0,
+        "budget": 0
+      },
+      "by_type": {}
+    },
+    "is_error": true,
+    "num_turns": 1,
+    "subtype": "success",
+    "api_error_status": 429,
+    "result": "API Error: Request rejected (429) \u00b7 Resource has been exhausted (e.g. check quota).",
+    "type": "result",
+    "duration_ms": 39340,
+    "uuid": "b97af83d-e89f-404c-8920-3a8d836f5f71",
+    "user_message_uuid": "31037d4a-bd4a-4feb-804a-8f24caec2f33",
+    "user_message_uuids": [
+      "31037d4a-bd4a-4feb-804a-8f24caec2f33"
+    ],
+    "queued_turn_count": 0,
+    "result_index": 0
+  },
+  "error": "RuntimeError: Source generation failed"
+}

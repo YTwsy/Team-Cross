@@ -26,4 +26,8 @@ Go Core 负责协作与本机管理；A 的专属 Codex app-server 持有共享�
 
 CLI、App、MCP 现在共用按数据目录发现的后台 Core；默认 serve 在后台运行，调试用 --foreground。实例身份、版本和受控停止见 [分发与首次体验](../../sources/distribution-and-onboarding.md)。
 
+菜单栏 App 另由 [AppInstance](../../../../apps/macos/AppInstance.swift) 在创建图标前取得 `app.lock`，向同一用户、同一数据目录的已有外壳转交页面或邀请请求。第二份外壳退出不能调用 Core 停止；接收确认只表示请求已入队。修改时运行真实 App 副本回归，不用 CLI 的 Core 复用结果代替外壳验证。
+
 分发使用 App 内置 CLI：Cask 注册其命令，DMG 由菜单栏安装启动器，Formula 提供互斥的独立安装。命令安装仅维护自身入口，不启动或提权 Core；设置页区分磁盘安装版本与运行版本。修改命令归属时先读上述来源与 `internal/cliinstall`，不要在 Homebrew 之外覆盖其链接。
+
+Claude 实验性路径使用 A 的单个原生后台 job，B 的专用 Unix 入口经 Core/TLS 连接它，不启动第二个 SDK 执行进程。版本锁定、惰性历史和同 ID 恢复见 [Claude 接入契约](../../sources/decisions/claude-native-tui.md)。

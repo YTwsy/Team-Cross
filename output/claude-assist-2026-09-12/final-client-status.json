@@ -1,0 +1,12 @@
+{
+  "claude": {
+    "configured": true,
+    "command": "env -u CLAUDECODE CLAUDE_CONFIG_DIR='/private/tmp/teamcross-claude-assist-live-20260912-a/b-personal' '/Users/wsy/.nvm/versions/node/v24.18.0/bin/claude' mcp add --transport stdio --scope user teamcross -- '/private/tmp/teamcross-claude-feature-bin' mcp --data-dir '/private/tmp/teamcross-claude-assist-live-20260912-a/core-b'",
+    "observedAt": "2026-09-12T23:22:51.547525+08:00"
+  },
+  "codex": {
+    "configured": false,
+    "command": "codex mcp add teamcross -- '/private/tmp/teamcross-claude-feature-bin' mcp --data-dir '/private/tmp/teamcross-claude-assist-live-20260912-a/core-b'",
+    "observedAt": "0001-01-01T00:00:00Z"
+  }
+}

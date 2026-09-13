@@ -1,0 +1,54 @@
+"gpt-5.6-luna" isn't described by this version's model catalog; update Claude Code, or map it with behavesAs on a modelPicker row (or modelOverrides, if it is a provider id of a model this version knows). Until then auto-compact keeps this session within 200k tokens (the context window it assumes); if the model accepts more, append [1m] to the model name for 1M, or set CLAUDE_CODE_MAX_CONTEXT_TOKENS to its real window; CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT=1 restores the previous wait-for-the-API behavior.
+
+78
+▐▛███▛█ClaudeCodev2.1.268
+▝▜██████▀gpt-5.6-luna·APIUsageBilling
+▝▝▝▝/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo
+❯Thisisanisolatedintegrationtest.RemembertheliteralmarkerTCX_LUNA_20260911.Donotusetools.Replywith
+exactlythatmarker.
+⏺TCX_LUNA_20260911
+❯ReplywiththerememberedTCXmarkeronly.Donotusetools.
+⏺TCX_LUNA_20260911
+●high·/effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯  
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+⏸manualmodeon·?forshortcuts·←foragents
+/statusShowClaudeCodestatusincludingversion,model,account,APIconnectivity,andtool
+statuses
+/statuslineSetupClaudeCode'sstatuslineUI
+/ideManageIDEintegrationsandshowstatus
+/usageShowsessioncost,planusage,andactivitystats
+/status 
+
+⏺ TCX_LUNA_20260911
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+ Settings  Status   Config   Uage   Stats
+Version:2.1.268
+  Seson ame:              TCX official offline fork
+ Session ID:       945a2f16-5a20-4eab-a645-f73334fea8b3
+Sessionkind:interactive
+  Peer address:   uds:/tmp/cc-socks/25528.sock
+cwd:/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_/repo
+  Authtoken:               ANTHROPIC_AUTH_TOKEN
+AnthropicbaseURL:http://127.0.0.1:65504
+
+Model:gpt-5.6-luna
+Settingsources:Commandlinearguments
+Managedsettings(remote):notfetched—notavailablewithacustomANTHROPIC_BASE_URL
+Organizationpolicy:notfetchedwithacustomANTHROPIC_BASE_URL
+Esctocancel
+
+
+
+
+
+
+
+
+(B78(B78
+
+Resume this session with:
+
+claude --resume "TCX official offline fork"
+

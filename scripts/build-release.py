@@ -4,8 +4,16 @@ import argparse, hashlib, json, os, pathlib, plistlib, re, shutil, subprocess, t
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 def run(*args, **kw): subprocess.run(args, cwd=ROOT, check=True, **kw)
 def digest(p): return hashlib.sha256(p.read_bytes()).hexdigest()
+def build_app_icon(source, destination, stage):
+    iconset=stage/'TeamCross.iconset';iconset.mkdir()
+    for points,scale in ((16,1),(16,2),(32,1),(32,2),(128,1),(128,2),(256,1),(256,2),(512,1),(512,2)):
+        pixels=points*scale;suffix=f'@{scale}x' if scale>1 else ''
+        target=iconset/f'icon_{points}x{points}{suffix}.png'
+        if pixels==1024: shutil.copy2(source,target)
+        else: run('sips','-z',str(pixels),str(pixels),str(source),'--out',str(target),stdout=subprocess.DEVNULL)
+    run('iconutil','-c','icns',str(iconset),'-o',str(destination))
 p = argparse.ArgumentParser()
-p.add_argument('--version', default='0.1.1-dev')
+p.add_argument('--version', default='0.1.3-dev')
 p.add_argument('--output', help='Version-specific output directory (default: dist/release/VERSION)')
 p.add_argument('--base-url', help='Release asset base URL; no upload is performed')
 p.add_argument('--sign-identity', help='Developer ID Application identity')
@@ -34,8 +42,9 @@ env.setdefault('GOCACHE',str(ROOT/'bin/go-cache')); env.setdefault('GOMODCACHE',
 with tempfile.TemporaryDirectory(prefix='teamcross-package-') as temp:
     stage=pathlib.Path(temp); app=stage/'Team Cross.app'; mac=app/'Contents/MacOS'; resources=app/'Contents/Resources'
     mac.mkdir(parents=True); resources.mkdir()
+    build_app_icon(ROOT/'apps/macos/Assets/AppIcon.png',resources/'TeamCross.icns',stage)
     run('go','build','-trimpath','-ldflags',f'-s -w -X teamcross/internal/buildinfo.Version={a.version} -X teamcross/internal/buildinfo.Commit={commit}', '-o',str(resources/'teamcross'),'./cmd/teamcross',env=env)
-    run('xcrun','swiftc','-O','-target','arm64-apple-macosx14.0','-module-cache-path',str(ROOT/'bin/swift-cache'),str(ROOT/'apps/macos/TeamCross.swift'),'-o',str(mac/'TeamCross'),env=env)
+    run('xcrun','swiftc','-O','-target','arm64-apple-macosx14.0','-module-cache-path',str(ROOT/'bin/swift-cache'),str(ROOT/'apps/macos/AppInstance.swift'),str(ROOT/'apps/macos/TeamCross.swift'),'-o',str(mac/'TeamCross'),env=env)
     info=plistlib.loads((ROOT/'apps/macos/Info.plist').read_bytes());info['CFBundleShortVersionString']=a.version.split('-')[0].split('+')[0];info['CFBundleVersion']=build_number;info['TeamCrossVersion']=a.version
     (app/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
     identity=a.sign_identity or '-'

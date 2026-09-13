@@ -49,7 +49,7 @@ export function Join({ pendingId }: { pendingId?: string }) {
       </a>
       <PageHeading
         title="加入协作"
-        subtitle="先了解共享上下文，需要操作时再接入 Codex。"
+        subtitle="先了解共享上下文，需要操作时再打开对应的原生客户端。"
       />
       <div className="join-layout">
         <form
@@ -124,7 +124,7 @@ export function Join({ pendingId }: { pendingId?: string }) {
           <span className="eyebrow">从查看开始</span>
           <div>
             <Icon name="folder" size={22} />
-            <h3>无需先配置 Codex</h3>
+            <h3>无需先配置原生客户端</h3>
             <p>
               安装 Team Cross 后，即可查看共享上下文。参与者无需准备本地仓库。
             </p>
@@ -133,7 +133,7 @@ export function Join({ pendingId }: { pendingId?: string }) {
             <Icon name="people" size={22} />
             <h3>准备好后申请输入</h3>
             <p>
-              发起者交接后，可以使用 TUI、专用 Desktop 或自己的 Codex 辅助协作。
+              发起者交接后，打开这次协作支持的原生客户端；也可以用自己的客户端辅助协作。
             </p>
           </div>
           <p className="small-text muted">

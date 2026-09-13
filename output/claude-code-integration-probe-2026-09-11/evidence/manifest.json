@@ -1,0 +1,19 @@
+{
+  "root": "/private/tmp/teamcross-claude-probe-20260911-p6yo8o8_",
+  "cli": "/Users/wsy/.nvm/versions/node/v24.18.0/bin/claude",
+  "version": "2.1.268",
+  "model": "claude-fable-5-dd-hgih-hsalf-8.3-inimeg",
+  "model_label": "Gemini 3.8 Flash",
+  "credentials_source": "user Claude settings, loaded in memory only",
+  "tests": [],
+  "opus_test": {
+    "requested_display": "Claude Opus 5",
+    "selected_route": "claude-opus-4-6-thinking",
+    "literal_opus_5_alias": "HTTP 400 unknown provider",
+    "source": "user supplied mapping and local Claude Opus env slot"
+  },
+  "luna_test": {
+    "requested_model": "gpt-5.6-luna",
+    "verified_in_proxy_model_list": true
+  }
+}

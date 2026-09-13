@@ -1,0 +1,6 @@
+{
+  "status": 200,
+  "elapsed_seconds": 2.8,
+  "model": "claude-fable-5-dd-hgih-hsalf-8.3-inimeg",
+  "response": "{\"id\":\"stWjatTlK9zV1e8PprOmwAc\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"gemini-3.8-flash\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"cpa-gemini-carrier-v1:next:text:RW9BQ0N2MEJBUkZOTWcvKzRjR0dMNEZLWnFuTnNiKzB2aWIwWWZualVJNmhWMmFUQ3ZwMUxCaU95N0tqcnl6MkE0TzB2aGx1NW9VMWxqUFczcy9ac01xb0VKZG5yTDhjODhIZS9zdGF0OU1XWlVzTVU4dWw1aEptQU4wUVRscUY2eUFvU3IxVllnSlZCaGYvQ0dneUxLZUNYa1Q4VU4xSlFvUVBSMGZqYjlBMi9idmZUU0xhUUJBRHMwZ3U4Z1JOV0hzbk1mRjlya3A2M08xMDJBS3FteXdmRUhZVWxnRXd1d2FxWUFGMEdmdnc0Vnk1WUsxSHYyTWwxRmJtRHI1ZWVBcjMrOGZHMjl2SmRnZStQeHMwUEJSb0ZzcEFQQTVHRURwK3BKeDMrZGpKelN3VHlGY3ZyUXcweDdKVkYyTUVMQjA1aCtpQU9XTlN3UERldXJCNlVxT3BUUT09\"},{\"type\":\"text\",\"text\":\"TCX_PROXY_OK\"}],\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"usage\":{\"input_tokens\":16,\"output_tokens\":49}}"
+}

@@ -1,0 +1,119 @@
+{
+  "launch": {
+    "code": 0,
+    "stdout": "backgrounded · 13a9530c · TCX worker wire discovery (idle — send a prompt to start)\n  claude agents             list sessions\n  claude attach 13a9530c    open in this terminal\n  claude logs 13a9530c      show recent output\n  claude stop 13a9530c      stop this session\n",
+    "stderr": "Starting background service…\n"
+  },
+  "worker": {
+    "id": "13a9530c",
+    "cwd": "/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo",
+    "kind": "background",
+    "startedAt": 1789139598177,
+    "sessionId": "13a9530c-2a21-4c54-8892-3399bf8ff265",
+    "name": "TCX worker wire discovery",
+    "state": "blocked"
+  },
+  "daemon_status": {
+    "code": 0,
+    "stdout": "pid:     27910\nversion: 2.1.268\nuptime:  1s\norigin:  transient — started on-demand by `claude --bg` (pid 27906) in /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo\nconfig:  /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/config/daemon.json\nlog:     /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/config/daemon.log\n\nbg sessions:\n  sock dir:     /tmp/cc-daemon-501/64dc4dea\n  control.sock: reachable\n  bg workers:   1 running (control.sock), 1 in roster.json\n  roster.json:  updated 0s ago\n  daemon.log:   1.3KB at /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/config/daemon.log\n\nholding this daemon open:\n  1 bg worker running (daemon waits for them to settle)\n\nto let it idle-exit: wait for (or cancel) bg workers and close any `claude agents`\n",
+    "stderr": ""
+  },
+  "daemon": {
+    "socketDir": "/tmp/cc-daemon-501/64dc4dea"
+  },
+  "screen": "\n\n  Attaching…\n\n\n▐▛███▛█ClaudeCodev2.1.268\n▝▜██████▀gpt-5.6-luna·APIUsageBilling\n▝▝▝▝/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo\n●high·/effort\n────────────────────────────────────────────────────────────────────────────────────────────TCXworkerwirediscovery─\n❯  \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n⏸manualmodeon·←foragents\n▐▛███▛█ClaudeCodev2.1.268\n▝▜██████▀gpt-5.6-luna·APIUsageBilling\n▝▝▝▝/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo\n●high·/effort\n────────────────────────────────────────────────────────────────────────────────────────────TCXworkerwirediscovery─\n❯  \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n⏸manualmodeon·←foragents",
+  "wire": [
+    {
+      "request": {
+        "proto": 1,
+        "op": "nudge"
+      },
+      "up_bytes": 0,
+      "down_bytes": 107,
+      "ack": {
+        "ok": true,
+        "op": "nudge",
+        "restarting": false,
+        "upgradePending": false,
+        "version": "2.1.268",
+        "processWrapper": ""
+      }
+    },
+    {
+      "request": {
+        "proto": 1,
+        "op": "has",
+        "short": "13a9530c"
+      },
+      "up_bytes": 0,
+      "down_bytes": 64,
+      "ack": {
+        "ok": true,
+        "op": "has",
+        "alive": true,
+        "present": true,
+        "ready": true
+      }
+    },
+    {
+      "request": {
+        "proto": 1,
+        "op": "attach",
+        "short": "13a9530c",
+        "auth": "[redacted]",
+        "cols": 120,
+        "rows": 36,
+        "attachId": "495462c6-5302-4c74-a015-7f6ed323db18",
+        "caps": {
+          "imark": true,
+          "terminal": "xterm-256color",
+          "mux": null,
+          "ssh": false,
+          "wheelFlood": false,
+          "hyperlinks": false,
+          "progressReporting": false,
+          "wtSession": false,
+          "isVscodeTerm": false,
+          "browser": null,
+          "colorLevel": 0,
+          "syncOutput": false,
+          "editor": null
+        }
+      },
+      "up_bytes": 0,
+      "down_bytes": 2465,
+      "ack": {
+        "ok": true,
+        "op": "attach",
+        "decModes": [
+          1000,
+          1002,
+          1003,
+          1006,
+          2004,
+          2031,
+          1004
+        ],
+        "via": "spare",
+        "booting": false,
+        "tempo": "active",
+        "state": "running",
+        "cached": false,
+        "stale": false,
+        "workerCliVersion": "2.1.268"
+      },
+      "response_prefix": "\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?2004h\u001b[?2031h\u001b[?1004h\u001b[2J\u001b[H\r\u001b[1C\u001b[1B▐▛███▛█\u001b[12GCl"
+    }
+  ],
+  "stop": {
+    "code": 0,
+    "stdout": "stopped 13a9530c\n",
+    "stderr": ""
+  },
+  "daemon_stop": {
+    "code": 0,
+    "stdout": "stopped\nnote: the next `claude agents` or `claude --bg` will start a new one\n",
+    "stderr": ""
+  },
+  "generation_requests": 0
+}

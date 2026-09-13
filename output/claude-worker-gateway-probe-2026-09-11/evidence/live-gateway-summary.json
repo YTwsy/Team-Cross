@@ -1,0 +1,442 @@
+{
+  "cli_version": "2.1.268",
+  "model": "gpt-5.6-luna",
+  "scope": "single Mac, isolated background worker, loopback TCP gateway",
+  "source_id": "22e4ecba-a09a-4a52-90ee-9788a9d1bfef",
+  "fork": {
+    "sourceId": "22e4ecba-a09a-4a52-90ee-9788a9d1bfef",
+    "forkId": "c5a0243f-80a9-422f-8d29-07bda07a8cb2",
+    "sourceHash": "7ae50831fb50426ac412e58a9fbd93f7f5b6cc33e57176eaff4a5f80d23b32b7",
+    "sourceUnchanged": true,
+    "sourcePath": "/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/config/projects/-private-tmp-teamcross-claude-worker-probe-20260911-qstz9kmn-repo/22e4ecba-a09a-4a52-90ee-9788a9d1bfef.jsonl",
+    "fetches": 0,
+    "contentPreserved": true
+  },
+  "launch": {
+    "code": 0,
+    "stdout": "backgrounded · c5a0243f · TCX controlled single worker (idle — send a prompt to start)\n  claude agents             list sessions\n  claude attach c5a0243f    open in this terminal\n  claude logs c5a0243f      show recent output\n  claude stop c5a0243f      stop this session\n",
+    "stderr": "Starting background service…\n"
+  },
+  "job_id": "c5a0243f",
+  "initial_worker": {
+    "id": "c5a0243f",
+    "cwd": "/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo",
+    "kind": "background",
+    "startedAt": 1789140407027,
+    "sessionId": "c5a0243f-80a9-422f-8d29-07bda07a8cb2",
+    "name": "TCX controlled single worker",
+    "state": "blocked"
+  },
+  "worker_session_id": "c5a0243f-80a9-422f-8d29-07bda07a8cb2",
+  "daemon_status": {
+    "code": 0,
+    "stdout": "pid:     29854\nversion: 2.1.268\nuptime:  0s\norigin:  transient — started on-demand by `claude --bg` (pid 29850) in /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo\nconfig:  /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/config/daemon.json\nlog:     /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/config/daemon.log\n\nbg sessions:\n  sock dir:     /tmp/cc-daemon-501/64dc4dea\n  control.sock: reachable\n  bg workers:   1 running (control.sock), 1 in roster.json\n  roster.json:  updated 0s ago\n  daemon.log:   3.7KB at /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/config/daemon.log\n\nholding this daemon open:\n  1 bg worker running (daemon waits for them to settle)\n\nto let it idle-exit: wait for (or cancel) bg workers and close any `claude agents`\n",
+    "stderr": ""
+  },
+  "initial_b_screen": "\n\n  Attaching…\n\n\n ▐▛███▛█Claude Codev2.1.268\n▝▜██████▀gpt-5.6-luna · API Usage Billing\n  ▝▝ ▝▝  /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo\n❯ Remember TCX_WORKER_SEED. Reply exactly TCX_SEED_OK. Do not use tools.                                                \n⏺TCX_SEED_OK\n● high · /effort\n───────────────────────────────────────────────────────────────────────────────────────── TCX controlled single worker ─\n❯  \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n⏸ manual mode on · ← for agents",
+  "worker_before": {
+    "pid": 29869,
+    "id": "c5a0243f",
+    "cwd": "/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo",
+    "kind": "background",
+    "startedAt": 1789140407903,
+    "sessionId": "c5a0243f-80a9-422f-8d29-07bda07a8cb2",
+    "name": "TCX controlled single worker",
+    "status": "idle",
+    "state": "blocked"
+  },
+  "dropped_input_replayed": false,
+  "b_reconnected": true,
+  "pending_b_screen": "\n\n  Attaching…\n\n\n ▐▛███▛█Claude Codev2.1.268\n▝▜██████▀gpt-5.6-luna · API Usage Billing\n  ▝▝ ▝▝  /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo\n❯ Remember TCX_WORKER_SEED. Reply exactly TCX_SEED_OK. Do not use tools.                                                \n⏺TCX_SEED_OK\n● high · /effort\n───────────────────────────────────────────────────────────────────────────────────────── TCX controlled single worker ─\n❯  \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n⏸ manual mode on · ← for agents78Reconnecting to c5a0243f…\n\n\n\n  Attaching…\n\n\n▐▛███▛█ClaudeCodev2.1.268\n▝▜██████▀gpt-5.6-luna·APIUsageBilling\n▝▝▝▝/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo\n❯RememberTCX_WORKER_SEED.ReplyexactlyTCX_SEED_OK.Donotusetools.\n⏺TCX_SEED_OK\n●high·/effort\n─────────────────────────────────────────────────────────────────────────────────────────TCXcontrolledsingleworker─\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n⏸manualmodeon·←foragents\n (B\u000f\n[Pastedtext#1+3lines] \npaste gain to expand\n❯UseBashtoruntheexactcommandbelow.Askforpermissionwhenrequired.Afteritsucceedsreplyexactly\nTCX_HANDOFF_DONE.Usenoothertoolsandnoalternativecommand.\nprintf'TCX_HANDOFF_OK\\n'>\n/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/handoff-approved-c5a0243f.txt\n✢Finagling…\n \n·\n\n✢\n✳\n✶\n✻\n✽\n✻\n✶\nPermbulating…\n✳\n✢\n·\n✢\n✳\n✶\n✻\n✽\n✻\n⏺Running1shellcommand…\n✶(3s·↓38tokens)\n✳63\n✢88\n4113 tokens)\n·50\n \n75\n200\n✢25\n63\n✳88\n✶313\n⏺\n⎿$printf'TCX_HANDOFF_OK\\n'>\n/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/handoff-approved-c5a0243f.txt\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\nBashcommand\n│printf'TCX_HANDOFF_OK\\n'>\n│/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/handoff-approved-c5a0243f.txt\nWritethehandoffapprovalmarker\nPermissionruleBashrequiresconfirmationforthiscommand.\n/permissionstoupdaterules\nDoyouwanttoproceed?\n ❯ 1. Yes\n2.No\n\n Esctocancel·Tabtoamend\n\n",
+  "approval_tool_calls_before": [
+    {
+      "type": "tool_use",
+      "id": "call_zoXruzik9mqnQg5BIveOqMWt",
+      "name": "Bash",
+      "input": {
+        "command": "printf 'TCX_HANDOFF_OK\\n' > /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/handoff-approved-c5a0243f.txt",
+        "description": "Write the handoff approval marker"
+      }
+    }
+  ],
+  "a_send_while_b_owns": {
+    "ok": false,
+    "op": "reply",
+    "code": "ETCXOWNER",
+    "error": "caller is not current input owner"
+  },
+  "stale_b_blocked": true,
+  "file_after_stale_b": false,
+  "a_attach_ack": {
+    "ok": true,
+    "op": "attach",
+    "imarkNonce": "[redacted]",
+    "decModes": [
+      1000,
+      1002,
+      1003,
+      1006,
+      2004,
+      2031,
+      1004
+    ],
+    "via": "spare",
+    "booting": false,
+    "tempo": "blocked",
+    "state": "working",
+    "cached": false,
+    "stale": false,
+    "workerCliVersion": "2.1.268"
+  },
+  "pending_a_screen": "\n▐▛███▛█ClaudeCodev2.1.268\n▝▜██████▀gpt-5.6-luna·APIUsageBilling\n▝▝▝▝/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo\n❯RememberTCX_WORKER_SEED.ReplyexactlyTCX_SEED_OK.Donotusetools.\n⏺TCX_SEED_OK\n❯UseBashtoruntheexactcommandbelow.Askforpermissionwhenrequired.Afteritsucceedsreplyexactly\nTCX_HANDOFF_DONE.Usenoothertoolsandnoalternativecommand.\nprintf'TCX_HANDOFF_OK\\n'>\n/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/handoff-approved-c5a0243f.txt\n⏺Running1shellcommand…\n⎿$printf'TCX_HANDOFF_OK\\n'>\n/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/handoff-approved_cc-d-imark;{\"kind\":\"content_paint\",\"msgsLoaded\":9,\"msgsInJsonl\":9,\"msgsRenderedAtFirstPaint\":9,\"nonce\":\"286276070a0b1fbce9b7505b72113b8e\"}\\_cc-d-imark;{\"kind\":\"prompt_idle\",\"nonce\":\"286276070a0b1fbce9b7505b72113b8e\"}\\-c5a0243f.txt\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\nBashcommand\n│printf'TCX_HANDOFF_OK\\n'>\n│/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/handoff-approved-c5a0243f.txt\nWritethehandoffapprovalmarker\nPermissionruleBashrequiresconfirmationforthiscommand.\n/permissionstoupdaterules\nDoyouwanttoproceed?\n❯1.Yes\n2.No\nEsctocancel·Tabtoamend\n \n⏺\n ",
+  "approved_file": "TCX_HANDOFF_OK\n",
+  "approval_tool_calls_after": [
+    {
+      "type": "tool_use",
+      "id": "call_zoXruzik9mqnQg5BIveOqMWt",
+      "name": "Bash",
+      "input": {
+        "command": "printf 'TCX_HANDOFF_OK\\n' > /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/handoff-approved-c5a0243f.txt",
+        "description": "Write the handoff approval marker"
+      }
+    }
+  ],
+  "same_tool_call_completed": true,
+  "a_structured_send": {
+    "ok": true,
+    "op": "reply"
+  },
+  "structured_send_completed": true,
+  "a_interrupt_prompt": {
+    "ok": true,
+    "op": "reply"
+  },
+  "interrupt_screen": "0260911-qstz9kmn/repo/interrupt-finished-c5a0243f.txt\n\n⏺Runng 1 shell commnd…\n ·thinking)\n50\n \n88\n✻113 tokens · thinking)\n✶438\n✳63\n✢200\n⏺\n25\n·4\n70\n85\n91\n \n✢3\n✳54\n✶7\n✻305\n9\n❯Reply exactlyTCX_A_CONTROL_OK.Donotusetools.\n⏺TCX_A_CONTROL_OK\n\n✻Workedfor 7s · done 11:27 PM\n\n❯UseBashtoruntheexactcommandbelow,askingpermissionifrequired.Usenoothertools.Donotruninthe\nbckground.\nprintf'started\\n'>\n /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-started-c5a0243f.txt;sleep20;printf\n'finished\\n'>/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-finished-c5a0243f.txt\n\nRunning1shellcommand…\n ⎿  $ printf 'started\\n' >\n/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-started-c5a0243f.txt;sleep20;printf\n    'finished\\n' >/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-finished-c5a0243f.txt\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\nBashcommand\n\n │ printf 'started\\n'>\n │ /privae/mp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-started-c5a0243f.txt;sleep20;\n │ printf 'finished\\n' >\n │ /private/tmpteamcross-claude-wrker-probe-20260911-qstz9kmn/repo/interrupt-finished-c5a0243f.txt\nRuntherequestedtimedmarkercommand\n\nPermissionruleBashrequiresconfirmationforthiscommand.\n /permisios to update rules\n\nDoyouwanttoproceed?\n ❯ 1. Yes\n   2.No\n\nEsc ocancel ·Tab toamend\n⏺(B\u000f\n❯UseBashtoruntheexactcommandbelow.Askforpermissionwhenrequired.Afteritsucceedsreplyexactly\n TCX_HANDOFF_DONE. Use no other tols and no alternativecommand.\nprintf'TCX_HANDOFF_OK\\n'>\n /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/handoff-approved-c5a0243f.txt\n Ran 1 shell command\n⏺TCX_HANDOFF_DONE\n\n✻Churned for 12s · done11:27PM\n\n❯Reply exactly TCX_A_CONTROL_OK. Do not use tools.\nTCX_A_CONTROL_OK\n\n✻Worked for 7s · done 11:27 PM\n\n❯UseBashtoruntheexactcommandbelow,askingpermissionifrequired.Usenoothertools.Donotruninthe\n  background.\n printf 'started\\n'>\n/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-started-c5a0243f.txt;sleep20;printf\n'finished\\n' > /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-finished-c5a0243f.txt\n\n⏺Running 1shell command…\n⎿ $ prinf 'started\\n' >\n  /privat/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-started-c5a0243f.txt;sleep20;printf\n'finished\\n'>/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-finished-c5a0243f.txt\n\n✽ Manifetig… (5s · ↓ 342 tokens)\n⎿ Tip:Use/themetochangethecolortheme\n                   ●high·/effort\n─────────────────────────────────────────────────────────────────────────────────────────TCXcontrolledsingleworker─\n❯  \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n ⏸ manual mode on ·← for agents·esctointerrupt\n\n⏺SEE_OK\n\n❯Use Bsh o run the exat command below. Ask for permission whn required. After it succeeds replyexactly\nTCX_HANDOFF_DONE.Usenoothertoolsandnoalternativecommand.\nprintf 'TCX_HANDOFF_OK\\n'>\n/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/handoff-approved-c5a0243f.txt\n\nRan1shellcommand\n\n⏺TCX_HANDOFF_DONE\n\n✻Churnedfor12s·done11:27PM\n\n❯ReplyexactlyTCX_A_CONTROL_OK.Donotusetools.\n\n⏺TCX_A_CONTROL_OK\n\n✻Wored for 7s·done11:27PM\n\n❯Use Bsh o run the exat command below, asking permision if requred. Use no oher tools. Do not run in the\nbackground.\nprintf'started\\n'>\n /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-started-c5a0243f.txt;sleep20;printf\n'finished\\n' > /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-finished-c5a0243f.txt\n\n⏺Running 1 shellcommand…\n⎿$printf'started\\n'>\n    /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-started-c5a0243f.txt;sleep20;printf\n  'finishd\\n' > /private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-finished-c5a0243f.txt\n\n❯RememberTCX_WORKER_SEED.ReplyexactlyTCX_SEED_OK.Donotusetools.\n\n⏺TCX_SEED_OK\n\n❯Use Bash to run the xact command below.Ask for permissin whenrequired.Afteritsucceedsreplyexactly\nTCX_HANDOFFDOE. Use no othertoolsandnoalternativecommand.\nprintf 'TCX_HANDOFF_OK\\n' >\n/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/handoff-approved-c5a0243f.txt\n\nRan1shellcommand\n\n⏺TCX_HANDOFF_DONE\n\n✻Churnedfor12s·done11:27PM\n\n❯ReplyexactlyTCX_A_CONTROL_OK.Donotusetools.\n\n⏺TCX_A_CONTROL_OK\n\n✻Workedfor7s·done11:27PM\n\n❯Use Bash toruntheexactcommandbelow,askingpermissionifrequired.Usenoothertools.Donotruninthe\nbackground.\nprintf 'sarted\\n' >\n/privat/tmp/teamcross-claude-worker-probe-20260911qstz9kmn/repo/interrupt-started-c5a0243.txt; sleep 0; printf\n'finished\\n'>/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo/interrupt-finished-c5a0243f.txt\n\nRan 1 shellcommand\n⎿ Interrupted · What should Claude do instead?\n⎿ Interrupted · What should Claude d instea?",
+  "interrupted_child_finished": false,
+  "worker_after": {
+    "pid": 29869,
+    "id": "c5a0243f",
+    "cwd": "/private/tmp/teamcross-claude-worker-probe-20260911-qstz9kmn/repo",
+    "kind": "background",
+    "startedAt": 1789140407903,
+    "sessionId": "c5a0243f-80a9-422f-8d29-07bda07a8cb2",
+    "name": "TCX controlled single worker",
+    "status": "idle",
+    "state": "done"
+  },
+  "same_worker_pid": true,
+  "source_unchanged_at_end": true,
+  "unauthorized_a_reached_transcript": false,
+  "gateway_events": [
+    {
+      "time": 1789140407.890033,
+      "event": "control",
+      "role": "B",
+      "epoch": 1,
+      "op": "nudge",
+      "attach_id": null
+    },
+    {
+      "time": 1789140407.8969011,
+      "event": "control",
+      "role": "B",
+      "epoch": 1,
+      "op": "has",
+      "attach_id": null
+    },
+    {
+      "time": 1789140407.899223,
+      "event": "control",
+      "role": "B",
+      "epoch": 1,
+      "op": "attach",
+      "attach_id": "37e1acbf-3ebb-45bd-9a29-5dccf4024f74"
+    },
+    {
+      "time": 1789140412.002368,
+      "event": "control",
+      "role": "B",
+      "epoch": 1,
+      "op": "list",
+      "attach_id": null
+    },
+    {
+      "time": 1789140412.013616,
+      "event": "fault_drop_before_forward",
+      "bytes": 47,
+      "epoch": 1
+    },
+    {
+      "time": 1789140412.0150678,
+      "event": "control",
+      "role": "B",
+      "epoch": 1,
+      "op": "nudge",
+      "attach_id": null
+    },
+    {
+      "time": 1789140412.016513,
+      "event": "control",
+      "role": "B",
+      "epoch": 1,
+      "op": "has",
+      "attach_id": null
+    },
+    {
+      "time": 1789140412.017942,
+      "event": "control",
+      "role": "B",
+      "epoch": 1,
+      "op": "attach",
+      "attach_id": "22fcd8b6-9713-4914-8ca7-701b8b7814fa"
+    },
+    {
+      "time": 1789140417.022683,
+      "event": "forwarded_input",
+      "role": "B",
+      "epoch": 1,
+      "bytes": 317
+    },
+    {
+      "time": 1789140417.622614,
+      "event": "forwarded_input",
+      "role": "B",
+      "epoch": 1,
+      "bytes": 1
+    },
+    {
+      "time": 1789140423.088991,
+      "event": "rejected",
+      "op": "reply",
+      "reason": "caller is not current input owner"
+    },
+    {
+      "time": 1789140423.0891762,
+      "event": "reclaim",
+      "writer": "A",
+      "epoch": 2
+    },
+    {
+      "time": 1789140423.0896158,
+      "event": "blocked_input",
+      "role": "B",
+      "epoch": 1,
+      "current_epoch": 2,
+      "bytes": 1
+    },
+    {
+      "time": 1789140423.990195,
+      "event": "b_disconnected",
+      "epoch": 2
+    },
+    {
+      "time": 1789140423.991581,
+      "event": "control",
+      "role": "B",
+      "epoch": 2,
+      "op": "nudge",
+      "attach_id": null
+    },
+    {
+      "time": 1789140423.992933,
+      "event": "control",
+      "role": "B",
+      "epoch": 2,
+      "op": "has",
+      "attach_id": null
+    },
+    {
+      "time": 1789140423.994972,
+      "event": "rejected",
+      "op": "attach",
+      "reason": "input ownership was reclaimed"
+    },
+    {
+      "time": 1789140424.00177,
+      "event": "control",
+      "role": "A",
+      "epoch": 2,
+      "op": "attach",
+      "attach_id": "91ee5371-a304-4a07-9fa0-1bd76f918fb3"
+    },
+    {
+      "time": 1789140426.003615,
+      "event": "forwarded_input",
+      "role": "A",
+      "epoch": 2,
+      "bytes": 1
+    },
+    {
+      "time": 1789140433.915633,
+      "event": "control",
+      "role": "A",
+      "epoch": 2,
+      "op": "reply",
+      "attach_id": null
+    },
+    {
+      "time": 1789140441.330635,
+      "event": "control",
+      "role": "A",
+      "epoch": 2,
+      "op": "reply",
+      "attach_id": null
+    },
+    {
+      "time": 1789140446.927304,
+      "event": "forwarded_input",
+      "role": "A",
+      "epoch": 2,
+      "bytes": 1
+    },
+    {
+      "time": 1789140447.18033,
+      "event": "forwarded_input",
+      "role": "A",
+      "epoch": 2,
+      "bytes": 1
+    },
+    {
+      "time": 1789140448.68282,
+      "event": "forwarded_input",
+      "role": "A",
+      "epoch": 2,
+      "bytes": 1
+    },
+    {
+      "time": 1789140471.29878,
+      "event": "control",
+      "role": "B",
+      "epoch": 2,
+      "op": "list",
+      "attach_id": null
+    }
+  ],
+  "stop": {
+    "code": 0,
+    "stdout": "stopped c5a0243f\n",
+    "stderr": ""
+  },
+  "daemon_stop": {
+    "code": 0,
+    "stdout": "stopped\nnote: the next `claude agents` or `claude --bg` will start a new one\n",
+    "stderr": ""
+  },
+  "generation_requests": 7,
+  "models_observed": [
+    "gpt-5.6-luna"
+  ],
+  "model_requests": [
+    {
+      "time": 1789140401.932437,
+      "method": "GET",
+      "path": "/v1/models?limit=1000",
+      "model": null,
+      "status": 200
+    },
+    {
+      "time": 1789140402.000913,
+      "method": "POST",
+      "path": "/v1/messages?beta=true",
+      "model": "gpt-5.6-luna",
+      "request_bytes": 11637,
+      "max_tokens": 2048,
+      "thinking": {
+        "type": "adaptive"
+      },
+      "output_config": {
+        "effort": "high"
+      },
+      "status": 200
+    },
+    {
+      "time": 1789140408.0090618,
+      "method": "GET",
+      "path": "/v1/models?limit=1000",
+      "model": null,
+      "status": 200
+    },
+    {
+      "time": 1789140417.652946,
+      "method": "POST",
+      "path": "/v1/messages?beta=true",
+      "model": "gpt-5.6-luna",
+      "request_bytes": 14340,
+      "max_tokens": 2048,
+      "thinking": {
+        "type": "adaptive"
+      },
+      "output_config": {
+        "effort": "high"
+      },
+      "status": 200
+    },
+    {
+      "time": 1789140427.6912692,
+      "method": "POST",
+      "path": "/v1/messages?beta=true",
+      "model": "gpt-5.6-luna",
+      "request_bytes": 16692,
+      "max_tokens": 2048,
+      "thinking": {
+        "type": "adaptive"
+      },
+      "output_config": {
+        "effort": "high"
+      },
+      "status": 200
+    },
+    {
+      "time": 1789140430.230556,
+      "method": "POST",
+      "path": "/v1/messages?beta=true",
+      "model": "gpt-5.6-luna",
+      "request_bytes": 18759,
+      "max_tokens": 3072,
+      "thinking": null,
+      "output_config": null,
+      "status": 200
+    },
+    {
+      "time": 1789140433.9703932,
+      "method": "POST",
+      "path": "/v1/messages?beta=true",
+      "model": "gpt-5.6-luna",
+      "request_bytes": 18310,
+      "max_tokens": 2048,
+      "thinking": {
+        "type": "adaptive"
+      },
+      "output_config": {
+        "effort": "high"
+      },
+      "status": 200
+    },
+    {
+      "time": 1789140436.8110561,
+      "method": "POST",
+      "path": "/v1/messages?beta=true",
+      "model": "gpt-5.6-luna",
+      "request_bytes": 18490,
+      "max_tokens": 3072,
+      "thinking": null,
+      "output_config": null,
+      "status": 200
+    },
+    {
+      "time": 1789140441.370946,
+      "method": "POST",
+      "path": "/v1/messages?beta=true",
+      "model": "gpt-5.6-luna",
+      "request_bytes": 20244,
+      "max_tokens": 2048,
+      "thinking": {
+        "type": "adaptive"
+      },
+      "output_config": {
+        "effort": "high"
+      },
+      "status": 200
+    }
+  ]
+}

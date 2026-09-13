@@ -25,7 +25,7 @@ export function Home() {
           </div>
           <div>
             <h2>发起协作</h2>
-            <p>选一个 Codex 会话，邀请同事一起继续。</p>
+            <p>选一个 Codex 或 Claude Code 会话，邀请同事一起继续。</p>
           </div>
           <Icon name="arrow" />
         </a>
@@ -116,9 +116,7 @@ export function Home() {
       )}
       <div className="quiet-note">
         <Icon name="desktop" size={17} />
-        <span>
-          共享会话在发起者的 Mac 上执行，同事使用自己的 Codex 客户端。
-        </span>
+        <span>共享会话在发起者的 Mac 上执行，同事使用本机的原生客户端。</span>
       </div>
     </>
   );

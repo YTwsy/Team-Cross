@@ -1,6 +1,6 @@
 # Team Cross 开发指南
 
-`main` 以 Codex 原生会话协作为产品主线，当前仍处于原型阶段。可以重构，不维护旧 Thread、Round、Evidence、managed Bridge 或旧数据兼容性。
+`main` 以 Codex 原生会话协作为产品主线，当前仍处于原型阶段；Claude Code 原生 TUI 为实验性接入，边界见 [Claude 接入契约](docs/agent-wiki/sources/decisions/claude-native-tui.md)。可以重构，不维护旧 Thread、Round、Evidence、managed Bridge 或旧数据兼容性。
 
 ## 进入仓库
 
@@ -23,9 +23,9 @@
 
 ## 产品与工程边界
 
-- 协作始终创建新的原生 Codex fork。原目录模式保留当前 Git 状态；新 worktree 从选定 HEAD 检出，不恢复未提交内容。
+- 协作始终创建所选 Provider 的新原生 fork。原目录模式保留当前 Git 状态；新 worktree 从选定 HEAD 检出，不恢复未提交内容。
 - 原目录由用户拥有，不能在协作结束、创建失败或清理时删除。新 worktree 同样在结束共享后保留。
-- 会话和执行留在 A；本机 TUI 与专用 Desktop 直接接入，用户自己的 TUI/Desktop 通过 MCP 辅助。
+- 会话和执行留在 A；本机原生 TUI 与 Codex 专用 Desktop 直接接入，个人 Codex TUI/Desktop 或 Claude Code TUI 通过 MCP 辅助，辅助客户端与目标协作的 Provider 独立。
 - 所有写入入口共享输入归属；读取可并行。发送、接收和完成是不同状态。断线不自动重放写入。
 - 不对 Provider 输入自动添加同事身份，不要求问题描述或结果验收。
 - 产品不固定模型或推理强度。创建继承原生来源，恢复读取协作会话的持久化设置，后续遵循当前输入者在 Codex 中的选择；界面只报告运行时确认的设置。

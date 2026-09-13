@@ -18,8 +18,11 @@ with tempfile.TemporaryDirectory(prefix='teamcross-install-') as temp:
         run('hdiutil','attach','-readonly','-nobrowse','-mountpoint',str(mount),str(next(release.glob('*.dmg'))),stdout=subprocess.DEVNULL);mounted=True
         installed=root/'Applications with spaces'/'Team Cross.app';installed.parent.mkdir();shutil.copytree(mount/'Team Cross.app',installed)
         info=plistlib.loads((installed/'Contents/Info.plist').read_bytes());assert info['LSMinimumSystemVersion']=='14.0';assert info['CFBundleURLTypes'][0]['CFBundleURLSchemes']==['teamcross']
+        icon=installed/'Contents/Resources/TeamCross.icns';assert info['CFBundleIconFile']=='TeamCross.icns' and icon.is_file()
+        iconset=root/'installed-app-icon.iconset';run('iconutil','-c','iconset',str(icon),'-o',str(iconset));assert (iconset/'icon_512x512@2x.png').is_file()
         run('codesign','--verify','--deep','--strict',str(installed))
         helper=installed/'Contents/Resources/teamcross';assert json.loads(subprocess.check_output([str(helper),'version','--json'],text=True))==version
+        run('python3',str(ROOT/'scripts/verify-app-instance.py'),str(installed))
         commands=root/'terminal commands';cliEnv=os.environ.copy();cliEnv['PATH']=str(commands)+':/usr/bin:/bin'
         def install_call(action):
             return json.loads(subprocess.check_output([str(helper),action,'--cli-dir',str(commands),'--json'],env=cliEnv,text=True,timeout=15))
@@ -40,4 +43,4 @@ with tempfile.TemporaryDirectory(prefix='teamcross-install-') as temp:
         finally: run(str(helper),'stop','--force','--data-dir',str(data),stdout=subprocess.DEVNULL)
     finally:
         if mounted: run('hdiutil','detach',str(mount),stdout=subprocess.DEVNULL)
-print(json.dumps({'checksums':True,'dmgInstall':True,'appSignatureIntegrity':True,'cliAppVersionParity':True,'appCLIInstallAndRemove':True,'existingCommandPreserved':True,'compatibleCoreReuse':True,'publicInstallation':False}))
+print(json.dumps({'checksums':True,'dmgInstall':True,'appIcon':True,'appSignatureIntegrity':True,'cliAppVersionParity':True,'appSingleInstance':True,'appCLIInstallAndRemove':True,'existingCommandPreserved':True,'compatibleCoreReuse':True,'publicInstallation':False}))

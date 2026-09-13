@@ -64,7 +64,16 @@ func (s *Session) annotate(in Annotation, author string, contexts ...context.Con
 	if len(in.Reference) > 1000 {
 		return Annotation{}, fmt.Errorf("引用过长")
 	}
+	if in.Target != nil {
+		// Own this value before normalization or binding it to the shared fork.
+		target := *in.Target
+		in.Target = &target
+	}
+	if err := in.Target.validate(); err != nil {
+		return Annotation{}, err
+	}
 	in.ID = uuid.NewString()
+	in.Replies = nil // Client-supplied replies and author identities are never imported.
 	in.Text = text
 	in.Author = author
 	in.CreatedAt = time.Now()
@@ -73,9 +82,21 @@ func (s *Session) annotate(in Annotation, author string, contexts ...context.Con
 	if len(contexts) > 0 && !s.callerValidLocked(contexts[0]) {
 		return Annotation{}, fmt.Errorf("共享已结束")
 	}
+	if in.Target != nil {
+		if in.Target.SessionID != "" && in.Target.SessionID != s.record.SessionID {
+			return Annotation{}, fmt.Errorf("批注不属于当前协作会话")
+		}
+		in.Target.SessionID = s.record.SessionID
+	}
+	previousUpdatedAt := s.record.UpdatedAt
 	s.record.Annotations = append(s.record.Annotations, in)
 	s.record.UpdatedAt = time.Now()
-	return in, s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		s.record.Annotations = s.record.Annotations[:len(s.record.Annotations)-1]
+		s.record.UpdatedAt = previousUpdatedAt
+		return Annotation{}, err
+	}
+	return in, nil
 }
 func (a *App) target(ctx context.Context, id, method, path string, input any) (any, error) {
 	a.mu.Lock()
@@ -102,6 +123,8 @@ func (a *App) target(ctx context.Context, id, method, path string, input any) (a
 		return map[string]bool{"ok": true}, s.Respond(ctx, "owner", in.ID, in.Result)
 	case "annotations":
 		return s.annotate(input.(Annotation), "发起者")
+	case "annotation-replies":
+		return s.replyAnnotation(ctx, input.(AnnotationReplyInput), "发起者")
 	}
 	return nil, fmt.Errorf("操作不受支持")
 }
@@ -133,6 +156,10 @@ func (a *App) Handler(web http.Handler) http.Handler {
 func (a *App) http(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/")
 	ctx := r.Context()
+	if strings.HasPrefix(path, "runtime-annotations/") {
+		a.runtimeAnnotationsHTTP(w, r, strings.TrimPrefix(path, "runtime-annotations/"))
+		return
+	}
 	if a.onboarding(w, r, path) {
 		return
 	}
@@ -160,11 +187,17 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		e := a.SetupMCP(ctx)
+		var in struct {
+			Provider string `json:"provider"`
+		}
+		if !decode(w, r, &in) {
+			return
+		}
+		e := a.SetupMCP(ctx, in.Provider)
 		respond(w, map[string]bool{"ok": e == nil}, e)
 		return
 	case "sources":
-		out, e := a.Sources(ctx, r.URL.Query().Get("search"), r.URL.Query().Get("cursor"))
+		out, e := a.SourcesFor(ctx, r.URL.Query().Get("provider"), r.URL.Query().Get("search"), r.URL.Query().Get("cursor"))
 		respond(w, out, e)
 		return
 	case "preview":
@@ -293,10 +326,20 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		}
 		e = s.Action(ctx, in.Action, in.Epoch)
 		respond(w, s.view(), e)
+	case "personal-desktop":
+		var in struct {
+			Launch bool `json:"launch"`
+		}
+		if !decode(w, r, &in) {
+			return
+		}
+		out, e := a.PersonalDesktopPlan(ctx, id, in.Launch)
+		respond(w, out, e)
 	case "open", "assist":
 		var in struct {
-			Client string `json:"client"`
-			Launch bool   `json:"launch"`
+			Provider string `json:"provider"`
+			Client   string `json:"client"`
+			Launch   bool   `json:"launch"`
 		}
 		if !decode(w, r, &in) {
 			return
@@ -304,7 +347,7 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		var out map[string]any
 		var e error
 		if action == "assist" {
-			out, e = a.AssistPlan(ctx, id, in.Client, in.Launch)
+			out, e = a.AssistPlan(ctx, id, in.Provider, in.Client, in.Launch)
 		} else {
 			out, e = a.ClientPlan(ctx, id, in.Client, in.Launch)
 		}
@@ -330,7 +373,25 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		}
 		out, e := a.target(ctx, id, "POST", "annotations", in)
 		respond(w, out, e)
+	case "annotation-replies":
+		var in AnnotationReplyInput
+		if !decodeAnnotationReply(w, r, &in) {
+			return
+		}
+		out, e := a.target(ctx, id, "POST", "annotation-replies", in)
+		respond(w, out, e)
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func decodeAnnotationReply(w http.ResponseWriter, r *http.Request, out *AnnotationReplyInput) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(out); err != nil {
+		respond(w, nil, fmt.Errorf("回复仅接受 annotationId、text 和 requestId: %w", err))
+		return false
+	}
+	return true
 }

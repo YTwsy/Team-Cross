@@ -1,0 +1,29 @@
+{
+  "layouts": [
+    {
+      "dialogOverflow": false,
+      "height": 768,
+      "overflow": false,
+      "width": 1024
+    },
+    {
+      "dialogOverflow": false,
+      "height": 844,
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "dialogOverflow": false,
+      "height": 1000,
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "dialogOverflow": false,
+      "height": 844,
+      "overflow": false,
+      "width": 390
+    }
+  ],
+  "console": []
+}

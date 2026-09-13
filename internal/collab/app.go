@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/problem"
 	"teamcross/internal/sharing"
@@ -50,6 +51,9 @@ func Open(cfg Config) (*App, error) {
 	_ = readJSON(filepath.Join(cfg.DataDir, "settings.json"), &a.settings)
 	if cfg.Binary != "" {
 		a.settings.Binary = cfg.Binary
+	}
+	if cfg.ClaudeBinary != "" {
+		a.settings.ClaudeBinary = cfg.ClaudeBinary
 	}
 	if cfg.DesktopApp != "" {
 		a.settings.DesktopApp = cfg.DesktopApp
@@ -136,7 +140,7 @@ func (a *App) binary() (string, error) {
 	}
 	return binary, nil
 }
-func (a *App) startProcess(ctx context.Context, home, cwd, log string) (Runtime, error) {
+func (a *App) startProcess(ctx context.Context, home, cwd, log string, overrides ...string) (Runtime, error) {
 	binary, e := a.binary()
 	if e != nil {
 		return nil, e
@@ -144,7 +148,7 @@ func (a *App) startProcess(ctx context.Context, home, cwd, log string) (Runtime,
 	if a.Config.StartProcess != nil {
 		return a.Config.StartProcess(binary, home, cwd, log)
 	}
-	return nativecodex.Start(ctx, binary, home, cwd, log)
+	return nativecodex.Start(ctx, binary, home, cwd, log, overrides...)
 }
 func (a *App) readerCall(ctx context.Context, method string, params, out any) error {
 	a.readerMu.Lock()
@@ -185,16 +189,28 @@ func (a *App) Sources(ctx context.Context, search, cursor string) (map[string]an
 }
 func (a *App) Preview(ctx context.Context, in CreateInput) (Preview, error) {
 	var p Preview
+	provider, err := providerName(in.Provider)
+	if err != nil {
+		return p, err
+	}
 	if _, e := uuid.Parse(in.SourceID); e != nil {
-		return p, fmt.Errorf("请选择有效的 Codex 来源会话")
+		return p, fmt.Errorf("请选择有效的来源会话")
 	}
 	var read struct {
 		Thread Source `json:"thread"`
 	}
-	if e := a.readerCall(ctx, "thread/read", map[string]any{"threadId": in.SourceID, "includeTurns": false}, &read); e != nil {
+	if e := a.sourceCall(ctx, provider, "thread/read", map[string]any{"threadId": in.SourceID, "includeTurns": false}, &read); e != nil {
 		return p, e
 	}
 	p.Source = read.Thread
+	p.Source.Provider = provider
+	if provider == "claude" {
+		h, e := a.claudeSource(in.SourceID)
+		if e != nil {
+			return p, e
+		}
+		p.SourceFingerprint = h.Fingerprint
+	}
 	if p.Source.ID != in.SourceID || p.Source.Cwd == "" {
 		return p, fmt.Errorf("无法确认来源会话和目录")
 	}
@@ -204,7 +220,7 @@ func (a *App) Preview(ctx context.Context, in CreateInput) (Preview, error) {
 			Status string `json:"status"`
 		} `json:"data"`
 	}
-	if e := a.readerCall(ctx, "thread/turns/list", map[string]any{"threadId": in.SourceID, "limit": 1, "sortDirection": "desc", "itemsView": "summary"}, &turns); e != nil {
+	if e := a.sourceCall(ctx, provider, "thread/turns/list", map[string]any{"threadId": in.SourceID, "limit": 1, "sortDirection": "desc", "itemsView": "summary"}, &turns); e != nil {
 		return p, e
 	}
 	if len(turns.Data) == 0 || turns.Data[0].ID == "" || turns.Data[0].Status == "inProgress" {
@@ -223,12 +239,17 @@ func (a *App) Preview(ctx context.Context, in CreateInput) (Preview, error) {
 		}
 	}
 	// Dirty contents are informational and never captured or copied.
-	b, _ := json.Marshal([]any{in.SourceID, p.SourceTurnID, w.Mode, w.Repo, w.SourceCwd, w.Head, w.Branch})
+	b, _ := json.Marshal([]any{provider, in.SourceID, p.SourceTurnID, p.SourceFingerprint, w.Mode, w.Repo, w.SourceCwd, w.Head, w.Branch})
 	sum := sha256.Sum256(b)
 	p.Hash = hex.EncodeToString(sum[:])
 	return p, nil
 }
 func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
+	provider, err := providerName(in.Provider)
+	if err != nil {
+		return nil, err
+	}
+	in.Provider = provider
 	if _, e := uuid.Parse(in.RequestID); e != nil {
 		return nil, fmt.Errorf("创建请求缺少唯一标识")
 	}
@@ -237,7 +258,8 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 	a.mu.Unlock()
 	if old != nil {
 		old.mu.Lock()
-		matches := old.record.SourceID == in.SourceID && old.record.PreviewHash == in.PreviewHash
+		oldProvider, _ := providerName(old.record.Provider)
+		matches := oldProvider == provider && old.record.SourceID == in.SourceID && old.record.PreviewHash == in.PreviewHash
 		old.mu.Unlock()
 		if !matches {
 			return nil, fmt.Errorf("该创建请求已用于不同起点")
@@ -251,7 +273,7 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 	if p.Hash != in.PreviewHash {
 		return nil, fmt.Errorf("会话或 Git 起点已变化，请重新查看起点")
 	}
-	home, e := nativecodex.Home()
+	home, e := a.providerHome(provider)
 	if e != nil {
 		return nil, e
 	}
@@ -266,8 +288,11 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 		title = "新的协作"
 	}
 	now := time.Now()
-	r := Record{ID: in.RequestID, Title: title, SourceID: in.SourceID, SourceTurnID: p.SourceTurnID, WorkspaceMode: in.WorkspaceMode, Repo: p.Workspace.Repo, ExecutionCwd: p.Workspace.SourceCwd, WorkspaceRoot: p.Workspace.Repo, WorkspaceOwned: in.WorkspaceMode == "worktree", Head: p.Workspace.Head, Branch: p.Workspace.Branch, ProviderHome: home, State: "preparing", CreatedAt: now, UpdatedAt: now, PreviewHash: p.Hash, Annotations: []Annotation{}, Commands: map[string]Command{}}
+	r := Record{Provider: provider, ID: in.RequestID, Title: title, SourceID: in.SourceID, SourceTurnID: p.SourceTurnID, WorkspaceMode: in.WorkspaceMode, Repo: p.Workspace.Repo, ExecutionCwd: p.Workspace.SourceCwd, WorkspaceRoot: p.Workspace.Repo, WorkspaceOwned: in.WorkspaceMode == "worktree", Head: p.Workspace.Head, Branch: p.Workspace.Branch, ProviderHome: home, State: "preparing", CreatedAt: now, UpdatedAt: now, PreviewHash: p.Hash, Annotations: []Annotation{}, Commands: map[string]Command{}}
 	dir := filepath.Join(a.Config.DataDir, "collaborations", r.ID)
+	if provider == "claude" {
+		r.ProviderHome = filepath.Join(dir, "claude-home")
+	}
 	if e = os.MkdirAll(dir, 0700); e != nil {
 		return nil, e
 	}
@@ -312,6 +337,12 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 	s.mu.Unlock()
 	if e != nil {
 		return fail(e)
+	}
+	if provider == "claude" {
+		if e = s.createClaude(ctx, p, title); e != nil {
+			return fail(e)
+		}
+		return s, nil
 	}
 	if e = s.start(ctx, false); e != nil {
 		return fail(e)
@@ -375,6 +406,7 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 		return fmt.Errorf("Core 已退出")
 	}
 	if s.process != nil && s.process.Alive() {
+		s.annotationAccess = true
 		s.mu.Unlock()
 		return nil
 	}
@@ -399,7 +431,27 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 	if old != nil {
 		old.Close()
 	}
-	p, e := s.app.startProcess(ctx, r.ProviderHome, r.ExecutionCwd, filepath.Join(s.app.Config.DataDir, "collaborations", r.ID, "runtime.log"))
+	var p Runtime
+	var e error
+	if r.Provider == "claude" {
+		p, e = s.app.restoreClaude(ctx, r)
+	} else {
+		var launch annotationLaunch
+		launch, e = s.annotationLaunch()
+		if e == nil {
+			var names []string
+			if s.app.Config.StartProcess == nil {
+				var binary string
+				binary, e = s.app.binary()
+				if e == nil {
+					names, e = nativecodex.MCPServerNames(ctx, binary, r.ProviderHome, r.ExecutionCwd)
+				}
+			}
+			if e == nil {
+				p, e = s.app.startProcess(ctx, r.ProviderHome, r.ExecutionCwd, filepath.Join(s.app.Config.DataDir, "collaborations", r.ID, "runtime.log"), launch.codexOverrides(names)...)
+			}
+		}
+	}
 	if e != nil {
 		return e
 	}
@@ -410,12 +462,13 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 		return fmt.Errorf("Core 已退出")
 	}
 	s.process = p
+	s.annotationAccess = true
 	p.SetHandler(func(m nativecodex.Message) { s.onRuntimeMessage(generation, m) })
 	s.online = !resume
 	s.busy = false
 	s.approvals = map[string]Approval{}
 	s.mu.Unlock()
-	if resume && r.SessionID != "" {
+	if resume && r.SessionID != "" && r.Provider != "claude" {
 		var read struct {
 			Thread Source `json:"thread"`
 		}
@@ -446,7 +499,14 @@ func (a *App) Close() {
 		return
 	}
 	a.closed = true
+	clients := make([]*nativeclaude.Client, 0, len(a.claudeClients))
+	for _, c := range a.claudeClients {
+		clients = append(clients, c)
+	}
 	a.mu.Unlock()
+	for _, c := range clients {
+		c.Close()
+	}
 	_ = a.saveJoined()
 	a.mu.Lock()
 	sessions := make([]*Session, 0, len(a.sessions))
@@ -517,6 +577,13 @@ func (s *Session) view() map[string]any {
 	defer s.mu.Unlock()
 	r := s.record
 	out := map[string]any{"id": r.ID, "title": r.Title, "sourceId": r.SourceID, "sourceTurnId": r.SourceTurnID, "sessionId": r.SessionID, "workspaceMode": r.WorkspaceMode, "executionCwd": r.ExecutionCwd, "repo": r.Repo, "head": r.Head, "branch": r.Branch, "workspaceOwned": r.WorkspaceOwned, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "writer": s.writer, "busy": s.busy, "online": s.online, "epoch": s.epoch, "sharing": s.share != nil, "connected": s.direct != nil, "sequence": s.sequence, "approvals": len(s.approvals), "annotations": r.Annotations, "model": r.Model, "modelProvider": r.ModelProvider, "reasoningEffort": r.ReasoningEffort}
+	provider, _ := providerName(r.Provider)
+	out["provider"] = provider
+	if provider == "claude" {
+		out["nativeJobId"] = r.NativeJobID
+		out["nativeWaiting"] = s.nativeWaiting
+		out["capabilities"] = map[string]bool{"nativeTui": true, "nativeDesktop": false, "sendInput": true, "steerInput": false, "interruptTurn": false, "respondToRequest": false}
+	}
 	out["participantOnline"] = s.share != nil && time.Since(s.remoteSeen) < 30*time.Second
 	out["inputRequested"] = out["participantOnline"] == true && s.inputRequested
 	out["clientState"] = "disconnected"
@@ -567,7 +634,10 @@ func (a *App) List(ctx context.Context) []map[string]any {
 		list = append(list, s.view())
 	}
 	for _, j := range js {
-		list = append(list, j.view(ctx))
+		list = append(list, j.cachedView())
+		if ctx.Err() == nil {
+			j.refreshView()
+		}
 	}
 	sort.Slice(list, func(i, j int) bool { return fmt.Sprint(list[i]["createdAt"]) > fmt.Sprint(list[j]["createdAt"]) })
 	return list

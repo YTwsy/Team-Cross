@@ -13,6 +13,18 @@
 
 ## 已记录的验收
 
+[2026-09-13 个人 Desktop 定位 fork](../../sources/validation/personal-desktop-2026-09-13.md) 记录邀请者主动打开、同源与本机归属检查、不恢复运行时、48 项 Web 回归以及 6 种尺寸/主题组合。浏览器点击由真实 Core 处理，系统打开由测试替身记录；Desktop 实际窗口显示受电脑控制工具限制，未覆盖。
+
+[2026-09-13 批注闭环](../../sources/validation/annotations-2026-09-13.md) 记录两个直接 TUI 的实际读取/回复/恢复、Codex MCP 隔离、WebGUI 内嵌编辑与单层回复、38 项 Web 回归和 6 种尺寸/主题组合。专用 Desktop 只确认进程和连接，窗口内工具调用仍未覆盖；属于同机两个 Core。
+
+[2026-09-12 个人 Claude 辅助 MCP](../../sources/validation/claude-assist-2026-09-12.md) 记录个人 MCP 原生安装、实际 TUI 工具调用、A 上读写、交接、去重、访问撤销与浏览器按钮打开。属于同机两套隔离 Core；较新 CLI 仅验证最低版本逻辑。
+
+[2026-09-12 Claude 原生 TUI](../../sources/validation/claude-native-tui-2026-09-12.md) 记录实验性单 worker 接入、原目录/worktree、原生审批交接、MCP 去重、中断、首次输入前恢复与 Core 异常恢复；完整轮次 10 次 Luna 请求，属于同机两个 Core 验证。
+
+[2026-09-11 原处批注](../../sources/validation/webgui-annotations-2026-09-11.md) 记录对话选区、代码行、原文快照、MCP 往返和变化后的定位边界，Web 28 项回归与 6 种尺寸/主题组合；使用模拟协作数据，不包含真实模型理解评测或两台 Mac LAN。
+
+[2026-09-11 菜单栏 App 跨副本去重](../../sources/validation/app-instance-2026-09-11.md) 记录两个真实 App 副本的并发、邀请转交、请求确认去重、无响应恢复、独立目录与退出边界，以及 DMG/CLI/Core 回归和本机修复；测试邀请未连接远端，未调用模型。
+
 [2026-09-11 v0.1.1 分发](../../sources/validation/distribution-v0.1.1-2026-09-11.md) 记录 App 命令入口、Formula/Cask 双向互斥与失败回滚、升级保留数据、CLI 0.153.4 的真实 Luna 运行时回归及浏览器检查；原生菜单/系统批准、完整窗口矩阵和两台 Mac 仍未覆盖。
 
 [2026-09-10 邀请与原生会话释放](../../sources/validation/membership-and-release-2026-09-10.md) 记录持续加入资格、失联恢复、空闲释放、真实原生写入锁与 A/B 网关交接；区分专用 Desktop 进程验证和仍未完成的窗口交互。

@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/sharing"
 	"teamcross/internal/workspace"
@@ -23,10 +24,13 @@ type Runtime interface {
 
 type Config struct {
 	DataDir, Repo, Binary, DesktopApp string
+	Executable                        string
+	ClaudeBinary, ClaudeHome          string
 	Loopback                          bool
 	StartProcess                      func(string, string, string, string) (Runtime, error)
 }
 type Source struct {
+	Provider        string  `json:"provider,omitempty"`
 	Model           string  `json:"model,omitempty"`
 	ModelProvider   string  `json:"modelProvider,omitempty"`
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
@@ -41,6 +45,7 @@ type Source struct {
 	} `json:"status"`
 }
 type CreateInput struct {
+	Provider      string `json:"provider,omitempty"`
 	SourceID      string `json:"sourceId"`
 	WorkspaceMode string `json:"workspaceMode"`
 	Title         string `json:"title"`
@@ -48,18 +53,55 @@ type CreateInput struct {
 	RequestID     string `json:"requestId"`
 }
 type Preview struct {
-	TargetDirectory string            `json:"targetDirectory"`
-	Source          Source            `json:"source"`
-	SourceTurnID    string            `json:"sourceTurnId"`
-	Workspace       workspace.Preview `json:"workspace"`
-	Hash            string            `json:"previewHash"`
+	SourceFingerprint string            `json:"-"`
+	TargetDirectory   string            `json:"targetDirectory"`
+	Source            Source            `json:"source"`
+	SourceTurnID      string            `json:"sourceTurnId"`
+	Workspace         workspace.Preview `json:"workspace"`
+	Hash              string            `json:"previewHash"`
 }
 type Annotation struct {
+	ID        string            `json:"id"`
+	Text      string            `json:"text"`
+	Reference string            `json:"reference,omitempty"`
+	Target    *AnnotationTarget `json:"target,omitempty"`
+	Author    string            `json:"author"`
+	CreatedAt time.Time         `json:"createdAt"`
+	Replies   []AnnotationReply `json:"replies,omitempty"`
+}
+
+// Replies belong to a root annotation, never to another reply or source range.
+type AnnotationReply struct {
 	ID        string    `json:"id"`
+	RequestID string    `json:"requestId"`
 	Text      string    `json:"text"`
-	Reference string    `json:"reference,omitempty"`
 	Author    string    `json:"author"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+type AnnotationReplyInput struct {
+	AnnotationID string `json:"annotationId"`
+	Text         string `json:"text"`
+	RequestID    string `json:"requestId"`
+}
+
+// AnnotationTarget describes the content as it was displayed when selected.
+// ContentHash is a SHA-256 of the complete file or displayed diff, not Git HEAD.
+type AnnotationTarget struct {
+	Kind         string `json:"kind"`
+	SessionID    string `json:"sessionId,omitempty"`
+	Path         string `json:"path,omitempty"`
+	StartLine    int    `json:"startLine,omitempty"`
+	EndLine      int    `json:"endLine,omitempty"`
+	Side         string `json:"side,omitempty"`
+	TurnID       string `json:"turnId,omitempty"`
+	ItemID       string `json:"itemId,omitempty"`
+	StartOffset  int    `json:"startOffset,omitempty"`
+	EndOffset    int    `json:"endOffset,omitempty"`
+	Cursor       string `json:"cursor,omitempty"`
+	Quote        string `json:"quote"`
+	ContentHash  string `json:"contentHash,omitempty"`
+	BaseRevision string `json:"baseRevision,omitempty"`
 }
 type Event struct {
 	Sequence uint64          `json:"sequence"`
@@ -80,6 +122,9 @@ type Command struct {
 	Error  string          `json:"error,omitempty"`
 }
 type Record struct {
+	AnnotationToken string             `json:"annotationToken,omitempty"`
+	Provider        string             `json:"provider,omitempty"`
+	NativeJobID     string             `json:"nativeJobId,omitempty"`
 	Model           string             `json:"model,omitempty"`
 	ModelProvider   string             `json:"modelProvider,omitempty"`
 	ReasoningEffort *string            `json:"reasoningEffort,omitempty"`
@@ -118,30 +163,33 @@ type direct struct {
 func (d *direct) close() { d.once.Do(func() { close(d.done) }) }
 
 type Session struct {
-	mu              sync.Mutex
-	record          Record
-	app             *App
-	process         Runtime
-	writer          string
-	busy            bool
-	online          bool
-	epoch           uint64
-	share           *sharing.Runtime
-	releaseWhenIdle bool
-	stopping        chan struct{}
-	activeCalls     int
-	generation      uint64
-	closed          bool
-	direct          *direct
-	events          []Event
-	sequence        uint64
-	approvals       map[string]Approval
-	listener        net.Listener
-	server          *http.Server
-	endpoint        string
-	starting        bool
-	remoteSeen      time.Time
-	inputRequested  bool
+	mu               sync.Mutex
+	record           Record
+	app              *App
+	process          Runtime
+	writer           string
+	busy             bool
+	nativeWaiting    string
+	nativeLastWrite  time.Time
+	online           bool
+	epoch            uint64
+	share            *sharing.Runtime
+	releaseWhenIdle  bool
+	annotationAccess bool
+	stopping         chan struct{}
+	activeCalls      int
+	generation       uint64
+	closed           bool
+	direct           *direct
+	events           []Event
+	sequence         uint64
+	approvals        map[string]Approval
+	listener         net.Listener
+	server           *http.Server
+	endpoint         string
+	starting         bool
+	remoteSeen       time.Time
+	inputRequested   bool
 }
 type Joined struct {
 	app           *App
@@ -163,13 +211,17 @@ type Joined struct {
 	closeOnce     sync.Once
 	done          chan struct{}
 	heartbeatOnce sync.Once
+	statusChecked bool
+	refreshing    bool
 }
 type Settings struct {
-	Binary     string `json:"binary"`
-	DesktopApp string `json:"desktopApp"`
+	ClaudeBinary string `json:"claudeBinary"`
+	Binary       string `json:"binary"`
+	DesktopApp   string `json:"desktopApp"`
 }
 type App struct {
 	joinMu        sync.Mutex
+	mcpSetupMu    sync.Mutex
 	retiredShares []*sharing.Runtime
 	mu            sync.Mutex
 	Config        Config
@@ -177,12 +229,13 @@ type App struct {
 	URL           string
 	Token         string
 	settings      Settings
+	claudeClients map[string]*nativeclaude.Client
 	reader        Runtime
 	readerMu      sync.Mutex
 	sessions      map[string]*Session
 	joined        map[string]*Joined
 	closed        bool
 	pending       map[string]pendingInvite
-	mcpObserved   time.Time
+	mcpObserved   map[string]time.Time
 	mcpProbed     bool
 }
