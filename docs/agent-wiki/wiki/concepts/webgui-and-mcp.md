@@ -16,6 +16,8 @@ WebGUI 是协作管理界面；完整对话和执行交互在对应原生客户�
 
 创建用两张卡解释原目录和干净 worktree，不加入未跟踪文件选择器。执行主机、目录、输入归属与下一步动作保持清楚；协议 ID、版本和地址按需展开。
 
+详情页把执行主机、目录、当前输入者和共享状态收在同一执行信息卡；共享详情按需浮层展开，不推动下方内容。右侧信息区先展示紧凑的参与协作，再展示批注；技术信息位于“协作上下文”的最后一个标签，不继续堆叠在右栏。
+
 主要动作随连接、输入交接、运行和审批状态改变。批注可独立保存，读取或批注不隐式开始模型轮次。页面展示轻量历史，完整历史交给原生客户端；MCP 可继续分页读取。
 
 批注从对话文字或代码行发起，自动携带原文与结构化定位，编辑失败保留当前页草稿；点击批注可查找原文，变化后展示引用片段而不猜测新位置。页面内编辑取代弹窗，原文和整体意见分别保留当前页草稿；原批注下可展开单层回复，刷新期间保留正在填写的内容。个人 MCP 通过 `read_context kind=annotations` 读取，并可 `reply_to_annotation`。共享运行时自动提供当前协作的 `read_annotations` 和 `reply_to_annotation`，直接客户端可以在原会话内处理讨论。字段与快照边界以 [协议](../../sources/protocol.md#批注引用) 为准；交互实现见 [Context.tsx](../../../../packages/web/src/components/Context.tsx) / [Annotations.tsx](../../../../packages/web/src/components/Annotations.tsx)，回归见 [批注测试](../../../../packages/web/src/test/annotations.test.tsx)。

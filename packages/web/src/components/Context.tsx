@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useResource } from "../api";
 import {
   codeLines,
@@ -17,6 +17,8 @@ function parentElement(node: Node) {
   return node instanceof Element ? node : node.parentElement;
 }
 
+type ContextTab = "history" | "changes" | "file" | "technical";
+
 export function Context({
   id,
   sessionId,
@@ -27,6 +29,7 @@ export function Context({
   onAnnotate,
   location,
   agentName = "Codex",
+  technical,
 }: {
   id: string;
   sessionId: string;
@@ -37,8 +40,9 @@ export function Context({
   onAnnotate: (target: AnnotationTarget) => void;
   location?: AnnotationRequest;
   agentName?: string;
+  technical?: ReactNode;
 }) {
-  const [tab, setTab] = useState("history");
+  const [tab, setTab] = useState<ContextTab>("history");
   const [path, setPath] = useState("");
   const [file, setFile] = useState("");
   const [cursor, setCursor] = useState("");
@@ -50,7 +54,7 @@ export function Context({
   const searched = useRef(new Set<string>());
   const finishedLocation = useRef(false);
   const contextPath =
-    online && (tab !== "file" || file)
+    online && tab !== "technical" && (tab !== "file" || file)
       ? `collaborations/${id}/context?kind=${tab}&path=${encodeURIComponent(file)}&cursor=${encodeURIComponent(cursor)}`
       : null;
   const context = useResource<History | Changes | FileContext>(
@@ -153,7 +157,7 @@ export function Context({
   function start(target: AnnotationTarget) {
     onAnnotate({ ...target, sessionId });
   }
-  function changeTab(next: string) {
+  function changeTab(next: ContextTab) {
     setActiveTarget(undefined);
     setLocationStatus("");
     setTab(next);
@@ -394,26 +398,29 @@ export function Context({
     <section className="panel context-panel" ref={panel}>
       <div className="panel-heading">
         <h2>协作上下文</h2>
-        <button
-          className="icon-button"
-          aria-label="刷新上下文"
-          disabled={!online}
-          onClick={context.reload}
-        >
-          <Icon name="refresh" size={17} />
-        </button>
+        {tab !== "technical" && (
+          <button
+            className="icon-button"
+            aria-label="刷新上下文"
+            disabled={!online}
+            onClick={context.reload}
+          >
+            <Icon name="refresh" size={17} />
+          </button>
+        )}
       </div>
       <div className="tabs" role="tablist" aria-label="上下文类型">
         {[
           ["history", "最近对话"],
           ["changes", "代码改动"],
           ["file", "查看文件"],
+          ...(technical ? [["technical", "技术信息"]] : []),
         ].map(([value, label]) => (
           <button
             role="tab"
             key={value}
             aria-selected={tab === value}
-            onClick={() => changeTab(value!)}
+            onClick={() => changeTab(value as ContextTab)}
           >
             {label}
           </button>
@@ -440,7 +447,7 @@ export function Context({
           </button>
         </form>
       )}
-      {canAnnotate && (
+      {canAnnotate && tab !== "technical" && (
         <div
           className={`context-selection ${selection ? "has-selection" : ""}`}
         >
@@ -484,52 +491,62 @@ export function Context({
           )}
         </div>
       )}
-      <ErrorBox message={context.error} retry={context.reload} />
-      {!online ? (
-        <Empty
-          icon="link"
-          title={
-            closed ? "使用新邀请加入后可查看上下文" : "连接恢复后可查看上下文"
-          }
-        />
-      ) : context.loading && !data ? (
-        <Loading />
+      {tab === "technical" ? (
+        technical
       ) : (
-        body || <Empty icon="folder" title="输入相对路径以查看文件" />
+        <>
+          <ErrorBox message={context.error} retry={context.reload} />
+          {!online ? (
+            <Empty
+              icon="link"
+              title={
+                closed
+                  ? "使用新邀请加入后可查看上下文"
+                  : "连接恢复后可查看上下文"
+              }
+            />
+          ) : context.loading && !data ? (
+            <Loading />
+          ) : (
+            body || <Empty icon="folder" title="输入相对路径以查看文件" />
+          )}
+          {tab === "history" &&
+            data &&
+            "thread" in data &&
+            (data.nextCursor || cursor) && (
+              <div className="context-pagination">
+                {data.nextCursor && (
+                  <button
+                    className="button small"
+                    disabled={context.loading}
+                    onClick={() => {
+                      setCursor(data.nextCursor!);
+                      finishedLocation.current = false;
+                    }}
+                  >
+                    更早对话
+                  </button>
+                )}
+                {cursor && (
+                  <button
+                    className="text-link small-text"
+                    onClick={() => {
+                      setActiveTarget(undefined);
+                      setLocationStatus("");
+                      setCursor("");
+                    }}
+                  >
+                    回到最近对话
+                  </button>
+                )}
+              </div>
+            )}
+        </>
       )}
-      {tab === "history" &&
-        data &&
-        "thread" in data &&
-        (data.nextCursor || cursor) && (
-          <div className="context-pagination">
-            {data.nextCursor && (
-              <button
-                className="button small"
-                disabled={context.loading}
-                onClick={() => {
-                  setCursor(data.nextCursor!);
-                  finishedLocation.current = false;
-                }}
-              >
-                更早对话
-              </button>
-            )}
-            {cursor && (
-              <button
-                className="text-link small-text"
-                onClick={() => {
-                  setActiveTarget(undefined);
-                  setLocationStatus("");
-                  setCursor("");
-                }}
-              >
-                回到最近对话
-              </button>
-            )}
-          </div>
-        )}
       <div className="panel-footnote">
-        这里只保留轻量上下文，完整对话与执行交互请在 {agentName} 中查看。
+        {tab === "technical"
+          ? "这些信息来自当前协作记录和运行时最近确认的状态。"
+          : `这里只保留轻量上下文，完整对话与执行交互请在 ${agentName} 中查看。`}
       </div>
     </section>
   );

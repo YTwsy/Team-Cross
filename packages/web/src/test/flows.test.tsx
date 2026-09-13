@@ -346,7 +346,7 @@ describe("产品路径", () => {
     );
     const user = userEvent.setup();
     render(<Detail id="c1" />);
-    await user.click(await screen.findByText("技术信息"));
+    await user.click(await screen.findByRole("tab", { name: "技术信息" }));
     expect(screen.getByText("fixture-selected-model")).toBeVisible();
     expect(screen.getByText("xhigh")).toBeVisible();
     expect(screen.queryByText("gpt-5.6-luna")).not.toBeInTheDocument();
@@ -388,8 +388,10 @@ describe("产品路径", () => {
             invitationState: "joined",
           },
     );
+    const user = userEvent.setup();
     render(<Detail id="c1" />);
     expect(await screen.findByText("已加入 · 暂时离线")).toBeVisible();
+    await user.click(screen.getByLabelText("查看共享状态详情"));
     expect(
       screen.getByText("同事已加入，访问持续有效，直到主动离开或结束共享。"),
     ).toBeVisible();
@@ -409,13 +411,13 @@ describe("产品路径", () => {
             invitationState: "expired",
           },
     );
+    const user = userEvent.setup();
     render(<Detail id="c1" />);
+    await user.click(await screen.findByLabelText("查看共享状态详情"));
     expect(
       await screen.findByText("邀请尚未使用且已到期，可以重新邀请同事。"),
     ).toBeVisible();
-    await userEvent
-      .setup()
-      .click(screen.getByRole("button", { name: "邀请同事" }));
+    await user.click(screen.getByRole("button", { name: "邀请同事" }));
     expect(calls.some((c) => c.body?.action === "share")).toBe(true);
     expect(calls.some((c) => c.body?.action === "end")).toBe(false);
   });

@@ -154,6 +154,66 @@ function select(
 }
 
 describe("原处批注", () => {
+  it("参与者、共享状态与技术信息各自归位，长讨论不改变信息结构", async () => {
+    current.annotations = Array.from({ length: 6 }, (_, index) => ({
+      ...note(
+        index === 0
+          ? {
+              kind: "history",
+              sessionId: "fork",
+              turnId: "turn",
+              itemId: "item",
+              startOffset: 0,
+              endOffset: original.length,
+              quote: original,
+            }
+          : undefined,
+      ),
+      id: `saved-${index}`,
+      text: `第 ${index + 1} 条长批注：${"需要继续核对这次协作的上下文。".repeat(8)}`,
+    }));
+    render(<Detail id="annotations" />);
+    const annotations = await screen.findByRole("region", {
+      name: "协作批注",
+    });
+    const execution = document.querySelector<HTMLElement>(".execution-strip")!;
+    const sharing = document.querySelector<HTMLElement>(".execution-sharing")!;
+    const workspace = document.querySelector<HTMLElement>(".detail-grid")!;
+    const aside = document.querySelector<HTMLElement>(".detail-aside")!;
+    const participants = document.querySelector<HTMLElement>(
+      ".participants-panel",
+    )!;
+    const context = document.querySelector<HTMLElement>(".context-panel")!;
+    const tabs = within(context).getAllByRole("tab");
+    expect(execution).toContainElement(sharing);
+    expect(
+      within(sharing).getByLabelText("查看共享状态详情"),
+    ).toBeInTheDocument();
+    expect(aside).toContainElement(participants);
+    expect(
+      within(participants).getByRole("heading", { name: "参与协作" }),
+    ).toBeVisible();
+    expect(
+      participants.compareDocumentPosition(annotations) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(tabs.at(-1)).toHaveTextContent("技术信息");
+    expect(document.querySelector(".collaboration-inspector")).toBeNull();
+    expect(
+      execution.compareDocumentPosition(workspace) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(aside).toContainElement(annotations);
+    expect(screen.getAllByRole("article")).toHaveLength(6);
+    expect(
+      document.querySelectorAll(".annotation-content.general"),
+    ).toHaveLength(5);
+    expect(
+      document.querySelector(".annotation-content.with-source"),
+    ).not.toBeNull();
+    expect(screen.getByRole("button", { name: /查看原位置/ })).toBeVisible();
+  });
+
   it("选中重复片段时保留准确消息与 UTF-16 范围，保存不发送模型输入", async () => {
     const user = userEvent.setup();
     render(<Detail id="annotations" />);
@@ -303,9 +363,7 @@ describe("原处批注", () => {
 
   it("回复失败或收起保留草稿，重试沿用 requestId", async () => {
     const user = userEvent.setup();
-    current.annotations = [
-      { ...note(), text: "已有意见" },
-    ];
+    current.annotations = [{ ...note(), text: "已有意见" }];
     render(<Detail id="annotations" />);
     await user.click(await screen.findByRole("button", { name: "回复" }));
     await user.type(screen.getByLabelText("回复这条批注"), "暂存回复");

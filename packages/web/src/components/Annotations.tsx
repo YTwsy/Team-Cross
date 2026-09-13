@@ -113,10 +113,23 @@ function Discussion({
         </button>
       ) : annotation.reference ? (
         <code>{annotation.reference}</code>
-      ) : (
-        <span className="annotation-general">整体意见</span>
-      )}
-      <p className="annotation-body">{annotation.text}</p>
+      ) : null}
+      <div
+        className={`annotation-content ${
+          annotation.target || annotation.reference ? "with-source" : "general"
+        }`}
+      >
+        <span
+          className={
+            annotation.target || annotation.reference
+              ? "annotation-content-label"
+              : "annotation-general"
+          }
+        >
+          {annotation.target || annotation.reference ? "批注意见" : "整体意见"}
+        </span>
+        <p className="annotation-body">{annotation.text}</p>
+      </div>
       {!!annotation.replies?.length && (
         <div
           className="annotation-replies"
@@ -281,15 +294,14 @@ export function Annotations({
   );
   return (
     <section className="panel notes-panel" aria-label="协作批注">
-      <div className="panel-heading">
+      <div className="panel-heading annotation-panel-heading">
         <h2>
           批注 <span className="count">{annotations.length}</span>
         </h2>
-        <span className="annotation-panel-caption">意见与讨论</span>
+        <p className="annotation-hint">
+          选中对话文字或代码行，引用原文后在这里填写。
+        </p>
       </div>
-      <p className="annotation-hint">
-        选中对话文字或代码行，引用原文后在这里填写。
-      </p>
       <form
         ref={composer}
         className="annotation-composer"
