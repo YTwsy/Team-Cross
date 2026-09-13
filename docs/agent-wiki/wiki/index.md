@@ -22,6 +22,7 @@
 - [架构](../sources/architecture.md)、[协议](../sources/protocol.md)：完整职责、数据流、字段与路由。
 - [目录与生命周期决策](../sources/decisions/workspace-and-lifecycle.md)、[原生客户端与模型决策](../sources/decisions/native-clients-and-models.md)、[输入与共享决策](../sources/decisions/input-and-sharing.md)：取舍及重新评估条件。
 - [验证契约](../sources/validation/test-gates.md)、[2026-09-10 安装与首次体验](../sources/validation/onboarding-macos-2026-09-10.md)、[2026-09-09 原生协作](../sources/validation/native-collaboration-2026-09-09.md)：应做什么和已验证什么。
+- [2026-09-14 Codex 动态 MCP 与运行时恢复](../sources/validation/codex-runtime-mcp-2026-09-14.md)：CLI 版本变化后的插件动态 MCP 回归、隔离配置修复、真实 Luna 创建与同 session 恢复边界。
 - [2026-09-10 WebGUI 上下文刷新](../sources/validation/webgui-context-refresh-2026-09-10.md)：自动及手动刷新、阅读位置回归与浏览器证据。
 - [2026-09-11 WebGUI 原处批注](../sources/validation/webgui-annotations-2026-09-11.md)：原文定位、批注快照、MCP 往返、变化提示与浏览器证据。
 - [2026-09-13 批注闭环](../sources/validation/annotations-2026-09-13.md)：直接原生 TUI 的读取/回复/恢复、MCP 隔离、内嵌编辑与单层回复、浏览器证据及 Desktop 尚未覆盖的窗口边界。
