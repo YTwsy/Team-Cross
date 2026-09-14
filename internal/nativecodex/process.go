@@ -74,13 +74,33 @@ func Version(ctx context.Context, binary string) (string, error) {
 	return strings.TrimSpace(string(data)), err
 }
 
-// MCPServerNames reads the effective home/project configuration without
-// starting any server. Codex merges MCP tables across layers, so a worker must
-// disable inherited entries individually before adding its scoped tools.
+func runtimeConfigArgs(args []string, overrides ...string) []string {
+	for _, value := range []string{
+		`default_permissions="teamcross-native"`, `approval_policy="on-request"`,
+		`permissions.teamcross-native={extends=":workspace",network={enabled=false}}`,
+		`web_search="disabled"`, `allow_login_shell=false`, `features.code_mode_host=true`,
+		`features.plugins=false`, `features.apps=false`, `features.hooks=false`,
+		`features.plugin_hooks=false`, `features.memories=false`, `features.multi_agent=false`,
+		`features.multi_agent_v2=false`, `features.goals=false`, `features.browser_use=false`, `features.computer_use=false`,
+	} {
+		args = append(args, "-c", value)
+	}
+	for _, value := range overrides {
+		args = append(args, "-c", value)
+	}
+	return args
+}
+
+// MCPServerNames reads the effective home/project configuration under the same
+// isolation settings used by the worker, without starting any server. Codex
+// merges MCP tables across layers, so a worker must disable inherited entries
+// individually before adding its scoped tools. Applying the runtime settings
+// here also excludes plugin-provided MCP entries whose transports disappear
+// when plugins are disabled for the worker.
 func MCPServerNames(ctx context.Context, binary, home, cwd string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, binary, "mcp", "list", "--json")
+	cmd := exec.CommandContext(ctx, binary, runtimeConfigArgs([]string{"mcp", "list", "--json"})...)
 	cmd.Dir, cmd.Env = cwd, environment(home)
 	data, err := cmd.Output()
 	if err != nil {
@@ -152,22 +172,9 @@ func Start(ctx context.Context, binary, home, cwd, logPath string, overrides ...
 		return nil, err
 	}
 	p := &Process{URL: "ws://" + address, done: make(chan struct{}), pending: make(map[string]chan Message)}
-	args := []string{"app-server", "--listen", p.URL}
 	// Native fork must use A's native history database. Apply configuration to
 	// this process only instead of modifying A's personal config.toml.
-	for _, value := range []string{
-		`default_permissions="teamcross-native"`, `approval_policy="on-request"`,
-		`permissions.teamcross-native={extends=":workspace",network={enabled=false}}`,
-		`web_search="disabled"`, `allow_login_shell=false`, `features.code_mode_host=true`,
-		`features.plugins=false`, `features.apps=false`, `features.hooks=false`,
-		`features.plugin_hooks=false`, `features.memories=false`, `features.multi_agent=false`,
-		`features.multi_agent_v2=false`, `features.goals=false`, `features.browser_use=false`, `features.computer_use=false`,
-	} {
-		args = append(args, "-c", value)
-	}
-	for _, value := range overrides {
-		args = append(args, "-c", value)
-	}
+	args := runtimeConfigArgs([]string{"app-server", "--listen", p.URL}, overrides...)
 	p.cmd = exec.Command(binary, args...)
 	p.cmd.Dir = cwd
 	p.cmd.Env = environment(home)
