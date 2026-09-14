@@ -13,7 +13,7 @@ def build_app_icon(source, destination, stage):
         else: run('sips','-z',str(pixels),str(pixels),str(source),'--out',str(target),stdout=subprocess.DEVNULL)
     run('iconutil','-c','icns',str(iconset),'-o',str(destination))
 p = argparse.ArgumentParser()
-p.add_argument('--version', default='0.1.3-dev')
+p.add_argument('--version', default='0.1.4-dev')
 p.add_argument('--output', help='Version-specific output directory (default: dist/release/VERSION)')
 p.add_argument('--base-url', help='Release asset base URL; no upload is performed')
 p.add_argument('--sign-identity', help='Developer ID Application identity')

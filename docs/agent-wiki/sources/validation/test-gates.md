@@ -84,7 +84,7 @@ TEAMCROSS_LIVE_EXISTING_FIXTURE=/private/tmp/teamcross-fresh-fixture \
 
 ## Claude 原生 TUI
 
-Claude 的 Go 回归位于 `internal/nativeclaude` 与 `internal/collab/claude_test.go`；覆盖历史链、过期起点、来源配置隔离、终端白名单、取消、断线不重放、TLS 成员访问、输入收回、就绪判断和不支持的 API。
+Claude 的 Go 回归位于 `internal/nativeclaude` 与 `internal/collab/claude_test.go`；覆盖历史链、过期起点、原生 fork 参数、只复制所选来源、只发布新 fork 的单文件个人 history 入口、个人 settings/全局状态/认证/插件/来源及其他历史不被 Team Cross 改写、协作运行配置隔离、精确 job 停止、终端白名单、取消、断线不重放、TLS 成员访问、输入收回、就绪判断和不支持的 API。
 
 真实验收使用 [verify-claude-native.py](../../../../scripts/verify-claude-native.py)，显式传入一个新的空测试目录、当前构建 CLI 和不低于 `2.1.268` 的 Claude 正式版（实际运行版本写入验收记录）：
 
@@ -95,7 +95,7 @@ python3 scripts/verify-claude-native.py \
   --claude-bin /absolute/path/to/claude
 ```
 
-脚本只使用本机 CliProxyAPI 中的 `gpt-5.6-luna`。凭据仅在 loopback guard 内存中使用，测试配置写入占位 token；所有实际模型请求逐个检查模型名。脚本建立专用来源、原目录/worktree fork、两个真实 Core 与原生 TUI，校验执行端、审批交接、发送、恢复与清理。`--keep-preview-seconds` 可暂留测试 Core 供页面复核，创建测试目录下的 `finish-preview` 可提前结束。此脚本属于同机验证，不能代替真实双 Mac LAN 验收。
+脚本只使用本机 CliProxyAPI 中的 `gpt-5.6-luna`。凭据仅在 loopback guard 内存中使用，测试配置写入占位 token；所有实际模型请求逐个检查模型名。脚本建立专用个人 Claude home、额外个人历史哨兵、来源、原目录/worktree 原生 fork、两个真实 Core 与原生 TUI；校验 runtime 只复制所选来源、fork transcript 以单文件进入 A 的个人 history 并出现在原生 `/resume` picker、零输入不以 JSONL 落盘为创建门槛、个人 settings/插件标记/来源/其他历史不变、结束时只停止本次 job，以及执行端、审批交接、发送、输入后恢复与清理。`--keep-preview-seconds` 可暂留测试 Core 供页面复核，创建测试目录下的 `finish-preview` 可提前结束。此脚本属于同机验证，不能代替真实双 Mac LAN 验收。
 
 ## 个人 Claude 辅助 MCP
 

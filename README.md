@@ -18,7 +18,7 @@ Agent Session 入手，为具体的一次工作增加共同视图、可定位批
 
 ## 安装
 
-面向 Apple Silicon、macOS 14 及以上。首个公开版本为 `v0.1.1`；CLI、App 和 Homebrew 使用相同版本。发布入口为 [GitHub Releases](https://github.com/YTwsy/Team-Cross/releases)，安装包和 tap 发布完成后可使用以下方式。
+面向 Apple Silicon、macOS 14 及以上。首个公开版本为 `v0.1.1`，当前预发布版本为 `v0.1.4`；CLI、App 和 Homebrew 使用相同版本。发布入口为 [GitHub Releases](https://github.com/YTwsy/Team-Cross/releases)，安装包和 tap 发布完成后可使用以下方式。
 
 | 方式 | 安装与打开 |
 | --- | --- |
@@ -96,9 +96,11 @@ teamcross join 'tcx2.…'
 
 ## Claude Code 原生 TUI（实验性）
 
-创建页选择「Claude Code · 实验性」。最低要求 Claude Code `2.1.268`，A/B 都需不低于该版本；`2.1.268` 是已实测基线，后续正式版本不因版本号不同而拒绝；可在设置页指定 CLI 路径，或启动时传入 `--claude-bin`。A 上一个原生后台 job 承担执行，当前输入者的原生 TUI 处理输入、审批与中断。读取历史、创建 fork 和恢复不会发送业务 prompt。
+创建页选择「Claude Code · 实验性」。最低要求 Claude Code `2.1.268`，A/B 都需不低于该版本；`2.1.268` 是旧实现的已实测基线，后续正式版本不因版本号不同而拒绝；可在设置页指定 CLI 路径，或启动时传入 `--claude-bin`。A 上一个原生后台 job 承担执行，当前输入者的原生 TUI 处理输入、审批与中断。读取历史、创建 fork 和恢复不会发送业务 prompt。
 
-WebGUI 与辅助工具可查看上下文、添加批注，并在空闲时发送文本。Claude 的补充、中断、审批与模型选择目前需要在原生 TUI 中操作；共享 worker 内置当前协作的批注读取与回复工具，尚未接入 Claude Desktop、Computer Use、插件或其他自定义 MCP，也不承诺与 Codex 的 OS 权限隔离等价。Claude 使用 A 的 API 路由；OAuth / Keychain 登录流程尚未验收。详见 [Claude 接入契约](docs/agent-wiki/sources/decisions/claude-native-tui.md) 与 [2026-09-12 实测记录](docs/agent-wiki/sources/validation/claude-native-tui-2026-09-12.md)。
+Claude 协作通过原生 `--fork-session` 创建新会话；发生首次业务输入并由 Claude 持久化后，Team Cross 只把这个新 fork 的单个 transcript 发布到 A 当前个人 Claude home 的 `projects`，它会像普通原生 fork 一样出现在 Claude Code CLI/TUI `/resume`，结束共享后可从个人历史继续。零输入 fork 可能尚未落盘，也不保证释放后可恢复；Team Cross 不把这个情况当成创建失败。每次协作使用独立 `claude-runtime` 作为 worker 配置目录，其中只放所选来源的逐字节快照、本次 fork、受限 settings、MCP、认证快照、daemon/job 和所有权状态；不会把整个个人 `projects` 暴露给协作 worker。Team Cross 不自行构造 Provider JSONL，也不把个人设置、插件、已有历史或认证文件作为写入目标；个人 history 中唯一新增的是用户明确创建的 fork。B 的直接 TUI 不保存 A 的 Provider 历史，Claude Desktop、Web 与 Cloud 的历史也不在本功能范围。项目仍处于 prerelease，旧独立 `claude-home` 协作不迁移，需要重新创建。
+
+WebGUI 与辅助工具可查看已持久化的上下文、添加批注，并在空闲时发送文本。Claude 的补充、中断、审批与模型选择目前需要在原生 TUI 中操作；共享 worker 内置当前协作的批注读取与回复工具，尚未接入 Claude Desktop、Computer Use、插件或其他自定义 MCP，也不承诺与 Codex 的 OS 权限隔离等价。Claude 使用 A 的 API 路由；OAuth / Keychain 登录流程尚未验收。详见 [Claude 接入契约](docs/agent-wiki/sources/decisions/claude-native-tui.md) 与 [2026-09-14 个人 CLI/TUI 历史验收](docs/agent-wiki/sources/validation/claude-personal-history-2026-09-14.md)；[2026-09-12 实测记录](docs/agent-wiki/sources/validation/claude-native-tui-2026-09-12.md)属于切换前的旧实现。
 
 ## 模型与推理强度
 
@@ -166,7 +168,7 @@ make verify-release
 make verify-homebrew
 ```
 
-本地开发构建默认 `0.1.3-dev`，输出位于 `dist/release/0.1.3-dev/`。版本构建使用 `make release VERSION=0.1.3`，要求干净 checkout，并在重建 Web 资源后再次核对。使用相同 `VERSION` 运行两个安装验证目标。构建不上传产物。完整参数、隔离安装和签名入口见 [分发与首次体验](docs/agent-wiki/sources/distribution-and-onboarding.md)。
+本地开发构建默认 `0.1.4-dev`，输出位于 `dist/release/0.1.4-dev/`。版本构建使用 `make release VERSION=0.1.4`，要求干净 checkout，并在重建 Web 资源后再次核对。使用相同 `VERSION` 运行两个安装验证目标。构建不上传产物。完整参数、隔离安装和签名入口见 [分发与首次体验](docs/agent-wiki/sources/distribution-and-onboarding.md)。
 
 
 ```sh

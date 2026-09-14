@@ -7,9 +7,9 @@
 | 产品用词 | 含义与代码字段 |
 | --- | --- |
 | 来源会话 | A 已有的所选 Provider 原生会话，保存为 `sourceId`；不是共享后继续写入的会话 |
-| 来源起点 | 预览确认的已完成轮 `sourceTurnId`；Codex 传 `lastTurnId`，Claude 绑定已完成的来源快照 |
+| 来源起点 | 预览确认的已完成轮 `sourceTurnId`；Codex 传 `lastTurnId`，Claude 绑定已完成来源历史的内容指纹 |
 | 协作 | Team Cross 管理的记录 `Record`，有自己的 `id`，关联来源、fork、执行目录、命令状态与批注 |
-| 协作会话 / fork | 创建出的新原生会话，保存为 `sessionId`；客户端切换和恢复继续该 ID |
+| 协作会话 / fork | 创建出的新原生会话，保存为 `sessionId`；客户端切换和恢复继续该 ID；Claude fork 持久化在 A 的个人 CLI/TUI history home |
 | 原生 Thread | Codex 协议中的会话对象，RPC 使用 `threadId`；不是旧版 Team Cross 的 Thread 聚合模型 |
 | 原生 Turn / 轮次 | Codex 一次输入后的运行过程；不是必须由用户创建或填写的 Round |
 | 执行主机 | 持有共享运行时并执行代码的 A；B 的本机客户端与辅助会话不改变共享执行位置 |

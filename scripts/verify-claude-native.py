@@ -16,6 +16,7 @@ import pathlib
 import pty
 import re
 import select
+import shlex
 import signal
 import struct
 import subprocess
@@ -234,6 +235,12 @@ def cli(env, args, cwd=None):
     return p.stdout
 
 
+def stop_fixture_daemon(env, cwd):
+    if not pathlib.Path(env.get('CLAUDE_CONFIG_DIR','')).is_dir():return
+    p=subprocess.run([CLI,'daemon','stop','--any'],env=env,cwd=cwd,capture_output=True,text=True,timeout=30)
+    if p.returncode:raise RuntimeError('Claude fixture daemon cleanup failed: '+clean(p.stderr[-1000:]))
+
+
 def run(keep_seconds):
     guard=Guard();env=environment(guard);cores=[];terms=[];report={'scope':'one Mac, two real Cores, TLS membership gateway','model':MODEL}
     try:
@@ -250,6 +257,16 @@ def run(keep_seconds):
         seed=json.loads(cli(env,args));assert not seed.get('is_error'),clean(seed)
         source=seed['session_id'];report['source_id']=source
         source_path=next(home.glob('projects/*/'+source+'.jsonl'));source_hash=hashlib.sha256(source_path.read_bytes()).hexdigest()
+        unrelated_id=str(uuid.uuid4());unrelated_path=source_path.with_name(unrelated_id+'.jsonl');unrelated_path.write_bytes(source_path.read_bytes());unrelated_hash=hashlib.sha256(unrelated_path.read_bytes()).hexdigest()
+        # The dedicated personal home must reach the actual /resume picker
+        # instead of stopping at Claude's unrelated first-run theme/trust flow.
+        state_path=home/'.claude.json'
+        state=json.loads(state_path.read_text()) if state_path.exists() else {}
+        state.update({'hasCompletedOnboarding':True,'lastOnboardingVersion':'2.1.270','autoUpdates':False,'theme':'light','hasSeenTasksHint':True})
+        state['projects']={str(repo):{'hasTrustDialogAccepted':True,'hasCompletedProjectOnboarding':True,'projectOnboardingSeenCount':1,'allowedTools':[]}}
+        state_path.write_text(json.dumps(state));state_path.chmod(0o600);state_hash=hashlib.sha256(state_path.read_bytes()).hexdigest()
+        settings_hash=hashlib.sha256(settings.read_bytes()).hexdigest()
+        plugin_sentinel=home/'plugins/personal-fixture/keep.txt';plugin_sentinel.parent.mkdir(parents=True);plugin_sentinel.write_text('KEEP_PERSONAL_PLUGIN_STATE\n')
         (repo/'baseline.txt').write_text('staged\n');git('add','baseline.txt');(repo/'baseline.txt').write_text('unstaged\n')
         (repo/'untracked.txt').write_text('untracked\n');(repo/'ignored.txt').write_text('ignored\n')
         before={'head':git('rev-parse','HEAD'),'branch':git('branch','--show-current'),'index':git('show',':baseline.txt'),'working':(repo/'baseline.txt').read_text()}
@@ -262,27 +279,31 @@ def run(keep_seconds):
             body={'provider':'claude','sourceId':source,'workspaceMode':mode,'requestId':str(uuid.uuid4()),'title':'Claude 实测 · '+mode}
             preview=a.api('preview',body);body['previewHash']=preview['previewHash'];view=a.api('collaborations',body)
             assert view['sessionId']!=source and view['provider']=='claude',view
-            native_history=list((ROOT/'core-a/collaborations'/view['id']/'claude-home/projects').glob('*/'+view['sessionId']+'.jsonl'))
-            assert len(native_history)==1 and 'TCX_SOURCE_OK' in native_history[0].read_text(),'fork history not materialized before first input'
+            native_history=list(home.glob('projects/*/'+view['sessionId']+'.jsonl'))
+            if native_history:assert len(native_history)==1 and 'TCX_SOURCE_OK' in native_history[0].read_text(),'native fork history is invalid'
+            runtime=ROOT/'core-a/collaborations'/view['id']/'claude-runtime'
+            assert (runtime/'settings.json').is_file() and (runtime/'teamcross-runtime.json').is_file()
+            assert (runtime/'projects').is_dir() and not (runtime/'projects').is_symlink(),'runtime projects is not isolated'
+            snapshots=list(runtime.glob('projects/*/'+source+'.jsonl'))
+            assert len(snapshots)==1 and hashlib.sha256(snapshots[0].read_bytes()).hexdigest()==source_hash,'selected source snapshot is invalid'
+            assert not list(runtime.glob('projects/*/'+unrelated_id+'.jsonl')),'runtime exposed unrelated personal history'
             assert a.api('collaborations',body)['sessionId']==view['sessionId'],'duplicate creation forked again'
             views[mode]=view;cwd=pathlib.Path(view['executionCwd'])
             assert (cwd/'baseline.txt').read_text()==('unstaged\n' if mode=='existing' else 'committed\n')
             if mode=='worktree':assert not (cwd/'untracked.txt').exists() and not (cwd/'ignored.txt').exists()
-            history=a.api('collaborations/'+view['id']+'/context?kind=history')
-            assert history['thread']['id']==view['sessionId'] and 'TCX_SOURCE_OK' in json.dumps(history)
-            if mode=='worktree':
-                a.api('collaborations/'+view['id']+'/action',{'action':'end'})
-                wait_until(lambda:a.api('collaborations/'+view['id'])['runtimeState']=='released',30)
-                restored=a.api('collaborations/'+view['id']+'/action',{'action':'start'})
-                assert restored['sessionId']==view['sessionId'] and restored['nativeJobId']==view['nativeJobId']
-                a.api('collaborations/'+view['id']+'/action',{'action':'end'})
+            if native_history:
+                history=a.api('collaborations/'+view['id']+'/context?kind=history')
+                assert history['thread']['id']==view['sessionId'] and 'TCX_SOURCE_OK' in json.dumps(history)
         assert guard.generation_count()==count,'fork/read/restore triggered generation'
         assert before=={'head':git('rev-parse','HEAD'),'branch':git('branch','--show-current'),'index':git('show',':baseline.txt'),'working':(repo/'baseline.txt').read_text()}
-        report['workspace_and_preinput_restore']=True;report['collaborations']={k:{'id':v['id'],'sessionId':v['sessionId'],'cwd':v['executionCwd'],'jobId':v['nativeJobId']} for k,v in views.items()}
-        emit('forks_verified',generation_requests=0,source_preserved=True,same_id_restore=True)
-        c=views['existing'];base='collaborations/'+c['id'];managed=ROOT/'core-a/collaborations'/c['id']/'claude-home'
-        job=c['nativeJobId'];worker_env=dict(env);worker_env['CLAUDE_CONFIG_DIR']=str(managed)
-        def job_info():return next(x for x in json.loads(cli(worker_env,['agents','--json','--all'])) if x['id']==job)
+        report['workspace_and_native_fork']=True;report['preinput_history_optional']=True;report['collaborations']={k:{'id':v['id'],'sessionId':v['sessionId'],'cwd':v['executionCwd'],'jobId':v['nativeJobId']} for k,v in views.items()}
+        emit('forks_verified',generation_requests=0,source_preserved=True,native_personal_history=True)
+        c=views['existing'];base='collaborations/'+c['id'];runtime=ROOT/'core-a/collaborations'/c['id']/'claude-runtime'
+        job=c['nativeJobId']
+        def job_for(view):
+            worker_env=dict(env);worker_env['CLAUDE_CONFIG_DIR']=str(ROOT/'core-a/collaborations'/view['id']/'claude-runtime')
+            return next(x for x in json.loads(cli(worker_env,['agents','--json','--all'])) if x['id']==view['nativeJobId'])
+        def job_info():return job_for(c)
         before_job=job_info();report['worker_before']=before_job
         def action(value):return a.api(base+'/action',{'action':value,'epoch':a.api(base)['epoch']})
         shared=action('share');joined=b.api('join',{'invitation':shared['invitation']});assert joined['provider']=='claude';bbase='collaborations/'+joined['id']
@@ -296,7 +317,11 @@ def run(keep_seconds):
         def pending(t,start=0):return 'doyouwanttoproceed?' in re.sub(r'\s+','',terminal_text(t.data[start:])).lower()
         wait_until(lambda:pending(bt),60,bt);assert not target.exists(),'executed before approval'
         def records():
-            paths=list(managed.glob('projects/*/'+c['sessionId']+'.jsonl'))
+            paths=list(home.glob('projects/*/'+c['sessionId']+'.jsonl'))
+            if not paths:
+                try:a.api(base+'/context?kind=history')
+                except Exception:pass
+                paths=list(home.glob('projects/*/'+c['sessionId']+'.jsonl'))
             if not paths:return []
             result=[]
             for line in paths[0].read_text().splitlines():
@@ -345,11 +370,22 @@ def run(keep_seconds):
         assert not finished.exists(),'native interrupt did not stop the command before its final write'
         report['native_interrupt']=True;report['control_send_deduplicated']=True
         report['worker_after']=job_info();assert report['worker_after']['pid']==before_job['pid'],'TUI/controller replaced worker'
+        runtime_history=list(runtime.glob('projects/*/'+c['sessionId']+'.jsonl'));personal_history=list(home.glob('projects/*/'+c['sessionId']+'.jsonl'))
+        assert len(runtime_history)==len(personal_history)==1 and os.path.samefile(runtime_history[0],personal_history[0]),'new fork was not published as one personal history file'
+        assert not personal_history[0].is_symlink(),'same-volume personal history should be a regular file'
         assert not list((ROOT/'core-b/clients').glob('**/projects/*/*.jsonl')),'B persisted provider history'
         assert source_hash==hashlib.sha256(source_path.read_bytes()).hexdigest(),'source history modified'
+        assert unrelated_hash==hashlib.sha256(unrelated_path.read_bytes()).hexdigest(),'unrelated personal history modified'
+        assert settings_hash==hashlib.sha256(settings.read_bytes()).hexdigest(),'personal settings modified'
+        assert state_hash==hashlib.sha256(state_path.read_bytes()).hexdigest(),'personal global state modified'
+        assert plugin_sentinel.read_text()=='KEEP_PERSONAL_PLUGIN_STATE\n','personal plugin state modified'
+        report['personal_config_unchanged']=True;report['unrelated_personal_history_unchanged']=True
         assert not any('TCX_UNAUTHORIZED' in json.dumps(x.get('message',{})) for x in records())
         at.close();wait_until(lambda:not a.api(base)['connected'],10)
         action('end');wait_until(lambda:a.api(base)['runtimeState']=='released',35)
+        worktree_job=job_for(views['worktree'])
+        assert worktree_job['pid']>0 and worktree_job.get('state') not in ('stopped','failed'),'ending one collaboration stopped another collaboration runtime job'
+        report['close_stops_only_owned_job']=True
         assert 'TCX_CONTROL_OK' in json.dumps(a.api(base+'/context?kind=history'))
         assert b.api(bbase)['state'] in ('ended','expired')
         guard.allow_generation=False;before_restore=guard.generation_count();restored=action('start')
@@ -359,7 +395,7 @@ def run(keep_seconds):
         wait_until(lambda:a.api(base)['clientState']=='session_ready',30,rt)
         restored_screen=re.sub(r'\s+','',rt.read(1)).lower()
         assert 'medium·/effort' in restored_screen or 'withmediumeffort' in restored_screen,'effort selection was not restored'
-        saved_flags=json.loads((managed/'jobs'/job/'state.json').read_text())['respawnFlags']
+        saved_flags=json.loads((runtime/'jobs'/job/'state.json').read_text())['respawnFlags']
         assert saved_flags[saved_flags.index('--effort')+1]=='medium'
         rt.close();report['effort_selection_restored']=True
         report['restore_after_input']=True;report['same_worker']=True;report['source_unchanged']=True;report['b_history_files']=0
@@ -388,7 +424,11 @@ def run(keep_seconds):
             emit('preview_available',seconds=keep_seconds,stop_file=str(ROOT/'finish-preview'))
             end=time.monotonic()+keep_seconds
             while time.monotonic()<end and not (ROOT/'finish-preview').exists():time.sleep(.5)
-        action('end')
+        action('end');wait_until(lambda:a.api(base)['runtimeState']=='released',35)
+        picker_command='cd '+shlex.quote(str(repo))+' && '+shlex.quote(CLI)+' --resume'
+        picker=Terminal('personal-history-picker',picker_command,env);terms.append(picker)
+        wait_until(lambda:'Claude实测·existing' in re.sub(r'\s+','',picker.read(.2)),30,picker)
+        picker.close();report['personal_resume_picker']=True
     except Exception as e:
         if 'job_info' in locals():
             try:report['worker_at_failure']=job_info()
@@ -398,6 +438,10 @@ def run(keep_seconds):
         cleanup_errors=[]
         for resource in list(reversed(terms))+list(reversed(cores)):
             try:resource.close()
+            except Exception as e:cleanup_errors.append(type(e).__name__+': '+str(e))
+        fixture_envs={item['CLAUDE_CONFIG_DIR']:item for item in (env, locals().get('benv',env))}
+        for fixture_env in fixture_envs.values():
+            try:stop_fixture_daemon(fixture_env,ROOT)
             except Exception as e:cleanup_errors.append(type(e).__name__+': '+str(e))
         if cleanup_errors:
             report['cleanup_errors']=clean(cleanup_errors)

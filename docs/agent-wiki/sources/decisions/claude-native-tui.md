@@ -4,7 +4,7 @@ Claude Code 是新增的实验性 Provider。Codex 原有 app-server 路径继�
 
 ## 用户入口与能力边界
 
-在创建页选择「Claude Code · 实验性」，从 A 的 `CLAUDE_CONFIG_DIR`（未设置时 `~/.claude`）读取来源。选择原目录或新 worktree 后创建新 fork；详情中的「打开 Claude Code」准备原生 TUI，或显示可复制的启动命令。设置页的 Claude CLI 路径及 `--claude-bin` 可覆盖自动检测。
+在创建页选择「Claude Code · 实验性」，从 A 的 `CLAUDE_CONFIG_DIR`（未设置时 `~/.claude`）读取来源。选择原目录或新 worktree 后创建新 fork；详情中的「打开 Claude Code」准备原生 TUI，或显示可复制的启动命令。这个 fork 由隔离 runtime 中的 Claude 原生命令创建，持久化后只把该 transcript 发布到 A 的个人 history home，因此会出现在 A 的 Claude Code CLI/TUI `/resume` 历史中；B 的直接 TUI 只 attach A 的 worker，不取得其他 Provider 历史。[Claude 会话文档](https://code.claude.com/docs/en/sessions)说明 CLI、Desktop、Web 与其他表面分别维护历史，本功能只承诺个人 CLI/TUI。设置页的 Claude CLI 路径及 `--claude-bin` 可覆盖自动检测。
 
 | 入口 | 当前行为 |
 | --- | --- |
@@ -28,11 +28,13 @@ Claude 使用原生 `mcp add --transport stdio --scope user` 写入 user 范围�
 
 ## 单一执行端
 
-A 每次协作使用独立的 `collaborations/<id>/claude-home`，保存所选来源的不可变快照、A 的路由配置和该协作原生 job。先参照官方 Agent SDK `0.3.268` 的离线 fork 规则生成新会话 JSONL，再使用 `--resume <fork> --bg` 启动原生 worker，不发送业务 prompt。创建哈希还绑定来源 JSONL 指纹；复制时再次检查，拒绝过期起点。
+A 的有效个人 Claude home 是来源目录和用户可见 fork 入口的位置。每次协作另建 `collaborations/<id>/claude-runtime` 并把它作为该 worker 的 `CLAUDE_CONFIG_DIR`；其中保存所选来源 transcript 的逐字节快照、本次原生 fork、受限 `settings.json`、独立 onboarding 状态、文件型认证快照、daemon/job 状态、运行所有权标记和日志。Claude 首次持久化新 fork 后，Team Cross 只为该 session 在个人 `projects` 创建指向同一 transcript 的文件入口；同磁盘使用 hard link，跨磁盘退回单文件 symlink，不把整个个人 `projects` 链接给 worker。因此 TUI 的 `/effort`、权限等设置写回协作 runtime，而不是个人 settings，协作者也看不到未选择的个人会话。Team Cross 不解析或自行生成 Provider JSONL；来源快照保持字节不变。创建哈希绑定来源 JSONL 指纹，调用原生命令前再次读取并核对，拒绝过期起点。
 
-原生 `--fork-session --bg` 会延迟生成新 JSONL，首次输入前反复停止和恢复可能丢失来源引用。适配在交付前持久化新的消息 UUID、父链映射与 `forkedFrom`，排除 sidechain/progress，保留原生 fork 需要的附件和元数据，并绑定用户选定的执行目录。工作目录编码与已验证版本一致。新会话文件以 0600 独占创建、同步落盘后才启动 worker；文件缺失或损坏直接报错，不通过来源历史回退掩盖空会话。
+创建执行 `claude --resume <sourceId> --fork-session --bg`，同时传入本次协作的名称、执行目录、模型、推理强度、受限 settings 与 MCP；不发送业务 prompt，也不由 Team Cross 构造 Claude 内部 JSONL。只有 Claude 返回新的 session ID、对应后台 job 和精确执行目录后才创建成功。原生 CLI 可能到第一次业务输入后才持久化 fork transcript；零输入协作可以暂时不出现在 `/resume`，结束后也不保证可恢复，这不是创建失败。发生第一轮持久化后，历史读取与后续恢复只认 fork ID，不回退到来源伪装成协作历史。
 
-恢复先检查协作 worker 是否仍存活，Core 异常退出后可重新绑定同一 worker；已保存的 done 进度标签不代表进程仍存活；已停止时只运行 `--resume <协作 sessionId> --bg`，让原生 job 使用自身保存的启动状态。额外传入创建时的模型、设置等参数会触发新副本，不能在恢复时重用整套创建参数。新版本创建的 worker 沿用持久化批注 MCP 配置；旧 worker 不通过改写 job 状态补装，需新建协作。恢复后校验 sessionId 与执行目录，不接受另一个会话。
+恢复先检查个人 home 与本次 runtime 的后台 job：Core 异常退出后只重新绑定所有权标记中的同一个协作 job；如果同一 session 已由普通个人 Claude 新 job 运行，则拒绝接管。已保存的 done 进度标签不代表进程仍存活；已停止且 transcript 已持久化时只运行 `--resume <协作 sessionId> --bg`，让原生 job 使用自身保存的启动状态。额外传入创建时的模型、设置等参数会触发新副本，不能在恢复时重用整套创建参数。恢复后校验 sessionId 与执行目录，并更新精确 job ID，不接受另一个会话。
+
+项目处于 prerelease，切换到个人 history home 时不迁移、镜像或兼容旧 `collaborations/<id>/claude-home` 会话；需要使用新版本重新创建协作。这样避免静默改写个人历史，也不把旧的手工 JSONL 结构继续当成支持契约。
 
 Claude ACP 的 SDK `query()` / `canUseTool` 模式有助于理解结构化控制与权限回调，但它会持有自己的 SDK 执行进程。这里采用原生 job 的终端入口，避免与 TUI 并排启动第二个执行端。该路径不依赖安装 Node Agent SDK 或 ACP adapter。
 
@@ -52,20 +54,20 @@ B 的 claude attach
 
 终端能力只转发渲染字段，不将 B 的 editor/browser 命令、tmux socket 或未知字段带到 A。连接成功与历史显示分开：只有收到 A 握手 nonce 对应、且 `msgsLoaded > 0` 的 `content_paint` 才显示 `session_ready`。
 
-控制端发送使用该 job 的一次性 `reply`，`reply/resize` 在 A 本机读取协作专用 `daemon/control.key` 完成原生认证；该 key 不经过 B，也不写入返回结果。仅空闲时允许发送；原生拒绝与传输结果不明分别记录为 `failed` / `unknown`。成功 ACK 表示接收，执行结果需读后续历史和状态。终端连接层不缓存或重放输入，原生客户端的新连接也不会触发 Team Cross 自动重发旧文本。
+控制端发送使用该 job 的一次性 `reply`，`reply/resize` 在 A 本机读取本次协作 runtime 的 `daemon/control.key` 完成原生认证；该 key 不经过 B，也不写入返回结果。所有操作仍绑定运行标记中的精确 job。仅空闲时允许发送；原生拒绝与传输结果不明分别记录为 `failed` / `unknown`。成功 ACK 表示接收，执行结果需读后续历史和状态。终端连接层不缓存或重放输入，原生客户端的新连接也不会触发 Team Cross 自动重发旧文本。
 
 ## 账户、模型与权限
 
 模型和推理强度继承来源已保存值；未保存时使用 A 的原生设置。后续由当前输入者在 TUI 选择。页面只在原生历史确认后更新显示，因此尚未发送下一轮时可能显示最近一次已确认值。测试中的 `gpt-5.6-luna` 不写入产品默认值。
 
-路由配置只在 A 的协作配置中保存，采用 0600 权限；仅继承 `ANTHROPIC_*`、明确的模型列表和 HTTP 代理环境字段，不继承 shell 启动变量、个人 hooks 或插件配置。创建时禁用 hooks/插件/其他外部 MCP/Chrome 集成，只加载内置的当前协作批注 MCP，工具范围为 Bash、Read、Write、Edit、Glob、Grep、AskUserQuestion，默认 manual 模式，Bash/Write/Edit 需原生确认。
+路由配置只在 A 的协作运行目录中保存，采用 0600 权限；仅从个人 settings 读取 `ANTHROPIC_*`、明确的模型列表和 HTTP 代理环境字段，不继承 shell 启动变量、个人 hooks 或插件配置。文件型认证存在时复制当前内容到私有 runtime，后续写入不会落到个人认证文件；OAuth / Keychain 仍需独立验收。Team Cross 不写个人 `settings.json`、`.claude.json`、认证配置、插件目录或已有历史，只为用户明确请求的新 fork 新增单一 history 文件入口。创建时通过独立 config、显式 settings 与 `--setting-sources ""` 禁用个人 hooks/插件/其他外部 MCP/Chrome 集成，只加载内置的当前协作批注 MCP，工具范围为 Bash、Read、Write、Edit、Glob、Grep、AskUserQuestion，默认 manual 模式，Bash/Write/Edit 需原生确认。
 
 这套权限是 Claude 自身的权限机制，不等同于 Codex 的操作系统权限配置。当前不承诺 Claude Computer Use、插件、其他自定义 MCP、全局 slash 命令或 OS 沙箱与 Codex 等价；原生 TUI 的设置功能也不构成防止参与者改变权限的安全沙箱。分享前应了解当前实验性范围。API 路由已实测；OAuth、Keychain 登录流程需独立验证。
 
-共享开放期间断开 TUI 保留 worker。结束共享后等待原生 busy/等待交互结束、受理中的请求和直接连接清空，再停止协作专用 job 与 supervisor。仅停止有本次协作所有权标记的配置目录；历史、原目录和新 worktree 继续保留。实时 `status` 优先于可能在中断后保留的 `state=working` 进度标签。状态轮询之间最后一次终端写入有短暂释放保护。本机连接层在 Core 异常退出后，仅清理带匹配所有权记录、无进程监听且 inode 未变化的 Unix socket。
+共享开放期间断开 TUI 保留 worker。结束共享后等待原生 busy/等待交互结束、受理中的请求和直接连接清空，再按协作运行标记停止精确 job 与该 runtime 的独立 supervisor；绝不停止个人 Claude daemon，也不删除个人 transcript。历史、原目录和新 worktree 继续保留。共享尚未释放时，不应从普通个人 `/resume` 另开同一 session；请通过 Team Cross 的直接 TUI attach，或结束共享后再在个人历史中继续。恢复前如发现个人侧已有同 session 的活跃 job，会拒绝接管。实时 `status` 优先于可能在中断后保留的 `state=working` 进度标签。状态轮询之间最后一次终端写入有短暂释放保护。本机连接层在 Core 异常退出后，仅清理带匹配所有权记录、无进程监听且 inode 未变化的 Unix socket。
 
 ## 实现与验证入口
 
-- [原生进程与恢复](../../../../internal/nativeclaude/process.go)、[离线 fork](../../../../internal/nativeclaude/fork.go)、[历史读取](../../../../internal/nativeclaude/history.go)、[本机 TUI 连接层](../../../../internal/nativeclaude/client.go)。
+- [原生 fork、进程与恢复](../../../../internal/nativeclaude/process.go)、[历史读取](../../../../internal/nativeclaude/history.go)、[本机 TUI 连接层](../../../../internal/nativeclaude/client.go)。
 - [协作适配](../../../../internal/collab/claude.go)、[终端输入网关](../../../../internal/collab/claude_terminal.go)、[交接回归](../../../../internal/collab/claude_test.go)。
-- [原生 TUI 实测脚本](../../../../scripts/verify-claude-native.py)、[个人辅助实测脚本](../../../../scripts/verify-claude-assist.py)、[验证门槛](../validation/test-gates.md)。实际结果见 [原生 TUI 验收](../validation/claude-native-tui-2026-09-12.md) 与 [个人辅助 MCP 验收](../validation/claude-assist-2026-09-12.md)。
+- [原生 TUI 实测脚本](../../../../scripts/verify-claude-native.py)、[个人辅助实测脚本](../../../../scripts/verify-claude-assist.py)、[验证门槛](../validation/test-gates.md)。[2026-09-14 个人 CLI/TUI 历史验收](../validation/claude-personal-history-2026-09-14.md)覆盖当前路径；[2026-09-12 原生 TUI 验收](../validation/claude-native-tui-2026-09-12.md)记录的是切换前的独立 home / 离线 JSONL 实现；[个人辅助 MCP 验收](../validation/claude-assist-2026-09-12.md)仍只证明辅助模式的既有范围。

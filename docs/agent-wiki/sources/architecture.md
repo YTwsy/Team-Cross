@@ -103,4 +103,4 @@ CLI、App 和 MCP 的共用启动、发现、版本检查和退出机制见 [分
 
 ## Claude 实验性执行端
 
-Claude 的源码历史、后台 job 与终端字节由 [nativeclaude](../../../internal/nativeclaude/) 处理，[协作适配](../../../internal/collab/claude.go) 复用目录、输入归属、TLS 成员、MCP 与生命周期。单 worker、惰性 fork、最低版本和控制能力边界见 [Claude 接入契约](decisions/claude-native-tui.md)；上述 Codex app-server RPC 语义不自动适用于 Claude。
+Claude 的个人 CLI/TUI home 保存原始来源，并只新增用户明确创建的 fork 历史入口；每个 `collaborations/<id>/claude-runtime` 是独立 worker 配置，保存所选来源快照、本次原生 fork、受限 settings、认证快照、daemon/job 和运行所有权状态。fork 首次落盘后，[nativeclaude](../../../internal/nativeclaude/) 只把这一份 transcript 以同文件入口发布到个人 `projects`，不会把完整个人 history 链接进 worker；[协作适配](../../../internal/collab/claude.go) 复用目录、输入归属、TLS 成员、MCP 与生命周期。个人历史可见性、单 worker、惰性落盘、最低版本和控制能力边界见 [Claude 接入契约](decisions/claude-native-tui.md)；上述 Codex app-server RPC 语义不自动适用于 Claude。

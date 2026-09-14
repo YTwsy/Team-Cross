@@ -152,15 +152,12 @@ func (s *Session) createClaude(ctx context.Context, preview Preview, title strin
 	if err != nil {
 		return err
 	}
-	home, err := s.app.providerHome("claude")
-	if err != nil {
-		return err
-	}
 	launch, err := s.annotationLaunch()
 	if err != nil {
 		return err
 	}
-	driver, err := nativeclaude.Fork(ctx, nativeclaude.Config{Binary: binary, Home: r.ProviderHome, Cwd: r.ExecutionCwd, SourceHome: home, Log: filepath.Join(filepath.Dir(r.ProviderHome), "runtime.log"), MCPConfig: launch.claudeConfig()}, source, title)
+	dir := filepath.Join(s.app.Config.DataDir, "collaborations", r.ID)
+	driver, err := nativeclaude.Fork(ctx, nativeclaude.Config{Binary: binary, Home: r.ProviderHome, RuntimeDir: filepath.Join(dir, "claude-runtime"), Cwd: r.ExecutionCwd, Log: filepath.Join(dir, "runtime.log"), MCPConfig: launch.claudeConfig()}, source, title)
 	if err != nil {
 		return err
 	}
@@ -190,19 +187,21 @@ func (s *Session) createClaude(ctx context.Context, preview Preview, title strin
 	}
 	return err
 }
-func (a *App) restoreClaude(ctx context.Context, r Record) (Runtime, error) {
+func (a *App) restoreClaude(ctx context.Context, r Record) (*claudeRuntime, error) {
 	binary, err := a.claudeBinary()
 	if err != nil {
 		return nil, err
 	}
-	p, err := nativeclaude.Restore(ctx, nativeclaude.Config{Binary: binary, Home: r.ProviderHome, Cwd: r.ExecutionCwd, Log: filepath.Join(filepath.Dir(r.ProviderHome), "runtime.log")}, r.SessionID)
+	dir := filepath.Join(a.Config.DataDir, "collaborations", r.ID)
+	p, err := nativeclaude.Restore(ctx, nativeclaude.Config{Binary: binary, Home: r.ProviderHome, RuntimeDir: filepath.Join(dir, "claude-runtime"), Cwd: r.ExecutionCwd, Log: filepath.Join(dir, "runtime.log")}, r.SessionID)
 	if err != nil {
 		return nil, err
 	}
 	return newClaudeRuntime(p), nil
 }
-func claudeContext(r Record, cursors []string) (any, error) {
-	h, err := nativeclaude.SavedHistory(r.ProviderHome, r.SessionID, r.ExecutionCwd)
+func claudeContext(r Record, dataDir string, cursors []string) (any, error) {
+	runtimeDir := filepath.Join(dataDir, "collaborations", r.ID, "claude-runtime")
+	h, err := nativeclaude.SavedHistory(r.ProviderHome, runtimeDir, r.SessionID, r.ExecutionCwd)
 	if err != nil {
 		return nil, err
 	}

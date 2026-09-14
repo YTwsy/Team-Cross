@@ -174,6 +174,9 @@ def run(args):
         for resource in list(reversed(terminals))+list(reversed(cores)):
             try:resource.close()
             except Exception as error:report.setdefault('cleanup_errors',[]).append(type(error).__name__)
+        if args.provider=='claude' and 'env' in locals():
+            try:n.stop_fixture_daemon(env,root)
+            except Exception as error:report.setdefault('cleanup_errors',[]).append(type(error).__name__)
         if guard:
             report['models_observed']=sorted({e['model'] for e in guard.entries if e.get('model')});guard.close()
         (root/'evidence/summary.json').write_text(json.dumps(n.clean(report),ensure_ascii=False,indent=2))

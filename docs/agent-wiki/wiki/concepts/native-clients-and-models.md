@@ -16,6 +16,8 @@ Desktop 使用独立应用数据目录和指定 WebSocket 入口。进程启动�
 
 详情中的“在个人 Codex 中打开”使用普通 Desktop 的深链接，与直接客户端入口分开；创建成功即提供，远端活动不触发页面跳转。共享关闭且运行时释放后才显示“在个人 Codex 中继续”。系统打开请求成功不等于页面或后续对话同步成功。
 
+Claude fork 不使用 Desktop 深链接：原生 fork 首次持久化后，Team Cross 只把这一个 transcript 发布到 A 的个人 CLI/TUI `/resume` 历史。协作运行时仍占用该 session 时通过 Team Cross 直接 TUI attach；释放后才从个人历史继续。独立 `claude-runtime` 只保存所选来源快照、本次 fork、scoped settings、认证快照和 daemon/job 状态，不挂载其他个人 history；Team Cross 不构造 Provider transcript。
+
 B 的账户操作在 B 本机处理，不能修改 A 的账户或返回 A 的认证 token。共享代码执行仍在 A。
 
 模型选择从来源、持久化会话与当前输入者的原生配置取得。设置失败不更新显示；离线显示最近确认值；不要把真实测试的 Luna/low 配置写入产品运行时。

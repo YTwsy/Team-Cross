@@ -30,4 +30,4 @@ CLI、App、MCP 现在共用按数据目录发现的后台 Core；默认 serve �
 
 分发使用 App 内置 CLI：Cask 注册其命令，DMG 由菜单栏安装启动器，Formula 提供互斥的独立安装。命令安装仅维护自身入口，不启动或提权 Core；设置页区分磁盘安装版本与运行版本。修改命令归属时先读上述来源与 `internal/cliinstall`，不要在 Homebrew 之外覆盖其链接。
 
-Claude 实验性路径使用 A 的单个原生后台 job，B 的专用 Unix 入口经 Core/TLS 连接它，不启动第二个 SDK 执行进程。版本锁定、惰性历史和同 ID 恢复见 [Claude 接入契约](../../sources/decisions/claude-native-tui.md)。
+Claude 实验性路径使用 A 的单个原生后台 job。每个协作有独立 `claude-runtime`，只保存所选来源快照、本次 fork、settings、认证快照、daemon/job 和控制凭据；fork 首次落盘后仅将该 transcript 发布为 A 的个人 CLI/TUI history 文件，不挂载其他个人会话。B 的专用 Unix 入口经 Core/TLS 连接它，不启动第二个 SDK 执行进程，也不复制 A 的完整 Provider 历史。版本锁定、首次输入后的惰性落盘和同 ID 恢复见 [Claude 接入契约](../../sources/decisions/claude-native-tui.md)。

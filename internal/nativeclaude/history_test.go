@@ -115,9 +115,10 @@ func TestNativeLocalCommandAndInterruptAreNotNewModelTurns(t *testing.T) {
 
 func TestMissingForkNeverFallsBackToSource(t *testing.T) {
 	home := t.TempDir()
+	runtimeDir := t.TempDir()
 	source, id := uuid.NewString(), uuid.NewString()
 	historyFixture(t, home, source)
-	p := Process{Config: Config{Home: home, Cwd: "/fork"}, Job: Job{SessionID: id}, meta: marker{SourceID: source}}
+	p := Process{Config: Config{Home: home, RuntimeDir: runtimeDir, Cwd: "/fork"}, Job: Job{SessionID: id}, meta: marker{SourceID: source}}
 	_, err := p.History()
 	if !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("missing fork silently reverted to source", err)

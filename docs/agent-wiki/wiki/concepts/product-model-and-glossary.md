@@ -11,6 +11,7 @@ Team Cross 从已有 Codex 来源会话创建新的协作 fork，在 A 的执行
 - Team Cross 协作 `id`、来源 `sourceId`、协作原生 `sessionId` 分别表示不同对象。
 - 原生协议里的 Thread/Turn 不代表恢复旧产品的 Thread/Round/managed Run。
 - “创建新会话”和“使用哪个目录”分别处理；原目录模式也必须创建新的会话 ID。
+- Claude fork 由原生命令在隔离 runtime 中创建，并只把这个新 transcript 发布到 A 的个人 CLI/TUI history；B 不取得其他 Provider 历史。
 - 发起和结束不要求问题描述、摘要、独立 Evidence 或成果验收；批注不自动注入模型。
 - 输入者是协作控制状态，不自动添加到 Provider prompt。
 - 邀请只限制首次加入；加入资格、当前在线和输入归属分别管理，关闭客户端或断线不撤销成员。

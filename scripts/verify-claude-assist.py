@@ -79,8 +79,9 @@ def run(keep_seconds):
         c = a.api('collaborations', body); base = 'collaborations/'+c['id']
         def action(name): return a.api(base+'/action', {'action': name, 'epoch': a.api(base)['epoch']})
         joined = b.api('join', {'invitation': action('share')['invitation']}); bbase = 'collaborations/'+joined['id']
-        managed = root/'core-a/collaborations'/c['id']/'claude-home'
-        worker_env = dict(env); worker_env['CLAUDE_CONFIG_DIR'] = str(managed)
+        shared_home = home
+        runtime = root/'core-a/collaborations'/c['id']/'claude-runtime'
+        worker_env = dict(env); worker_env['CLAUDE_CONFIG_DIR'] = str(runtime)
         def job(): return next(x for x in json.loads(n.cli(worker_env, ['agents', '--json', '--all'])) if x['id'] == c['nativeJobId'])
         report['worker_before'] = job()
         assert not b.api('info')['mcpClients']['claude']['configured']
@@ -123,7 +124,7 @@ def run(keep_seconds):
         denied_id = str(uuid.uuid4())
         turn(f'Use Team Cross add_annotation for collaboration {joined["id"]}, text TCX_AUX_ANNOTATION. Then attempt send_input once with id={joined["id"]}, mode=start, requestId={denied_id}, text="Reply exactly TCX_MUST_NOT_RUN. Do not use tools." This is a permission-denial test: if it fails, do not retry or work around it. Reply TCX_DENIED_DONE and the result.', 'TCX_DENIED_DONE')
         assert any(x['text'] == 'TCX_AUX_ANNOTATION' for x in a.api(base+'/context?kind=annotations')['annotations'])
-        assert not any('TCX_MUST_NOT_RUN' in json.dumps(x.get('message', {})) for x in rows(managed))
+        assert not any('TCX_MUST_NOT_RUN' in json.dumps(x.get('message', {})) for x in rows(shared_home))
         results = [v for x in rows(bhome) for v in x.get('message', {}).get('content', []) if isinstance(v, dict) and v.get('type') == 'tool_result']
         assert any(v.get('is_error') for v in results), 'no native MCP permission-denial result'
         report['annotation_from_personal_client'] = True; report['non_writer_send_denied'] = True
@@ -131,10 +132,10 @@ def run(keep_seconds):
         request_id = str(uuid.uuid4())
         dispatch = f'Use Team Cross send_input exactly once: id={joined["id"]}, mode=start, requestId={request_id}, text="Reply exactly TCX_AUX_SHARED_OK. Do not use tools." Do not use other tools. Reply TCX_DISPATCH_DONE after the tool returns.'
         turn(dispatch, 'TCX_DISPATCH_DONE')
-        n.wait_until(lambda: assistant_has(managed, 'TCX_AUX_SHARED_OK'), 60, t)
+        n.wait_until(lambda: assistant_has(shared_home, 'TCX_AUX_SHARED_OK'), 60, t)
         n.wait_until(lambda: not a.api(base)['busy'], 20, t)
         turn(dispatch.replace('TCX_DISPATCH_DONE', 'TCX_DUPLICATE_DONE'), 'TCX_DUPLICATE_DONE')
-        count = sum(x.get('type') == 'user' and 'TCX_AUX_SHARED_OK' in json.dumps(x.get('message', {})) for x in rows(managed))
+        count = sum(x.get('type') == 'user' and 'TCX_AUX_SHARED_OK' in json.dumps(x.get('message', {})) for x in rows(shared_home))
         assert count == 1, count
         report['writer_send_on_a'] = True; report['same_request_deduplicated'] = True
         report['worker_after'] = job()
@@ -173,6 +174,10 @@ def run(keep_seconds):
         cleanup_errors = []
         for resource in list(reversed(terms))+list(reversed(cores)):
             try: resource.close()
+            except Exception as e: cleanup_errors.append(type(e).__name__+': '+str(e))
+        fixture_envs = {item['CLAUDE_CONFIG_DIR']: item for item in (env, locals().get('benv', env))}
+        for fixture_env in fixture_envs.values():
+            try: n.stop_fixture_daemon(fixture_env, root)
             except Exception as e: cleanup_errors.append(type(e).__name__+': '+str(e))
         if cleanup_errors:
             report['cleanup_errors'] = n.clean(cleanup_errors)

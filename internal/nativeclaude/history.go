@@ -214,21 +214,29 @@ func ReadFile(path string) (History, error) {
 	return h, nil
 }
 
-func Read(home, id string) (History, error) {
+func historyPath(home, id string) (string, error) {
 	if _, err := uuid.Parse(id); err != nil {
-		return History{}, fmt.Errorf("无效的 Claude 会话 ID")
+		return "", fmt.Errorf("无效的 Claude 会话 ID")
 	}
 	paths, err := filepath.Glob(filepath.Join(home, "projects", "*", id+".jsonl"))
 	if err != nil {
-		return History{}, err
+		return "", err
 	}
 	if len(paths) == 0 {
-		return History{}, fmt.Errorf("Claude 会话历史不存在：%w", os.ErrNotExist)
+		return "", fmt.Errorf("Claude 会话历史不存在：%w", os.ErrNotExist)
 	}
 	if len(paths) != 1 {
-		return History{}, fmt.Errorf("无法唯一定位 Claude 会话 %s", id)
+		return "", fmt.Errorf("无法唯一定位 Claude 会话 %s", id)
 	}
-	return ReadFile(paths[0])
+	return paths[0], nil
+}
+
+func Read(home, id string) (History, error) {
+	path, err := historyPath(home, id)
+	if err != nil {
+		return History{}, err
+	}
+	return ReadFile(path)
 }
 
 func List(home, search, cursor string) ([]History, string, error) {

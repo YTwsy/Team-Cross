@@ -392,7 +392,7 @@ func (s *Session) Context(ctx context.Context, kind, path string, after uint64, 
 	}
 	s.mu.Unlock()
 	if r.Provider == "claude" && (kind == "" || kind == "history") {
-		return claudeContext(r, cursors)
+		return claudeContext(r, s.app.Config.DataDir, cursors)
 	}
 	switch kind {
 	case "events":

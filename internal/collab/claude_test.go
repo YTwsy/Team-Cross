@@ -6,14 +6,172 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/google/uuid"
 	"teamcross/internal/nativeclaude"
 	"teamcross/internal/problem"
+	"teamcross/internal/workspace"
 )
+
+func TestClaudeCreateKeepsForkInPersonalHistoryHome(t *testing.T) {
+	repo, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	for _, args := range [][]string{{"init", "-b", "main"}, {"config", "user.name", "Fixture"}, {"config", "user.email", "fixture@example.invalid"}} {
+		if _, err := workspace.Git(ctx, repo, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(repo, "file.txt"), []byte("baseline"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := workspace.Git(ctx, repo, "add", "file.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := workspace.Git(ctx, repo, "commit", "-m", "fixture"); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	sourceID := uuid.NewString()
+	project := filepath.Join(home, "projects", "fixture")
+	if err := os.MkdirAll(project, 0700); err != nil {
+		t.Fatal(err)
+	}
+	sourcePath := filepath.Join(project, sourceID+".jsonl")
+	userID := uuid.NewString()
+	assistantID := uuid.NewString()
+	records := []map[string]any{
+		{"type": "user", "uuid": userID, "cwd": repo, "message": map[string]any{"content": "source question"}},
+		{"type": "assistant", "uuid": assistantID, "parentUuid": userID, "cwd": repo, "message": map[string]any{"model": "fixture-model", "content": []map[string]any{{"type": "text", "text": "source answer"}}, "stop_reason": "end_turn"}},
+	}
+	f, err := os.Create(sourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range records {
+		if err = json.NewEncoder(f).Encode(record); err != nil {
+			_ = f.Close()
+			t.Fatal(err)
+		}
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	settings := `{"env":{"ANTHROPIC_AUTH_TOKEN":"fixture-token"},"hooks":{"personal":true}}`
+	credentials := `{"oauthAccount":{"emailAddress":"owner@example.invalid"}}`
+	state := `{"theme":"dark","mcpServers":{"personal":{"command":"/usr/bin/false"}}}`
+	if err = os.WriteFile(filepath.Join(home, "settings.json"), []byte(settings), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(home, ".credentials.json"), []byte(credentials), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(home, ".claude.json"), []byte(state), 0600); err != nil {
+		t.Fatal(err)
+	}
+	plugin := filepath.Join(home, "plugins", "personal", "keep.txt")
+	if err = os.MkdirAll(filepath.Dir(plugin), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(plugin, []byte("keep"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	sourceBefore, _ := os.ReadFile(sourcePath)
+
+	dataDir := t.TempDir()
+	work := t.TempDir()
+	newID := uuid.NewString()
+	jobID := "abcdef12"
+	jobsPath := filepath.Join(work, "jobs.json")
+	jobs, _ := json.Marshal([]nativeclaude.Job{{ID: jobID, SessionID: newID, Cwd: repo, PID: 12345, Status: "idle"}})
+	if err = os.WriteFile(jobsPath, jobs, 0600); err != nil {
+		t.Fatal(err)
+	}
+	launchPath := filepath.Join(work, "launch-args")
+	daemonDir, err := os.MkdirTemp("/tmp", "cc-daemon-fixture-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(daemonDir) })
+	script := fmt.Sprintf(`#!/bin/sh
+case "$1" in
+ --version) printf '%%s\n' '2.1.270 (Claude Code)';;
+ --resume) printf '%%s\n' "$@" > %q; printf '%%s\n' 'backgrounded · %s';;
+ agents) cat %q;;
+ daemon) printf '%%s\n' %q;;
+ stop) exit 0;;
+ *) exit 1;;
+esac
+`, launchPath, jobID, jobsPath, daemonDir)
+	binary := filepath.Join(work, "claude")
+	if err = os.WriteFile(binary, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	a, err := Open(Config{DataDir: dataDir, Repo: repo, ClaudeBinary: binary, ClaudeHome: home, Loopback: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(a.Close)
+	in := CreateInput{Provider: "claude", SourceID: sourceID, WorkspaceMode: "existing", RequestID: uuid.NewString(), Title: "Personal Claude fork"}
+	preview, err := a.Preview(ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in.PreviewHash = preview.Hash
+	session, err := a.Create(ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session.record.ProviderHome != home || session.record.SessionID != newID || session.record.NativeJobID != jobID {
+		t.Fatal("collaboration did not retain personal Claude identity", session.record)
+	}
+	runtimeDir := filepath.Join(dataDir, "collaborations", in.RequestID, "claude-runtime")
+	if _, err = os.Stat(filepath.Join(runtimeDir, "settings.json")); err != nil {
+		t.Fatal("missing scoped runtime settings", err)
+	}
+	if _, err = os.Stat(filepath.Join(runtimeDir, "teamcross-runtime.json")); err != nil {
+		t.Fatal("missing scoped runtime marker", err)
+	}
+	projects, err := os.Lstat(filepath.Join(runtimeDir, "projects"))
+	if err != nil || !projects.IsDir() || projects.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("runtime projects is not isolated", projects, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(runtimeDir, "projects", "fixture", sourceID+".jsonl")); err != nil || string(got) != string(sourceBefore) {
+		t.Fatal("runtime source snapshot is invalid", err)
+	}
+	if _, err = os.Stat(filepath.Join(dataDir, "collaborations", in.RequestID, "claude-home")); !os.IsNotExist(err) {
+		t.Fatal("created obsolete isolated Claude home", err)
+	}
+	launch, err := os.ReadFile(launchPath)
+	if err != nil || !strings.Contains(string(launch), "--resume\n"+sourceID+"\n--fork-session\n") {
+		t.Fatal("did not request a native fork from personal history", string(launch), err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(home, "settings.json")); string(got) != settings {
+		t.Fatal("modified personal settings")
+	}
+	if got, _ := os.ReadFile(filepath.Join(home, ".credentials.json")); string(got) != credentials {
+		t.Fatal("modified personal credentials")
+	}
+	if got, _ := os.ReadFile(filepath.Join(home, ".claude.json")); string(got) != state {
+		t.Fatal("modified personal global state")
+	}
+	if got, _ := os.ReadFile(plugin); string(got) != "keep" {
+		t.Fatal("modified personal plugin state")
+	}
+	if got, _ := os.ReadFile(sourcePath); string(got) != string(sourceBefore) {
+		t.Fatal("modified source history")
+	}
+}
 
 type terminalFixture struct {
 	*fakeRuntime

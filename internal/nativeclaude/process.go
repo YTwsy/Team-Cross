@@ -19,9 +19,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 const MinimumVersion = "2.1.268"
@@ -31,7 +30,10 @@ const VerifiedVersion = "2.1.268"
 // transport outcome. Callers may report failure without suggesting a replay.
 var ErrRejected = errors.New("Claude 未接收此输入")
 
-type Config struct{ Binary, Home, Cwd, SourceHome, Log, MCPConfig string }
+// Home is A's effective personal Claude home, where the explicitly created
+// fork is published. RuntimeDir is the collaboration-owned CLAUDE_CONFIG_DIR
+// used for its transcript, settings, authentication snapshot, and job state.
+type Config struct{ Binary, Home, RuntimeDir, Cwd, Log, MCPConfig string }
 type Job struct {
 	ID         string `json:"id"`
 	SessionID  string `json:"sessionId"`
@@ -59,6 +61,7 @@ type marker struct {
 	Version   int    `json:"version"`
 	SourceID  string `json:"sourceId"`
 	SessionID string `json:"sessionId"`
+	JobID     string `json:"jobId,omitempty"`
 	Cwd       string `json:"cwd"`
 }
 type Process struct {
@@ -176,11 +179,17 @@ func writeJSON(path string, v any) error {
 	}
 	return os.Rename(path+".tmp", path)
 }
+func (c Config) configHome() string {
+	if c.RuntimeDir != "" {
+		return c.RuntimeDir
+	}
+	return c.Home
+}
 func (c Config) command(ctx context.Context, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, c.Binary, args...)
-	cmd.Env = Env(c.Home)
+	cmd.Env = Env(c.configHome())
 	cmd.Dir = c.Cwd
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -206,20 +215,58 @@ func (c Config) jobs(ctx context.Context) ([]Job, error) {
 	return jobs, err
 }
 
-// Prepare keeps the selected source snapshot and A's API routing in one
-// collaboration-owned config. No user history or settings file is modified.
+const markerVersion = 2
+
+func runtimeFile(c Config, name string) string {
+	return filepath.Join(c.RuntimeDir, name)
+}
+
+func containsPath(base, target string) bool {
+	rel, err := filepath.Rel(base, target)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// prepare verifies the selected personal-history snapshot, then copies only
+// that source transcript into the isolated runtime. Claude creates the fork
+// natively without seeing unrelated personal history or using personal
+// settings as a write target.
 func prepare(c Config, source History) error {
-	if c.Home == c.SourceHome || c.Home == "" {
-		return fmt.Errorf("Claude 协作需要独立配置目录")
+	if c.Home == "" || c.RuntimeDir == "" {
+		return fmt.Errorf("Claude 协作需要个人历史目录和独立运行目录")
 	}
-	if entries, err := os.ReadDir(c.Home); err == nil && len(entries) != 0 {
-		return fmt.Errorf("Claude 配置目录已存在，请检查上次创建结果")
-	}
-	if err := os.MkdirAll(c.Home, 0700); err != nil {
+	home, err := filepath.Abs(c.Home)
+	if err != nil {
 		return err
 	}
+	path, err := filepath.Abs(source.Path)
+	if err != nil {
+		return err
+	}
+	runtimeDir, err := filepath.Abs(c.RuntimeDir)
+	if err != nil {
+		return err
+	}
+	if containsPath(home, runtimeDir) || containsPath(runtimeDir, home) {
+		return fmt.Errorf("Claude 个人历史目录和协作运行目录不能重叠")
+	}
+	projects := filepath.Join(home, "projects")
+	if filepath.Dir(filepath.Dir(path)) != projects || filepath.Base(path) != source.ID+".jsonl" {
+		return fmt.Errorf("Claude 来源不属于个人历史目录")
+	}
+	b, err := os.ReadFile(source.Path)
+	if err != nil {
+		return err
+	}
+	if len(b) > maxHistory {
+		return fmt.Errorf("Claude 来源历史过大")
+	}
+	sum := sha256.Sum256(b)
+	if source.Fingerprint == "" || hex.EncodeToString(sum[:]) != source.Fingerprint {
+		return fmt.Errorf("Claude 来源已变化，请重新查看起点")
+	}
+
 	var user map[string]json.RawMessage
-	if b, err := os.ReadFile(filepath.Join(c.SourceHome, "settings.json")); err == nil {
+	if b, err := os.ReadFile(filepath.Join(c.Home, "settings.json")); err == nil {
 		if err = json.Unmarshal(b, &user); err != nil {
 			return fmt.Errorf("Claude 用户设置格式无效")
 		}
@@ -239,33 +286,45 @@ func prepare(c Config, source History) error {
 		}
 		settings["env"] = route
 	}
-	if err := writeJSON(filepath.Join(c.Home, "settings.json"), settings); err != nil {
+	if entries, readErr := os.ReadDir(c.RuntimeDir); readErr == nil && len(entries) != 0 {
+		return fmt.Errorf("Claude 运行目录已存在，请检查上次创建结果")
+	} else if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+		return readErr
+	}
+	if err = os.MkdirAll(c.RuntimeDir, 0700); err != nil {
 		return err
 	}
-	if b, err := os.ReadFile(filepath.Join(c.SourceHome, ".credentials.json")); err == nil {
-		if err = os.WriteFile(filepath.Join(c.Home, ".credentials.json"), b, 0600); err != nil {
-			return err
-		}
-	}
-	if err := Bootstrap(c.Home, c.Cwd); err != nil {
+	snapshotDir := filepath.Join(runtimeFile(c, "projects"), filepath.Base(filepath.Dir(path)))
+	if err = os.MkdirAll(snapshotDir, 0700); err != nil {
 		return err
 	}
-	b, err := os.ReadFile(source.Path)
+	snapshot := filepath.Join(snapshotDir, filepath.Base(path))
+	f, err := os.OpenFile(snapshot, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return err
 	}
-	if len(b) > maxHistory {
-		return fmt.Errorf("Claude 来源历史过大")
+	if _, err = f.Write(b); err == nil {
+		err = f.Sync()
 	}
-	sum := sha256.Sum256(b)
-	if source.Fingerprint == "" || hex.EncodeToString(sum[:]) != source.Fingerprint {
-		return fmt.Errorf("Claude 来源已变化，请重新查看起点")
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
 	}
-	dest := filepath.Join(c.Home, "projects", filepath.Base(filepath.Dir(source.Path)), filepath.Base(source.Path))
-	if err = os.MkdirAll(filepath.Dir(dest), 0700); err != nil {
+	if err != nil {
 		return err
 	}
-	return os.WriteFile(dest, b, 0600)
+	// Authentication is copied into the private runtime when the native CLI
+	// stores it as a file. The personal credential file is never a write target.
+	if credentials, readErr := os.ReadFile(filepath.Join(home, ".credentials.json")); readErr == nil {
+		if err = os.WriteFile(runtimeFile(c, ".credentials.json"), credentials, 0600); err != nil {
+			return err
+		}
+	} else if !errors.Is(readErr, os.ErrNotExist) {
+		return fmt.Errorf("无法读取 Claude 认证快照：%w", readErr)
+	}
+	if err = Bootstrap(c.RuntimeDir, c.Cwd); err != nil {
+		return err
+	}
+	return writeJSON(runtimeFile(c, "settings.json"), settings)
 }
 
 // Bootstrap applies only to a dedicated config and a directory the user chose
@@ -316,19 +375,15 @@ func Fork(ctx context.Context, c Config, source History, title string) (*Process
 	if err := prepare(c, source); err != nil {
 		return nil, err
 	}
-	id := uuid.NewString()
-	if err := materializeFork(c, source, id, title); err != nil {
-		return nil, err
-	}
-	p := &Process{Config: c, meta: marker{Version: 1, SourceID: source.ID, SessionID: id, Cwd: c.Cwd}}
-	if err := writeJSON(filepath.Join(c.Home, "teamcross-runtime.json"), p.meta); err != nil {
+	p := &Process{Config: c, meta: marker{Version: markerVersion, SourceID: source.ID, Cwd: c.Cwd}}
+	if err := writeJSON(runtimeFile(c, "teamcross-runtime.json"), p.meta); err != nil {
 		return nil, err
 	}
 	mcpConfig := c.MCPConfig
 	if mcpConfig == "" {
 		mcpConfig = `{"mcpServers":{}}`
 	}
-	args := []string{"--resume", id, "--bg", "--name", title, "--settings", filepath.Join(c.Home, "settings.json"), "--setting-sources", "", "--strict-mcp-config", "--mcp-config", mcpConfig, "--permission-mode", "manual", "--tools", "Bash,Read,Write,Edit,Glob,Grep,AskUserQuestion", "--no-chrome"}
+	args := []string{"--resume", source.ID, "--fork-session", "--bg", "--name", title, "--settings", runtimeFile(c, "settings.json"), "--setting-sources", "", "--strict-mcp-config", "--mcp-config", mcpConfig, "--permission-mode", "manual", "--tools", "Bash,Read,Write,Edit,Glob,Grep,AskUserQuestion", "--no-chrome"}
 	if source.Model != "" {
 		args = append(args, "--model", source.Model)
 	}
@@ -339,12 +394,17 @@ func Fork(ctx context.Context, c Config, source History, title string) (*Process
 		p.Close()
 		return nil, err
 	}
-	if p.Job.SessionID != id {
+	if p.Job.SessionID == "" || p.Job.SessionID == source.ID {
 		p.Close()
 		return nil, fmt.Errorf("Claude 未创建新的 fork")
 	}
 	p.meta.SessionID = p.Job.SessionID
-	if err := writeJSON(filepath.Join(c.Home, "teamcross-runtime.json"), p.meta); err != nil {
+	p.meta.JobID = p.Job.ID
+	if err := writeJSON(runtimeFile(c, "teamcross-runtime.json"), p.meta); err != nil {
+		p.Close()
+		return nil, err
+	}
+	if _, err := p.publishHistory(); err != nil && !errors.Is(err, os.ErrNotExist) {
 		p.Close()
 		return nil, err
 	}
@@ -355,12 +415,23 @@ func Restore(ctx context.Context, c Config, id string) (*Process, error) {
 		return nil, err
 	}
 	var m marker
-	b, err := os.ReadFile(filepath.Join(c.Home, "teamcross-runtime.json"))
+	b, err := os.ReadFile(runtimeFile(c, "teamcross-runtime.json"))
 	if err != nil {
 		return nil, err
 	}
-	if json.Unmarshal(b, &m) != nil || m.Version != 1 || m.SessionID != id || m.Cwd != c.Cwd {
+	if json.Unmarshal(b, &m) != nil || m.Version != markerVersion || m.SessionID != id || !regexpJob.MatchString(m.JobID) || m.Cwd != c.Cwd {
 		return nil, fmt.Errorf("Claude 协作运行时记录不匹配")
+	}
+	personal := c
+	personal.RuntimeDir = ""
+	personalJobs, err := personal.jobs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("无法确认个人 Claude 会话占用：%w", err)
+	}
+	for _, j := range personalJobs {
+		if j.SessionID == id && j.Cwd == c.Cwd && j.PID > 0 && j.State != "stopped" && j.State != "failed" {
+			return nil, fmt.Errorf("Claude 会话已在 Team Cross 之外运行，请先结束该运行时")
+		}
 	}
 	p := &Process{Config: c, meta: m}
 	// A Core crash can leave its native worker alive. Reconnect that worker;
@@ -369,11 +440,19 @@ func Restore(ctx context.Context, c Config, id string) (*Process, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, j := range jobs {
+	var owned *Job
+	for i := range jobs {
+		j := &jobs[i]
 		if j.SessionID != id || j.Cwd != c.Cwd || j.PID <= 0 || j.State == "stopped" || j.State == "failed" {
 			continue
 		}
-		p.Job = j
+		if j.ID != m.JobID {
+			return nil, fmt.Errorf("Claude 会话已在 Team Cross 之外运行，请先结束该运行时")
+		}
+		owned = j
+	}
+	if owned != nil {
+		p.Job = *owned
 		p.Socket, err = SocketPath(ctx, c)
 		if err != nil {
 			return nil, err
@@ -395,12 +474,20 @@ func Restore(ctx context.Context, c Config, id string) (*Process, error) {
 	}
 	// Adding launch/model/settings flags here makes Claude create a copy.
 	if err = p.launch(ctx, []string{"--resume", id, "--bg"}); err != nil {
-		p.Close()
+		p.stopJob()
+		p.closed.Store(true)
 		return nil, err
 	}
 	if p.Job.SessionID != id {
-		p.Close()
+		p.stopJob()
+		p.closed.Store(true)
 		return nil, fmt.Errorf("Claude 恢复了不同会话，已停止该运行时")
+	}
+	p.meta.JobID = p.Job.ID
+	if err = writeJSON(runtimeFile(c, "teamcross-runtime.json"), p.meta); err != nil {
+		p.stopJob()
+		p.closed.Store(true)
+		return nil, err
 	}
 	return p, nil
 }
@@ -434,18 +521,91 @@ func (p *Process) launch(ctx context.Context, args []string) error {
 	return nil
 }
 func (p *Process) History() (History, error) {
-	return Read(p.Config.Home, p.Job.SessionID)
-}
-func SavedHistory(home, id, cwd string) (History, error) {
-	var m marker
-	b, err := os.ReadFile(filepath.Join(home, "teamcross-runtime.json"))
+	path, err := p.publishHistory()
 	if err != nil {
 		return History{}, err
 	}
-	if json.Unmarshal(b, &m) != nil || m.Version != 1 || m.SessionID != id || m.Cwd != cwd {
+	return ReadFile(path)
+}
+
+// publishHistory exposes only the newly created collaboration transcript in
+// A's personal history. A hard link keeps both native CLIs on the same file
+// without exposing the rest of the personal projects tree to the collaboration
+// worker. A file symlink is the cross-volume fallback.
+func (p *Process) publishHistory() (string, error) {
+	if p.Config.Home == "" || p.Config.RuntimeDir == "" || p.Job.SessionID == "" {
+		return "", fmt.Errorf("Claude 协作历史位置不完整")
+	}
+	runtimePath, runtimeErr := historyPath(p.Config.RuntimeDir, p.Job.SessionID)
+	personalPath, personalErr := historyPath(p.Config.Home, p.Job.SessionID)
+	if personalErr == nil {
+		if runtimeErr != nil {
+			if errors.Is(runtimeErr, os.ErrNotExist) {
+				return personalPath, nil
+			}
+			return "", runtimeErr
+		}
+		runtimeInfo, err := os.Stat(runtimePath)
+		if err != nil {
+			return "", err
+		}
+		personalInfo, err := os.Stat(personalPath)
+		if err != nil {
+			return "", err
+		}
+		if !os.SameFile(runtimeInfo, personalInfo) {
+			return "", fmt.Errorf("个人 Claude 历史已有不同的同 ID 会话")
+		}
+		return personalPath, nil
+	}
+	if !errors.Is(personalErr, os.ErrNotExist) {
+		return "", personalErr
+	}
+	if runtimeErr != nil {
+		return "", runtimeErr
+	}
+	info, err := os.Lstat(runtimePath)
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("Claude 协作历史不是普通文件")
+	}
+	rel, err := filepath.Rel(runtimeFile(p.Config, "projects"), runtimePath)
+	if err != nil || filepath.Dir(rel) == "." || filepath.Dir(filepath.Dir(rel)) != "." {
+		return "", fmt.Errorf("Claude 协作历史位置无效")
+	}
+	destination := filepath.Join(p.Config.Home, "projects", rel)
+	if err = os.MkdirAll(filepath.Dir(destination), 0700); err != nil {
+		return "", err
+	}
+	if err = os.Link(runtimePath, destination); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return p.publishHistory()
+		}
+		if !errors.Is(err, syscall.EXDEV) {
+			return "", fmt.Errorf("无法发布 Claude 个人历史：%w", err)
+		}
+		if err = os.Symlink(runtimePath, destination); err != nil {
+			if errors.Is(err, os.ErrExist) {
+				return p.publishHistory()
+			}
+			return "", fmt.Errorf("无法跨磁盘发布 Claude 个人历史：%w", err)
+		}
+	}
+	return destination, nil
+}
+
+func SavedHistory(home, runtimeDir, id, cwd string) (History, error) {
+	var m marker
+	b, err := os.ReadFile(filepath.Join(runtimeDir, "teamcross-runtime.json"))
+	if err != nil {
+		return History{}, err
+	}
+	if json.Unmarshal(b, &m) != nil || m.Version != markerVersion || m.SessionID != id || !regexpJob.MatchString(m.JobID) || m.Cwd != cwd {
 		return History{}, fmt.Errorf("Claude 会话记录不匹配")
 	}
-	p := Process{Config: Config{Home: home, Cwd: cwd}, Job: Job{SessionID: id}, meta: m}
+	p := Process{Config: Config{Home: home, RuntimeDir: runtimeDir, Cwd: cwd}, Job: Job{SessionID: id}, meta: m}
 	return p.History()
 }
 func (p *Process) Status(ctx context.Context) (Job, error) {
@@ -464,20 +624,28 @@ func (p *Process) Status(ctx context.Context) (Job, error) {
 	return Job{}, fmt.Errorf("Claude 后台 worker 不存在")
 }
 func (p *Process) Alive() bool { return !p.closed.Load() }
+func (p *Process) stopJob() {
+	if p.Job.ID == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, _ = p.Config.command(ctx, "stop", p.Job.ID)
+}
 func (p *Process) Close() {
 	p.closeOnce.Do(func() {
 		p.closed.Store(true)
-		// This config belongs to exactly one collaboration, never the user's daemon.
+		// The marker and daemon both belong to this collaboration config. Stop the
+		// exact job, then its isolated supervisor; personal Claude stays untouched.
 		var m marker
-		b, err := os.ReadFile(filepath.Join(p.Config.Home, "teamcross-runtime.json"))
-		if err != nil || json.Unmarshal(b, &m) != nil || m.Version != 1 || m.Cwd != p.Config.Cwd {
+		b, err := os.ReadFile(runtimeFile(p.Config, "teamcross-runtime.json"))
+		if err != nil || json.Unmarshal(b, &m) != nil || m.Version != markerVersion || m.SourceID != p.meta.SourceID || m.Cwd != p.Config.Cwd || (m.SessionID != "" && m.SessionID != p.Job.SessionID) || (m.JobID != "" && m.JobID != p.Job.ID) {
 			return
 		}
+		p.stopJob()
+		_, _ = p.publishHistory()
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		if p.Job.ID != "" {
-			_, _ = p.Config.command(ctx, "stop", p.Job.ID)
-		}
 		_, _ = p.Config.command(ctx, "daemon", "stop", "--any")
 	})
 }
@@ -567,7 +735,7 @@ func (p *Process) connect(ctx context.Context, request map[string]any) (net.Conn
 }
 
 func (p *Process) controlKey() (string, error) {
-	f, err := os.Open(filepath.Join(p.Config.Home, "daemon", "control.key"))
+	f, err := os.Open(filepath.Join(p.Config.configHome(), "daemon", "control.key"))
 	if err != nil {
 		return "", fmt.Errorf("%w：无法读取 Claude 本机控制凭据", ErrRejected)
 	}

@@ -290,9 +290,6 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 	now := time.Now()
 	r := Record{Provider: provider, ID: in.RequestID, Title: title, SourceID: in.SourceID, SourceTurnID: p.SourceTurnID, WorkspaceMode: in.WorkspaceMode, Repo: p.Workspace.Repo, ExecutionCwd: p.Workspace.SourceCwd, WorkspaceRoot: p.Workspace.Repo, WorkspaceOwned: in.WorkspaceMode == "worktree", Head: p.Workspace.Head, Branch: p.Workspace.Branch, ProviderHome: home, State: "preparing", CreatedAt: now, UpdatedAt: now, PreviewHash: p.Hash, Annotations: []Annotation{}, Commands: map[string]Command{}}
 	dir := filepath.Join(a.Config.DataDir, "collaborations", r.ID)
-	if provider == "claude" {
-		r.ProviderHome = filepath.Join(dir, "claude-home")
-	}
 	if e = os.MkdirAll(dir, 0700); e != nil {
 		return nil, e
 	}
@@ -460,6 +457,14 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 		s.mu.Unlock()
 		p.Close()
 		return fmt.Errorf("Core 已退出")
+	}
+	if claude, ok := p.(*claudeRuntime); ok {
+		s.record.NativeJobID = claude.driver.Job.ID
+		if e = s.saveLocked(); e != nil {
+			s.mu.Unlock()
+			p.Close()
+			return e
+		}
 	}
 	s.process = p
 	s.annotationAccess = true
