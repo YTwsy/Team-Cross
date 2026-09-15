@@ -6,7 +6,22 @@
 
 `make release` 调用 [构建脚本](../../../scripts/build-release.py)，在 `dist/release/<版本>/` 生成 CLI tar.gz、App、DMG、SHA256SUMS、release.json 和独立 tap 内容。App 的 helper 位于 `Contents/Resources/teamcross`。Cask 安装 App 并用 `binary` 注册内置 CLI；Formula 提供独立 CLI，两种 Homebrew 安装互斥。Core 仍按数据目录共享，包管理互斥不改变服务发现协议。
 
-首个公开版本使用 `v0.1.1`，发布标题为 `Team Cross v0.1.1`。发布来源为核对过的干净提交；构建脚本只生成产物，远端发布另外执行。先使 `YTwsy/Team-Cross` Release 产物可下载并核对校验值，再发布 `YTwsy/homebrew-teamcross` 中对应的配方。生成的下载 URL 不代表已经发布，实际状态以 GitHub 为准。本地安装测试使用临时 tap、临时 Homebrew 前缀和应用目录。
+首个公开版本使用 `v0.1.1`，发布标题为 `Team Cross v0.1.1`。发布来源为核对过的干净提交；本地构建脚本只生成产物，不发布网络内容。先使 `YTwsy/Team-Cross` Release 产物可下载并核对校验值，再发布 `YTwsy/homebrew-teamcross` 中对应的配方。生成的下载 URL 不代表已经发布，实际状态以 GitHub 为准。本地安装测试使用临时 tap、临时 Homebrew 前缀和应用目录。
+
+GitHub 上的 `CI` workflow 对指向 `main` 的 PR 和 `main` push 运行 Go test/vet、相关 race test、Web check/test/build、嵌入资源一致性和 Darwin arm64 CLI 交叉编译。所有 Tailcat 联网用例默认跳过，不把公共 DERP 可用性变成普通 PR 的外部硬依赖。
+
+`Unsigned macOS release candidate` workflow 只接受 `X.Y.Z-rc.N`：手动触发时从可到达 `origin/main` 的所选提交构建、验证、attest 并保存 14 天 workflow artifact，不创建 Release；推送 annotated `vX.Y.Z-rc.N` tag 时使用同一构建链，并在全部检查完成后创建不可覆盖的 GitHub Pre-release。tag 版本是发布版本的唯一输入，候选构建不使用 Makefile 或脚本的开发默认值。自动门槛依次包括：
+
+1. 完整 Git 历史、tag 格式与 `origin/main` 来源校验。
+2. Go/Web 工程门槛，共享一套 Go 缓存并串行运行 test、vet 与 race，避免 Tailcat/Tailscale/gVisor 冷编译重复占用磁盘。
+3. arm64 CLI、App、DMG、校验文件、构建清单和 Homebrew 定义生成。
+4. `verify-release.py` 的 DMG/App/CLI/生命周期检查，以及 `verify-homebrew.py` 的隔离 Formula/Cask 检查。
+5. `release.json` 的版本、来源提交、架构、最低系统、干净状态和 unsigned/unnotarized 边界检查。
+6. CLI tar 与 DMG 的 GitHub artifact attestation、下载后 SHA-256 复核和 Pre-release 创建。
+
+tag 发布另要求同一提交包含 `docs/releases/vX.Y.Z-rc.N.md`，并在发行说明中明确 ad-hoc 签名、未使用 Developer ID 和未公证。正式 `vX.Y.Z` tag 不触发 unsigned workflow；Developer ID 签名、公证及正式 Release 要在受保护的独立流程中完成，不能因缺少凭据静默降级。GitHub provenance 只证明产物的源码和构建过程，不等于 Apple 签名、公证或 Gatekeeper 验收。
+
+Homebrew 定义随候选作为 workflow artifact 保存并已完成隔离安装验证，但 workflow 不写入独立的 `YTwsy/homebrew-teamcross` 仓库。公共 tap 仍在 Release 资产可下载并复核后单独提交；未来自动化应使用仅覆盖 tap 仓库的 GitHub App 或等价最小权限凭据，并以 PR 而非直接改主分支的方式发布。
 
 ```sh
 make release
@@ -22,7 +37,7 @@ make verify-homebrew VERSION=0.1.1
 python3 scripts/build-release.py --version 0.1.1 --sign-identity 'Developer ID Application: …' --notary-profile teamcross
 ```
 
-未提供 Developer ID 身份时使用 ad-hoc 签名；签名与公证状态如实保留在构建清单，不作为版本名称。所有非 `-dev` 发布构建要求干净 checkout，重建 Web 后再次核对；已有版本产物不被静默替换。清单记录完整提交、版本、buildNumber、dirty、架构、系统下限与校验值。App 的 buildNumber 来自提交数量。脚本不保存凭据、不发布网络内容。首版无登录自启和自动更新，升级由原安装渠道处理；卸载不清理协作数据和工作目录。
+未提供 Developer ID 身份时使用 ad-hoc 签名；签名与公证状态如实保留在构建清单，不作为版本名称。所有非 `-dev` 发布构建要求干净 checkout，重建 Web 后再次核对；已有版本产物不被静默替换。清单记录完整提交、版本、buildNumber、dirty、架构、系统下限与校验值。App 的 buildNumber 来自完整提交历史的提交数量，因此 GitHub release checkout 必须使用完整历史。脚本不保存凭据、不发布网络内容。首版无登录自启和自动更新，升级由原安装渠道处理；卸载不清理协作数据和工作目录。
 
 ## 命令入口的归属
 
@@ -64,7 +79,7 @@ MCP 配置保存稳定 opt/App 绝对路径。通过 Cask 命令链接调用时�
 
 ## 检查与相关规范
 
-[安装验证](../../../scripts/verify-release.py) 验证校验文件、DMG 挂载/安装、CLI/App 版本一致与实例复用，并调用 [App 副本验证](../../../scripts/verify-app-instance.py)。后者从两个临时 App 副本通过真实 macOS 启动/URL/退出事件验证外壳去重、请求确认、卡住后的恢复及 Core 保留；邀请 helper 使用测试内容，Core 使用包内真实二进制，不打开浏览器或调用模型。[生命周期验证](../../../scripts/verify-lifecycle.py) 验证 Core 并发启动、符号链接路径、端口冲突、鉴权停止、MCP 延迟启动、崩溃恢复及数据保留。工程、真实客户端、浏览器和清理门槛继续按 [验证契约](validation/test-gates.md)。同机不能证明两台 Mac LAN、跨网络 Tailcat 或强制 DERP，未签名本地产物不能证明公开安装或正式公证通过。
+[安装验证](../../../scripts/verify-release.py) 验证校验文件、DMG 挂载/安装、CLI/App 版本一致与实例复用，并调用 [App 副本验证](../../../scripts/verify-app-instance.py)。后者从两个临时 App 副本通过真实 macOS 启动/URL/退出事件验证外壳去重、请求确认、卡住后的恢复及 Core 保留；邀请 helper 使用测试内容，Core 使用包内真实二进制，不打开浏览器或调用模型。[生命周期验证](../../../scripts/verify-lifecycle.py) 验证 Core 并发启动、符号链接路径、端口冲突、鉴权停止、MCP 延迟启动、崩溃恢复及数据保留。工程、真实客户端、浏览器和清理门槛继续按 [验证契约](validation/test-gates.md)。GitHub 托管 runner 首次执行仍需实际确认 App 副本检查所需的图形登录会话可用；若基础设施不支持，必须将该结果明确列为本机或专用 Mac 门槛，不能静默跳过。同机或托管 runner 不能证明两台 Mac LAN、跨网络 Tailcat 或强制 DERP，未使用 Developer ID 的候选产物不能证明公开安装或正式公证通过。
 
 相关来源：[产品流程](product-flows.md) · [架构](architecture.md) · [协议](protocol.md) · [输入协调](decisions/input-and-sharing.md)。
 

@@ -175,7 +175,9 @@ make verify-release
 make verify-homebrew
 ```
 
-本地开发构建默认 `0.1.4-dev`，输出位于 `dist/release/0.1.4-dev/`。版本构建使用 `make release VERSION=0.1.4`，要求干净 checkout，并在重建 Web 资源后再次核对。使用相同 `VERSION` 运行两个安装验证目标。构建不上传产物。完整参数、隔离安装和签名入口见 [分发与首次体验](docs/agent-wiki/sources/distribution-and-onboarding.md)。
+本地开发构建默认 `0.1.4-dev`，输出位于 `dist/release/0.1.4-dev/`。版本构建使用 `make release VERSION=0.1.4`，要求干净 checkout，并在重建 Web 资源后再次核对。使用相同 `VERSION` 运行两个安装验证目标。构建不上传产物。
+
+GitHub 对指向 `main` 的 PR 和 `main` push 运行 Go、race 与 Web 工程门槛。`Unsigned macOS release candidate` workflow 可以手动构建、验证和保存一个不发布的 `X.Y.Z-rc.N` arm64 候选；推送可从 `origin/main` 到达的 annotated `vX.Y.Z-rc.N` tag 时，它才会生成 provenance 并创建 GitHub Pre-release。Tailcat 公网 smoke 和两台 Mac 验收不在这条托管流水线中自动运行，正式 Developer ID 签名、公证与 Homebrew tap 发布仍是独立步骤。完整参数、证据边界和发布顺序见 [分发与首次体验](docs/agent-wiki/sources/distribution-and-onboarding.md)。
 
 
 ```sh

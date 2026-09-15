@@ -1,0 +1,281 @@
+name: Unsigned macOS release candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release candidate version without v, for example 0.1.6-rc.1
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*.*.*-rc.*"
+
+concurrency:
+  group: unsigned-release-candidate-${{ github.ref }}-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and verify arm64 candidate
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+    outputs:
+      artifact_name: ${{ steps.release.outputs.artifact_name }}
+      release_tag: ${{ steps.release.outputs.release_tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Check out candidate source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure shared Go caches
+        shell: bash
+        run: |
+          echo "GOCACHE=$RUNNER_TEMP/go-build-cache" >>"$GITHUB_ENV"
+          echo "GOMODCACHE=$RUNNER_TEMP/go-mod-cache" >>"$GITHUB_ENV"
+
+      - name: Validate version and source provenance
+        id: release
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            release_tag="$GITHUB_REF_NAME"
+            version="${release_tag#v}"
+            if [[ "$(git cat-file -t "refs/tags/$release_tag")" != "tag" ]]; then
+              echo "release candidate tags must be annotated: $release_tag" >&2
+              exit 1
+            fi
+          else
+            version="$REQUESTED_VERSION"
+            release_tag="v$version"
+          fi
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*$ ]]; then
+            echo "unsupported release candidate version: $version" >&2
+            exit 1
+          fi
+          if [[ "$release_tag" != "v$version" ]]; then
+            echo "release tag and version disagree: $release_tag / $version" >&2
+            exit 1
+          fi
+
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main || {
+            echo "candidate source is not reachable from origin/main: $GITHUB_SHA" >&2
+            exit 1
+          }
+          git diff --quiet
+          git diff --cached --quiet
+
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "release_tag=$release_tag" >>"$GITHUB_OUTPUT"
+          echo "artifact_name=Team-Cross-$version-unsigned-candidate" >>"$GITHUB_OUTPUT"
+
+      - name: Record runner capacity
+        run: df -h /
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Set up pnpm
+        run: npm install --global pnpm@11.19.0
+
+      - name: Install Web dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run engineering gates
+        run: |
+          git show --check --format= HEAD
+          go test ./...
+          go vet ./...
+          go test -race \
+            ./internal/collab \
+            ./internal/mcp \
+            ./internal/sharing \
+            ./internal/nativecodex \
+            ./internal/nativeclaude \
+            ./internal/service \
+            ./internal/cliinstall
+          pnpm --filter @teamcross/web check
+          pnpm --filter @teamcross/web test
+          pnpm --filter @teamcross/web build
+          git diff --exit-code -- internal/webassets/dist
+
+      - name: Build unsigned release candidate
+        id: package
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.release_tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          python3 scripts/build-release.py \
+            --version "$RELEASE_VERSION" \
+            --base-url "https://github.com/YTwsy/Team-Cross/releases/download/$RELEASE_TAG"
+          echo "release_dir=$GITHUB_WORKSPACE/dist/release/$RELEASE_VERSION" >>"$GITHUB_OUTPUT"
+
+      - name: Verify release installation and lifecycle
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: python3 scripts/verify-release.py "dist/release/$RELEASE_VERSION"
+
+      - name: Verify isolated Homebrew installs
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: python3 scripts/verify-homebrew.py "dist/release/$RELEASE_VERSION"
+
+      - name: Verify release manifest and checksums
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          release_dir="$GITHUB_WORKSPACE/dist/release/$RELEASE_VERSION"
+          python3 - "$release_dir/release.json" "$RELEASE_VERSION" "$GITHUB_SHA" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          manifest = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          expected = {
+              "version": sys.argv[2],
+              "commit": sys.argv[3],
+              "dirty": False,
+              "architecture": "arm64",
+              "minimumMacOS": "14.0",
+              "developerIDSigned": False,
+              "notarized": False,
+          }
+          for field, value in expected.items():
+              if manifest.get(field) != value:
+                  raise SystemExit(f"release.json {field}: expected {value!r}, got {manifest.get(field)!r}")
+          expected_artifacts = {
+              f"teamcross-{sys.argv[2]}-darwin-arm64.tar.gz",
+              f"Team-Cross-{sys.argv[2]}-arm64.dmg",
+          }
+          if set(manifest.get("artifacts", {})) != expected_artifacts:
+              raise SystemExit("release.json does not contain the exact CLI and DMG artifact set")
+          PY
+          cd "$release_dir"
+          shasum -a 256 -c SHA256SUMS
+
+      - name: Attest CLI build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/release/${{ steps.release.outputs.version }}/teamcross-${{ steps.release.outputs.version }}-darwin-arm64.tar.gz
+
+      - name: Attest DMG build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/release/${{ steps.release.outputs.version }}/Team-Cross-${{ steps.release.outputs.version }}-arm64.dmg
+
+      - name: Preserve candidate artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.release.outputs.artifact_name }}
+          path: |
+            dist/release/${{ steps.release.outputs.version }}/teamcross-${{ steps.release.outputs.version }}-darwin-arm64.tar.gz
+            dist/release/${{ steps.release.outputs.version }}/Team-Cross-${{ steps.release.outputs.version }}-arm64.dmg
+            dist/release/${{ steps.release.outputs.version }}/SHA256SUMS
+            dist/release/${{ steps.release.outputs.version }}/release.json
+            dist/release/${{ steps.release.outputs.version }}/homebrew-teamcross/**
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Record final runner capacity
+        if: always()
+        run: df -h /
+
+  publish:
+    name: Publish GitHub pre-release
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v6
+
+      - name: Download verified candidate
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: candidate
+
+      - name: Verify downloaded candidate
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          cd candidate
+          sha256sum -c SHA256SUMS
+          python3 - release.json "$RELEASE_VERSION" "$GITHUB_SHA" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          manifest = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          if manifest.get("version") != sys.argv[2] or manifest.get("commit") != sys.argv[3]:
+              raise SystemExit("downloaded release manifest does not match the tag source")
+          if manifest.get("dirty") or manifest.get("developerIDSigned") or manifest.get("notarized"):
+              raise SystemExit("downloaded candidate is not the expected clean unsigned build")
+          PY
+
+      - name: Validate release notes
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+        run: |
+          notes_file="docs/releases/$RELEASE_TAG.md"
+          if [[ ! -s "$notes_file" ]]; then
+            echo "release notes are required at $notes_file" >&2
+            exit 1
+          fi
+          grep -Fq 'ad-hoc' "$notes_file" || {
+            echo "release notes must state the ad-hoc signing boundary" >&2
+            exit 1
+          }
+          grep -Fq '未使用 Developer ID 签名或 Apple 公证' "$notes_file" || {
+            echo "release notes must state that Developer ID signing and Apple notarization were not used" >&2
+            exit 1
+          }
+
+      - name: Create GitHub pre-release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "refusing to replace existing release: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" \
+            "candidate/teamcross-$RELEASE_VERSION-darwin-arm64.tar.gz#Apple Silicon CLI（ad-hoc 签名）" \
+            "candidate/Team-Cross-$RELEASE_VERSION-arm64.dmg#Apple Silicon App（ad-hoc 签名，未公证）" \
+            "candidate/SHA256SUMS#SHA-256 校验文件" \
+            "candidate/release.json#版本、来源提交与签名状态" \
+            --verify-tag \
+            --prerelease \
+            --title "Team Cross $RELEASE_TAG" \
+            --notes-file "docs/releases/$RELEASE_TAG.md"

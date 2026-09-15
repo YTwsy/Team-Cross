@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  engineering:
+    name: Go and Web engineering gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure shared Go caches
+        shell: bash
+        run: |
+          echo "GOCACHE=$RUNNER_TEMP/go-build-cache" >>"$GITHUB_ENV"
+          echo "GOMODCACHE=$RUNNER_TEMP/go-mod-cache" >>"$GITHUB_ENV"
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Set up pnpm
+        run: npm install --global pnpm@11.19.0
+
+      - name: Install Web dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check patch formatting
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -n "$BASE_SHA" && ! "$BASE_SHA" =~ ^0+$ ]] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            git diff --check "$BASE_SHA...HEAD"
+          else
+            git show --check --format= HEAD
+          fi
+
+      - name: Run Go tests
+        run: go test ./...
+
+      - name: Run Go vet
+        run: go vet ./...
+
+      - name: Run concurrency regressions
+        run: >-
+          go test -race
+          ./internal/collab
+          ./internal/mcp
+          ./internal/sharing
+          ./internal/nativecodex
+          ./internal/nativeclaude
+          ./internal/service
+          ./internal/cliinstall
+
+      - name: Check Web sources
+        run: pnpm --filter @teamcross/web check
+
+      - name: Test Web interactions
+        run: pnpm --filter @teamcross/web test
+
+      - name: Rebuild embedded Web assets
+        run: pnpm --filter @teamcross/web build
+
+      - name: Verify embedded Web assets are current
+        run: git diff --exit-code -- internal/webassets/dist
+
+      - name: Cross-compile the macOS arm64 CLI
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+          CGO_ENABLED: "0"
+        run: go build -trimpath -o "${RUNNER_TEMP}/teamcross-darwin-arm64" ./cmd/teamcross
