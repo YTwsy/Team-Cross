@@ -9,6 +9,7 @@
 - 当前轮忙碌时不能重复开始；补充、中断和审批分别使用对应入口。
 - `requestId` 用于去重与查询，RPC 返回不是整轮完成。状态不明先查询，不自动重放。
 - 邀请期限只限制首次加入，一份邀请限一人；加入后的独立访问凭据不随邀请码到期。断线、睡眠、关闭客户端或 B 重启不撤销资格。
+- 邀请前显式选择 `lan` 或实验性 `tailcat`，不自动回退或在断线后切换；两种传输复用相同 TLS pin、成员资格和输入协调。
 - B 主动离开、A 结束共享或退出/重启才终止加入资格。主机不可达只能判断断线；观察到结束才显示新邀请入口。
 - 结束共享后，等执行、审批、已接收请求和直接连接清空，再关闭该协作的后台进程释放原生锁；读取上下文不自动恢复。
 
@@ -16,9 +17,9 @@
 
 ## 代码与检查
 
-[rpc.go](../../../../internal/collab/rpc.go) 负责写入、事件和审批；[network.go](../../../../internal/collab/network.go) 负责交接、加入、结束与代理；[sharing.go](../../../../internal/sharing/sharing.go) 负责 LAN 邀请与 TLS。
+[rpc.go](../../../../internal/collab/rpc.go) 负责写入、事件和审批；[network.go](../../../../internal/collab/network.go) 负责交接、加入、结束与代理；[sharing.go](../../../../internal/sharing/sharing.go) 负责邀请与 TLS，[connection.go](../../../../internal/sharing/connection.go) 和 [tailcat.go](../../../../internal/sharing/tailcat.go) 负责显式传输适配。
 
-优先检查 [协作测试](../../../../internal/collab/collab_test.go) 中的输入归属、去重、原生/工具并行、审批及访问范围，并运行相关 race test。修改邀请或重连后，区分同机 TLS 验证与真实两台 Mac 的 LAN；当前不包含 Tailnet/Tailcat。
+优先检查 [协作测试](../../../../internal/collab/collab_test.go) 中的输入归属、去重、原生/工具并行、审批及访问范围，并运行相关 race test。修改邀请或重连后，分别报告同机 TLS、同机 Tailcat、两台 Mac LAN、两台 Mac 不同网络以及强制 DERP；前两项不能替代后三项。
 
 相关任务：[目录与生命周期](workspace-and-lifecycle.md) · [原生客户端](native-clients-and-models.md) · [验证](validation-gates.md)
 

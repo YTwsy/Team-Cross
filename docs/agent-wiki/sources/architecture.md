@@ -10,9 +10,13 @@ flowchart LR
   BT[B 的 TUI / 专用 Desktop] --> BP[B 的本机代理]
   BM[B 自己的 TUI / Desktop] --> MCP[teamcross mcp]
   MCP --> BC[B 的本机 Core]
-  BP --> LAN[临时 TLS 局域网共享]
-  BC --> LAN
-  LAN --> AG[A 的协作网关与输入协调]
+  BP --> TRANSPORT{显式连接方式}
+  BC --> TRANSPORT
+  TRANSPORT --> LAN[LAN 私有 IPv4]
+  TRANSPORT --> TC[实验性 Tailcat]
+  LAN --> TLS[临时 TLS 共享]
+  TC --> TLS
+  TLS --> AG[A 的协作网关与输入协调]
   AW[A 的 WebGUI] --> AG
   AG --> AS[专属 Codex app-server]
   AS --> FS[原目录 / 新 worktree]
@@ -23,7 +27,7 @@ flowchart LR
 - `internal/workspace`：Git 预览、干净 worktree、子目录映射、文件读取。
 - `internal/nativecodex`：启动和初始化独立 app-server，通过一个长期 WebSocket 进行 RPC、事件及 server request 分发。
 - `internal/collab`：协作记录、原生协议网关、输入协调、邀请与加入、TUI/Desktop 启动、HTTP 管理接口。
-- `internal/sharing`：临时 TLS listener、指纹绑定、局域网邀请与连接。
+- `internal/sharing`：`tcx3` 邀请、临时 TLS listener、指纹绑定，以及 LAN / Tailcat 服务端与客户端连接适配。Tailcat 只把虚拟 TCP 443 交给同一 TLS/HTTP 网关。
 - `internal/mcp`：个人辅助 STDIO 与共享运行时批注 STDIO。后者只有当前协作的读取/回复工具和独立凭据，每次调用重新读取 Core 地址，不启动 Core 或复用管理凭据。
 - `packages/web`：新 React/Vite 界面，生产资源编译到 `internal/webassets/dist` 后嵌入 Go 二进制。
 
@@ -73,7 +77,11 @@ Team Cross Next/
 
 协作 JSON 原子替换写入。`workspaceOwned` 说明目录由谁创建，`executionCwd` 统一表示实际执行子目录。原目录和新 worktree 均不在结束共享时清理。创建中断会留下错误记录与已创建资源，防止自动重试重复创建。
 
-接收端在首次加入前生成并以 0600 原子保存独立随机凭据，再由 A 确认并消费邀请码。成功加入后，所有共享访问改用该凭据，不检查邀请码期限。加入响应丢失时用已存凭据只读查询状态，显式重试相同加入保持幂等；业务写入仍不自动重放。B 退出只断开，重启后保留资格；B 主动离开才撤销凭据。A 的监听与加入资格不持久化，退出或重启后需重新分享。
+接收端在首次加入前生成并以 0600 原子保存独立随机凭据，再由 A 确认并消费邀请码。成功加入后，所有共享访问改用该凭据，不检查邀请码期限。加入响应丢失时用已存凭据只读查询状态，显式重试相同加入保持幂等；业务写入仍不自动重放。B 退出只断开，重启后按邀请中固定的传输和候选信息重建连接并保留资格；B 主动离开才撤销凭据。A 的监听、Tailcat Server 和加入资格都不持久化，退出或重启后需重新分享。
+
+分享前必须选择 `lan` 或 `tailcat`。LAN 监听随机 TCP 端口并只发布私有 IPv4 候选；Tailcat 每次分享创建新的临时 Server，完整地址连同库版本放入邀请，客户端通过 `DialTCPPort(443)` 提供 HTTP transport。Tailcat 地址本身含节点密钥材料和预共享密钥，和邀请 secret 一样属于秘密。两种适配最终进入相同的 TLS 1.3、SPKI pin、授权和协作路由，不建立另一套写入语义。
+
+Tailcat 建立时允许网络等待，Session 锁在启动期间释放；详情用 `sharingPreparing` 和 `transport` 显示选择及准备状态。结束或并发取消通过代次丢弃迟到结果并关闭迟到 Server。系统不执行 LAN → Tailcat 自动回退，也不根据当前路径猜测直连或 DERP；这些是单独的诊断与验收范围。
 
 ## 输入协调与失败语义
 
@@ -91,7 +99,7 @@ Team Cross Next/
 
 ## 范围
 
-首轮聚焦 macOS、Codex、普通 Git 仓库和两位参与者的 LAN 协作。无强制 Round、独立 Evidence、Claude、离线包、patch/PR 发布流程。WebGUI 显示轻量上下文，完整 Agent 对话交给 Codex。
+当前聚焦 macOS、普通 Git 仓库和两位参与者；Codex 为主线，Claude 原生 TUI 与 Tailcat 跨网络传输均为实验性。无强制 Round、独立 Evidence、离线包、Tailnet 控制平面集成或 patch/PR 发布流程。WebGUI 显示轻量上下文，完整 Agent 对话交给原生客户端。
 
 ## 维护入口
 

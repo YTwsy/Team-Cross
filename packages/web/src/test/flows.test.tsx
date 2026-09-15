@@ -418,7 +418,13 @@ describe("产品路径", () => {
       await screen.findByText("邀请尚未使用且已到期，可以重新邀请同事。"),
     ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "邀请同事" }));
-    expect(calls.some((c) => c.body?.action === "share")).toBe(true);
+    expect(screen.getByRole("radio", { name: /局域网.*默认/ })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "生成新邀请" }));
+    expect(
+      calls.some(
+        (c) => c.body?.action === "share" && c.body?.transport === "lan",
+      ),
+    ).toBe(true);
     expect(calls.some((c) => c.body?.action === "end")).toBe(false);
   });
   it("会话释放后读取上下文不恢复运行时，明确操作才恢复", async () => {
@@ -490,6 +496,9 @@ describe("产品路径", () => {
     await screen.findByText("当前目录有未提交内容，将保留在原处供协作使用。");
     await user.click(screen.getByRole("radio", { name: /创建新 worktree/ }));
     await screen.findByText("/data/collaborations/id/worktree/src");
+    await user.click(
+      screen.getByRole("radio", { name: /Tailcat 跨网络.*实验性/ }),
+    );
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /创建并邀请/ }));
     await waitFor(() => expect(location.hash).toBe("#/collaborations/new"));
@@ -497,6 +506,12 @@ describe("产品路径", () => {
     expect(request.workspaceMode).toBe("worktree");
     expect(request.previewHash).toBe("worktree");
     expect(request).not.toHaveProperty("untrackedFiles");
+    expect(
+      calls.some(
+        (c) => c.body?.action === "share" && c.body?.transport === "tailcat",
+      ),
+    ).toBe(true);
+    expect(sessionStorage.getItem("teamcross.transport.new")).toBe("tailcat");
     expect(calls.some((c) => c.path.endsWith("/rpc"))).toBe(false);
   });
   it("失效邀请给出下一步并保留输入供修正", async () => {
@@ -505,15 +520,17 @@ describe("产品路径", () => {
     fireEvent.change(
       screen.getByRole("textbox", { name: "邀请码或 App 链接" }),
       {
-        target: { value: "tcx2.expired" },
+        target: { value: "tcx3.expired" },
       },
     );
     fireEvent.click(screen.getByRole("button", { name: /查看邀请信息/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent("邀请已到期");
     expect(
       screen.getByRole("textbox", { name: "邀请码或 App 链接" }),
-    ).toHaveValue("tcx2.expired");
-    expect(screen.getByText(/双方需在同一局域网/)).toBeVisible();
+    ).toHaveValue("tcx3.expired");
+    expect(
+      screen.getByText(/邀请会声明使用局域网或实验性 Tailcat/),
+    ).toBeVisible();
   });
   it("等待交接时禁止直接打开，但允许辅助入口读取", async () => {
     mockFetch(() => ({
@@ -580,6 +597,9 @@ describe("首次使用连续路径", () => {
     );
     await user.click(screen.getByRole("button", { name: /下一步/ }));
     await screen.findByText("当前目录有未提交内容，将保留在原处供协作使用。");
+    await user.click(
+      screen.getByRole("radio", { name: /Tailcat 跨网络.*实验性/ }),
+    );
     await user.click(screen.getByRole("button", { name: /创建并邀请/ }));
     await waitFor(() =>
       expect(location.hash).toBe("#/collaborations/retained-fork"),
@@ -588,16 +608,50 @@ describe("首次使用连续路径", () => {
     expect(sessionStorage.getItem("teamcross.create.retained-fork")).toContain(
       "共享端口暂时不可用",
     );
+    expect(sessionStorage.getItem("teamcross.transport.retained-fork")).toBe(
+      "tailcat",
+    );
+  });
+  it("Tailcat 邀请准备中可显式取消，不切换到局域网", async () => {
+    mockFetch((path) =>
+      path.includes("/context")
+        ? { thread: { turns: [] } }
+        : {
+            ...collaboration,
+            role: "owner",
+            sharing: false,
+            sharingPreparing: true,
+            transport: "tailcat",
+          },
+    );
+    const user = userEvent.setup();
+    render(<Detail id="c1" />);
+    await user.click(await screen.findByLabelText("查看共享状态详情"));
+    await user.click(screen.getByRole("button", { name: "取消生成邀请" }));
+    expect(
+      screen.getByRole("heading", { name: "取消生成邀请？" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "取消生成" }));
+    await waitFor(() =>
+      expect(calls.some((c) => c.body?.action === "end")).toBe(true),
+    );
+    expect(calls.some((c) => c.body?.transport === "lan")).toBe(false);
   });
   it("邀请预览不启动 Codex，确认后直接进入上下文", async () => {
     mockFetch((path) =>
       path === "invitations/preview"
-        ? { title: "共享任务", host: "A", expiresAt: new Date().toISOString() }
+        ? {
+            title: "共享任务",
+            host: "A",
+            expiresAt: new Date().toISOString(),
+            transport: "tailcat",
+          }
         : { id: "joined-1" },
     );
     const user = userEvent.setup();
     render(<Join pendingId="opaque-local-id" />);
     await screen.findByText("共享任务");
+    expect(screen.getByText("连接方式：Tailcat 跨网络")).toBeVisible();
     expect(calls.map((c) => c.path)).toEqual(["invitations/preview"]);
     await user.click(screen.getByRole("button", { name: /确认加入/ }));
     await waitFor(() =>

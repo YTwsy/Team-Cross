@@ -9,7 +9,7 @@ import (
 // Closing this Session's dedicated app-server is the native writer-lock release
 // boundary. Unsubscribing alone can leave the thread loaded in Codex.
 func (s *Session) releaseIfIdleLocked() {
-	if !s.releaseWhenIdle || s.closed || s.record.State == "preparing" || s.share != nil || s.direct != nil || s.starting || s.stopping != nil || s.activeCalls != 0 || s.process == nil {
+	if !s.releaseWhenIdle || s.closed || s.record.State == "preparing" || s.share != nil || s.sharePreparing || s.direct != nil || s.starting || s.stopping != nil || s.activeCalls != 0 || s.process == nil {
 		return
 	}
 	if s.process.Alive() && (s.busy || len(s.approvals) != 0) {

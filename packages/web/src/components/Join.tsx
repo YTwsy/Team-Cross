@@ -1,8 +1,17 @@
 import { useEffect, useState } from "react";
 import { api, errorText } from "../api";
-import { type Collaboration } from "../types";
+import {
+  type Collaboration,
+  type ShareTransport,
+  transportName,
+} from "../types";
 import { ErrorBox, Icon, PageHeading } from "./ui";
-type InvitationPreview = { title: string; host: string; expiresAt: string };
+type InvitationPreview = {
+  title: string;
+  host: string;
+  expiresAt: string;
+  transport: ShareTransport;
+};
 export function Join({ pendingId }: { pendingId?: string }) {
   const [invitation, setInvitation] = useState("");
   const [preview, setPreview] = useState<InvitationPreview>();
@@ -69,7 +78,7 @@ export function Join({ pendingId }: { pendingId?: string }) {
               <textarea
                 autoFocus
                 rows={5}
-                placeholder="tcx2.… 或 teamcross://join?invite=…"
+                placeholder="tcx3.… 或 teamcross://join?invite=…"
                 value={invitation}
                 disabled={busy}
                 onChange={(e) => {
@@ -84,6 +93,7 @@ export function Join({ pendingId }: { pendingId?: string }) {
             <div className="notice">
               <h3>{preview.title}</h3>
               <p>执行主机：{preview.host}</p>
+              <p>连接方式：{transportName(preview.transport)}</p>
               <p>
                 请在 {new Date(preview.expiresAt).toLocaleString("zh-CN")}{" "}
                 前首次加入。
@@ -108,7 +118,9 @@ export function Join({ pendingId }: { pendingId?: string }) {
             }
           >
             {busy
-              ? "正在处理…"
+              ? preview?.transport === "tailcat"
+                ? "正在通过 Tailcat 连接…"
+                : "正在处理…"
               : preview
                 ? "确认加入并查看上下文"
                 : "查看邀请信息"}
@@ -137,7 +149,12 @@ export function Join({ pendingId }: { pendingId?: string }) {
             </p>
           </div>
           <p className="small-text muted">
-            双方需在同一局域网。尚未安装时，请按邀请中的安装指引安装，再次打开链接。
+            {preview?.transport === "tailcat"
+              ? "此邀请使用实验性 Tailcat 跨网络连接，无法直连时可能经第三方 DERP 中继。"
+              : preview
+                ? "此邀请要求双方位于同一局域网。"
+                : "邀请会声明使用局域网或实验性 Tailcat 跨网络连接。"}
+            尚未安装时，请按邀请中的安装指引安装，再次打开链接。
           </p>
         </aside>
       </div>

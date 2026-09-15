@@ -90,7 +90,7 @@ func TestPendingInvitationIsLocalAndPreviewOnly(t *testing.T) {
 		t.Fatal("secret in pending response")
 	}
 	w = post("invitations/preview", `{"pendingId":"`+pending.ID+`"}`, "")
-	if w.Code != 200 || bytes.Contains(w.Body.Bytes(), []byte("tcx2.")) {
+	if w.Code != 200 || bytes.Contains(w.Body.Bytes(), []byte("tcx3.")) {
 		t.Fatal(w.Body.String())
 	}
 	a.mu.Lock()

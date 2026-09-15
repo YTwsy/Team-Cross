@@ -2010,6 +2010,25 @@ mark[data-annotation-highlight] {
 .invite-card span {
   font-size: 11px;
 }
+.invite-transport-field {
+  margin: 20px 0;
+}
+.invite-transport-field .workspace-card {
+  padding: 16px;
+}
+.invite-transport-field .workspace-top {
+  margin-bottom: 10px;
+}
+.invite-transport-field .workspace-top .entry-icon {
+  width: 36px;
+  height: 36px;
+}
+.invite-transport-field .workspace-card h3 {
+  font-size: 14px;
+}
+.invite-transport-field .workspace-card p {
+  font-size: 11px;
+}
 .join-layout {
   display: grid;
   grid-template-columns: minmax(300px, 1.1fr) 1fr;

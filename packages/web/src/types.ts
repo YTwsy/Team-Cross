@@ -1,4 +1,5 @@
 export type Mode = "existing" | "worktree";
+export type ShareTransport = "lan" | "tailcat";
 export type AnnotationTarget = {
   kind: "history" | "file" | "changes";
   sessionId?: string;
@@ -61,6 +62,8 @@ export type Collaboration = {
   online: boolean;
   busy: boolean;
   sharing: boolean;
+  sharingPreparing?: boolean;
+  transport?: ShareTransport;
   connected: boolean;
   participantOnline?: boolean;
   participantJoined?: boolean;
@@ -195,6 +198,17 @@ export function status(c: Collaboration) {
   return { text: "等待输入", tone: "green" };
 }
 
-export function invitationText(token: string) {
-  return `邀请你加入 Team Cross 协作。双方需在同一局域网。邀请仅限一人首次加入，加入后持续有效，直到主动离开或发起者结束共享。\n\n已安装 App：teamcross://join?invite=${encodeURIComponent(token)}\n\n安装说明：https://github.com/YTwsy/Team-Cross#安装\n安装后再次打开上方链接，或在“加入协作”中粘贴以下邀请码：\n${token}`;
+export function transportName(transport?: ShareTransport) {
+  return transport === "tailcat" ? "Tailcat 跨网络" : "局域网";
+}
+
+export function invitationText(
+  token: string,
+  transport: ShareTransport = "lan",
+) {
+  const connection =
+    transport === "tailcat"
+      ? "本邀请使用 Tailcat 跨网络连接（实验性），可能经第三方 DERP 中继。"
+      : "双方需在同一局域网。";
+  return `邀请你加入 Team Cross 协作。${connection}邀请仅限一人首次加入，加入后持续有效，直到主动离开或发起者结束共享。\n\n已安装 App：teamcross://join?invite=${encodeURIComponent(token)}\n\n安装说明：https://github.com/YTwsy/Team-Cross#安装\n安装后再次打开上方链接，或在“加入协作”中粘贴以下邀请码：\n${token}`;
 }

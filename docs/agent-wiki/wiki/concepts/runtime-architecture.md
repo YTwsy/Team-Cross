@@ -10,7 +10,7 @@ Go Core 负责协作与本机管理；A 的专属 Codex app-server 持有共享�
 | 创建、记录持久化、恢复与进程管理 | [collab/app.go](../../../../internal/collab/app.go) |
 | 原生 WebSocket RPC 和请求分发 | [nativecodex/process.go](../../../../internal/nativecodex/process.go) |
 | 本机管理、共享与接收端代理 | [http.go](../../../../internal/collab/http.go)、[network.go](../../../../internal/collab/network.go) |
-| 工具、工作目录与 TLS | [mcp](../../../../internal/mcp/)、[workspace](../../../../internal/workspace/)、[sharing](../../../../internal/sharing/) |
+| 工具、工作目录与 TLS/传输 | [mcp](../../../../internal/mcp/)、[workspace](../../../../internal/workspace/)、[sharing](../../../../internal/sharing/) |
 
 ## 修改时守住的边界
 
@@ -19,6 +19,8 @@ Go Core 负责协作与本机管理；A 的专属 Codex app-server 持有共享�
 数据目录沿用 `Team Cross Next`，与旧产品分开；变更默认路径要考虑已有协作可见性。协作记录使用 JSON，不能重新接回旧 SQLite/CAS、Node Bridge 或附加 `--native` 启动模式。
 
 直接客户端与 MCP 共用协作的上游控制入口；账户与偏好按本机路由处理。不要把连接存在、RPC 成功、轮次完成或远端共享开放混成一个状态。
+
+共享前显式选择 LAN 或实验性 Tailcat；两者最终进入同一个 TLS pin、成员资格和输入协调层，不自动回退或切换。Tailcat 的启动会访问 DERP，准备期间不持有 Session 锁；同机成功不能推广为两台 Mac 或强制中继结论。
 
 修改启动、恢复或并发状态后，按 [验证门槛](validation-gates.md) 完成 Go 测试与相关 race test。
 

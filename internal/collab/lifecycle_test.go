@@ -33,6 +33,9 @@ func TestJoinedAccessSurvivesDeadlineAndParticipantCoreRestart(t *testing.T) {
 	if e := s.Action(ctx, "share"); e != nil {
 		t.Fatal(e)
 	}
+	if s.view()["transport"] != "lan" {
+		t.Fatal("default share did not select LAN", s.view()["transport"])
+	}
 	token := s.share.Token()
 	j, e := b.Join(ctx, token)
 	if e != nil {
@@ -44,7 +47,7 @@ func TestJoinedAccessSurvivesDeadlineAndParticipantCoreRestart(t *testing.T) {
 	j.mu.Lock()
 	j.Invitation.ExpiresAt = time.Now().Add(-2 * time.Hour)
 	j.mu.Unlock()
-	if got := j.view(ctx); got["online"] != true || got["state"] != "ready" || got["expiresAt"] != nil {
+	if got := j.view(ctx); got["online"] != true || got["state"] != "ready" || got["expiresAt"] != nil || got["transport"] != "lan" {
 		t.Fatal("joined access expired", got)
 	}
 	if b.Active() != 1 {
@@ -103,6 +106,20 @@ func TestJoinedAccessSurvivesDeadlineAndParticipantCoreRestart(t *testing.T) {
 	}
 	if _, e = c.Join(ctx, s.share.Token()); e != nil {
 		t.Fatal("new invitation failed after leave", e)
+	}
+}
+
+func TestShareRejectsUnknownTransport(t *testing.T) {
+	a, f, _ := fixture(t)
+	s := createFixture(t, a, f, "existing")
+	err := s.Share(context.Background(), "public-internet")
+	if err == nil || !strings.Contains(err.Error(), "连接方式") {
+		t.Fatal("unknown transport was accepted", err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.share != nil || s.sharePreparing {
+		t.Fatal("invalid transport changed sharing state")
 	}
 }
 

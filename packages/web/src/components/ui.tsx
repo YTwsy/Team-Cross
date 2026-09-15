@@ -23,6 +23,7 @@ export type IconName =
   | "close"
   | "search"
   | "link"
+  | "globe"
   | "people"
   | "comment"
   | "refresh"
@@ -94,6 +95,12 @@ const paths: Record<IconName, ReactNode> = {
         d="m10 13 4-4m-6 6-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 3 1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0"
         transform="translate(1 0)"
       />
+    </>
+  ),
+  globe: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c3 3 4 6 4 9s-1 6-4 9M12 3c-3 3-4 6-4 9s1 6 4 9" />
     </>
   ),
   people: (

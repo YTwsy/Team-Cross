@@ -13,6 +13,8 @@
 
 ## 已记录的验收
 
+[2026-09-15 Tailcat 显式连接方式](../../sources/validation/tailcat-transport-2026-09-15.md) 记录 `lan|tailcat` 二选一、`tcx3`、Go 1.27.1、工程/race/Web 门槛、同机 Tailcat 数据面和 arm64 发布构建链。两台物理 Mac、不同网络、强制持续 DERP、正式签名公证与发布仍未覆盖。
+
 [2026-09-14 Claude 个人 CLI/TUI 历史](../../sources/validation/claude-personal-history-2026-09-14.md) 记录原生 fork 的单文件个人 history 发布、`/resume` picker 实际可见、个人配置与其他历史隔离、原目录/worktree、审批交接、MCP 去重、中断及恢复；完整轮次 10 次 Luna 请求，属于同机两个 Core。未覆盖旧数据迁移、跨磁盘 fallback、OAuth/Keychain、Desktop/Web/Cloud 或两台 Mac LAN。
 
 [2026-09-14 Codex 动态 MCP 与运行时恢复](../../sources/validation/codex-runtime-mcp-2026-09-14.md) 记录 CLI `0.154.0-alpha.6.2` 的插件动态 MCP 配置回归、隔离枚举修复、完整工程门槛和真实 Luna 创建/释放/同 session 恢复。属于同机两个 Core；未恢复用户原有协作或验证专用 Desktop 窗口。

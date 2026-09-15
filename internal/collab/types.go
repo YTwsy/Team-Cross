@@ -174,6 +174,10 @@ type Session struct {
 	online           bool
 	epoch            uint64
 	share            *sharing.Runtime
+	sharePreparing   bool
+	shareTransport   sharing.Transport
+	shareGeneration  uint64
+	shareCancel      context.CancelFunc
 	releaseWhenIdle  bool
 	annotationAccess bool
 	stopping         chan struct{}
@@ -201,6 +205,7 @@ type Joined struct {
 	confirmed     bool
 	URL           string
 	Client        *http.Client
+	Connection    *sharing.Connection
 	Last          map[string]any
 	Error         string
 	listener      net.Listener
