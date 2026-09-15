@@ -105,6 +105,7 @@ jobs:
       - name: Run engineering gates
         run: |
           git show --check --format= HEAD
+          python3 -m unittest scripts/test_homebrew_release.py
           go test ./...
           go vet ./...
           go test -race \
@@ -175,6 +176,8 @@ jobs:
           PY
           cd "$release_dir"
           shasum -a 256 -c SHA256SUMS
+          cd "$GITHUB_WORKSPACE"
+          python3 scripts/homebrew_release.py validate "$release_dir/homebrew-teamcross"
 
       - name: Attest CLI build provenance
         uses: actions/attest@v4
@@ -283,3 +286,14 @@ jobs:
             "$release_channel" \
             --title "Team Cross $RELEASE_TAG" \
             --notes-file "docs/releases/$RELEASE_TAG.md"
+
+  homebrew:
+    name: Publish Homebrew channel
+    if: github.event_name == 'push'
+    needs:
+      - build
+      - publish
+    uses: ./.github/workflows/homebrew-publish.yml
+    with:
+      release_tag: ${{ needs.build.outputs.release_tag }}
+    secrets: inherit

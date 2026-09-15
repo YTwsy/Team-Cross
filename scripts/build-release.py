@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build local artifacts; publishing is intentionally a separate operation."""
 import argparse, hashlib, json, os, pathlib, plistlib, re, shutil, subprocess, tarfile, tempfile
+from homebrew_release import render_bundle
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 def run(*args, **kw): subprocess.run(args, cwd=ROOT, check=True, **kw)
 def digest(p): return hashlib.sha256(p.read_bytes()).hexdigest()
@@ -73,13 +74,17 @@ with tempfile.TemporaryDirectory(prefix='teamcross-package-') as temp:
         run('xcrun','notarytool','submit',str(dmg),'--keychain-profile',a.notary_profile,'--wait')
         run('xcrun','stapler','staple',str(dmg))
     base=a.base_url or f'https://github.com/YTwsy/Team-Cross/releases/download/v{a.version}'
-    values={'VERSION':a.version,'BASE_URL':base,'CLI_SHA':digest(cli),'DMG_SHA':digest(dmg)}
     tap=out/'homebrew-teamcross'
-    for source,kind,name in [('teamcross.rb.in','Formula','teamcross.rb'),('team-cross.rb.in','Casks','team-cross.rb')]:
-        text=(ROOT/'packaging/homebrew'/source).read_text()
-        for key,value in values.items(): text=text.replace('@'+key+'@',value)
-        path=tap/kind/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(text)
-    (tap/'README.md').write_text('# Team Cross Homebrew tap\n\n选择一种安装方式；两种方式均提供 `teamcross` 命令。\n\n## App 与命令行\n\n```sh\nbrew install --cask YTwsy/teamcross/team-cross\n```\n\n## 独立命令行\n\n```sh\nbrew install YTwsy/teamcross/teamcross\n```\n\nFormula 与 Cask 互斥。切换前退出 Team Cross 并通过原渠道卸载，协作数据与工作目录保留。首次打开与完整说明见 [Team Cross](https://github.com/YTwsy/Team-Cross#安装)。\n')
+    render_bundle(
+        tap,
+        version=a.version,
+        commit=commit,
+        base_url=base,
+        cli_sha=digest(cli),
+        dmg_sha=digest(dmg),
+        developer_id_signed=bool(a.sign_identity),
+        notarized=bool(a.notary_profile),
+    )
     (out/'SHA256SUMS').write_text(''.join(f'{digest(f)}  {f.name}\n' for f in [cli,dmg]))
     (out/'release.json').write_text(json.dumps(dict(version=a.version,commit=commit,buildNumber=build_number,dirty=dirty,architecture='arm64',minimumMacOS='14.0',developerIDSigned=bool(a.sign_identity),notarized=bool(a.notary_profile),artifacts={f.name:digest(f) for f in [cli,dmg]}),indent=2)+'\n')
 print(out)

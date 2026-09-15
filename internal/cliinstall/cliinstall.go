@@ -40,6 +40,12 @@ func appExecutable(path string) bool {
 	return strings.HasSuffix(path, ".app/Contents/Resources/teamcross")
 }
 
+func formulaExecutable(path string) bool {
+	path = resolved(path)
+	return strings.Contains(path, "/Cellar/teamcross/") ||
+		strings.Contains(path, "/Cellar/teamcross-rc/")
+}
+
 func launcher(source string) []byte {
 	metadata, _ := json.Marshal(source)
 	quoted := "'" + strings.ReplaceAll(source, "'", "'\"'\"'") + "'"
@@ -103,7 +109,7 @@ func Inspect(executable, directory, searchPath string) Status {
 		if s.Command == "" {
 			s.Command = path
 			s.Source = "standalone"
-			if strings.Contains(source, "/Cellar/teamcross/") {
+			if formulaExecutable(source) {
 				s.Source = "formula"
 			} else if appExecutable(source) {
 				s.Source = "app"

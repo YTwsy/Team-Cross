@@ -1,4 +1,4 @@
-class Teamcross < Formula
+class @FORMULA_CLASS@ < Formula
   desc "Continue a shared native Codex session on macOS"
   homepage "https://github.com/YTwsy/Team-Cross"
   url "@BASE_URL@/teamcross-@VERSION@-darwin-arm64.tar.gz"
@@ -7,12 +7,18 @@ class Teamcross < Formula
   depends_on :macos => :sonoma
   depends_on arch: :arm64
 
-  conflicts_with cask: "team-cross"
-
   def install
-    # Older Homebrew versions do not enforce formula-to-cask conflicts.
-    if (HOMEBREW_PREFIX/"Caskroom/team-cross/.metadata/INSTALL_RECEIPT.json").file?
-      odie "请先运行 brew uninstall --cask team-cross，再安装 CLI。协作数据会保留。"
+    other_formula = HOMEBREW_CELLAR/"@OTHER_FORMULA_TOKEN@"
+    if Dir.glob((other_formula/"*/INSTALL_RECEIPT.json").to_s).any?
+      odie "请先运行 brew uninstall --formula --force @OTHER_FORMULA_TOKEN@，再安装此 CLI 通道。协作数据会保留。"
+    end
+
+    # Formula conflicts do not cover Casks, so check both App channels.
+    installed_cask = ["team-cross", "team-cross@rc"].find do |token|
+      (HOMEBREW_PREFIX/"Caskroom/#{token}/.metadata/INSTALL_RECEIPT.json").file?
+    end
+    if installed_cask
+      odie "请先运行 brew uninstall --cask #{installed_cask}，再安装 CLI。协作数据会保留。"
     end
     bin.install "teamcross"
   end

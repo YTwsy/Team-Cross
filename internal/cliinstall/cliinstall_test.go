@@ -117,6 +117,34 @@ func TestHomebrewCommandIsReusedOrReportedAsConflict(t *testing.T) {
 	}
 }
 
+func TestHomebrewFormulaChannelsAreReportedAsFormula(t *testing.T) {
+	for _, formula := range []string{"teamcross", "teamcross-rc"} {
+		t.Run(formula, func(t *testing.T) {
+			root := resolved(t.TempDir())
+			executable := filepath.Join(root, "Cellar", formula, "1.2.3", "bin", "teamcross")
+			if err := os.MkdirAll(filepath.Dir(executable), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(executable, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			brewBin := filepath.Join(root, "bin")
+			if err := os.MkdirAll(brewBin, 0755); err != nil {
+				t.Fatal(err)
+			}
+			link := filepath.Join(brewBin, "teamcross")
+			if err := os.Symlink(executable, link); err != nil {
+				t.Fatal(err)
+			}
+
+			s := Inspect(executable, filepath.Join(root, "manual-bin"), brewBin)
+			if s.Command != link || s.Source != "formula" || s.Conflict != "" {
+				t.Fatal(s)
+			}
+		})
+	}
+}
+
 func TestConcurrentInstallAndRemove(t *testing.T) {
 	source, dir := fixture(t)
 	var wg sync.WaitGroup

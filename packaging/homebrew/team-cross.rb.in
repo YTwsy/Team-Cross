@@ -1,4 +1,4 @@
-cask "team-cross" do
+cask "@CASK_TOKEN@" do
   version "@VERSION@"
   sha256 "@DMG_SHA@"
   url "@BASE_URL@/Team-Cross-@VERSION@-arm64.dmg"
@@ -11,9 +11,17 @@ cask "team-cross" do
   binary "#{appdir}/Team Cross.app/Contents/Resources/teamcross", target: "teamcross"
 
   preflight do
-    if Dir.glob((HOMEBREW_CELLAR/"teamcross/*/INSTALL_RECEIPT.json").to_s).any?
+    other_cask = HOMEBREW_PREFIX/"Caskroom/@OTHER_CASK_TOKEN@/.metadata/INSTALL_RECEIPT.json"
+    if other_cask.file?
+      raise "请先运行 brew uninstall --cask @OTHER_CASK_TOKEN@，再安装此 App 通道。协作数据会保留。"
+    end
+
+    installed_formula = ["teamcross", "teamcross-rc"].find do |token|
+      Dir.glob((HOMEBREW_CELLAR/"#{token}/*/INSTALL_RECEIPT.json").to_s).any?
+    end
+    if installed_formula
       # A normal exception lets Homebrew roll back its staged installation.
-      raise "请先运行 brew uninstall --formula --force teamcross，移除所有旧版本后再安装 App。协作数据会保留。"
+      raise "请先运行 brew uninstall --formula --force #{installed_formula}，移除所有旧版本后再安装 App。协作数据会保留。"
     end
   end
 
