@@ -39,7 +39,7 @@ go build -o bin/teamcross ./cmd/teamcross
 | 文件 | 重点覆盖 |
 | --- | --- |
 | [CI workflow](../../../../.github/workflows/ci.yml) | PR/main 的 Go test/vet、相关 race test、Web check/test/build、嵌入资源一致性和 Darwin arm64 CLI 交叉编译；不运行真实模型或 Tailcat 联网测试 |
-| [Unsigned release workflow](../../../../.github/workflows/release-unsigned.yml) | 手动 arm64 RC 构建与 tag Pre-release；校验 `origin/main` 来源、完整 release/Homebrew 验证、清单、SHA-256 和 artifact provenance；不代表 Developer ID 签名、公证或两台 Mac 网络验收 |
+| [Unsigned release workflow](../../../../.github/workflows/release-unsigned.yml) | 手动 arm64 正式版/RC 构建，以及 annotated tag 对应的 Latest/Pre-release；校验 `origin/main` 来源、完整 release/Homebrew 验证、清单、SHA-256 和 artifact provenance；不代表 Developer ID 签名、公证或两台 Mac 网络验收 |
 | [workspace_test.go](../../../../internal/workspace/workspace_test.go) | 两种目录模式、Git 现场保留、文件路径范围 |
 | [collab_test.go](../../../../internal/collab/collab_test.go) | 创建恢复不发送 prompt、输入归属、去重、审批、原生与工具并行、访问范围、本机登录路由 |
 | [lifecycle_test.go](../../../../internal/collab/lifecycle_test.go) / [membership_test.go](../../../../internal/sharing/membership_test.go) | 首次加入期限、持久成员、丢失响应、主动离开、空闲释放、并发请求和旧连接隔离 |

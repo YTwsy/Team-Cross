@@ -1,23 +1,23 @@
-name: Unsigned macOS release candidate
+name: Unsigned macOS release
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: Release candidate version without v, for example 0.1.6-rc.1
+        description: Release version without v, for example 0.1.6 or 0.1.6-rc.1
         required: true
         type: string
   push:
     tags:
-      - "v*.*.*-rc.*"
+      - "v*.*.*"
 
 concurrency:
-  group: unsigned-release-candidate-${{ github.ref }}-${{ inputs.version || github.ref_name }}
+  group: unsigned-release-${{ github.ref }}-${{ inputs.version || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   build:
-    name: Build and verify arm64 candidate
+    name: Build and verify arm64 release
     runs-on: macos-15
     timeout-minutes: 60
     permissions:
@@ -31,7 +31,7 @@ jobs:
       release_tag: ${{ steps.release.outputs.release_tag }}
       version: ${{ steps.release.outputs.version }}
     steps:
-      - name: Check out candidate source
+      - name: Check out release source
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
@@ -52,7 +52,7 @@ jobs:
             release_tag="$GITHUB_REF_NAME"
             version="${release_tag#v}"
             if [[ "$(git cat-file -t "refs/tags/$release_tag")" != "tag" ]]; then
-              echo "release candidate tags must be annotated: $release_tag" >&2
+              echo "release tags must be annotated: $release_tag" >&2
               exit 1
             fi
           else
@@ -60,8 +60,8 @@ jobs:
             release_tag="v$version"
           fi
 
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*$ ]]; then
-            echo "unsupported release candidate version: $version" >&2
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[1-9][0-9]*)?$ ]]; then
+            echo "unsupported release version: $version" >&2
             exit 1
           fi
           if [[ "$release_tag" != "v$version" ]]; then
@@ -71,7 +71,7 @@ jobs:
 
           git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
           git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main || {
-            echo "candidate source is not reachable from origin/main: $GITHUB_SHA" >&2
+            echo "release source is not reachable from origin/main: $GITHUB_SHA" >&2
             exit 1
           }
           git diff --quiet
@@ -79,7 +79,7 @@ jobs:
 
           echo "version=$version" >>"$GITHUB_OUTPUT"
           echo "release_tag=$release_tag" >>"$GITHUB_OUTPUT"
-          echo "artifact_name=Team-Cross-$version-unsigned-candidate" >>"$GITHUB_OUTPUT"
+          echo "artifact_name=Team-Cross-$version-unsigned-release" >>"$GITHUB_OUTPUT"
 
       - name: Record runner capacity
         run: df -h /
@@ -120,7 +120,7 @@ jobs:
           pnpm --filter @teamcross/web build
           git diff --exit-code -- internal/webassets/dist
 
-      - name: Build unsigned release candidate
+      - name: Build unsigned release
         id: package
         shell: bash
         env:
@@ -186,7 +186,7 @@ jobs:
         with:
           subject-path: dist/release/${{ steps.release.outputs.version }}/Team-Cross-${{ steps.release.outputs.version }}-arm64.dmg
 
-      - name: Preserve candidate artifacts
+      - name: Preserve release artifacts
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.release.outputs.artifact_name }}
@@ -204,7 +204,7 @@ jobs:
         run: df -h /
 
   publish:
-    name: Publish GitHub pre-release
+    name: Publish GitHub release
     if: github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
@@ -215,18 +215,18 @@ jobs:
       - name: Check out tagged source
         uses: actions/checkout@v6
 
-      - name: Download verified candidate
+      - name: Download verified release
         uses: actions/download-artifact@v8
         with:
           name: ${{ needs.build.outputs.artifact_name }}
-          path: candidate
+          path: release
 
-      - name: Verify downloaded candidate
+      - name: Verify downloaded release
         shell: bash
         env:
           RELEASE_VERSION: ${{ needs.build.outputs.version }}
         run: |
-          cd candidate
+          cd release
           sha256sum -c SHA256SUMS
           python3 - release.json "$RELEASE_VERSION" "$GITHUB_SHA" <<'PY'
           import json
@@ -237,7 +237,7 @@ jobs:
           if manifest.get("version") != sys.argv[2] or manifest.get("commit") != sys.argv[3]:
               raise SystemExit("downloaded release manifest does not match the tag source")
           if manifest.get("dirty") or manifest.get("developerIDSigned") or manifest.get("notarized"):
-              raise SystemExit("downloaded candidate is not the expected clean unsigned build")
+              raise SystemExit("downloaded release is not the expected clean unsigned build")
           PY
 
       - name: Validate release notes
@@ -259,7 +259,7 @@ jobs:
             exit 1
           }
 
-      - name: Create GitHub pre-release
+      - name: Create GitHub release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -270,12 +270,16 @@ jobs:
             echo "refusing to replace existing release: $RELEASE_TAG" >&2
             exit 1
           fi
+          release_channel=--latest
+          if [[ "$RELEASE_VERSION" == *-rc.* ]]; then
+            release_channel=--prerelease
+          fi
           gh release create "$RELEASE_TAG" \
-            "candidate/teamcross-$RELEASE_VERSION-darwin-arm64.tar.gz#Apple Silicon CLI（ad-hoc 签名）" \
-            "candidate/Team-Cross-$RELEASE_VERSION-arm64.dmg#Apple Silicon App（ad-hoc 签名，未公证）" \
-            "candidate/SHA256SUMS#SHA-256 校验文件" \
-            "candidate/release.json#版本、来源提交与签名状态" \
+            "release/teamcross-$RELEASE_VERSION-darwin-arm64.tar.gz#Apple Silicon CLI（ad-hoc 签名）" \
+            "release/Team-Cross-$RELEASE_VERSION-arm64.dmg#Apple Silicon App（ad-hoc 签名，未公证）" \
+            "release/SHA256SUMS#SHA-256 校验文件" \
+            "release/release.json#版本、来源提交与签名状态" \
             --verify-tag \
-            --prerelease \
+            "$release_channel" \
             --title "Team Cross $RELEASE_TAG" \
             --notes-file "docs/releases/$RELEASE_TAG.md"

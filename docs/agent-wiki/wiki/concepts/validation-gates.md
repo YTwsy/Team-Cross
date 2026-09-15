@@ -11,7 +11,7 @@
 | 同机两个 Core 或两个客户端 | 本机 A/B 流程，未证明跨设备网络 |
 | 两台 Mac 的 LAN | 实际网络条件下执行过的协作路径 |
 
-GitHub `CI` workflow 自动执行 Go/Web 工程门槛；unsigned release workflow 可以手动生成经完整安装与 Homebrew 检查的 arm64 RC artifact，也可以从 `origin/main` 上的 annotated `vX.Y.Z-rc.N` tag 生成 provenance 并发布 Pre-release。两者都不自动运行真实模型、Tailcat 公网 smoke 或两台 Mac 网络验收，也不把 artifact provenance 当作 Developer ID 签名或 Apple 公证。
+GitHub `CI` workflow 自动执行 Go/Web 工程门槛；unsigned release workflow 可以手动生成经完整安装与 Homebrew 检查的 arm64 正式版或 RC artifact，也可以从 `origin/main` 上的同版本 annotated tag 生成 provenance，并把 RC 发布为 Pre-release、正式版本发布为 Latest。两者都不自动运行真实模型、Tailcat 公网 smoke 或两台 Mac 网络验收，也不把稳定版本、Latest 或 artifact provenance 当作 Developer ID 签名或 Apple 公证。
 
 ## 已记录的验收
 

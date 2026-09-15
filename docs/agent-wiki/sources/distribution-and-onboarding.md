@@ -10,16 +10,16 @@
 
 GitHub 上的 `CI` workflow 对指向 `main` 的 PR 和 `main` push 运行 Go test/vet、相关 race test、Web check/test/build、嵌入资源一致性和 Darwin arm64 CLI 交叉编译。所有 Tailcat 联网用例默认跳过，不把公共 DERP 可用性变成普通 PR 的外部硬依赖。
 
-`Unsigned macOS release candidate` workflow 只接受 `X.Y.Z-rc.N`：手动触发时从可到达 `origin/main` 的所选提交构建、验证、attest 并保存 14 天 workflow artifact，不创建 Release；推送 annotated `vX.Y.Z-rc.N` tag 时使用同一构建链，并在全部检查完成后创建不可覆盖的 GitHub Pre-release。tag 版本是发布版本的唯一输入，候选构建不使用 Makefile 或脚本的开发默认值。自动门槛依次包括：
+`Unsigned macOS release` workflow 接受 `X.Y.Z` 与 `X.Y.Z-rc.N`：手动触发时从可到达 `origin/main` 的所选提交构建、验证、attest 并保存 14 天 workflow artifact，不创建 Release；推送同版本 annotated tag 时使用同一构建链，并在全部检查完成后创建不可覆盖的 GitHub Release。RC 标记为 Pre-release，正式版本标记为 Latest。tag 版本是发布版本的唯一输入，发布构建不使用 Makefile 或脚本的开发默认值。自动门槛依次包括：
 
 1. 完整 Git 历史、tag 格式与 `origin/main` 来源校验。
 2. Go/Web 工程门槛，共享一套 Go 缓存并串行运行 test、vet 与 race，避免 Tailcat/Tailscale/gVisor 冷编译重复占用磁盘。
 3. arm64 CLI、App、DMG、校验文件、构建清单和 Homebrew 定义生成。
 4. `verify-release.py` 的 DMG/App/CLI/生命周期检查，以及 `verify-homebrew.py` 的隔离 Formula/Cask 检查。
 5. `release.json` 的版本、来源提交、架构、最低系统、干净状态和 unsigned/unnotarized 边界检查。
-6. CLI tar 与 DMG 的 GitHub artifact attestation、下载后 SHA-256 复核和 Pre-release 创建。
+6. CLI tar 与 DMG 的 GitHub artifact attestation、下载后 SHA-256 复核和对应渠道的 Release 创建。
 
-tag 发布另要求同一提交包含 `docs/releases/vX.Y.Z-rc.N.md`，并在发行说明中明确 ad-hoc 签名、未使用 Developer ID 和未公证。正式 `vX.Y.Z` tag 不触发 unsigned workflow；Developer ID 签名、公证及正式 Release 要在受保护的独立流程中完成，不能因缺少凭据静默降级。GitHub provenance 只证明产物的源码和构建过程，不等于 Apple 签名、公证或 Gatekeeper 验收。
+tag 发布另要求同一提交包含 `docs/releases/<tag>.md`，并在发行说明中明确 ad-hoc 签名、未使用 Developer ID 和未公证。项目在较长时间内不以 Developer ID 身份作为正式版本发布前置条件；正式 GitHub Release 也可以发布经过同一完整门槛验证的 ad-hoc/unsigned 产物。Latest、稳定版本号和 GitHub provenance 都不代表 Apple 签名、公证或 Gatekeeper 验收；未来取得签名能力后，应显式调整构建清单、验证和发行说明，不能把 unsigned 产物描述为已签名。
 
 Homebrew 定义随候选作为 workflow artifact 保存并已完成隔离安装验证，但 workflow 不写入独立的 `YTwsy/homebrew-teamcross` 仓库。公共 tap 仍在 Release 资产可下载并复核后单独提交；未来自动化应使用仅覆盖 tap 仓库的 GitHub App 或等价最小权限凭据，并以 PR 而非直接改主分支的方式发布。
 
