@@ -4,7 +4,7 @@
 
 首版 Apple Silicon、macOS 14+。Swift/AppKit 菜单栏外壳复用 Go Core 和浏览器 WebGUI。CLI 包含 WebGUI 与 STDIO MCP，安装用户不需要 Go/Node/pnpm。Codex 按参与方式另行使用；B 查看上下文无需 Codex 或本地仓库。
 
-`make release` 调用 [构建脚本](../../../scripts/build-release.py)，在 `dist/release/<版本>/` 生成 CLI tar.gz、App、DMG、SHA256SUMS、release.json 和独立 tap 内容。App 的 helper 位于 `Contents/Resources/teamcross`。Cask 安装 App 并用 `binary` 注册内置 CLI；Formula 提供独立 CLI，两种 Homebrew 安装互斥。Core 仍按数据目录共享，包管理互斥不改变服务发现协议。
+`make release` 调用 [构建脚本](../../../scripts/build-release.py)，在 `dist/release/<版本>/` 生成 CLI tar.gz、App、DMG、SHA256SUMS、release.json 和对应渠道的独立 tap 内容。App 的 helper 位于 `Contents/Resources/teamcross`。稳定版使用 `teamcross` / `team-cross`，RC 使用 `teamcross-rc` / `team-cross@rc`；Cask 安装 App 并用 `binary` 注册内置 CLI，Formula 提供独立 CLI。四种定义都会占用同一个 App 或 `teamcross` 命令，通过成功安装收据双向互斥；Core 仍按数据目录共享，包管理互斥不改变服务发现协议。
 
 首个公开版本使用 `v0.1.1`，发布标题为 `Team Cross v0.1.1`。发布来源为核对过的干净提交；本地构建脚本只生成产物，不发布网络内容。先使 `YTwsy/Team-Cross` Release 产物可下载并核对校验值，再发布 `YTwsy/homebrew-teamcross` 中对应的配方。生成的下载 URL 不代表已经发布，实际状态以 GitHub 为准。本地安装测试使用临时 tap、临时 Homebrew 前缀和应用目录。
 
@@ -14,14 +14,17 @@ GitHub 上的 `CI` workflow 对指向 `main` 的 PR 和 `main` push 运行 Go te
 
 1. 完整 Git 历史、tag 格式与 `origin/main` 来源校验。
 2. Go/Web 工程门槛，共享一套 Go 缓存并串行运行 test、vet 与 race，避免 Tailcat/Tailscale/gVisor 冷编译重复占用磁盘。
-3. arm64 CLI、App、DMG、校验文件、构建清单和 Homebrew 定义生成。
+3. arm64 CLI、App、DMG、校验文件、构建清单、渠道元数据和 Homebrew 定义生成。
 4. `verify-release.py` 的 DMG/App/CLI/生命周期检查，以及 `verify-homebrew.py` 的隔离 Formula/Cask 检查。
 5. `release.json` 的版本、来源提交、架构、最低系统、干净状态和 unsigned/unnotarized 边界检查。
 6. CLI tar 与 DMG 的 GitHub artifact attestation、下载后 SHA-256 复核和对应渠道的 Release 创建。
+7. [Homebrew 发布 workflow](../../../.github/workflows/homebrew-publish.yml) 从公开 Release 重新下载资产，严格复核 annotated tag、`origin/main` 来源、checksum、manifest 与两份 attestation，在临时 Homebrew 前缀安装对应渠道后，使用短期 GitHub App token 向 `YTwsy/homebrew-teamcross` 创建 PR。tap 的只读 CI 通过并自动合并后，再等待公共 `main` 安装 smoke，并把 tap PR、commit 与安装命令写回 GitHub Release。
 
 tag 发布另要求同一提交包含 `docs/releases/<tag>.md`，并在发行说明中明确 ad-hoc 签名、未使用 Developer ID 和未公证。项目在较长时间内不以 Developer ID 身份作为正式版本发布前置条件；正式 GitHub Release 也可以发布经过同一完整门槛验证的 ad-hoc/unsigned 产物。Latest、稳定版本号和 GitHub provenance 都不代表 Apple 签名、公证或 Gatekeeper 验收；未来取得签名能力后，应显式调整构建清单、验证和发行说明，不能把 unsigned 产物描述为已签名。
 
-Homebrew 定义随候选作为 workflow artifact 保存并已完成隔离安装验证，但 workflow 不写入独立的 `YTwsy/homebrew-teamcross` 仓库。公共 tap 仍在 Release 资产可下载并复核后单独提交；未来自动化应使用仅覆盖 tap 仓库的 GitHub App 或等价最小权限凭据，并以 PR 而非直接改主分支的方式发布。
+Homebrew 发布是同一 tag 流程中位于 GitHub Release 之后的受保护阶段，不与二进制构建并行：配方 URL 必须先成为可公开下载的不可覆盖 Release 资产。`Team-Cross` 仓库的默认 `GITHUB_TOKEN` 不跨仓库写入；`homebrew-publish` environment 只提供安装到 `YTwsy/homebrew-teamcross` 的 GitHub App 身份，运行时进一步收窄为 tap 的 Actions/Checks 只读与 Contents/Pull requests 读写。自动化只维护其版本专属 `codex/homebrew-v...` 分支和 PR；遇到无 PR 的同名远端分支、同渠道版本倒退、同版本不同元数据或无法识别的既有发布时停止，不强推或直接改 `main`。
+
+公共 tap 的 `main` 只接受 PR，并要求 `Verify public Formula and Cask` 检查。稳定 tag 更新无后缀 Formula/Cask；RC tag 只更新显式 RC 定义，不会把稳定安装者自动带到候选版。tap PR 与合并后的 push 都从公开 URL 下载 `release.json`、`SHA256SUMS`、CLI 和 DMG，在临时 Homebrew 前缀验证 Formula/Cask 安装、命令字节、同渠道及跨渠道互斥。GitHub Release 先成功而 tap 后续失败时，二进制 Release 保持有效，公共 tap 继续停留在上一个已验证版本，整条 workflow 以失败状态提示修复或安全重跑；不能把这种部分状态写成 Homebrew 已发布。
 
 ```sh
 make release
@@ -47,7 +50,7 @@ DMG 安装者在菜单栏“命令行工具…”安装或移除启动器，默�
 
 安装器仅更新完整匹配自身格式的启动器；通过目录中的生命周期锁串行化安装，新入口使用原子创建，升级使用原子替换。移除操作不触及 App、协作数据或 shell 配置。用户直接把 App 放进废纸篓不会执行清理脚本，卸载 App 前应从菜单移除手动安装的命令。
 
-Formula 与 Cask 均在安装时检查另一渠道的成功安装收据，验证覆盖两种安装顺序及拒绝后的回滚。Cask 只移除 Homebrew 自己管理的 App 与命令链接；Formula 只移除自己的二进制。切换渠道前用户先退出服务，再卸载旧渠道；Formula 升级后可能保留旧版本，切换到 Cask 应使用 `brew uninstall --formula --force teamcross` 移除所有已安装版本。设置页与 `doctor` 分别显示已安装和正在运行的版本；升级不自动中断活动协作。
+Formula 与 Cask 均检查稳定版和 RC 另一渠道的成功安装收据，验证覆盖同渠道两种安装顺序、跨渠道冲突及拒绝后的回滚。Cask 只移除 Homebrew 自己管理的 App 与命令链接；Formula 只移除自己的二进制。切换渠道前用户先退出服务，再用实际 token 卸载旧渠道；Formula 升级后可能保留旧版本，切换到 Cask 应使用 `brew uninstall --formula --force teamcross` 或 `brew uninstall --formula --force teamcross-rc` 移除相应 Formula。设置页与 `doctor` 分别显示已安装和正在运行的版本；升级不自动中断活动协作。
 
 ## 启动、发现与退出
 

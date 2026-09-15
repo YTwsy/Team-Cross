@@ -55,11 +55,13 @@ func TestNormalizeAndStablePath(t *testing.T) {
 	if a != b {
 		t.Fatal(a, b)
 	}
-	opt := filepath.Join(root, "opt/teamcross/bin")
-	os.MkdirAll(opt, 0700)
-	os.WriteFile(filepath.Join(opt, "teamcross"), []byte("test"), 0700)
-	if got := StableExecutable(filepath.Join(root, "Cellar/teamcross/1.2.3/bin/teamcross")); got != filepath.Join(opt, "teamcross") {
-		t.Fatal(got)
+	for _, formula := range []string{"teamcross", "teamcross-rc"} {
+		opt := filepath.Join(root, "opt", formula, "bin")
+		os.MkdirAll(opt, 0700)
+		os.WriteFile(filepath.Join(opt, "teamcross"), []byte("test"), 0700)
+		if got := StableExecutable(filepath.Join(root, "Cellar", formula, "1.2.3/bin/teamcross")); got != filepath.Join(opt, "teamcross") {
+			t.Fatal(formula, got)
+		}
 	}
 }
 func TestReadRejectsNonlocalAndCredentialsInURL(t *testing.T) {
@@ -73,29 +75,33 @@ func TestReadRejectsNonlocalAndCredentialsInURL(t *testing.T) {
 }
 
 func TestStablePathFromHomebrewBinSymlink(t *testing.T) {
-	root, e := Normalize(t.TempDir())
-	if e != nil {
-		t.Fatal(e)
-	}
-	cellar := filepath.Join(root, "Cellar/teamcross/1.2.3")
-	for _, p := range []string{filepath.Join(cellar, "bin"), filepath.Join(root, "bin"), filepath.Join(root, "opt")} {
-		if e := os.MkdirAll(p, 0700); e != nil {
-			t.Fatal(e)
-		}
-	}
-	target := filepath.Join(cellar, "bin/teamcross")
-	if e := os.WriteFile(target, []byte("test"), 0700); e != nil {
-		t.Fatal(e)
-	}
-	alias := filepath.Join(root, "bin/teamcross")
-	if e := os.Symlink(target, alias); e != nil {
-		t.Fatal(e)
-	}
-	if e := os.Symlink(cellar, filepath.Join(root, "opt/teamcross")); e != nil {
-		t.Fatal(e)
-	}
-	if got := StableExecutable(alias); got != filepath.Join(root, "opt/teamcross/bin/teamcross") {
-		t.Fatal(got)
+	for _, formula := range []string{"teamcross", "teamcross-rc"} {
+		t.Run(formula, func(t *testing.T) {
+			root, e := Normalize(t.TempDir())
+			if e != nil {
+				t.Fatal(e)
+			}
+			cellar := filepath.Join(root, "Cellar", formula, "1.2.3")
+			for _, p := range []string{filepath.Join(cellar, "bin"), filepath.Join(root, "bin"), filepath.Join(root, "opt")} {
+				if e := os.MkdirAll(p, 0700); e != nil {
+					t.Fatal(e)
+				}
+			}
+			target := filepath.Join(cellar, "bin/teamcross")
+			if e := os.WriteFile(target, []byte("test"), 0700); e != nil {
+				t.Fatal(e)
+			}
+			alias := filepath.Join(root, "bin/teamcross")
+			if e := os.Symlink(target, alias); e != nil {
+				t.Fatal(e)
+			}
+			if e := os.Symlink(cellar, filepath.Join(root, "opt", formula)); e != nil {
+				t.Fatal(e)
+			}
+			if got := StableExecutable(alias); got != filepath.Join(root, "opt", formula, "bin/teamcross") {
+				t.Fatal(got)
+			}
+		})
 	}
 }
 

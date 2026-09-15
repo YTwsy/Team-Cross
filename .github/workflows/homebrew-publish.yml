@@ -1,0 +1,330 @@
+name: Publish Homebrew tap
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Existing Team Cross release tag, including v
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing Team Cross release tag, for example v0.1.6-rc.1
+        required: true
+        type: string
+
+concurrency:
+  group: homebrew-publish-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish and verify Homebrew channel
+    runs-on: macos-15
+    timeout-minutes: 60
+    environment: homebrew-publish
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      TAP_REPOSITORY: YTwsy/homebrew-teamcross
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+    steps:
+      - name: Check out publishing source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag and public state
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[1-9][0-9]*)?$ ]]; then
+            echo "unsupported Homebrew release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          version="${RELEASE_TAG#v}"
+          channel=stable
+          expected_prerelease=false
+          if [[ "$version" == *-rc.* ]]; then
+            channel=rc
+            expected_prerelease=true
+          fi
+
+          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if [[ "$(git cat-file -t "refs/tags/$RELEASE_TAG")" != "tag" ]]; then
+            echo "Homebrew publishing requires an annotated tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          release_commit="$(git rev-parse "refs/tags/$RELEASE_TAG^{}")"
+          git merge-base --is-ancestor "$release_commit" refs/remotes/origin/main || {
+            echo "release source is not reachable from origin/main: $release_commit" >&2
+            exit 1
+          }
+
+          release_state="$(gh release view "$RELEASE_TAG" --json tagName,isDraft,isPrerelease)"
+          jq -e \
+            --arg tag "$RELEASE_TAG" \
+            --argjson prerelease "$expected_prerelease" \
+            '.tagName == $tag and .isDraft == false and .isPrerelease == $prerelease' \
+            <<<"$release_state" >/dev/null
+
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "channel=$channel" >>"$GITHUB_OUTPUT"
+          echo "release_commit=$release_commit" >>"$GITHUB_OUTPUT"
+
+      - name: Download public release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          mkdir public-release
+          gh release download "$RELEASE_TAG" \
+            --dir public-release \
+            --pattern "teamcross-$RELEASE_VERSION-darwin-arm64.tar.gz" \
+            --pattern "Team-Cross-$RELEASE_VERSION-arm64.dmg" \
+            --pattern SHA256SUMS \
+            --pattern release.json
+          cd public-release
+          shasum -a 256 -c SHA256SUMS
+
+      - name: Verify release manifest and provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.release_commit }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          XDG_CACHE_HOME: ${{ runner.temp }}/gh-cache
+        run: |
+          python3 - public-release/release.json "$RELEASE_VERSION" "$RELEASE_COMMIT" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          manifest = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          expected = {
+              "version": sys.argv[2],
+              "commit": sys.argv[3],
+              "dirty": False,
+              "architecture": "arm64",
+              "minimumMacOS": "14.0",
+          }
+          for field, value in expected.items():
+              if manifest.get(field) != value:
+                  raise SystemExit(f"release.json {field}: expected {value!r}, got {manifest.get(field)!r}")
+          PY
+          gh attestation verify \
+            "public-release/teamcross-$RELEASE_VERSION-darwin-arm64.tar.gz" \
+            --repo YTwsy/Team-Cross \
+            --signer-workflow YTwsy/Team-Cross/.github/workflows/release-unsigned.yml \
+            --source-ref "refs/tags/$RELEASE_TAG" \
+            --source-digest "$RELEASE_COMMIT" \
+            --deny-self-hosted-runners
+          gh attestation verify \
+            "public-release/Team-Cross-$RELEASE_VERSION-arm64.dmg" \
+            --repo YTwsy/Team-Cross \
+            --signer-workflow YTwsy/Team-Cross/.github/workflows/release-unsigned.yml \
+            --source-ref "refs/tags/$RELEASE_TAG" \
+            --source-digest "$RELEASE_COMMIT" \
+            --deny-self-hosted-runners
+
+      - name: Render and validate channel definitions
+        run: |
+          python3 -m unittest scripts/test_homebrew_release.py
+          python3 scripts/homebrew_release.py render \
+            public-release \
+            public-release/homebrew-teamcross
+          python3 scripts/homebrew_release.py validate \
+            public-release/homebrew-teamcross
+
+      - name: Verify public Homebrew installation before publishing
+        run: python3 scripts/verify-homebrew.py public-release --public
+
+      - name: Create short-lived tap token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.HOMEBREW_PUBLISH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HOMEBREW_PUBLISH_APP_PRIVATE_KEY }}
+          owner: YTwsy
+          repositories: homebrew-teamcross
+          permission-actions: read
+          permission-checks: read
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Create or update tap pull request
+        id: tap-pr
+        shell: bash
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          RELEASE_CHANNEL: ${{ steps.release.outputs.channel }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.release_commit }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          branch="codex/homebrew-$RELEASE_TAG"
+          GH_TOKEN="$APP_TOKEN" gh repo clone "$TAP_REPOSITORY" tap
+          git -C tap config user.name "team-cross-release[bot]"
+          git -C tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          existing_pr="$(GH_TOKEN="$APP_TOKEN" gh pr list \
+            --repo "$TAP_REPOSITORY" \
+            --head "$branch" \
+            --state open \
+            --json url \
+            --jq '.[0].url // empty')"
+          remote_branch="$(git -C tap ls-remote --heads origin "refs/heads/$branch")"
+          if [[ -n "$existing_pr" ]]; then
+            git -C tap fetch origin "$branch"
+            git -C tap switch --track -c "$branch" "origin/$branch"
+            git -C tap merge --no-edit origin/main
+          else
+            if [[ -n "$remote_branch" ]]; then
+              echo "refusing to reuse an unowned tap branch without an open PR: $branch" >&2
+              exit 1
+            fi
+            git -C tap switch -c "$branch"
+          fi
+
+          python3 scripts/homebrew_release.py stage \
+            public-release/homebrew-teamcross \
+            tap
+          formula_path="$(jq -r '.definitions.formula' "public-release/homebrew-teamcross/Versions/$RELEASE_CHANNEL.json")"
+          cask_path="$(jq -r '.definitions.cask' "public-release/homebrew-teamcross/Versions/$RELEASE_CHANNEL.json")"
+          metadata_path="Versions/$RELEASE_CHANNEL.json"
+          git -C tap add -- README.md "$formula_path" "$cask_path" "$metadata_path"
+
+          if git -C tap diff --cached --quiet; then
+            if [[ -n "$existing_pr" ]]; then
+              pr_url="$existing_pr"
+              echo "already_published=false" >>"$GITHUB_OUTPUT"
+            else
+              pr_url="$(GH_TOKEN="$APP_TOKEN" gh pr list \
+                --repo "$TAP_REPOSITORY" \
+                --state merged \
+                --search "$RELEASE_TAG in:title" \
+                --json url \
+                --jq '.[0].url // empty')"
+              if [[ -z "$pr_url" ]]; then
+                echo "tap already contains $RELEASE_TAG but its publishing PR cannot be identified" >&2
+                exit 1
+              fi
+              echo "already_published=true" >>"$GITHUB_OUTPUT"
+              echo "tap_commit=$(git -C tap rev-parse origin/main)" >>"$GITHUB_OUTPUT"
+            fi
+          else
+            git -C tap commit -m "homebrew: publish Team Cross $RELEASE_TAG"
+            git -C tap push --set-upstream origin "$branch"
+            if [[ -n "$existing_pr" ]]; then
+              pr_url="$existing_pr"
+            else
+              pr_body="$RUNNER_TEMP/homebrew-pr.md"
+              cat >"$pr_body" <<EOF
+          ## Release provenance
+
+          - Team Cross release: https://github.com/YTwsy/Team-Cross/releases/tag/$RELEASE_TAG
+          - Source commit: $RELEASE_COMMIT
+          - Channel: $RELEASE_CHANNEL
+          - Formula: $formula_path
+          - Cask: $cask_path
+
+          The upstream release workflow verified the engineering, installation, lifecycle, checksum and build-provenance gates before publishing. This PR uses the public Release assets and was independently installed in an isolated Homebrew prefix before the tap update was proposed.
+          EOF
+              pr_url="$(GH_TOKEN="$APP_TOKEN" gh pr create \
+                --repo "$TAP_REPOSITORY" \
+                --base main \
+                --head "$branch" \
+                --title "homebrew: publish Team Cross $RELEASE_TAG" \
+                --body-file "$pr_body")"
+            fi
+            echo "already_published=false" >>"$GITHUB_OUTPUT"
+          fi
+          echo "pr_url=$pr_url" >>"$GITHUB_OUTPUT"
+
+      - name: Wait for protected tap merge
+        id: tap-merge
+        shell: bash
+        env:
+          ALREADY_PUBLISHED: ${{ steps.tap-pr.outputs.already_published }}
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          EXISTING_TAP_COMMIT: ${{ steps.tap-pr.outputs.tap_commit }}
+          PR_URL: ${{ steps.tap-pr.outputs.pr_url }}
+        run: |
+          if [[ "$ALREADY_PUBLISHED" == "true" ]]; then
+            tap_commit="$EXISTING_TAP_COMMIT"
+          else
+            GH_TOKEN="$APP_TOKEN" gh pr merge "$PR_URL" --auto --squash --delete-branch
+            GH_TOKEN="$APP_TOKEN" gh pr checks "$PR_URL" --watch --fail-fast --interval 10
+            for attempt in {1..60}; do
+              state="$(GH_TOKEN="$APP_TOKEN" gh pr view "$PR_URL" --json state --jq .state)"
+              if [[ "$state" == "MERGED" ]]; then
+                break
+              fi
+              if [[ "$state" == "CLOSED" ]]; then
+                echo "tap PR closed without merging: $PR_URL" >&2
+                exit 1
+              fi
+              sleep 10
+            done
+            if [[ "$state" != "MERGED" ]]; then
+              echo "tap PR did not merge within ten minutes: $PR_URL" >&2
+              exit 1
+            fi
+            tap_commit="$(GH_TOKEN="$APP_TOKEN" gh pr view "$PR_URL" --json mergeCommit --jq .mergeCommit.oid)"
+          fi
+          echo "tap_commit=$tap_commit" >>"$GITHUB_OUTPUT"
+
+      - name: Wait for public tap smoke
+        shell: bash
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAP_COMMIT: ${{ steps.tap-merge.outputs.tap_commit }}
+        run: |
+          run_id=""
+          for attempt in {1..60}; do
+            run_id="$(GH_TOKEN="$APP_TOKEN" gh run list \
+              --repo "$TAP_REPOSITORY" \
+              --workflow homebrew-ci.yml \
+              --event push \
+              --commit "$TAP_COMMIT" \
+              --limit 1 \
+              --json databaseId \
+              --jq '.[0].databaseId // empty')"
+            if [[ -n "$run_id" ]]; then
+              break
+            fi
+            sleep 10
+          done
+          if [[ -z "$run_id" ]]; then
+            echo "public tap smoke did not start for $TAP_COMMIT" >&2
+            exit 1
+          fi
+          GH_TOKEN="$APP_TOKEN" gh run watch "$run_id" \
+            --repo "$TAP_REPOSITORY" \
+            --exit-status \
+            --interval 10
+          echo "Homebrew tap PR: ${{ steps.tap-pr.outputs.pr_url }}" >>"$GITHUB_STEP_SUMMARY"
+          echo "Homebrew tap commit: $TAP_COMMIT" >>"$GITHUB_STEP_SUMMARY"
+          echo "Public tap workflow: https://github.com/$TAP_REPOSITORY/actions/runs/$run_id" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Record Homebrew publication on the GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ steps.tap-pr.outputs.pr_url }}
+          RELEASE_CHANNEL: ${{ steps.release.outputs.channel }}
+          TAP_COMMIT: ${{ steps.tap-merge.outputs.tap_commit }}
+        run: |
+          gh release view "$RELEASE_TAG" --json body --jq .body >"$RUNNER_TEMP/release-body.md"
+          python3 scripts/homebrew_release.py notes \
+            "$RUNNER_TEMP/release-body.md" \
+            "public-release/homebrew-teamcross/Versions/$RELEASE_CHANNEL.json" \
+            "$PR_URL" \
+            "$TAP_COMMIT" \
+            "$RUNNER_TEMP/release-body-updated.md"
+          gh release edit "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-body-updated.md"

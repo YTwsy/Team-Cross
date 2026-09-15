@@ -241,10 +241,13 @@ func StableExecutable(executable string) string {
 	if target, e := filepath.EvalSymlinks(executable); e == nil {
 		resolved = target
 	}
-	if i := strings.Index(resolved, "/Cellar/teamcross/"); i >= 0 {
-		p := filepath.Join(resolved[:i], "opt/teamcross/bin/teamcross")
-		if _, e := os.Stat(p); e == nil {
-			return p
+	for _, formula := range []string{"teamcross", "teamcross-rc"} {
+		marker := "/Cellar/" + formula + "/"
+		if i := strings.Index(resolved, marker); i >= 0 {
+			p := filepath.Join(resolved[:i], "opt", formula, "bin/teamcross")
+			if _, e := os.Stat(p); e == nil {
+				return p
+			}
 		}
 	}
 	if strings.HasSuffix(resolved, ".app/Contents/Resources/teamcross") {

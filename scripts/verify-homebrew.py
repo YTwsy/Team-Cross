@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Install/uninstall local Formula and Cask in an isolated Homebrew checkout."""
 import argparse, functools, http.server, json, os, pathlib, re, shutil, signal, subprocess, tempfile, threading
-p=argparse.ArgumentParser();p.add_argument('release');p.add_argument('--brew',default='/opt/homebrew/bin/brew');a=p.parse_args();release=pathlib.Path(a.release).resolve()
+from homebrew_release import load_bundle
+p=argparse.ArgumentParser();p.add_argument('release');p.add_argument('--brew',default='/opt/homebrew/bin/brew');p.add_argument('--public',action='store_true',help='Install from the public URLs instead of the local fixture server');a=p.parse_args();release=pathlib.Path(a.release).resolve()
+manifest=json.loads((release/'release.json').read_text());metadata,channel=load_bundle(release/'homebrew-teamcross')
+assert manifest.get('version')==metadata.get('version'), 'Release and Homebrew bundle versions differ'
 source=pathlib.Path(subprocess.check_output([a.brew,'--repository'],text=True).strip())
 with tempfile.TemporaryDirectory(prefix='teamcross-brew-') as temp:
     root=pathlib.Path(temp).resolve();prefix=root/'brew';apps=root/'Applications';apps.mkdir();data=root/'collaboration-data';data.mkdir();(data/'preserved.txt').write_text('retain')
@@ -41,18 +44,22 @@ with tempfile.TemporaryDirectory(prefix='teamcross-brew-') as temp:
         return subprocess.CompletedProcess(process.args,process.returncode,stdout,stderr)
     assert pathlib.Path(run('--prefix').stdout.strip())==prefix,'Refusing to mutate the original Homebrew prefix'
     tap=prefix/'Library/Taps/teamcross/homebrew-install-test';shutil.copytree(release/'homebrew-teamcross',tap)
-    class Quiet(http.server.SimpleHTTPRequestHandler):
-        def log_message(self,*args): pass
-        def copyfile(self,source,outputfile):
-            try: super().copyfile(source,outputfile)
-            except (BrokenPipeError,ConnectionResetError): pass
-    server=http.server.ThreadingHTTPServer(('127.0.0.1',0),functools.partial(Quiet,directory=str(release)));thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
-    for path in [tap/'Formula/teamcross.rb',tap/'Casks/team-cross.rb']:
-        text=path.read_text();text=re.sub(r'url "[^"]*/',f'url "http://127.0.0.1:{server.server_port}/',text,count=1);path.write_text(text)
+    server=None;thread=None
+    if not a.public:
+        class Quiet(http.server.SimpleHTTPRequestHandler):
+            def log_message(self,*args): pass
+            def copyfile(self,source,outputfile):
+                try: super().copyfile(source,outputfile)
+                except (BrokenPipeError,ConnectionResetError): pass
+        server=http.server.ThreadingHTTPServer(('127.0.0.1',0),functools.partial(Quiet,directory=str(release)));thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+        for relative in [channel.formula_path,channel.cask_path]:
+            path=tap/relative;text=path.read_text();text=re.sub(r'url "[^"]*/',f'url "http://127.0.0.1:{server.server_port}/',text,count=1);path.write_text(text)
     subprocess.run(['git','init','-q',str(tap)],check=True)
     subprocess.run(['git','-C',str(tap),'add','.'],check=True)
     subprocess.run(['git','-C',str(tap),'-c','user.name=Installation Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Local install fixture'],check=True)
-    formula='teamcross/install-test/teamcross';cask='teamcross/install-test/team-cross';installedFormula=False;installedCask=False
+    formula=f'teamcross/install-test/{channel.formula_token}';cask=f'teamcross/install-test/{channel.cask_token}';installedFormula=False;installedCask=False
+    run('trust','--formula',formula)
+    run('trust','--cask',cask)
     try:
         run('install','--formula',formula);installedFormula=True
         run('test',formula)
@@ -65,11 +72,11 @@ with tempfile.TemporaryDirectory(prefix='teamcross-brew-') as temp:
         try:
             first=call(cli,'serve','--no-open','--json')['service'];assert first['running']
             info=call(cli,'doctor','--json')['diagnostics']
-            assert str(prefix/'opt/teamcross/bin/teamcross') in info['mcpCommand']
+            assert str(prefix/f'opt/{channel.formula_token}/bin/teamcross') in info['mcpCommand']
             assert '/Cellar/' not in info['mcpCommand']
             # Replace the installed package while its Core is alive. Identical
             # executable bytes isolate Homebrew's upgrade and stable-path behavior.
-            definition=tap/'Formula/teamcross.rb';text=definition.read_text()
+            definition=tap/channel.formula_path;text=definition.read_text()
             text=re.sub(r'version "([^"]+)"',lambda m:'version "'+m[1]+'.1"',text,count=1)
             definition.write_text(text)
             run('upgrade','--formula',formula)
@@ -85,7 +92,7 @@ with tempfile.TemporaryDirectory(prefix='teamcross-brew-') as temp:
         assert helper.read_bytes()==original
         run('install','--formula',formula,expect_failure=True)
         assert cli.resolve()==helper.resolve() and helper.read_bytes()==original
-        definition=tap/'Casks/team-cross.rb';text=definition.read_text()
+        definition=tap/channel.cask_path;text=definition.read_text()
         text=re.sub(r'version "([^"]+)"',lambda m:'version "'+m[1]+'.1"',text,count=1)
         definition.write_text(text)
         run('upgrade','--cask',f'--appdir={apps}',cask)
@@ -93,10 +100,11 @@ with tempfile.TemporaryDirectory(prefix='teamcross-brew-') as temp:
         run('uninstall','--cask',cask);installedCask=False
         assert not cli.exists() and not cli.is_symlink() and not helper.exists()
         assert (data/'preserved.txt').read_text()=='retain'
-        print(json.dumps({'isolatedPrefix':True,'formulaInstallAndTest':True,'caskInstall':True,'mutualExclusionBothOrders':True,'caskCommandLinksBundledCLI':True,'helperBytesMatch':True,'stableMCPPath':True,'formulaUpgradeReusesRunningCore':True,'caskUpgradeKeepsCommand':True,'caskFirstLaunch':'requires-system-approval','uninstallPreservesData':True,'publicTap':False}))
+        print(json.dumps({'channel':channel.name,'isolatedPrefix':True,'formulaInstallAndTest':True,'caskInstall':True,'mutualExclusionBothOrders':True,'caskCommandLinksBundledCLI':True,'helperBytesMatch':True,'stableMCPPath':True,'formulaUpgradeReusesRunningCore':True,'caskUpgradeKeepsCommand':True,'caskFirstLaunch':'requires-system-approval','uninstallPreservesData':True,'publicTap':a.public}))
     except subprocess.CalledProcessError as e:
         print(e.stdout or '');print(e.stderr or '');raise
     finally:
         if installedCask: run('uninstall','--cask',cask)
         if installedFormula: run('uninstall','--force','--ignore-dependencies','--formula',formula)
-        server.shutdown();server.server_close();thread.join()
+        if server is not None:
+            server.shutdown();server.server_close();thread.join()

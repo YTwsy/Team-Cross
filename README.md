@@ -18,19 +18,21 @@ Agent Session 入手，为具体的一次工作增加共同视图、可定位批
 
 ## 安装
 
-面向 Apple Silicon、macOS 14 及以上。首个公开版本为 `v0.1.1`，当前预发布版本为 `v0.1.6-rc.1`；CLI、App 和 Homebrew 产物使用相同版本，公共 tap 仅在独立发布后更新。发布入口为 [GitHub Releases](https://github.com/YTwsy/Team-Cross/releases)，安装包和 tap 发布完成后可使用以下方式。
+面向 Apple Silicon、macOS 14 及以上。首个公开版本为 `v0.1.1`，当前预发布版本为 `v0.1.6-rc.1`；CLI、App 和 Homebrew 产物使用相同版本。GitHub Release 成功后，受保护的后续流程才会通过独立 tap PR 发布 Homebrew 定义。发布入口为 [GitHub Releases](https://github.com/YTwsy/Team-Cross/releases)，对应渠道的 Release 与公共 tap 验证完成后可使用以下方式。
 
 | 方式 | 安装与打开 |
 | --- | --- |
 | DMG | 打开构建产物中的 DMG，将 `Team Cross.app` 拖入“应用程序”，然后打开 App |
-| Homebrew App | `brew install --cask YTwsy/teamcross/team-cross`，然后打开 App 或运行 `teamcross` |
-| Homebrew CLI | `brew install YTwsy/teamcross/teamcross`，然后运行 `teamcross` |
+| Homebrew 稳定版 App | `brew install --cask YTwsy/teamcross/team-cross`，然后打开 App 或运行 `teamcross` |
+| Homebrew 稳定版 CLI | `brew install YTwsy/teamcross/teamcross`，然后运行 `teamcross` |
+| Homebrew RC App | `brew install --cask YTwsy/teamcross/team-cross@rc`，然后打开 App 或运行 `teamcross` |
+| Homebrew RC CLI | `brew install YTwsy/teamcross/teamcross-rc`，然后运行 `teamcross` |
 
-安装后的运行不需要 Go、Node 或 pnpm。App 自带完整 CLI 和 Core，不要求 Homebrew。Cask 会同时安装 App 和 `teamcross` 命令；Formula 提供独立 CLI，两者选择一种。切换渠道前退出 Team Cross，通过原渠道卸载再安装另一种，协作数据和工作目录保留。
+安装后的运行不需要 Go、Node 或 pnpm。App 自带完整 CLI 和 Core，不要求 Homebrew。Cask 会同时安装 App 和 `teamcross` 命令；Formula 提供独立 CLI，稳定版与 RC 也使用不同定义。四种 Homebrew 定义都会安装同一个 App 或命令，因此只能选择一种；RC 必须显式安装，不会把稳定通道的普通 `brew upgrade` 自动切换到候选版。切换前退出 Team Cross，通过原渠道卸载再安装另一种，协作数据和工作目录保留。
 
 通过 DMG 安装后，在菜单栏选择“命令行工具…”即可安装 `teamcross`；默认入口为 `/usr/local/bin/teamcross`，需要时通过系统授权。已有 Homebrew 或其他来源的命令不会被覆盖。相同位置升级 App 后，命令自动使用新的内置 CLI；移除入口仍可正常使用 App。使用自定义 shell 的用户需确保命令目录在 `PATH` 中。
 
-从 Formula 切换到 App 时，先退出服务，运行 `brew uninstall --formula --force teamcross` 移除所有已安装的 Formula 版本，再安装 Cask。反向切换使用 `brew uninstall --cask team-cross`；DMG 用户在移除 App 前先从菜单移除命令入口。以上卸载保留协作数据与工作目录。
+从 Formula 切换到 App 时，先退出服务，按实际渠道运行 `brew uninstall --formula --force teamcross` 或 `brew uninstall --formula --force teamcross-rc`，再安装 Cask。反向切换使用 `brew uninstall --cask team-cross` 或 `brew uninstall --cask team-cross@rc`；DMG 用户在移除 App 前先从菜单移除命令入口。以上卸载保留协作数据与工作目录。
 
 首次打开如果受到系统提示，先尝试打开 App，再按 [Apple 的说明](https://support.apple.com/zh-cn/102445) 在“系统设置 → 隐私与安全性”中允许打开。构建清单记录每个安装包的签名和公证状态。
 
@@ -177,7 +179,7 @@ make verify-homebrew
 
 本地开发构建默认 `0.1.6-dev`，输出位于 `dist/release/0.1.6-dev/`。版本构建使用 `make release VERSION=0.1.6-rc.1`，要求干净 checkout，并在重建 Web 资源后再次核对。使用相同 `VERSION` 运行两个安装验证目标。构建不上传产物。
 
-GitHub 对指向 `main` 的 PR 和 `main` push 运行 Go、race 与 Web 工程门槛。`Unsigned macOS release` workflow 可以手动构建、验证和保存一个不发布的 `X.Y.Z` 或 `X.Y.Z-rc.N` arm64 产物；推送可从 `origin/main` 到达的同版本 annotated tag 时，它才会生成 provenance 并创建 GitHub Release。RC 标记为 Pre-release，正式版本标记为 Latest；在取得 Developer ID 前，两者都明确使用 ad-hoc 签名且未经 Apple 公证。Tailcat 公网 smoke、两台 Mac 验收和 Homebrew tap 发布不在这条托管流水线中自动运行。完整参数、证据边界和发布顺序见 [分发与首次体验](docs/agent-wiki/sources/distribution-and-onboarding.md)。
+GitHub 对指向 `main` 的 PR 和 `main` push 运行 Go、race、Web 与 Homebrew 定义工程门槛。`Unsigned macOS release` workflow 可以手动构建、验证和保存一个不发布的 `X.Y.Z` 或 `X.Y.Z-rc.N` arm64 产物；推送可从 `origin/main` 到达的同版本 annotated tag 时，它才会生成 provenance 并创建 GitHub Release。RC 标记为 Pre-release，正式版本标记为 Latest；在取得 Developer ID 前，两者都明确使用 ad-hoc 签名且未经 Apple 公证。Release 创建后，独立 Homebrew workflow 重新下载公开资产、验证 checksum 与 attestation、隔离安装对应定义，再使用只覆盖 tap 仓库的短期 GitHub App token 创建 PR；tap CI 通过、自动合并及公共安装 smoke 完成后才更新 Release 中的 Homebrew 状态。Tailcat 公网 smoke 和两台 Mac 验收仍不在托管发布流水线中自动运行。完整参数、证据边界和发布顺序见 [分发与首次体验](docs/agent-wiki/sources/distribution-and-onboarding.md)。
 
 
 ```sh

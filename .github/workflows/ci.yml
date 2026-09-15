@@ -61,6 +61,9 @@ jobs:
             git show --check --format= HEAD
           fi
 
+      - name: Test Homebrew release rendering
+        run: python3 -m unittest scripts/test_homebrew_release.py
+
       - name: Run Go tests
         run: go test ./...
 
