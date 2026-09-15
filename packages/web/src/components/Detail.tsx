@@ -1,7 +1,12 @@
-import { invitationText } from "../types";
-import { useEffect, useState } from "react";
-import { api, errorText, useResource } from "../api";
-import { type ClientPlan, type Collaboration, projectName } from "../types";
+import { invitationText, transportName } from "../types";
+import { useEffect, useRef, useState } from "react";
+import { APIError, api, errorText, useResource } from "../api";
+import {
+  type ClientPlan,
+  type Collaboration,
+  type ShareTransport,
+  projectName,
+} from "../types";
 import { Clients } from "./Clients";
 import { Context } from "./Context";
 import { Annotations, type AnnotationRequest } from "./Annotations";
@@ -82,37 +87,54 @@ export function Detail({ id }: { id: string }) {
     "clients" | "assist" | "invite" | "end" | null
   >(() => (sessionStorage.getItem(`teamcross.invite.${id}`) ? "invite" : null));
   const [busy, setBusy] = useState("");
+  const [shareTransport, setShareTransport] = useState<ShareTransport>(() =>
+    sessionStorage.getItem(`teamcross.transport.${id}`) === "tailcat"
+      ? "tailcat"
+      : "lan",
+  );
   const [personalOpenNote, setPersonalOpenNote] = useState("");
   const [error, setError] = useState(
     () => sessionStorage.getItem(`teamcross.create.${id}`) || "",
   );
+  const actionSerial = useRef(0);
   useEffect(() => {
     sessionStorage.removeItem(`teamcross.create.${id}`);
     sessionStorage.removeItem(`teamcross.invite.${id}`);
+    sessionStorage.removeItem(`teamcross.transport.${id}`);
     setPersonalOpenNote("");
   }, [id]);
+  useEffect(() => {
+    if (c?.transport) setShareTransport(c.transport);
+  }, [c?.transport]);
   const [annotationRequest, setAnnotationRequest] =
     useState<AnnotationRequest>();
   const [annotationLocation, setAnnotationLocation] =
     useState<AnnotationRequest>();
-  async function action(value: string) {
+  async function action(value: string, transport?: ShareTransport) {
     if (!c) return;
+    const serial = ++actionSerial.current;
     setBusy(value);
     setError("");
     try {
       await api(`collaborations/${id}/action`, {
         action: value,
+        ...(transport ? { transport } : {}),
         epoch: c.epoch,
       });
+      if (serial !== actionSerial.current) return;
       resource.reload();
       if (value === "share") setModal("invite");
       if (value === "end") setModal(null);
       if (value === "start" && c.runtimeState === "released")
         setModal("clients");
     } catch (e) {
-      setError(errorText(e));
+      if (
+        serial === actionSerial.current &&
+        !(e instanceof APIError && e.code === "sharing_cancelled")
+      )
+        setError(errorText(e));
     } finally {
-      setBusy("");
+      if (serial === actionSerial.current) setBusy("");
     }
   }
   async function openPersonalCodex() {
@@ -154,8 +176,17 @@ export function Detail({ id }: { id: string }) {
     c.sessionId !== c.sourceId;
   const canContinueInPersonalCodex =
     !c.sharing && c.runtimeState === "released";
-  const sharingDescription =
-    c.participantJoined && c.sharing
+  const connectionName = transportName(c.transport);
+  const sharingState = c.sharingPreparing
+    ? `正在建立${connectionName}通道`
+    : c.sharing
+      ? `${connectionName}共享中`
+      : "共享已关闭";
+  const sharingDescription = c.sharingPreparing
+    ? c.transport === "tailcat"
+      ? "正在连接 Tailcat DERP 并生成临时跨网络地址；可以取消或等待完成。"
+      : "正在生成局域网地址与临时 TLS 邀请。"
+    : c.participantJoined && c.sharing
       ? `${owner ? "同事" : "你"}已加入，访问持续有效，直到主动离开或结束共享。`
       : c.sharing && c.expiresAt
         ? `首次加入期限：${new Date(c.expiresAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}。加入后不受此期限影响。`
@@ -218,7 +249,7 @@ export function Detail({ id }: { id: string }) {
               </span>
               <span>
                 <small>共享状态</small>
-                <strong>{c.sharing ? "局域网共享中" : "共享已关闭"}</strong>
+                <strong>{sharingState}</strong>
               </span>
               <Icon name="arrow" size={12} />
             </summary>
@@ -228,15 +259,15 @@ export function Detail({ id }: { id: string }) {
                 <span className={`dot ${c.sharing ? "green-dot" : ""}`} />
               </div>
               <strong className="sharing-inspector-value">
-                {c.sharing ? "局域网共享中" : "共享已关闭"}
+                {sharingState}
               </strong>
               <p>{sharingDescription}</p>
-              {owner && c.sharing ? (
+              {owner && (c.sharing || c.sharingPreparing) ? (
                 <button
                   className="text-link danger"
                   onClick={() => setModal("end")}
                 >
-                  结束共享
+                  {c.sharingPreparing ? "取消生成邀请" : "结束共享"}
                 </button>
               ) : !owner && c.state !== "left" ? (
                 <button
@@ -288,7 +319,9 @@ export function Detail({ id }: { id: string }) {
                     ? c.runtimeState === "releasing"
                       ? "正在关闭这次协作的后台运行时，会话与代码继续保留。"
                       : "恢复同一个会话与目录，不会重新创建分支。"
-                    : "确认两台 Mac 在同一局域网，并让发起者保持共享。"
+                    : c.transport === "tailcat"
+                      ? "确认双方网络可以访问 Tailcat DERP，并让发起者保持共享。"
+                      : "确认两台 Mac 在同一局域网，并让发起者保持共享。"
                   : waiting
                     ? `请在当前 ${agentName} 客户端中查看并回应请求。`
                     : c.busy
@@ -351,13 +384,15 @@ export function Detail({ id }: { id: string }) {
           {owner && c.online && !c.participantJoined && (
             <button
               className="button"
-              disabled={!!busy}
-              onClick={() =>
-                c.invitation ? setModal("invite") : void action("share")
-              }
+              disabled={!!busy || c.sharingPreparing}
+              onClick={() => setModal("invite")}
             >
               <Icon name="link" size={17} />
-              {busy === "share" ? "正在生成…" : "邀请同事"}
+              {busy === "share"
+                ? "正在生成…"
+                : c.invitation
+                  ? "查看邀请"
+                  : "邀请同事"}
             </button>
           )}
         </div>
@@ -524,7 +559,9 @@ export function Detail({ id }: { id: string }) {
             modal === "invite"
               ? "邀请同事加入"
               : modal === "end"
-                ? "结束这次共享？"
+                ? c.sharingPreparing
+                  ? "取消生成邀请？"
+                  : "结束这次共享？"
                 : modal === "assist"
                   ? "用个人客户端辅助"
                   : `用 ${agentName} 继续`
@@ -538,14 +575,23 @@ export function Detail({ id }: { id: string }) {
                 Cross，选择「加入协作」并粘贴邀请。
               </p>
               <div className="invite-card">
-                <Icon name="link" size={24} />
+                <Icon
+                  name={
+                    (c.transport || shareTransport) === "tailcat"
+                      ? "globe"
+                      : "link"
+                  }
+                  size={24}
+                />
                 <strong>{c.title}</strong>
-                <span className="muted">{c.host} · 局域网</span>
+                <span className="muted">
+                  {c.host} · {transportName(c.transport || shareTransport)}
+                </span>
               </div>
               {c.invitation ? (
                 <>
                   <Copy
-                    text={invitationText(c.invitation)}
+                    text={invitationText(c.invitation, c.transport)}
                     label="复制邀请"
                     className="primary full-width"
                   />
@@ -563,42 +609,109 @@ export function Detail({ id }: { id: string }) {
                 <p className="notice">
                   同事已加入，访问持续有效，无需再次发送邀请。
                 </p>
-              ) : c.invitationState === "expired" ||
-                c.invitationState === "left" ? (
-                <button
-                  className="button primary"
-                  disabled={!!busy}
-                  onClick={() => void action("share")}
-                >
-                  生成新邀请
-                </button>
+              ) : c.sharingPreparing || busy === "share" ? (
+                <>
+                  <Loading
+                    text={
+                      shareTransport === "tailcat"
+                        ? "正在建立 Tailcat 跨网络通道…"
+                        : "正在生成局域网邀请…"
+                    }
+                  />
+                  {c.sharingPreparing && (
+                    <button
+                      className="button full-width"
+                      onClick={() => void action("end")}
+                    >
+                      取消生成邀请
+                    </button>
+                  )}
+                </>
               ) : (
-                <Loading text="正在读取邀请…" />
+                <>
+                  <fieldset className="workspace-field invite-transport-field">
+                    <legend>连接方式</legend>
+                    <div className="workspace-grid">
+                      {(["lan", "tailcat"] as ShareTransport[]).map((value) => (
+                        <label
+                          className={`workspace-card ${shareTransport === value ? "selected" : ""}`}
+                          key={value}
+                        >
+                          <input
+                            type="radio"
+                            name="inviteTransport"
+                            value={value}
+                            checked={shareTransport === value}
+                            onChange={() => setShareTransport(value)}
+                          />
+                          <div className="workspace-top">
+                            <span className="entry-icon">
+                              <Icon
+                                name={value === "lan" ? "link" : "globe"}
+                                size={21}
+                              />
+                            </span>
+                            <span className="radio-dot" />
+                          </div>
+                          <h3>{value === "lan" ? "局域网" : "Tailcat"}</h3>
+                          <strong>
+                            {value === "lan" ? "默认" : "跨网络 · 实验性"}
+                          </strong>
+                          <p>
+                            {value === "lan"
+                              ? "两台 Mac 位于同一局域网。"
+                              : "无需 Tailscale 账号，必要时经 DERP 中继。"}
+                          </p>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                  <button
+                    className="button primary full-width"
+                    disabled={!!busy}
+                    onClick={() => void action("share", shareTransport)}
+                  >
+                    {c.invitationState === "expired" ||
+                    c.invitationState === "left"
+                      ? "生成新邀请"
+                      : "生成邀请"}
+                  </button>
+                </>
               )}
               <p className="small-text muted">
                 邀请仅限一人首次加入，有效期一小时。加入后持续有效；你决定何时交出输入。发起者退出
                 Team Cross 时会结束本次共享。
+                {(c.transport || shareTransport) === "tailcat" &&
+                  " Tailcat 为实验性连接，无法直连时可能使用第三方 DERP 中继。"}
               </p>
             </>
           ) : modal === "end" ? (
             <>
-              <p>
-                同事的直接连接和工具访问会关闭。协作会话、执行目录和所有代码继续保留。
-              </p>
-              <p>
-                当前执行和审批完成、专用客户端关闭后，会自动释放会话，之后可以从
-                Team Cross 恢复同一个会话。
-              </p>
+              {c.sharingPreparing ? (
+                <p>
+                  将停止当前连接方式的准备过程。协作会话、执行目录和所有代码继续保留，之后可以重新选择连接方式。
+                </p>
+              ) : (
+                <>
+                  <p>
+                    同事的直接连接和工具访问会关闭。协作会话、执行目录和所有代码继续保留。
+                  </p>
+                  <p>
+                    当前执行和审批完成、专用客户端关闭后，会自动释放会话，之后可以从
+                    Team Cross 恢复同一个会话。
+                  </p>
+                </>
+              )}
               <div className="form-footer">
                 <button className="button" onClick={() => setModal(null)}>
-                  继续共享
+                  {c.sharingPreparing ? "继续等待" : "继续共享"}
                 </button>
                 <button
                   className="button danger-button"
                   disabled={!!busy}
                   onClick={() => void action("end")}
                 >
-                  结束共享
+                  {c.sharingPreparing ? "取消生成" : "结束共享"}
                 </button>
               </div>
             </>

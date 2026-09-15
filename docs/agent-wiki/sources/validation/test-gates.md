@@ -10,6 +10,7 @@
 | 产品代码 | 下列 Go 与 Web 工程门槛，按修改范围补相关回归 |
 | Git 预览、目录创建或恢复 | 原目录分支/HEAD/暂存区/文件不变；worktree 不复制四类未提交内容；子目录映射、新会话 ID 与来源关联 |
 | 输入协调、共享或进程生命周期 | 相关 race test，以及直接连接/MCP 共用输入者、重复请求、审批、断线、结束访问和恢复 |
+| LAN / Tailcat 传输或邀请格式 | 邀请互斥字段、TLS pin、一次性加入、成员重连、取消与资源关闭；Tailcat 另跑显式联网测试，并把同机、两台 Mac 直连和强制 DERP 分开报告 |
 | 原生协议、客户端启动或账户路由 | 除协议测试外，使用专门会话实测对应 TUI/Desktop；分别验证登录、历史、输入、审批和 A 上执行 |
 | 模型与推理设置 | 来源继承、客户端选择、失败不更新显示、通知、恢复与写入归属；真实调用仅使用 Luna |
 | WebGUI | 类型检查、交互测试、production build，更新嵌入式资源，并进行实际浏览器和截图复核 |
@@ -40,6 +41,7 @@ go build -o bin/teamcross ./cmd/teamcross
 | [workspace_test.go](../../../../internal/workspace/workspace_test.go) | 两种目录模式、Git 现场保留、文件路径范围 |
 | [collab_test.go](../../../../internal/collab/collab_test.go) | 创建恢复不发送 prompt、输入归属、去重、审批、原生与工具并行、访问范围、本机登录路由 |
 | [lifecycle_test.go](../../../../internal/collab/lifecycle_test.go) / [membership_test.go](../../../../internal/sharing/membership_test.go) | 首次加入期限、持久成员、丢失响应、主动离开、空闲释放、并发请求和旧连接隔离 |
+| [invitation_test.go](../../../../internal/sharing/invitation_test.go) / [tailcat_test.go](../../../../internal/sharing/tailcat_test.go) | `tcx3` 传输字段互斥、Tailcat 地址与精确版本检查、回调 listener 关闭并发 |
 | [model_test.go](../../../../internal/collab/model_test.go) | 模型继承、设置更新、拒绝请求、恢复与通知 |
 | [process_test.go](../../../../internal/nativecodex/process_test.go) | 客户端配置与启动不强制模型 |
 | [server_test.go](../../../../internal/mcp/server_test.go) | STDIO 读取不发送输入，保留输入文本与请求 ID |
@@ -72,7 +74,26 @@ TEAMCROSS_LIVE_EXISTING_FIXTURE=/private/tmp/teamcross-fresh-fixture \
 
 原目录与新 worktree 分别覆盖直接 TUI、直接 Desktop、辅助 TUI、辅助 Desktop，共八种组合。实测核对执行主机、目录、fork、读写结果、审批、输入交接、并行辅助、客户端切换、重连、邀请失效和结束访问。
 
-同机两个 Core、两个浏览器或模拟运行时不能证明两台 Mac 的 LAN。跨设备验收需实际使用 A/B 两台 Mac，记录客户端版本、网络条件与相应操作结果；不使用 `--test-loopback` 替代真实 LAN。
+## LAN 与 Tailcat 网络门槛
+
+[共享层 Tailcat 联网测试](../../../../internal/sharing/tailcat_live_test.go) 和 [协作层 Tailcat 联网测试](../../../../internal/collab/tailcat_live_test.go) 默认跳过。它们会访问 Tailcat DERP；只能在明确允许联网且能初始化系统网络监视的测试主机运行：
+
+```sh
+TEAMCROSS_TEST_TAILCAT=1 \
+  go test ./internal/sharing ./internal/collab \
+  -run '^TestLiveTailcat(Membership|Collaboration)$' \
+  -v -count=1 -timeout=100s
+```
+
+共享层覆盖 Tailcat Server/Client、TLS 1.3 SPKI pin、一次性加入和成员凭据重连；协作层再覆盖显式选择、状态、输入交接与直接客户端 WebSocket 桥接。两项在同一台 Mac 上运行，日志中出现 DERP 引导或随后出现 `via=direct` 只说明该次本机路径，不能证明两台物理 Mac、不同 NAT、受限 UDP 或持续 DERP 中继。
+
+跨设备必须分别完成并记录：
+
+1. 两台 Mac 同一 LAN，显式选择 `lan`，不使用 `--test-loopback`。
+2. 两台 Mac 处于不同网络，显式选择 `tailcat`，覆盖加入、状态、直接客户端、输入交接、断线重连、离开和结束共享。
+3. 阻断点对点 UDP 或使用受控 DERP，证明业务流量保持经 DERP；必须依据明确路径诊断，不能仅凭连接成功或启动时连接过 DERP 推断。
+
+每项记录 Team Cross 提交、Go/Tailcat 版本、macOS 版本、网络条件、DERP 来源、可观察路径及清理结果。公共 DERP 可用性与性能不属于一次测试可长期保证的产品承诺。
 
 ## 界面与测试收尾
 

@@ -26,7 +26,7 @@
 | `POST /join` | `{invitation}` 或 `{pendingId}`，连接邀请并幂等返回本机加入记录 |
 | `GET /collaborations/:id` | 状态、目录、输入者、批注 |
 | `GET /collaborations/:id/context?kind=&path=&after=&cursor=` | `history/changes/file/annotations/events` |
-| `POST /collaborations/:id/action` | `{action,epoch}` |
+| `POST /collaborations/:id/action` | `{action,transport?,epoch}`；`share` 使用 `lan|tailcat`，省略仅为兼容本机调用并默认 `lan` |
 | `POST /collaborations/:id/open` | `{client:tui|desktop,launch:boolean}` 直接客户端 |
 | `POST /collaborations/:id/personal-desktop` | `{launch:boolean}`，仅本机发起的 Codex 协作；在个人 Desktop 定位已保存的 fork |
 | `POST /collaborations/:id/assist` | `{provider:codex|claude,client:tui|desktop,launch:boolean}`，Provider 选择个人客户端，省略默认 Codex；Claude 仅 TUI |
@@ -51,15 +51,26 @@
 
 预览返回 `source`、`sourceTurnId`、`workspace`、`targetDirectory`、`previewHash`。不接受 dirty patch 或未跟踪文件选项。创建哈希绑定来源会话、完成轮、模式、目录、Git HEAD 和分支；未提交文件只是原目录当前现场，不捕获为快照。
 
-`action` 包括：`start` 恢复运行时，`share` 生成邀请，`end` 结束共享，`handoff` 交给接收者，`reclaim` 发起者接回，`return` 接收者交还，`leave` 接收者离开，`request_input` / `cancel_input` 接收者申请或取消输入。申请同样校验 epoch，不自动交接。输入交接需要当前 `epoch`。
+`action` 包括：`start` 恢复运行时，`share` 按显式 `transport` 生成邀请，`end` 结束共享，`handoff` 交给接收者，`reclaim` 发起者接回，`return` 接收者交还，`leave` 接收者离开，`request_input` / `cancel_input` 接收者申请或取消输入。申请同样校验 epoch，不自动交接。输入交接需要当前 `epoch`。WebGUI 必须让用户在 `lan` 和 `tailcat` 之间二选一；协议默认 `lan` 只用于已有本机调用者，不表示自动探测或回退。
 
 协作列表以本机记录和最近一次成功状态立即响应，不等待逐个远端主机重连；已加入协作的远端状态在后台去重刷新，下一次页面轮询会显示结果。`GET /collaborations/:id` 仍等待该协作的实时状态探测，供详情页和工具确认当前输入归属与运行状态。
 
 `personal-desktop` 从本机持久化协作记录读取 `sessionId`，生成 `codex://threads/<sessionId>`，不使用来源 `sourceId` 或请求体提供的会话 ID/URL。返回 `{sessionId,url,command,launched,note}`；`launch:false` 仅生成命令，`launch:true` 通过 `open -a <Desktop路径> <URL>` 请求打开普通 Desktop，`launched` 只表示系统打开请求成功，不证明页面、侧边栏或新消息已刷新。此入口不要求当前输入权或在线运行时，不 fork、resume、发送 prompt、连接共享网关或更改共享状态；不适用于接收者或 Claude 协作。
 
-## LAN 分享
+## 共享邀请与传输
 
-原始邀请格式 `tcx2.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `2`，能力 `codex-collaboration-v2-membership`。含协作 ID、显示名称、主机、候选 IP/端口、SHA-256 SPKI 指纹、随机 secret 和到期时间。客户端以指纹验证 TLS 主机。`expiresAt` 只约束首次加入，以墙钟比较；旧能力邀请码明确拒绝，双方需使用本版。
+原始邀请格式 `tcx3.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `3`，能力 `codex-collaboration-v3-explicit-transport`。公共字段含协作 ID、显示名称、主机、`transport`、SHA-256 SPKI 指纹、随机 secret 和到期时间。`expiresAt` 只约束首次加入，以墙钟比较；`tcx2` 及其他旧能力明确拒绝，双方需使用兼容版本。
+
+候选字段按传输互斥：
+
+| `transport` | 邀请候选 | 建立方式 |
+| --- | --- | --- |
+| `lan` | `endpoints: ["private-ip:port", ...]`，不得包含 `tailcat` | 依次尝试候选 TCP 地址；生产只接受私有 IPv4，测试可显式加入 loopback |
+| `tailcat` | `tailcat: {address,port:443,libraryVersion:"v0.6.0"}`，不得包含 `endpoints` | 解析完整 Tailcat 地址，要求精确库版本，通过 Tailcat `DialTCPPort(443)` 建立流 |
+
+Tailcat 地址包含 WireGuard 节点材料和默认预共享密钥，整个邀请码都必须按秘密处理。服务端仅允许虚拟 TCP 443，其他端口在 Tailcat packet filter 与回调处拒绝。Tailcat 负责 DERP 引导、直连探测与必要时的中继；Team Cross 不根据路径自动切换传输，也不把 DERP 引导日志当作最终中继证据。
+
+两种传输在其连接之上使用相同的 TLS 1.3 临时证书。客户端以邀请中的 SPKI 指纹验证主机，不使用系统 CA，也不把证书日期作为成员到期时间。
 
 `GET /v2/invitation` 与 `POST /v2/join` 使用 `Authorization: Bearer <invite.secret>`。B 在加入前生成并持久化 32 字节随机 `credential`，A 首次接受后绑定该凭据并消费邀请码；相同凭据显式重试加入幂等。其他 `/v2/*` 路由均使用 `Bearer <credential>`，不接受邀请码或依据邀请码时限失效。TLS 验证以 SPKI pin 为准，不把证书日期作为成员到期时间。
 
@@ -80,11 +91,11 @@
 | `POST /v2/cancel_input` | `{epoch}`，取消输入申请 |
 | `GET /v2/connect` | 原生 WebSocket upgrade |
 
-TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS 路径和凭据由本机 Core 管理。只读请求失败可重新查询候选地址；写入失败不自动重放。未使用邀请到期、成员主动离开或共享结束后需新邀请；B 的 Core 重启从持久化凭据重连，不重新加入。
+TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS/Tailcat 路径和凭据由本机 Core 管理。LAN 只读请求失败可依次查询邀请候选，Tailcat 只按邀请地址重建客户端；写入失败都不自动重放。未使用邀请到期、成员主动离开或共享结束后需新邀请；B 的 Core 重启从持久化凭据和原传输重连，不重新加入、不改选传输。
 
 ## 状态与事件
 
-协作状态 `preparing/ready/error`，接收者还可为 `joining/left/ended`。`online` 表示运行时是否连接，`busy` 表示轮次是否运行，`approvals` 表示待回应数量，`sharing` 表示共享是否开启，`connected` 表示是否已有直接客户端。`participantOnline` 表示参与方 Core 的有效心跳，`inputRequested` 表示有效输入申请；两者与直接客户端连接独立。`clientState` 为 `disconnected/connected/session_ready`，最后一种必须由该直接连接成功读取或恢复绑定的 thread 确认。
+协作状态 `preparing/ready/error`，接收者还可为 `joining/left/ended`。`online` 表示运行时是否连接，`busy` 表示轮次是否运行，`approvals` 表示待回应数量，`sharing` 表示共享是否开启，`sharingPreparing` 表示所选传输仍在建立，`transport` 为当前或正在准备的 `lan|tailcat`，`connected` 表示是否已有直接客户端。`participantOnline` 表示参与方 Core 的有效心跳，`inputRequested` 表示有效输入申请；两者与直接客户端连接独立。`clientState` 为 `disconnected/connected/session_ready`，最后一种必须由该直接连接成功读取或恢复绑定的 thread 确认。
 
 `participantJoined` 独立于在线心跳；`invitationState` 为 `pending/joined/expired/left`，只有 `pending` 状态向 A 返回邀请码和 `expiresAt`，B 状态不带加入期限。`runtimeState` 为 `running/starting/releasing/released/offline`，`releasePending` 表示共享关闭后仍在等待工作或客户端结束。退出过程完成后才显示 `released`；恢复等待旧进程完全退出。
 
@@ -120,7 +131,7 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 
 `context?kind=file` 返回 `{path,text,contentHash}`。`kind=changes` 返回 `{stat,status,diff,contentHash,baseRevision,truncated}`；diff 路径相对执行目录，限制 256 KiB 并在完整行截断，`truncated` 表示只返回部分内容。`baseRevision` 为该次 diff 使用的具体 HEAD，不使用协作创建时的 HEAD 代替。
 
-`context?kind=annotations` 返回 `{annotations,sessionId,executionCwd}`，本机和 LAN 路由相同，MCP `read_context` 支持该 kind；`get_collaboration` 同样返回批注。`add_annotation` 支持完整的 `target` 对象。工具描述说明如何用 path、消息 ID 和历史游标读取原文，并提醒旧行属于基准提交。
+`context?kind=annotations` 返回 `{annotations,sessionId,executionCwd}`，本机、LAN 和 Tailcat 路由相同，MCP `read_context` 支持该 kind；`get_collaboration` 同样返回批注。`add_annotation` 支持完整的 `target` 对象。工具描述说明如何用 path、消息 ID 和历史游标读取原文，并提醒旧行属于基准提交。
 
 位置和 `contentHash` 是客户端提供的阅读快照，主机检查字段格式、相对路径、范围与片段长度，不将其作为已验证的当前代码事实，也不会保存时改写成新文件的指纹。文件可在编辑批注期间变化；处理前通过 Team Cross 读取 A 上的实际上下文，再核对片段与版本，不能把 A 上路径当成 B 本机同名文件。指纹不同不代表该片段一定变化，但不能据此直接高亮旧位置。消息按稳定 ID 和精确片段判断；未定位时继续保留引用。
 
@@ -148,9 +159,9 @@ Codex 启动协作运行时前读取有效 MCP 名称，在进程配置中逐项
 
 ## 后台控制与错误分类
 
-控制协议版本为 1，与 LAN v2 独立。`connection.json` 包含 `url/pid/instance/token/version/commit/protocol/dataDir`，0600 原子写入；公开状态省略 token。控制接口拒绝 Origin 并校验本机 Bearer token。普通页面继续通过现有同源检查访问管理接口。
+控制协议版本为 1，与共享邀请 v3 独立。`connection.json` 包含 `url/pid/instance/token/version/commit/protocol/dataDir`，0600 原子写入；公开状态省略 token。控制接口拒绝 Origin 并校验本机 Bearer token。普通页面继续通过现有同源检查访问管理接口。
 
-主要错误类型包括 `invitation_invalid`、`invitation_used`、`membership_invalid`、`invitation_expired`、`invitation_pending_expired`、`sharing_ended`、`host_unreachable`、`version_incompatible`、`instance_mismatch`、`client_missing`、`mcp_not_configured`、`input_changed`、`active_collaborations`。未分类错误为 `operation_failed`。远端错误保留 code/recovery，写入失败不自动重试。
+主要错误类型包括 `transport_invalid`、`sharing_preparing`、`sharing_cancelled`、`sharing_active`、`invitation_invalid`、`invitation_used`、`membership_invalid`、`invitation_expired`、`invitation_pending_expired`、`sharing_ended`、`host_unreachable`、`version_incompatible`、`instance_mismatch`、`client_missing`、`mcp_not_configured`、`input_changed`、`active_collaborations`。未分类错误为 `operation_failed`。远端错误保留 code/recovery，写入失败不自动重试。
 
 首次体验与生命周期详见 [分发与首次体验](distribution-and-onboarding.md)。
 

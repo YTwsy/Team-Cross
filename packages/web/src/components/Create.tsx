@@ -5,6 +5,7 @@ import {
   type Mode,
   type Provider,
   type Preview,
+  type ShareTransport,
   type Source,
   projectName,
   relativeTime,
@@ -18,6 +19,7 @@ export function Create() {
   const [query, setQuery] = useState("");
   const [source, setSource] = useState<Source>();
   const [mode, setMode] = useState<Mode>("existing");
+  const [shareTransport, setShareTransport] = useState<ShareTransport>("lan");
   const [title, setTitle] = useState("");
   const [preview, setPreview] = useState<Preview>();
   const [busy, setBusy] = useState(false);
@@ -83,9 +85,11 @@ export function Create() {
         previewHash: preview.previewHash,
         requestId: requestId.current,
       });
+      sessionStorage.setItem(`teamcross.transport.${c.id}`, shareTransport);
       try {
         await api(`collaborations/${c.id}/action`, {
           action: "share",
+          transport: shareTransport,
           epoch: c.epoch,
         });
       } catch (e) {
@@ -312,6 +316,45 @@ export function Create() {
               ))}
             </div>
           </fieldset>
+          <fieldset disabled={busy} className="workspace-field">
+            <legend>选择连接方式</legend>
+            <div className="workspace-grid">
+              {(["lan", "tailcat"] as ShareTransport[]).map((value) => (
+                <label
+                  className={`workspace-card ${shareTransport === value ? "selected" : ""}`}
+                  key={value}
+                >
+                  <input
+                    type="radio"
+                    name="shareTransport"
+                    value={value}
+                    checked={shareTransport === value}
+                    onChange={() => setShareTransport(value)}
+                  />
+                  <div className="workspace-top">
+                    <span className="entry-icon">
+                      <Icon
+                        name={value === "lan" ? "link" : "globe"}
+                        size={23}
+                      />
+                    </span>
+                    <span className="radio-dot" />
+                  </div>
+                  <h3>{value === "lan" ? "局域网" : "Tailcat 跨网络"}</h3>
+                  <strong>
+                    {value === "lan"
+                      ? "默认 · 快速直连"
+                      : "实验性 · 无需 Tailscale 账号"}
+                  </strong>
+                  <p>
+                    {value === "lan"
+                      ? "适合两台 Mac 位于同一局域网，连接不会经过公网中继。"
+                      : "通过 Tailcat 建立加密通道；无法点对点直连时可能经过第三方 DERP 中继。"}
+                  </p>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <div ref={errorRef} tabIndex={-1}>
             <ErrorBox
               message={error}
@@ -388,7 +431,9 @@ export function Create() {
               {busy ? (
                 <>
                   <span className="spinner" />
-                  正在创建协作…
+                  {shareTransport === "tailcat"
+                    ? "正在建立跨网络邀请…"
+                    : "正在创建协作…"}
                 </>
               ) : (
                 <>

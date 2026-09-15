@@ -21,6 +21,13 @@ import (
 )
 
 func (s *Session) endShareLocked() {
+	if s.shareCancel != nil {
+		s.shareCancel()
+		s.shareCancel = nil
+	}
+	s.sharePreparing = false
+	s.shareTransport = ""
+	s.shareGeneration++
 	if s.share != nil {
 		s.share.Revoke()
 		s.app.mu.Lock()
@@ -39,9 +46,82 @@ func (s *Session) endShareLocked() {
 	s.releaseWhenIdle = true
 	s.annotationAccess = false
 }
+
+func (s *Session) Share(ctx context.Context, requested string) error {
+	transport, err := sharing.ParseTransport(requested)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	if s.sharePreparing {
+		if s.shareTransport == transport {
+			s.mu.Unlock()
+			return problem.New("sharing_preparing", "正在生成协作邀请", "请等待当前连接方式准备完成")
+		}
+		s.mu.Unlock()
+		return problem.New("sharing_preparing", "另一种连接方式正在准备", "请等待完成或先结束共享")
+	}
+	if s.share != nil {
+		state := s.share.InvitationState()
+		if state == "pending" || state == "joined" {
+			if s.share.Transport() == transport {
+				s.mu.Unlock()
+				return nil
+			}
+			if state == "joined" {
+				s.mu.Unlock()
+				return problem.New("sharing_active", "同事已经加入当前共享", "请先结束共享，再选择其他连接方式")
+			}
+		}
+		s.endShareLocked()
+	}
+	if !s.online || s.record.State != "ready" {
+		s.mu.Unlock()
+		return fmt.Errorf("请先恢复协作运行时")
+	}
+	startCtx, cancel := context.WithCancel(ctx)
+	s.sharePreparing = true
+	s.shareTransport = transport
+	s.shareCancel = cancel
+	s.shareGeneration++
+	generation := s.shareGeneration
+	id, title := s.record.ID, s.record.Title
+	host, loopback := s.app.Host, s.app.Config.Loopback
+	s.mu.Unlock()
+
+	runtime, startErr := sharing.Start(startCtx, transport, id, title, host, http.HandlerFunc(s.remoteHTTP), loopback)
+	cancel()
+
+	s.mu.Lock()
+	defer func() { s.releaseIfIdleLocked(); s.mu.Unlock() }()
+	if generation != s.shareGeneration || s.closed {
+		if runtime != nil {
+			runtime.Close()
+		}
+		return problem.New("sharing_cancelled", "邀请生成已取消", "请重新选择连接方式")
+	}
+	s.sharePreparing = false
+	s.shareTransport = ""
+	s.shareCancel = nil
+	if startErr != nil {
+		return startErr
+	}
+	if !s.online || s.record.State != "ready" {
+		runtime.Close()
+		return fmt.Errorf("协作运行时已经停止，请恢复后重试")
+	}
+	s.share = runtime
+	s.releaseWhenIdle = false
+	s.annotationAccess = true
+	return nil
+}
+
 func (s *Session) Action(ctx context.Context, action string, expected ...uint64) error {
 	if action == "start" {
 		return s.start(ctx, true)
+	}
+	if action == "share" {
+		return s.Share(ctx, string(sharing.TransportLAN))
 	}
 	s.mu.Lock()
 	defer func() { s.releaseIfIdleLocked(); s.mu.Unlock() }()
@@ -49,24 +129,6 @@ func (s *Session) Action(ctx context.Context, action string, expected ...uint64)
 		return fmt.Errorf("输入状态已变化，请刷新后重试")
 	}
 	switch action {
-	case "share":
-		if s.share != nil {
-			state := s.share.InvitationState()
-			if state == "pending" || state == "joined" {
-				return nil
-			}
-			s.endShareLocked()
-		}
-		if !s.online || s.record.State != "ready" {
-			return fmt.Errorf("请先恢复协作运行时")
-		}
-		rt, e := sharing.Start(s.record.ID, s.record.Title, s.app.Host, http.HandlerFunc(s.remoteHTTP), s.app.Config.Loopback)
-		if e != nil {
-			return e
-		}
-		s.share = rt
-		s.releaseWhenIdle = false
-		s.annotationAccess = true
 	case "end":
 		s.endShareLocked()
 	case "handoff":
@@ -281,19 +343,21 @@ func (a *App) Join(ctx context.Context, token string) (*Joined, error) {
 	if decodeErr != nil {
 		return nil, decodeErr
 	}
-	url, client, e := sharing.Connect(ctx, invitation)
+	connection, e := sharing.Connect(ctx, invitation)
 	if e != nil {
 		return nil, e
 	}
 	if j == nil {
-		j = &Joined{app: a, ID: "joined-" + uuid.NewString(), Invitation: invitation, Credential: sharing.NewCredential(), URL: url, Client: client, done: make(chan struct{})}
+		j = &Joined{app: a, ID: "joined-" + uuid.NewString(), Invitation: invitation, Credential: sharing.NewCredential(), URL: connection.URL, Client: connection.Client, Connection: connection, done: make(chan struct{})}
 		a.mu.Lock()
 		a.joined[j.ID] = j
 		a.mu.Unlock()
 	} else {
 		j.mu.Lock()
-		j.URL, j.Client = url, client
+		previous := j.Connection
+		j.URL, j.Client, j.Connection = connection.URL, connection.Client, connection
 		j.mu.Unlock()
+		_ = previous.Close()
 	}
 	// Persist before the host accepts us; a lost response or B Core restart
 	// retains the only credential capable of recovering this membership.
@@ -324,6 +388,9 @@ func (j *Joined) request(ctx context.Context, method, path string, in, out any) 
 	}
 	url, client, inv, credential := j.URL, j.Client, j.Invitation, j.Credential
 	j.mu.Unlock()
+	if url == "" || client == nil {
+		return problem.New("host_unreachable", "协作连接尚未准备", "请重新连接")
+	}
 	if path == "/v2/join" {
 		credential = inv.Secret
 	}
@@ -340,8 +407,12 @@ func (j *Joined) request(ctx context.Context, method, path string, in, out any) 
 	req.Header.Set("Content-Type", "application/json")
 	res, e := client.Do(req)
 	if e != nil {
-		if method == "GET" {
-			next, nextClient, connectErr := sharing.Connect(ctx, inv, credential)
+		// LAN invitations carry multiple concrete endpoints, so a failed read
+		// can safely select another one. Tailcat has one logical address and its
+		// client owns network recovery; replacing that client here could tear
+		// down an unrelated live WebSocket using the same transport.
+		if method == "GET" && inv.Transport == sharing.TransportLAN {
+			next, connectErr := sharing.Connect(ctx, inv, credential)
 			if connectErr != nil && problem.Describe(connectErr).Code != "host_unreachable" {
 				if problem.Describe(connectErr).Code == "sharing_ended" {
 					j.markEnded()
@@ -350,11 +421,14 @@ func (j *Joined) request(ctx context.Context, method, path string, in, out any) 
 			}
 			if connectErr == nil {
 				j.mu.Lock()
-				j.URL = next
-				j.Client = nextClient
+				previous := j.Connection
+				j.URL = next.URL
+				j.Client = next.Client
+				j.Connection = next
 				j.mu.Unlock()
-				req.URL, _ = neturl.Parse(next + path)
-				res, e = nextClient.Do(req)
+				_ = previous.Close()
+				req.URL, _ = neturl.Parse(next.URL + path)
+				res, e = next.Client.Do(req)
 			}
 		}
 		if e != nil {
@@ -393,7 +467,11 @@ func (j *Joined) request(ctx context.Context, method, path string, in, out any) 
 	return nil
 }
 func (j *Joined) view(ctx context.Context) map[string]any {
-	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	timeout := 4 * time.Second
+	if j.Invitation.Transport == sharing.TransportTailcat {
+		timeout = 15 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var fresh map[string]any
 	e := j.request(ctx, "GET", "/v2/status", nil, &fresh)
@@ -464,7 +542,11 @@ func (j *Joined) cachedViewLocked() map[string]any {
 	out["remoteId"] = j.Invitation.ID
 	out["id"] = j.ID
 	out["role"] = "remote"
-	out["transport"] = "LAN"
+	transport := j.Invitation.Transport
+	if transport == "" {
+		transport = sharing.TransportLAN
+	}
+	out["transport"] = string(transport)
 	delete(out, "expiresAt")
 	return out
 }
@@ -493,6 +575,10 @@ func (j *Joined) stopLocked() {
 	})
 	if j.server != nil {
 		_ = j.server.Close()
+	}
+	if j.Connection != nil {
+		_ = j.Connection.Close()
+		j.Connection = nil
 	}
 }
 func (j *Joined) markEnded() {
@@ -702,7 +788,11 @@ func (j *Joined) startHeartbeat() {
 				if finished {
 					return
 				}
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				timeout := 2 * time.Second
+				if j.Invitation.Transport == sharing.TransportTailcat {
+					timeout = 8 * time.Second
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), timeout)
 				_ = j.request(ctx, "POST", "/v2/presence", map[string]bool{"online": true}, nil)
 				cancel()
 				select {

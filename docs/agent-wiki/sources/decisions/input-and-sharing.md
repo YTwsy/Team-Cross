@@ -16,18 +16,25 @@
 
 批注保存为人工反馈，不隐式发给模型。模型设置修改属于写入，仍需遵循输入归属。
 
-## 首轮使用 LAN
+## 显式选择 LAN 或 Tailcat
 
 邀请只绑定一个协作，使用临时 TLS 证书、SPKI 指纹和 secret；一小时只限制首次加入，且一份邀请只接纳一人。A 确认后，B 以独立访问凭据持续参与。断线、休眠、关闭客户端或 B 重启 Core 不撤销资格；B 主动离开、A 结束共享或 A 退出/重启 Core 才使资格失效。B 的本机 Core 保存凭据，本机客户端通过本机代理进入共享运行时。
 
-当前实现只包含 LAN，不沿用旧原型的 LAN → Tailnet → Tailcat 自动降级。首次加入时的到期、撤销和协议不匹配不是可忽略的网络重试信号。已加入成员不再检查邀请码时限。
+第一版在创建页和重新邀请时显式二选一：
+
+- `lan` 只携带本机私有 IPv4 候选，可选测试 loopback，并用 mDNS 辅助本地发现；不依赖 Tailcat。
+- `tailcat` 为实验性跨网络传输。每次分享创建新的临时 Tailcat Server，只开放虚拟 TCP 443；邀请携带完整 Tailcat 地址和库版本。该地址包含 WireGuard 节点材料和默认预共享密钥，必须与 Team Cross secret 一样按秘密处理。
+
+两者之上复用同一套 TLS 1.3、SPKI pin、一次性加入、成员凭据、输入归属与写入去重。系统不执行 LAN → Tailcat 自动降级，也不在断线后切换传输；这避免隐藏公网依赖、改变隐私边界或让状态不明的写入进入另一条连接。未加入时可以结束现有待用邀请后改选连接方式；成员已经加入时必须先结束共享再切换。首次加入时的到期、撤销和协议不匹配不是可忽略的网络重试信号。已加入成员不再检查邀请码时限。
+
+Tailcat 依赖 DERP 完成发现和初始连接，能直连时使用点对点 UDP，否则可经 DERP 中继。当前固定使用 Tailcat `v0.6.0`，邀请要求精确相同的库版本，因为上游不承诺 API、CLI 或线格式稳定。公共 DERP 的可用性、限流和服务承诺不由 Team Cross 控制；后续可单独评估自托管 DERP、持久缓存和诊断展示，不能把本机可达等同于两台 Mac 或强制中继验收。
 
 结束共享撤销原生与工具访问，归还输入给发起者，保留会话和代码。在线接收者可得到结束信号；仅遇到主机不可达时只能报告断线，不能推断对方已经结束共享。具体监听关闭时序和状态字段以 [架构](../architecture.md) 与 [协议](../protocol.md) 为准。
 
 ## 重新评估条件
 
-增加第三位参与者、多直接客户端、跨网络传输或后台写入队列时，需要明确冲突处理、请求去重与恢复语义，不能绕过现有统一入口另建一条写入路径。
+增加第三位参与者、多直接客户端、Tailcat 多区域或自托管 DERP、后台写入队列时，需要明确冲突处理、请求去重与恢复语义，不能绕过现有统一入口另建一条写入路径。Tailcat 升级必须同时复核 Go 基线、邀请兼容性、打包体积、两台 Mac 直连与中继路径。
 
 ## 实现与验证
 
-[原生 RPC](../../../../internal/collab/rpc.go) · [共享与生命周期](../../../../internal/collab/network.go) · [TLS 传输](../../../../internal/sharing/sharing.go) · [MCP](../../../../internal/mcp/server.go) · [协作集成测试](../../../../internal/collab/collab_test.go) · [输入与共享任务页](../../wiki/concepts/input-and-sharing.md)
+[原生 RPC](../../../../internal/collab/rpc.go) · [共享与生命周期](../../../../internal/collab/network.go) · [邀请与 TLS](../../../../internal/sharing/sharing.go) · [连接适配](../../../../internal/sharing/connection.go) · [Tailcat 适配](../../../../internal/sharing/tailcat.go) · [MCP](../../../../internal/mcp/server.go) · [协作集成测试](../../../../internal/collab/collab_test.go) · [输入与共享任务页](../../wiki/concepts/input-and-sharing.md)

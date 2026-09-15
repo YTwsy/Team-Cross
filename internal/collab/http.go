@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"teamcross/internal/problem"
+	"teamcross/internal/sharing"
 	"time"
 )
 
@@ -285,8 +286,9 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 	switch action {
 	case "action":
 		var in struct {
-			Action string `json:"action"`
-			Epoch  uint64 `json:"epoch"`
+			Action    string `json:"action"`
+			Transport string `json:"transport"`
+			Epoch     uint64 `json:"epoch"`
 		}
 		if !decode(w, r, &in) {
 			return
@@ -324,7 +326,14 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 			respond(w, nil, fmt.Errorf("输入状态已变化，请刷新后重试"))
 			return
 		}
-		e = s.Action(ctx, in.Action, in.Epoch)
+		if in.Action == "share" {
+			if in.Transport == "" {
+				in.Transport = string(sharing.TransportLAN)
+			}
+			e = s.Share(ctx, in.Transport)
+		} else {
+			e = s.Action(ctx, in.Action, in.Epoch)
+		}
 		respond(w, s.view(), e)
 	case "personal-desktop":
 		var in struct {

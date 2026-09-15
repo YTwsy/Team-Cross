@@ -13,7 +13,7 @@
 
 ## 新主线
 
-Go Core 直接管理原生 fork、两种执行目录、LAN 邀请、输入协调与生命周期；TUI/Desktop 接入同一共享会话，普通本地会话通过 MCP 辅助。React WebGUI 负责协作管理、轻量上下文和批注。旧 Thread、Round、Evidence、managed Bridge、旧页面及对应文档退出当前源码树。
+Go Core 直接管理原生 fork、两种执行目录、显式 LAN / 实验性 Tailcat 邀请、输入协调与生命周期；TUI/Desktop 接入同一共享会话，普通本地会话通过 MCP 辅助。React WebGUI 负责协作管理、轻量上下文和批注。旧 Thread、Round、Evidence、managed Bridge、旧页面及对应文档退出当前源码树。
 
 模型与推理强度继承来源和原生客户端的选择，不再被实验测试配置覆盖。真实模型验证仍只使用 gpt-5.6-luna，固定配置仅保存在测试入口。界面显示原生运行时已确认的设置。
 

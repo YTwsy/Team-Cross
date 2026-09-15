@@ -86,7 +86,20 @@ func Open(cfg Config) (*App, error) {
 	var guests []joinedRecord
 	if readJSON(filepath.Join(cfg.DataDir, "joined.json"), &guests) == nil {
 		for _, g := range guests {
-			a.joined[g.ID] = &Joined{app: a, ID: g.ID, Invitation: g.Invitation, URL: g.URL, Client: sharing.Client(g.Invitation), Last: g.Last, Credential: g.Credential, confirmed: g.Confirmed, ended: g.Ended || g.Credential == "", done: make(chan struct{})}
+			joined := &Joined{app: a, ID: g.ID, Invitation: g.Invitation, URL: g.URL, Last: g.Last, Credential: g.Credential, confirmed: g.Confirmed, ended: g.Ended || g.Credential == "", done: make(chan struct{})}
+			if !joined.ended {
+				connection, connectionErr := sharing.NewConnection(g.Invitation, g.URL)
+				if connectionErr != nil {
+					joined.ended = true
+					joined.Error = "保存的邀请版本不再受支持，请获取新邀请"
+					joined.statusChecked = true
+				} else {
+					joined.Connection = connection
+					joined.URL = connection.URL
+					joined.Client = connection.Client
+				}
+			}
+			a.joined[g.ID] = joined
 		}
 	}
 	for _, j := range a.joined {
@@ -581,7 +594,7 @@ func (s *Session) view() map[string]any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	r := s.record
-	out := map[string]any{"id": r.ID, "title": r.Title, "sourceId": r.SourceID, "sourceTurnId": r.SourceTurnID, "sessionId": r.SessionID, "workspaceMode": r.WorkspaceMode, "executionCwd": r.ExecutionCwd, "repo": r.Repo, "head": r.Head, "branch": r.Branch, "workspaceOwned": r.WorkspaceOwned, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "writer": s.writer, "busy": s.busy, "online": s.online, "epoch": s.epoch, "sharing": s.share != nil, "connected": s.direct != nil, "sequence": s.sequence, "approvals": len(s.approvals), "annotations": r.Annotations, "model": r.Model, "modelProvider": r.ModelProvider, "reasoningEffort": r.ReasoningEffort}
+	out := map[string]any{"id": r.ID, "title": r.Title, "sourceId": r.SourceID, "sourceTurnId": r.SourceTurnID, "sessionId": r.SessionID, "workspaceMode": r.WorkspaceMode, "executionCwd": r.ExecutionCwd, "repo": r.Repo, "head": r.Head, "branch": r.Branch, "workspaceOwned": r.WorkspaceOwned, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "writer": s.writer, "busy": s.busy, "online": s.online, "epoch": s.epoch, "sharing": s.share != nil, "sharingPreparing": s.sharePreparing, "connected": s.direct != nil, "sequence": s.sequence, "approvals": len(s.approvals), "annotations": r.Annotations, "model": r.Model, "modelProvider": r.ModelProvider, "reasoningEffort": r.ReasoningEffort}
 	provider, _ := providerName(r.Provider)
 	out["provider"] = provider
 	if provider == "claude" {
@@ -600,6 +613,7 @@ func (s *Session) view() map[string]any {
 		out["client"] = s.direct.kind
 	}
 	if s.share != nil {
+		out["transport"] = string(s.share.Transport())
 		state := s.share.InvitationState()
 		out["invitationState"] = state
 		out["participantJoined"] = state == "joined"
@@ -607,6 +621,8 @@ func (s *Session) view() map[string]any {
 			out["invitation"] = s.share.Token()
 			out["expiresAt"] = s.share.Invitation.ExpiresAt
 		}
+	} else if s.sharePreparing {
+		out["transport"] = string(s.shareTransport)
 	}
 	out["runtimeState"] = "offline"
 	out["releasePending"] = s.releaseWhenIdle && s.share == nil && s.online

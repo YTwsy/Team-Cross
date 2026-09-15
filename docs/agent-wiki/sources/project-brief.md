@@ -22,9 +22,9 @@ main 已采用原生协作架构，当前仍处于原型阶段，可以按确认
 
 ## 当前范围
 
-首轮面向普通 Git 仓库、Codex、macOS 与 A/B 两位参与者的 LAN 协作。不包含 submodule 支持、Claude 接入、强制 Round、独立 Evidence 体系、离线交接包、专用 patch/PR 流程或 Tailnet/Tailcat 传输。
+当前面向普通 Git 仓库、macOS 与 A/B 两位参与者；Codex 为主线，Claude Code 原生 TUI 为实验性 Provider。连接方式由用户显式选择局域网或实验性 Tailcat，不自动降级或切换。不包含 submodule 支持、强制 Round、独立 Evidence 体系、离线交接包、专用 patch/PR 流程、Tailnet 控制平面集成或 Tailcat 服务可用性承诺。
 
-同机 A/B 已完成的结果与两台 Mac 的 LAN 验收分开报告。Desktop 指定运行时入口依赖已测试的客户端版本，不能仅凭共用 app-server 协议就宣称所有 Desktop 功能兼容。
+同机 A/B、同机 Tailcat、两台 Mac 的 LAN、两台 Mac 不同网络和强制 DERP 中继分别报告。Desktop 指定运行时入口依赖已测试的客户端版本，不能仅凭共用 app-server 协议就宣称所有 Desktop 功能兼容。
 
 ## 主要来源
 
