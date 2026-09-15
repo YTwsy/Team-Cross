@@ -15,7 +15,7 @@ GitHub `CI` workflow 自动执行 Go/Web 工程门槛；unsigned release workflo
 
 ## 已记录的验收
 
-[2026-09-15 GitHub CI 与 unsigned RC](../../sources/validation/github-ci-release-2026-09-15.md) 记录 PR/main 工程门槛、CI 发现并修复的 CLI 启动器并发竞态、`main` 来源的 arm64 DMG/CLI、App/生命周期与隔离 Homebrew 检查、SHA-256 和 provenance。它没有创建 tag/Release，也不证明正式签名、公证、真实模型或两台 Mac 网络。
+[2026-09-15 GitHub CI、unsigned 发布与 v0.1.6-rc.1](../../sources/validation/github-ci-release-2026-09-15.md) 记录 PR/main 工程门槛、CI 发现并修复的 CLI 启动器并发竞态、正式版本号 gate 调整、`0.1.6` 非发布候选，以及 `v0.1.6-rc.1` 的 tag、arm64 DMG/CLI、App/生命周期、隔离 Homebrew、SHA-256、provenance 和公开 Pre-release 复核。它不证明 Developer ID 签名、公证、真实模型或两台 Mac 网络。
 
 [2026-09-15 Tailcat 显式连接方式](../../sources/validation/tailcat-transport-2026-09-15.md) 记录 `lan|tailcat` 二选一、`tcx3`、Go 1.27.1、工程/race/Web 门槛、同机 Tailcat 数据面和 arm64 发布构建链。两台物理 Mac、不同网络、强制持续 DERP、正式签名公证与发布仍未覆盖。
 
