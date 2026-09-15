@@ -22,7 +22,7 @@ GitHub 上的 `CI` workflow 对指向 `main` 的 PR 和 `main` push 运行 Go te
 
 tag 发布另要求同一提交包含 `docs/releases/<tag>.md`，并在发行说明中明确 ad-hoc 签名、未使用 Developer ID 和未公证。项目在较长时间内不以 Developer ID 身份作为正式版本发布前置条件；正式 GitHub Release 也可以发布经过同一完整门槛验证的 ad-hoc/unsigned 产物。Latest、稳定版本号和 GitHub provenance 都不代表 Apple 签名、公证或 Gatekeeper 验收；未来取得签名能力后，应显式调整构建清单、验证和发行说明，不能把 unsigned 产物描述为已签名。
 
-Homebrew 发布是同一 tag 流程中位于 GitHub Release 之后的受保护阶段，不与二进制构建并行：配方 URL 必须先成为可公开下载的不可覆盖 Release 资产。`Team-Cross` 仓库的默认 `GITHUB_TOKEN` 不跨仓库写入；`homebrew-publish` environment 只提供安装到 `YTwsy/homebrew-teamcross` 的 GitHub App 身份，运行时进一步收窄为 tap 的 Actions/Checks 只读与 Contents/Pull requests 读写。自动化只维护其版本专属 `codex/homebrew-v...` 分支和 PR；遇到无 PR 的同名远端分支、同渠道版本倒退、同版本不同元数据或无法识别的既有发布时停止，不强推或直接改 `main`。
+Homebrew 发布是同一 tag 流程中位于 GitHub Release 之后的受保护阶段，不与二进制构建并行：配方 URL 必须先成为可公开下载的不可覆盖 Release 资产。`Team-Cross` 仓库的默认 `GITHUB_TOKEN` 不跨仓库写入；`homebrew-publish` environment 只允许 `v*.*.*` tag，并只提供安装到 `YTwsy/homebrew-teamcross` 的 GitHub App 身份，运行时进一步收窄为 tap 的 Actions/Checks 只读与 Contents/Pull requests 读写。自动化还要求 workflow ref 与输入 tag 完全相同；手动补发必须从同一 release tag 运行。它只维护版本专属 `codex/homebrew-v...` 分支和 PR；遇到无 PR 的同名远端分支、同渠道版本倒退、同版本不同元数据或无法识别的既有发布时停止，不强推或直接改 `main`。
 
 公共 tap 的 `main` 只接受 PR，并要求 `Verify public Formula and Cask` 检查。稳定 tag 更新无后缀 Formula/Cask；RC tag 只更新显式 RC 定义，不会把稳定安装者自动带到候选版。tap PR 与合并后的 push 都从公开 URL 下载 `release.json`、`SHA256SUMS`、CLI 和 DMG，在临时 Homebrew 前缀验证 Formula/Cask 安装、命令字节、同渠道及跨渠道互斥。GitHub Release 先成功而 tap 后续失败时，二进制 Release 保持有效，公共 tap 继续停留在上一个已验证版本，整条 workflow 以失败状态提示修复或安全重跑；不能把这种部分状态写成 Homebrew 已发布。
 

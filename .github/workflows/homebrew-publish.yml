@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing Team Cross release tag, for example v0.1.6-rc.1
+        description: Existing release tag; select the same tag as the workflow ref
         required: true
         type: string
 
@@ -44,6 +44,10 @@ jobs:
         run: |
           if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[1-9][0-9]*)?$ ]]; then
             echo "unsupported Homebrew release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_REF" != "refs/tags/$RELEASE_TAG" ]]; then
+            echo "Homebrew publishing must run from its matching tag: $GITHUB_REF / $RELEASE_TAG" >&2
             exit 1
           fi
           version="${RELEASE_TAG#v}"
