@@ -166,17 +166,18 @@ jobs:
         id: tap-pr
         shell: bash
         env:
-          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           RELEASE_CHANNEL: ${{ steps.release.outputs.channel }}
           RELEASE_COMMIT: ${{ steps.release.outputs.release_commit }}
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
         run: |
           branch="codex/homebrew-$RELEASE_TAG"
-          GH_TOKEN="$APP_TOKEN" gh repo clone "$TAP_REPOSITORY" tap
+          gh auth setup-git
+          gh repo clone "$TAP_REPOSITORY" tap
           git -C tap config user.name "team-cross-release[bot]"
           git -C tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          existing_pr="$(GH_TOKEN="$APP_TOKEN" gh pr list \
+          existing_pr="$(gh pr list \
             --repo "$TAP_REPOSITORY" \
             --head "$branch" \
             --state open \
@@ -208,7 +209,7 @@ jobs:
               pr_url="$existing_pr"
               echo "already_published=false" >>"$GITHUB_OUTPUT"
             else
-              pr_url="$(GH_TOKEN="$APP_TOKEN" gh pr list \
+              pr_url="$(gh pr list \
                 --repo "$TAP_REPOSITORY" \
                 --state merged \
                 --search "$RELEASE_TAG in:title" \
@@ -239,7 +240,7 @@ jobs:
 
           The upstream release workflow verified the engineering, installation, lifecycle, checksum and build-provenance gates before publishing. This PR uses the public Release assets and was independently installed in an isolated Homebrew prefix before the tap update was proposed.
           EOF
-              pr_url="$(GH_TOKEN="$APP_TOKEN" gh pr create \
+              pr_url="$(gh pr create \
                 --repo "$TAP_REPOSITORY" \
                 --base main \
                 --head "$branch" \

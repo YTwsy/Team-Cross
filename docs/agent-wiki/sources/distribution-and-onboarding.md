@@ -82,7 +82,7 @@ MCP 配置保存稳定 opt/App 绝对路径。通过 Cask 命令链接调用时�
 
 ## 检查与相关规范
 
-[安装验证](../../../scripts/verify-release.py) 验证校验文件、DMG 挂载/安装、CLI/App 版本一致与实例复用，并调用 [App 副本验证](../../../scripts/verify-app-instance.py)。后者从两个临时 App 副本通过真实 macOS 启动/URL/退出事件验证外壳去重、请求确认、卡住后的恢复及 Core 保留；邀请 helper 使用测试内容，Core 使用包内真实二进制，不打开浏览器或调用模型。[生命周期验证](../../../scripts/verify-lifecycle.py) 验证 Core 并发启动、符号链接路径、端口冲突、鉴权停止、MCP 延迟启动、崩溃恢复及数据保留。工程、真实客户端、浏览器和清理门槛继续按 [验证契约](validation/test-gates.md)。[2026-09-15 GitHub CI、unsigned 发布与 v0.1.6-rc.1 验证](validation/github-ci-release-2026-09-15.md) 已确认对应 `macos-15` arm64 托管 runner 的图形登录会话能完成 App 副本检查，并记录公开 Release 的本机复核；这些证据只对应记录中的提交、runner 与主机，后续基础设施失败不能静默跳过或沿用旧结论。同机或托管 runner 不能证明两台 Mac LAN、跨网络 Tailcat 或强制 DERP，未使用 Developer ID 的产物不能证明公证或 Gatekeeper 首次批准通过。
+[安装验证](../../../scripts/verify-release.py) 验证校验文件、DMG 挂载/安装、CLI/App 版本一致与实例复用，并调用 [App 副本验证](../../../scripts/verify-app-instance.py)。后者从两个临时 App 副本通过真实 macOS 启动/URL/退出事件验证外壳去重、请求确认、卡住后的恢复及 Core 保留；邀请 helper 使用测试内容，Core 使用包内真实二进制，不打开浏览器或调用模型。[生命周期验证](../../../scripts/verify-lifecycle.py) 验证 Core 并发启动、符号链接路径、端口冲突、鉴权停止、MCP 延迟启动、崩溃恢复及数据保留。工程、真实客户端、浏览器和清理门槛继续按 [验证契约](validation/test-gates.md)。[2026-09-15 GitHub CI、unsigned 发布与 v0.1.6-rc.1/v0.1.6-rc.2 验证](validation/github-ci-release-2026-09-15.md) 已确认对应 `macos-15` arm64 托管 runner 的图形登录会话能完成 App 副本检查，并记录公开 Release、来源证明、受保护 tap PR 与公共 Homebrew 安装复核；这些证据只对应记录中的提交、runner 与主机，后续基础设施失败不能静默跳过或沿用旧结论。同机或托管 runner 不能证明两台 Mac LAN、跨网络 Tailcat 或强制 DERP，未使用 Developer ID 的产物不能证明公证或 Gatekeeper 首次批准通过。
 
 相关来源：[产品流程](product-flows.md) · [架构](architecture.md) · [协议](protocol.md) · [输入协调](decisions/input-and-sharing.md)。
 
