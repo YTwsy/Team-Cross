@@ -15,6 +15,8 @@ GitHub `CI` workflow 自动执行 Go/Web 工程门槛；unsigned release workflo
 
 ## 已记录的验收
 
+[2026-09-15 GitHub CI 与 unsigned RC](../../sources/validation/github-ci-release-2026-09-15.md) 记录 PR/main 工程门槛、CI 发现并修复的 CLI 启动器并发竞态、`main` 来源的 arm64 DMG/CLI、App/生命周期与隔离 Homebrew 检查、SHA-256 和 provenance。它没有创建 tag/Release，也不证明正式签名、公证、真实模型或两台 Mac 网络。
+
 [2026-09-15 Tailcat 显式连接方式](../../sources/validation/tailcat-transport-2026-09-15.md) 记录 `lan|tailcat` 二选一、`tcx3`、Go 1.27.1、工程/race/Web 门槛、同机 Tailcat 数据面和 arm64 发布构建链。两台物理 Mac、不同网络、强制持续 DERP、正式签名公证与发布仍未覆盖。
 
 [2026-09-14 Claude 个人 CLI/TUI 历史](../../sources/validation/claude-personal-history-2026-09-14.md) 记录原生 fork 的单文件个人 history 发布、`/resume` picker 实际可见、个人配置与其他历史隔离、原目录/worktree、审批交接、MCP 去重、中断及恢复；完整轮次 10 次 Luna 请求，属于同机两个 Core。未覆盖旧数据迁移、跨磁盘 fallback、OAuth/Keychain、Desktop/Web/Cloud 或两台 Mac LAN。
