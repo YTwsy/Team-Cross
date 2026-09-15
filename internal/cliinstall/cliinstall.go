@@ -142,15 +142,10 @@ func change(executable, directory, searchPath string, remove bool) (Status, erro
 			return s, problem.New("cli_app_not_installed", "请先把 App 安装到应用程序目录", "关闭安装镜像中的 App，从应用程序目录重新打开")
 		}
 	}
-	if remove {
-		if _, err := os.Lstat(s.Target); errors.Is(err, os.ErrNotExist) {
-			return s, nil
-		}
-	} else if !s.CanInstall {
-		if s.Conflict == "" && s.Command != "" {
-			return s, nil
-		}
-		return s, conflict(s.Conflict)
+	if !remove && !s.CanInstall && s.Conflict == "" && s.Command != "" {
+		// A matching Cask command is already a valid entry and remains owned by
+		// Homebrew; no target-directory lock is needed when nothing changes.
+		return s, nil
 	}
 	if err := os.MkdirAll(directory, 0755); err != nil {
 		return s, permission(err)
@@ -165,6 +160,20 @@ func change(executable, directory, searchPath string, remove bool) (Status, erro
 		return s, err
 	}
 	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	// Inspect again while holding the lifecycle lock. The initial status is useful
+	// for validation errors, but another installer can atomically create or replace
+	// the launcher before this goroutine acquires the lock.
+	s = Inspect(executable, directory, searchPath)
+	if remove {
+		if _, err := os.Lstat(s.Target); errors.Is(err, os.ErrNotExist) {
+			return s, nil
+		}
+	} else if !s.CanInstall {
+		if s.Conflict == "" && s.Command != "" {
+			return s, nil
+		}
+		return s, conflict(s.Conflict)
+	}
 	_, ours := owned(s.Target)
 	_, statErr := os.Lstat(s.Target)
 	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
