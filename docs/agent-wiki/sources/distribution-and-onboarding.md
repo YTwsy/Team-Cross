@@ -26,7 +26,7 @@ tag 发布另要求同一提交包含 `docs/releases/<tag>.md`，并在发行说
 
 Homebrew 发布是同一 tag 流程中位于 GitHub Release 之后的受保护阶段，不与二进制构建并行：配方 URL 必须先成为可公开下载的不可覆盖 Release 资产。`Team-Cross` 仓库的默认 `GITHUB_TOKEN` 不跨仓库写入；`homebrew-publish` environment 只允许 `v*.*.*` tag，并只提供安装到 `YTwsy/homebrew-teamcross` 的 GitHub App 身份，运行时进一步收窄为 tap 的 Actions/Checks 只读与 Contents/Pull requests 读写。自动化还要求 workflow ref 与输入 tag 完全相同；手动补发必须从同一 release tag 运行。它只维护版本专属 `codex/homebrew-v...` 分支和 PR；遇到无 PR 的同名远端分支、同渠道版本倒退、同版本不同元数据或无法识别的既有发布时停止，不强推或直接改 `main`。
 
-公共 tap 的 `main` 只接受 PR，并要求 `Verify public Formula and Cask` 检查。稳定 tag 更新无后缀 Formula/Cask；RC tag 只更新显式 RC 定义，不会把稳定安装者自动带到候选版。tap PR 与合并后的 push 都从公开 URL 下载 `release.json`、`SHA256SUMS`、CLI 和 DMG，在临时 Homebrew 前缀验证 Formula/Cask 安装、命令字节、同渠道及跨渠道互斥。GitHub Release 先成功而 tap 后续失败时，二进制 Release 保持有效，公共 tap 继续停留在上一个已验证版本，整条 workflow 以失败状态提示修复或安全重跑；不能把这种部分状态写成 Homebrew 已发布。
+公共 tap 的 `main` 只接受 PR，并要求 `Verify public Formula and Cask` 检查。新 PR 创建后先有界等待该检查登记，再等待检查完成，避免 `gh pr checks --watch` 在没有检查时立即退出；十分钟内未登记、API 错误或检查失败均停止发布。稳定 tag 更新无后缀 Formula/Cask；RC tag 只更新显式 RC 定义，不会把稳定安装者自动带到候选版。tap PR 与合并后的 push 都从公开 URL 下载 `release.json`、`SHA256SUMS`、CLI 和 DMG，在临时 Homebrew 前缀验证 Formula/Cask 安装、命令字节、同渠道及跨渠道互斥。GitHub Release 先成功而 tap 后续失败时，二进制 Release 保持有效，公共 tap 继续停留在上一个已验证版本，整条 workflow 以失败状态提示修复或安全重跑；不能把这种部分状态写成 Homebrew 已发布。
 
 ```sh
 make release
@@ -89,3 +89,5 @@ MCP 配置保存稳定 opt/App 绝对路径。通过 Cask 命令链接调用时�
 相关来源：[产品流程](product-flows.md) · [架构](architecture.md) · [协议](protocol.md) · [输入协调](decisions/input-and-sharing.md)。
 
 本轮实际证据与未完成项见 [2026-09-11 v0.1.1 验收](validation/distribution-v0.1.1-2026-09-11.md)；[2026-09-10 验收](validation/onboarding-macos-2026-09-10.md) 保留为当时的开发包记录，其共存设计不再是当前分发规则。外部规范：[Apple 自定义 URL Scheme](https://developer.apple.com/documentation/xcode/defining-a-custom-url-scheme-for-your-app) · [Homebrew Cask Cookbook](https://docs.brew.sh/Cask-Cookbook)。
+
+`v0.1.7-rc.1` 的信任模式 PR、公开产物、来源证明、Homebrew RC 及检查登记竞态恢复见 [2026-09-16 发布验证](validation/release-v0.1.7-rc.1-2026-09-16.md)。

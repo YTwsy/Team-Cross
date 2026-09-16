@@ -15,6 +15,8 @@ GitHub `CI` workflow 自动执行 Go/Web 与 Homebrew 定义工程门槛；unsig
 
 ## 已记录的验收
 
+[2026-09-16 v0.1.7-rc.1 发布](../../sources/validation/release-v0.1.7-rc.1-2026-09-16.md) 记录信任模式的 PR/main CI、干净候选安装、公开 arm64 CLI/DMG、tag provenance、受保护 Homebrew RC，以及 tap 检查登记竞态的恢复与回归。二进制来源固定为 `face795e`，不因后续自动化修正改变。
+
 [2026-09-16 信任模式](../../sources/validation/trusted-runtime-2026-09-16.md) 记录 Codex / Claude 两种模式的真实 Luna TUI、个人 MCP 与 hook、权限与原生确认、同 session 恢复、53 项 Web 回归和浏览器尺寸/主题矩阵。属于同机双 Core；未覆盖两台 Mac、专用 Desktop 窗口或实际浏览器/电脑控制工具。
 
 [2026-09-16 App 图标与 v0.1.6-rc.3 发布](../../sources/validation/app-icon-release-v0.1.6-rc.3-2026-09-16.md) 记录非透明主体范围、sRGB/alpha 规范化、传统 ICNS 打包、tag 与公开资产、严格 provenance、受保护 Homebrew RC 发布及 SHA-256。它没有完成真实 macOS 26 的 Finder/Dock/Launchpad 目视验收，也不证明 Developer ID 签名或公证。
