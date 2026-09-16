@@ -6,6 +6,8 @@
 
 `make release` 调用 [构建脚本](../../../scripts/build-release.py)，在 `dist/release/<版本>/` 生成 CLI tar.gz、App、DMG、SHA256SUMS、release.json 和对应渠道的独立 tap 内容。App 的 helper 位于 `Contents/Resources/teamcross`。稳定版使用 `teamcross` / `team-cross`，RC 使用 `teamcross-rc` / `team-cross@rc`；Cask 安装 App 并用 `binary` 注册内置 CLI，Formula 提供独立 CLI。四种定义都会占用同一个 App 或 `teamcross` 命令，通过成功安装收据双向互斥；Core 仍按数据目录共享，包管理互斥不改变服务发现协议。
 
+App 图标只使用 [AppIcon.png](../../../apps/macos/Assets/AppIcon.png) 生成 `TeamCross.icns` 的 10 个标准尺寸表示，`CFBundleIconFile` 保存无扩展名的资源基名。源图保持 sRGB、明确的不透明底板和透明外缘；构建在调用 `iconutil` 前移除临时 rendition 的扩展属性。WebGUI 图标与菜单栏状态图标是独立资源，不随 App 图标替换。
+
 首个公开版本使用 `v0.1.1`，发布标题为 `Team Cross v0.1.1`。发布来源为核对过的干净提交；本地构建脚本只生成产物，不发布网络内容。先使 `YTwsy/Team-Cross` Release 产物可下载并核对校验值，再发布 `YTwsy/homebrew-teamcross` 中对应的配方。生成的下载 URL 不代表已经发布，实际状态以 GitHub 为准。本地安装测试使用临时 tap、临时 Homebrew 前缀和应用目录。
 
 GitHub 上的 `CI` workflow 对指向 `main` 的 PR 和 `main` push 运行 Go test/vet、相关 race test、Web check/test/build、嵌入资源一致性和 Darwin arm64 CLI 交叉编译。所有 Tailcat 联网用例默认跳过，不把公共 DERP 可用性变成普通 PR 的外部硬依赖。
