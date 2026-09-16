@@ -4,7 +4,7 @@ Claude Code 是新增的实验性 Provider。Codex 原有 app-server 路径继�
 
 ## 用户入口与能力边界
 
-在创建页选择「Claude Code · 实验性」，从 A 的 `CLAUDE_CONFIG_DIR`（未设置时 `~/.claude`）读取来源。选择原目录或新 worktree 后创建新 fork；详情中的「打开 Claude Code」准备原生 TUI，或显示可复制的启动命令。这个 fork 由隔离 runtime 中的 Claude 原生命令创建，持久化后只把该 transcript 发布到 A 的个人 history home，因此会出现在 A 的 Claude Code CLI/TUI `/resume` 历史中；B 的直接 TUI 只 attach A 的 worker，不取得其他 Provider 历史。[Claude 会话文档](https://code.claude.com/docs/en/sessions)说明 CLI、Desktop、Web 与其他表面分别维护历史，本功能只承诺个人 CLI/TUI。设置页的 Claude CLI 路径及 `--claude-bin` 可覆盖自动检测。
+在创建页选择「Claude Code · 实验性」，从 A 的 `CLAUDE_CONFIG_DIR`（未设置时 `~/.claude`）读取来源。选择原目录或新 worktree 后创建新 fork；详情中的「打开 Claude Code」准备原生 TUI，或显示可复制的启动命令。受限模式的 fork 由隔离 runtime 中的 Claude 原生命令创建，持久化后只把该 transcript 发布到 A 的个人 history home，因此会出现在 A 的 Claude Code CLI/TUI `/resume` 历史中；B 的直接 TUI 只 attach A 的 worker，不取得其他 Provider 历史。[Claude 会话文档](https://code.claude.com/docs/en/sessions)说明 CLI、Desktop、Web 与其他表面分别维护历史，本功能只承诺个人 CLI/TUI。设置页的 Claude CLI 路径及 `--claude-bin` 可覆盖自动检测。
 
 | 入口 | 当前行为 |
 | --- | --- |
@@ -16,6 +16,14 @@ Claude Code 是新增的实验性 Provider。Codex 原有 app-server 路径继�
 
 Claude 的 `capabilities` 随状态返回；调用者应先检查实际支持的入口。`nativeWaiting` 报告 worker 的交互等待状态，不把它转换成伪造的 Codex 审批 ID 或待审批数量。Claude 不提供 Codex 的完整结构化事件流；WebGUI 保留轻量历史，完整工具过程以原生 TUI 为准。新建 Claude worker 内置仅面向当前协作的 `teamcross_annotations` MCP，原生 TUI 中可要求 Agent 读取批注和回复，并答复原批注。WebGUI 与个人辅助 MCP 使用同一份讨论数据。保存不会主动启动模型。
 
+## 创建时固定的协作模式
+
+默认受限模式沿用下文的独立配置目录、来源快照、工具白名单和手动权限机制。信任模式由邀请者在创建时明确选择，直接在 A 原生个人配置目录中执行 `--fork-session`，不传入禁用 hooks、插件、MCP、Chrome、工具或权限模式的参数；配置、认证和新 fork 历史由原生 Claude 按个人使用方式管理。默认未设置 `CLAUDE_CONFIG_DIR` 时保持 `~/.claude.json` 的原生查找位置。
+
+信任模式的 `claude-runtime` 只存 Team Cross 所有权标记；包含固定模式和默认目录语义，恢复必须匹配。当前协作批注 MCP 以带协作 ID 的名称追加，保留已有个人 MCP。恢复按原生保存的 job 启动状态继续同一 session；结束时只停止本次精确 job，保留共享的个人 daemon。模式不能切换。通过 Agent 和个人工具可能访问其他个人资源，不能把受限模式的历史隔离保证套用于信任模式。详情见 [协作模式](runtime-modes.md)。
+
+以下独立 runtime、只复制来源和认证快照的描述均针对受限模式；输入交接、会话身份、终端连接及结束远端访问适用于两种模式。
+
 ## 个人 Claude Code 辅助模式
 
 设置页与客户端入口可以选择个人 Codex 或 Claude Code。两者均将 `teamcross mcp --data-dir <本机数据目录>` 注册到使用者本机；工具连接该本机 Core，由它访问已加入的协作。辅助客户端 Provider 与目标协作 Provider 分开选择，个人 Claude 可辅助 Codex 协作，个人 Codex 也可辅助 Claude 协作。目标 `capabilities` 和输入归属继续决定允许的操作。
@@ -24,7 +32,7 @@ Claude 使用原生 `mcp add --transport stdio --scope user` 写入 user 范围�
 
 检测仅读配置，不执行任意 MCP server。页面区分配置已保存、Team Cross STDIO 协议探测、实际客户端工具调用；最后一项来自 MCP `initialize.clientInfo.name` 和随后的 `tools/call`，Codex / Claude 分别记录，本次 Core 运行中有效。未知客户端不归到任一 Provider，独立协议探测不产生实际调用证据。客户端名称只是诊断信息，不用于授权。其他工作目录配置、组织策略或已有客户端未重载，仍以实际工具调用结果为准。
 
-打开个人 Claude 是在本机辅助目录启动普通 TUI，沿用本机个人配置、登录、模型与上下文，不带共享 sessionId、attach、模型覆盖或临时 MCP 配置。个人会话有自己的 ID；本地对话由本机模型处理，工具发往共享会话的输入仍由 A 的共享运行时执行。MCP 工具调用本身的原生确认在个人客户端完成；目标 Claude worker 的命令审批、补充、中断仍需当前输入者通过直接 TUI 完成。共享 worker 使用自身受限的批注 MCP，不因安装个人 MCP 自动加载完整辅助工具。
+打开个人 Claude 是在本机辅助目录启动普通 TUI，沿用本机个人配置、登录、模型与上下文，不带共享 sessionId、attach、模型覆盖或临时 MCP 配置。个人会话有自己的 ID；本地对话由本机模型处理，工具发往共享会话的输入仍由 A 的共享运行时执行。MCP 工具调用本身的原生确认在个人客户端完成；目标 Claude worker 的命令审批、补充、中断仍需当前输入者通过直接 TUI 完成。共享 worker 的内置批注 MCP 始终只面向当前协作；受限模式不会因安装个人 MCP 自动加载完整辅助工具，信任模式则继承邀请者的有效个人工具配置。
 
 ## 单一执行端
 
@@ -62,7 +70,7 @@ B 的 claude attach
 
 路由配置只在 A 的协作运行目录中保存，采用 0600 权限；仅从个人 settings 读取 `ANTHROPIC_*`、明确的模型列表和 HTTP 代理环境字段，不继承 shell 启动变量、个人 hooks 或插件配置。文件型认证存在时复制当前内容到私有 runtime，后续写入不会落到个人认证文件；OAuth / Keychain 仍需独立验收。Team Cross 不写个人 `settings.json`、`.claude.json`、认证配置、插件目录或已有历史，只为用户明确请求的新 fork 新增单一 history 文件入口。创建时通过独立 config、显式 settings 与 `--setting-sources ""` 禁用个人 hooks/插件/其他外部 MCP/Chrome 集成，只加载内置的当前协作批注 MCP，工具范围为 Bash、Read、Write、Edit、Glob、Grep、AskUserQuestion，默认 manual 模式，Bash/Write/Edit 需原生确认。
 
-这套权限是 Claude 自身的权限机制，不等同于 Codex 的操作系统权限配置。当前不承诺 Claude Computer Use、插件、其他自定义 MCP、全局 slash 命令或 OS 沙箱与 Codex 等价；原生 TUI 的设置功能也不构成防止参与者改变权限的安全沙箱。分享前应了解当前实验性范围。API 路由已实测；OAuth、Keychain 登录流程需独立验证。
+这套权限是 Claude 自身的权限机制，不等同于 Codex 的操作系统权限配置。受限模式不接入 Computer Use、插件和其他自定义 MCP；信任模式保留原生可用的对应能力，但可用性仍取决于安装、登录与系统授权，也不承诺 OS 沙箱与 Codex 等价；原生 TUI 的设置功能也不构成防止参与者改变权限的安全沙箱。分享前应了解当前实验性范围。API 路由已实测；OAuth、Keychain 登录流程需独立验证。
 
 共享开放期间断开 TUI 保留 worker。结束共享后等待原生 busy/等待交互结束、受理中的请求和直接连接清空，再按协作运行标记停止精确 job 与该 runtime 的独立 supervisor；绝不停止个人 Claude daemon，也不删除个人 transcript。历史、原目录和新 worktree 继续保留。共享尚未释放时，不应从普通个人 `/resume` 另开同一 session；请通过 Team Cross 的直接 TUI attach，或结束共享后再在个人历史中继续。恢复前如发现个人侧已有同 session 的活跃 job，会拒绝接管。实时 `status` 优先于可能在中断后保留的 `state=working` 进度标签。状态轮询之间最后一次终端写入有短暂释放保护。本机连接层在 Core 异常退出后，仅清理带匹配所有权记录、无进程监听且 inode 未变化的 Unix socket。
 

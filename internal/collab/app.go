@@ -17,6 +17,7 @@ import (
 	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/problem"
+	"teamcross/internal/runtimeconfig"
 	"teamcross/internal/sharing"
 	"teamcross/internal/workspace"
 )
@@ -154,6 +155,9 @@ func (a *App) binary() (string, error) {
 	return binary, nil
 }
 func (a *App) startProcess(ctx context.Context, home, cwd, log string, overrides ...string) (Runtime, error) {
+	return a.startProcessWithMode(ctx, home, cwd, log, runtimeconfig.Restricted, overrides...)
+}
+func (a *App) startProcessWithMode(ctx context.Context, home, cwd, log string, mode runtimeconfig.Mode, overrides ...string) (Runtime, error) {
 	binary, e := a.binary()
 	if e != nil {
 		return nil, e
@@ -161,7 +165,7 @@ func (a *App) startProcess(ctx context.Context, home, cwd, log string, overrides
 	if a.Config.StartProcess != nil {
 		return a.Config.StartProcess(binary, home, cwd, log)
 	}
-	return nativecodex.Start(ctx, binary, home, cwd, log, overrides...)
+	return nativecodex.StartWithMode(ctx, binary, home, cwd, log, mode, overrides...)
 }
 func (a *App) readerCall(ctx context.Context, method string, params, out any) error {
 	a.readerMu.Lock()
@@ -202,6 +206,11 @@ func (a *App) Sources(ctx context.Context, search, cursor string) (map[string]an
 }
 func (a *App) Preview(ctx context.Context, in CreateInput) (Preview, error) {
 	var p Preview
+	mode, err := runtimeconfig.Parse(in.RuntimeMode)
+	if err != nil {
+		return p, err
+	}
+	p.RuntimeMode = mode
 	provider, err := providerName(in.Provider)
 	if err != nil {
 		return p, err
@@ -252,12 +261,16 @@ func (a *App) Preview(ctx context.Context, in CreateInput) (Preview, error) {
 		}
 	}
 	// Dirty contents are informational and never captured or copied.
-	b, _ := json.Marshal([]any{provider, in.SourceID, p.SourceTurnID, p.SourceFingerprint, w.Mode, w.Repo, w.SourceCwd, w.Head, w.Branch})
+	b, _ := json.Marshal([]any{provider, mode, in.SourceID, p.SourceTurnID, p.SourceFingerprint, w.Mode, w.Repo, w.SourceCwd, w.Head, w.Branch})
 	sum := sha256.Sum256(b)
 	p.Hash = hex.EncodeToString(sum[:])
 	return p, nil
 }
 func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
+	mode, err := runtimeconfig.Parse(in.RuntimeMode)
+	if err != nil {
+		return nil, err
+	}
 	provider, err := providerName(in.Provider)
 	if err != nil {
 		return nil, err
@@ -272,7 +285,8 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 	if old != nil {
 		old.mu.Lock()
 		oldProvider, _ := providerName(old.record.Provider)
-		matches := oldProvider == provider && old.record.SourceID == in.SourceID && old.record.PreviewHash == in.PreviewHash
+		oldMode, _ := runtimeconfig.Parse(old.record.RuntimeMode)
+		matches := oldProvider == provider && oldMode == mode && old.record.SourceID == in.SourceID && old.record.PreviewHash == in.PreviewHash
 		old.mu.Unlock()
 		if !matches {
 			return nil, fmt.Errorf("该创建请求已用于不同起点")
@@ -302,6 +316,10 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 	}
 	now := time.Now()
 	r := Record{Provider: provider, ID: in.RequestID, Title: title, SourceID: in.SourceID, SourceTurnID: p.SourceTurnID, WorkspaceMode: in.WorkspaceMode, Repo: p.Workspace.Repo, ExecutionCwd: p.Workspace.SourceCwd, WorkspaceRoot: p.Workspace.Repo, WorkspaceOwned: in.WorkspaceMode == "worktree", Head: p.Workspace.Head, Branch: p.Workspace.Branch, ProviderHome: home, State: "preparing", CreatedAt: now, UpdatedAt: now, PreviewHash: p.Hash, Annotations: []Annotation{}, Commands: map[string]Command{}}
+	r.RuntimeMode = mode
+	if provider == "claude" && mode == runtimeconfig.Trusted {
+		r.ProviderDefaultHome = a.Config.ClaudeHome == "" && os.Getenv("CLAUDE_CONFIG_DIR") == ""
+	}
 	dir := filepath.Join(a.Config.DataDir, "collaborations", r.ID)
 	if e = os.MkdirAll(dir, 0700); e != nil {
 		return nil, e
@@ -366,7 +384,10 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 	runtime := s.process
 	s.mu.Unlock()
 	defer s.finishCall()
-	params := nativecodex.Overrides(r.SourceID, cwd)
+	params := nativecodex.SessionOverrides(r.SourceID, cwd, r.RuntimeMode)
+	// Forking a source with an active native goal must not start work before
+	// the collaboration has received its first explicit input.
+	params["deferGoalContinuation"] = true
 	inheritModel(params, p.Source)
 	params["lastTurnId"] = r.SourceTurnID
 	params["excludeTurns"] = true
@@ -426,6 +447,11 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 	}
 	s.starting = true
 	r := s.record
+	if _, err := runtimeconfig.Parse(r.RuntimeMode); err != nil {
+		s.starting = false
+		s.mu.Unlock()
+		return err
+	}
 	if resume && (r.State != "ready" || r.SessionID == "") {
 		s.starting = false
 		s.mu.Unlock()
@@ -454,11 +480,11 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 				var binary string
 				binary, e = s.app.binary()
 				if e == nil {
-					names, e = nativecodex.MCPServerNames(ctx, binary, r.ProviderHome, r.ExecutionCwd)
+					names, e = nativecodex.MCPServerNames(ctx, binary, r.ProviderHome, r.ExecutionCwd, r.RuntimeMode)
 				}
 			}
 			if e == nil {
-				p, e = s.app.startProcess(ctx, r.ProviderHome, r.ExecutionCwd, filepath.Join(s.app.Config.DataDir, "collaborations", r.ID, "runtime.log"), launch.codexOverrides(names)...)
+				p, e = s.app.startProcessWithMode(ctx, r.ProviderHome, r.ExecutionCwd, filepath.Join(s.app.Config.DataDir, "collaborations", r.ID, "runtime.log"), r.RuntimeMode, launch.codexOverridesForMode(names, r.RuntimeMode)...)
 			}
 		}
 	}
@@ -494,7 +520,7 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 			p.Close()
 			return e
 		}
-		params := nativecodex.Overrides(r.SessionID, r.ExecutionCwd)
+		params := nativecodex.SessionOverrides(r.SessionID, r.ExecutionCwd, r.RuntimeMode)
 		inheritModel(params, read.Thread)
 		params["excludeTurns"] = true
 		if e = p.Call(ctx, "thread/resume", params, nil); e != nil {
@@ -597,6 +623,8 @@ func (s *Session) view() map[string]any {
 	out := map[string]any{"id": r.ID, "title": r.Title, "sourceId": r.SourceID, "sourceTurnId": r.SourceTurnID, "sessionId": r.SessionID, "workspaceMode": r.WorkspaceMode, "executionCwd": r.ExecutionCwd, "repo": r.Repo, "head": r.Head, "branch": r.Branch, "workspaceOwned": r.WorkspaceOwned, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "writer": s.writer, "busy": s.busy, "online": s.online, "epoch": s.epoch, "sharing": s.share != nil, "sharingPreparing": s.sharePreparing, "connected": s.direct != nil, "sequence": s.sequence, "approvals": len(s.approvals), "annotations": r.Annotations, "model": r.Model, "modelProvider": r.ModelProvider, "reasoningEffort": r.ReasoningEffort}
 	provider, _ := providerName(r.Provider)
 	out["provider"] = provider
+	mode, _ := runtimeconfig.Parse(r.RuntimeMode)
+	out["runtimeMode"] = mode
 	if provider == "claude" {
 		out["nativeJobId"] = r.NativeJobID
 		out["nativeWaiting"] = s.nativeWaiting

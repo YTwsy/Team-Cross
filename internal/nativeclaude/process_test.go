@@ -97,6 +97,104 @@ func TestPrepareKeepsRoutingScopedAndPersonalFilesUntouched(t *testing.T) {
 	}
 }
 
+func TestTrustedEnvironmentKeepsNativeConfigurationAndDefaultHome(t *testing.T) {
+	t.Setenv("CLAUDECODE", "parent-session")
+	t.Setenv("CLAUDE_CONFIG_DIR", "/parent-config")
+	t.Setenv("CLAUDE_CODE_EFFORT_LEVEL", "high")
+	c := Config{Home: "/owner/.claude", RuntimeDir: "/collab/runtime", Trusted: true}
+	env := strings.Join(c.environment(), "\n")
+	if !strings.Contains(env, "CLAUDE_CONFIG_DIR=/owner/.claude") || !strings.Contains(env, "CLAUDE_CODE_EFFORT_LEVEL=high") || strings.Contains(env, "CLAUDECODE=parent-session") || strings.Contains(env, "CLAUDE_CODE_DISABLE_AUTO_MEMORY=1") {
+		t.Fatal("trusted environment changed native settings")
+	}
+	c.DefaultHome = true
+	if strings.Contains(strings.Join(c.environment(), "\n"), "CLAUDE_CONFIG_DIR=") {
+		t.Fatal("default-home mode relocated ~/.claude.json")
+	}
+	if c.configHome() != c.Home {
+		t.Fatal("trusted worker used isolated configuration")
+	}
+}
+
+func TestClaudeRestoreRejectsRuntimeModeChangeBeforeLaunch(t *testing.T) {
+	home, runtimeDir := t.TempDir(), t.TempDir()
+	id := uuid.NewString()
+	meta := marker{Version: markerVersion, SessionID: id, JobID: "12345678", Cwd: home, Trusted: true}
+	if err := writeJSON(filepath.Join(runtimeDir, "teamcross-runtime.json"), meta); err != nil {
+		t.Fatal(err)
+	}
+	binary := filepath.Join(runtimeDir, "claude")
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nif test \"$1\" = --version; then printf '2.1.270 (Claude Code)\\n'; else exit 99; fi\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Restore(context.Background(), Config{Binary: binary, Home: home, RuntimeDir: runtimeDir, Cwd: home}, id)
+	if err == nil || !strings.Contains(err.Error(), "记录不匹配") {
+		t.Fatal("restore changed mode", err)
+	}
+}
+
+func TestTrustedStopDoesNotKillReusedPersonalJobID(t *testing.T) {
+	home := t.TempDir()
+	jobsPath, stopPath := filepath.Join(home, "jobs.json"), filepath.Join(home, "stopped")
+	if err := writeJSON(jobsPath, []Job{{ID: "12345678", SessionID: "someone-elses-session", Cwd: home}}); err != nil {
+		t.Fatal(err)
+	}
+	binary := filepath.Join(home, "claude")
+	script := fmt.Sprintf("#!/bin/sh\ncase \"$1\" in\n agents) cat %q;;\n stop) touch %q;;\nesac\n", jobsPath, stopPath)
+	if err := os.WriteFile(binary, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	p := Process{Config: Config{Binary: binary, Home: home, Cwd: home, Trusted: true}, Job: Job{ID: "12345678", SessionID: "owned-session", Cwd: home}}
+	p.stopJob()
+	if _, err := os.Stat(stopPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("stopped a reused personal job id", err)
+	}
+}
+
+func TestTrustedStopWaitsForNativeWorkerExit(t *testing.T) {
+	home := t.TempDir()
+	job := Job{ID: "12345678", SessionID: "owned-session", Cwd: home, PID: 12345}
+	jobsPath := filepath.Join(home, "jobs.json")
+	if err := writeJSON(jobsPath, []Job{job}); err != nil {
+		t.Fatal(err)
+	}
+	binary := filepath.Join(home, "claude")
+	script := fmt.Sprintf("#!/bin/sh\ncase \"$1\" in\n agents) cat %q;;\n stop) exit 0;;\nesac\n", jobsPath)
+	if err := os.WriteFile(binary, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	socket := shortSocket(t)
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	checked := make(chan bool, 3)
+	go func() {
+		for i := 0; i < 3; i++ {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			var request map[string]any
+			_ = json.NewDecoder(conn).Decode(&request)
+			checked <- request["op"] == "has" && request["short"] == job.ID
+			_ = json.NewEncoder(conn).Encode(map[string]any{"ok": true, "alive": i == 0, "present": i < 2})
+			_ = conn.Close()
+		}
+	}()
+	p := Process{Config: Config{Binary: binary, Home: home, Cwd: home, Trusted: true}, Job: job, Socket: socket}
+	p.closed.Store(true)
+	p.stopJob()
+	if len(checked) != 3 {
+		t.Fatal("release completed before native worker exited")
+	}
+	for i := 0; i < 3; i++ {
+		if !<-checked {
+			t.Fatal("exit probe did not target owned worker")
+		}
+	}
+}
+
 func TestPublishHistoryExposesOnlyTheCreatedFork(t *testing.T) {
 	root := t.TempDir()
 	home := filepath.Join(root, "personal")
@@ -143,34 +241,36 @@ func TestPublishHistoryExposesOnlyTheCreatedFork(t *testing.T) {
 }
 
 func TestForkUsesNativePersonalHistoryAndStopsOnlyOwnedJob(t *testing.T) {
-	home := t.TempDir()
-	path := historyFixture(t, home, uuid.NewString())
-	source, err := ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	settings := `{"env":{"ANTHROPIC_AUTH_TOKEN":"SECRET_ON_A"},"hooks":{"personal":true}}`
-	if err = os.WriteFile(filepath.Join(home, "settings.json"), []byte(settings), 0600); err != nil {
-		t.Fatal(err)
-	}
-	newID := uuid.NewString()
-	jobID := "abcdef12"
-	work := t.TempDir()
-	runtimeDir := filepath.Join(work, "runtime")
-	argsPath := filepath.Join(work, "launch-args")
-	stopPath := filepath.Join(work, "stop-args")
-	configPath := filepath.Join(work, "launch-config-home")
-	daemonStopPath := filepath.Join(work, "daemon-stop-config-home")
-	jobsPath := filepath.Join(work, "jobs.json")
-	daemonDir, err := os.MkdirTemp("/tmp", "cc-daemon-fixture-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(daemonDir) })
-	if err = writeJSON(jobsPath, []Job{{ID: jobID, SessionID: newID, Cwd: work, PID: 12345, Status: "idle"}}); err != nil {
-		t.Fatal(err)
-	}
-	script := fmt.Sprintf(`#!/bin/sh
+	for _, trusted := range []bool{false, true} {
+		t.Run(fmt.Sprint(trusted), func(t *testing.T) {
+			home := t.TempDir()
+			path := historyFixture(t, home, uuid.NewString())
+			source, err := ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			settings := `{"env":{"ANTHROPIC_AUTH_TOKEN":"SECRET_ON_A"},"hooks":{"personal":true}}`
+			if err = os.WriteFile(filepath.Join(home, "settings.json"), []byte(settings), 0600); err != nil {
+				t.Fatal(err)
+			}
+			newID := uuid.NewString()
+			jobID := "abcdef12"
+			work := t.TempDir()
+			runtimeDir := filepath.Join(work, "runtime")
+			argsPath := filepath.Join(work, "launch-args")
+			stopPath := filepath.Join(work, "stop-args")
+			configPath := filepath.Join(work, "launch-config-home")
+			daemonStopPath := filepath.Join(work, "daemon-stop-config-home")
+			jobsPath := filepath.Join(work, "jobs.json")
+			daemonDir, err := os.MkdirTemp("/tmp", "cc-daemon-fixture-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.RemoveAll(daemonDir) })
+			if err = writeJSON(jobsPath, []Job{{ID: jobID, SessionID: newID, Cwd: work, PID: 12345, Status: "idle"}}); err != nil {
+				t.Fatal(err)
+			}
+			script := fmt.Sprintf(`#!/bin/sh
 case "$1" in
  --version) printf '%%s\n' '2.1.270 (Claude Code)';;
 	 --resume) printf '%%s\n' "$@" > %q; printf '%%s\n' "$CLAUDE_CONFIG_DIR" > %q; printf '%%s\n' 'backgrounded · %s';;
@@ -180,57 +280,80 @@ case "$1" in
  *) exit 1;;
 esac
 `, argsPath, configPath, jobID, jobsPath, daemonStopPath, daemonDir, stopPath)
-	binary := filepath.Join(work, "claude")
-	if err = os.WriteFile(binary, []byte(script), 0700); err != nil {
-		t.Fatal(err)
-	}
-	c := Config{Binary: binary, Home: home, RuntimeDir: runtimeDir, Cwd: work}
-	p, err := Fork(context.Background(), c, source, "Personal history fork")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.Job.SessionID != newID || p.Job.ID != jobID {
-		t.Fatal("wrong native fork identity", p.Job)
-	}
-	args, err := os.ReadFile(argsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	lines := strings.Split(strings.TrimSuffix(string(args), "\n"), "\n")
-	want := []string{"--resume", source.ID, "--fork-session", "--bg", "--name", "Personal history fork", "--settings", filepath.Join(runtimeDir, "settings.json")}
-	if len(lines) < len(want) {
-		t.Fatal("short native launch", lines)
-	}
-	for i := range want {
-		if lines[i] != want[i] {
-			t.Fatalf("launch arg %d = %q, want %q", i, lines[i], want[i])
-		}
-	}
-	if _, err = Read(home, newID); !errors.Is(err, os.ErrNotExist) {
-		t.Fatal("fork required Team Cross to materialize personal JSONL", err)
-	}
-	personalSettings, _ := os.ReadFile(filepath.Join(home, "settings.json"))
-	if string(personalSettings) != settings {
-		t.Fatal("native fork preparation modified personal settings")
-	}
-	if used, _ := os.ReadFile(configPath); strings.TrimSpace(string(used)) != runtimeDir {
-		t.Fatal("native worker used personal config as a write target", string(used))
-	}
-	if snapshot, snapshotErr := os.ReadFile(filepath.Join(runtimeDir, "projects", filepath.Base(filepath.Dir(path)), filepath.Base(path))); snapshotErr != nil || !strings.Contains(string(snapshot), "source question") {
-		t.Fatal("native worker did not receive only the selected source snapshot", snapshotErr)
-	}
-	var saved marker
-	b, err := os.ReadFile(filepath.Join(runtimeDir, "teamcross-runtime.json"))
-	if err != nil || json.Unmarshal(b, &saved) != nil || saved.Version != markerVersion || saved.SourceID != source.ID || saved.SessionID != newID || saved.JobID != jobID {
-		t.Fatal("invalid collaboration ownership marker", saved, err)
-	}
-	p.Close()
-	stopped, err := os.ReadFile(stopPath)
-	if err != nil || string(stopped) != "stop\n"+jobID+"\n" {
-		t.Fatal("did not stop exact owned job", string(stopped), err)
-	}
-	if used, _ := os.ReadFile(daemonStopPath); strings.TrimSpace(string(used)) != runtimeDir {
-		t.Fatal("stopped the personal Claude daemon", string(used))
+			binary := filepath.Join(work, "claude")
+			if err = os.WriteFile(binary, []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			c := Config{Binary: binary, Home: home, RuntimeDir: runtimeDir, Cwd: work, Trusted: trusted}
+			p, err := Fork(context.Background(), c, source, "Personal history fork")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p.Job.SessionID != newID || p.Job.ID != jobID {
+				t.Fatal("wrong native fork identity", p.Job)
+			}
+			args, err := os.ReadFile(argsPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			lines := strings.Split(strings.TrimSuffix(string(args), "\n"), "\n")
+			want := []string{"--resume", source.ID, "--fork-session", "--bg", "--name", "Personal history fork", "--settings", filepath.Join(runtimeDir, "settings.json")}
+			if trusted {
+				want = []string{"--resume", source.ID, "--fork-session", "--bg", "--name", "Personal history fork", "--mcp-config"}
+				for _, flag := range []string{"--settings", "--setting-sources", "--strict-mcp-config", "--permission-mode", "--tools", "--no-chrome"} {
+					if strings.Contains(string(args), flag) {
+						t.Fatal("trusted fork imposed restriction", flag)
+					}
+				}
+			}
+			if len(lines) < len(want) {
+				t.Fatal("short native launch", lines)
+			}
+			for i := range want {
+				if lines[i] != want[i] {
+					t.Fatalf("launch arg %d = %q, want %q", i, lines[i], want[i])
+				}
+			}
+			if _, err = Read(home, newID); !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("fork required Team Cross to materialize personal JSONL", err)
+			}
+			personalSettings, _ := os.ReadFile(filepath.Join(home, "settings.json"))
+			if string(personalSettings) != settings {
+				t.Fatal("native fork preparation modified personal settings")
+			}
+			expectedHome := runtimeDir
+			if trusted {
+				expectedHome = home
+			}
+			if used, _ := os.ReadFile(configPath); strings.TrimSpace(string(used)) != expectedHome {
+				t.Fatal("native worker used personal config as a write target", string(used))
+			}
+			if trusted {
+				if entries, _ := os.ReadDir(runtimeDir); len(entries) != 1 || entries[0].Name() != "teamcross-runtime.json" {
+					t.Fatal("trusted fork copied personal config or history", entries)
+				}
+			} else if snapshot, snapshotErr := os.ReadFile(filepath.Join(runtimeDir, "projects", filepath.Base(filepath.Dir(path)), filepath.Base(path))); snapshotErr != nil || !strings.Contains(string(snapshot), "source question") {
+				t.Fatal("native worker did not receive only the selected source snapshot", snapshotErr)
+			}
+			var saved marker
+			b, err := os.ReadFile(filepath.Join(runtimeDir, "teamcross-runtime.json"))
+			if err != nil || json.Unmarshal(b, &saved) != nil || saved.Version != markerVersion || saved.SourceID != source.ID || saved.SessionID != newID || saved.JobID != jobID || saved.Trusted != trusted {
+				t.Fatal("invalid collaboration ownership marker", saved, err)
+			}
+			p.Close()
+			stopped, err := os.ReadFile(stopPath)
+			if err != nil || string(stopped) != "stop\n"+jobID+"\n" {
+				t.Fatal("did not stop exact owned job", string(stopped), err)
+			}
+			used, stopErr := os.ReadFile(daemonStopPath)
+			if trusted {
+				if !errors.Is(stopErr, os.ErrNotExist) {
+					t.Fatal("trusted shutdown stopped the personal daemon", string(used), stopErr)
+				}
+			} else if strings.TrimSpace(string(used)) != runtimeDir {
+				t.Fatal("stopped the personal Claude daemon", string(used))
+			}
+		})
 	}
 }
 func TestNativeTransportScopeCapsAndBufferedOutput(t *testing.T) {
@@ -391,28 +514,33 @@ func TestLiveIdleStatusOverridesStaleJobProgress(t *testing.T) {
 }
 
 func TestRestoreDistinguishesSavedDoneJobFromLiveWorker(t *testing.T) {
-	for _, live := range []bool{false, true} {
-		t.Run(fmt.Sprint(live), func(t *testing.T) {
-			home := t.TempDir()
-			runtimeDir := t.TempDir()
-			id := uuid.NewString()
-			job := id[:8]
-			dir, err := os.MkdirTemp("/tmp", "cc-daemon-fixture-")
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { os.RemoveAll(dir) })
-			socket := filepath.Join(dir, "control.sock")
-			meta := marker{Version: markerVersion, SourceID: uuid.NewString(), SessionID: id, JobID: job, Cwd: home}
-			if err = writeJSON(filepath.Join(runtimeDir, "teamcross-runtime.json"), meta); err != nil {
-				t.Fatal(err)
-			}
-			writeJSON(filepath.Join(runtimeDir, "saved.json"), []Job{{ID: job, SessionID: id, Cwd: home, State: "done"}})
-			writeJSON(filepath.Join(runtimeDir, "running.json"), []Job{{ID: job, SessionID: id, Cwd: home, PID: 12345, Status: "idle", State: "done"}})
-			script := `#!/bin/sh
+	for _, trusted := range []bool{false, true} {
+		for _, live := range []bool{false, true} {
+			t.Run(fmt.Sprintf("trusted=%v/live=%v", trusted, live), func(t *testing.T) {
+				home := t.TempDir()
+				runtimeDir := t.TempDir()
+				id := uuid.NewString()
+				job := id[:8]
+				dir, err := os.MkdirTemp("/tmp", "cc-daemon-fixture-")
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { os.RemoveAll(dir) })
+				socket := filepath.Join(dir, "control.sock")
+				meta := marker{Version: markerVersion, SourceID: uuid.NewString(), SessionID: id, JobID: job, Cwd: home, Trusted: trusted}
+				if err = writeJSON(filepath.Join(runtimeDir, "teamcross-runtime.json"), meta); err != nil {
+					t.Fatal(err)
+				}
+				writeJSON(filepath.Join(runtimeDir, "saved.json"), []Job{{ID: job, SessionID: id, Cwd: home, State: "done"}})
+				writeJSON(filepath.Join(runtimeDir, "running.json"), []Job{{ID: job, SessionID: id, Cwd: home, PID: 12345, Status: "idle", State: "done"}})
+				configHome := runtimeDir
+				if trusted {
+					configHome = home
+				}
+				script := `#!/bin/sh
 case "$1" in
  --version) printf '%s\n' '2.1.268 (Claude Code)';;
-	 agents) if test "$CLAUDE_CONFIG_DIR" != "` + runtimeDir + `"; then printf '[]\n'; elif test -f "` + filepath.Join(runtimeDir, "live") + `"; then cat "` + filepath.Join(runtimeDir, "running.json") + `"; else cat "` + filepath.Join(runtimeDir, "saved.json") + `"; fi;;
+	 agents) if test "$CLAUDE_CONFIG_DIR" != "` + configHome + `"; then printf '[]\n'; elif test -f "` + filepath.Join(runtimeDir, "live") + `"; then cat "` + filepath.Join(runtimeDir, "running.json") + `"; else cat "` + filepath.Join(runtimeDir, "saved.json") + `"; fi;;
  --resume) test "$#" = 3 && test "$3" = --bg || exit 1
    touch "` + filepath.Join(runtimeDir, "resume-called") + `" "` + filepath.Join(runtimeDir, "live") + `"
    printf '%s\n' 'backgrounded · ` + job + `';;
@@ -420,49 +548,51 @@ case "$1" in
  stop) exit 0;;
 esac
 `
-			binary := filepath.Join(home, "claude")
-			os.WriteFile(binary, []byte(script), 0700)
-			if live {
-				os.WriteFile(filepath.Join(runtimeDir, "live"), nil, 0600)
-				ln, e := net.Listen("unix", socket)
-				if e != nil {
-					t.Fatal(e)
-				}
-				defer ln.Close()
-				go func() {
-					c, e := ln.Accept()
+				binary := filepath.Join(home, "claude")
+				os.WriteFile(binary, []byte(script), 0700)
+				if live {
+					os.WriteFile(filepath.Join(runtimeDir, "live"), nil, 0600)
+					ln, e := net.Listen("unix", socket)
 					if e != nil {
-						return
+						t.Fatal(e)
 					}
-					defer c.Close()
-					var v map[string]any
-					_ = json.NewDecoder(c).Decode(&v)
-					_, _ = c.Write([]byte("{\"ok\":true,\"op\":\"has\",\"alive\":true}\n"))
-				}()
-			}
-			p, err := Restore(context.Background(), Config{Binary: binary, Home: home, RuntimeDir: runtimeDir, Cwd: home}, id)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer p.Close()
-			if p.Job.SessionID != id || p.Job.PID != 12345 {
-				t.Fatal("wrong restored worker", p.Job)
-			}
-			_, err = os.Stat(filepath.Join(runtimeDir, "resume-called"))
-			if live && !errors.Is(err, os.ErrNotExist) {
-				t.Fatal("live worker was resumed as another copy")
-			}
-			if !live && err != nil {
-				t.Fatal("saved done job was mistaken for a live worker")
-			}
-			os.Remove(filepath.Join(runtimeDir, "live"))
-			if _, err = p.Status(context.Background()); err == nil {
-				t.Fatal("missing process still reported online")
-			}
-		})
+					defer ln.Close()
+					go func() {
+						for i := 0; i < 2; i++ {
+							c, e := ln.Accept()
+							if e != nil {
+								return
+							}
+							var v map[string]any
+							_ = json.NewDecoder(c).Decode(&v)
+							_ = json.NewEncoder(c).Encode(map[string]any{"ok": true, "op": "has", "alive": i == 0})
+							_ = c.Close()
+						}
+					}()
+				}
+				p, err := Restore(context.Background(), Config{Binary: binary, Home: home, RuntimeDir: runtimeDir, Cwd: home, Trusted: trusted}, id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer p.Close()
+				if p.Job.SessionID != id || p.Job.PID != 12345 {
+					t.Fatal("wrong restored worker", p.Job)
+				}
+				_, err = os.Stat(filepath.Join(runtimeDir, "resume-called"))
+				if live && !errors.Is(err, os.ErrNotExist) {
+					t.Fatal("live worker was resumed as another copy")
+				}
+				if !live && err != nil {
+					t.Fatal("saved done job was mistaken for a live worker")
+				}
+				os.Remove(filepath.Join(runtimeDir, "live"))
+				if _, err = p.Status(context.Background()); err == nil {
+					t.Fatal("missing process still reported online")
+				}
+			})
+		}
 	}
 }
-
 func TestRestoreDoesNotTakeOverPersonalWorkerOutsideOwnership(t *testing.T) {
 	home := t.TempDir()
 	runtimeDir := t.TempDir()

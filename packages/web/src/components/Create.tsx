@@ -3,6 +3,7 @@ import { api, errorText, useResource } from "../api";
 import {
   type Collaboration,
   type Mode,
+  type RuntimeMode,
   type Provider,
   type Preview,
   type ShareTransport,
@@ -10,6 +11,8 @@ import {
   projectName,
   relativeTime,
   sourceName,
+  runtimeModeName,
+  runtimeModeDescription,
 } from "../types";
 import { Empty, ErrorBox, Icon, Loading, PageHeading } from "./ui";
 export function Create() {
@@ -19,6 +22,7 @@ export function Create() {
   const [query, setQuery] = useState("");
   const [source, setSource] = useState<Source>();
   const [mode, setMode] = useState<Mode>("existing");
+  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>("restricted");
   const [shareTransport, setShareTransport] = useState<ShareTransport>("lan");
   const [title, setTitle] = useState("");
   const [preview, setPreview] = useState<Preview>();
@@ -59,6 +63,7 @@ export function Create() {
         provider,
         sourceId: source.id,
         workspaceMode: mode,
+        runtimeMode,
         requestId: requestId.current,
       },
       abort.signal,
@@ -68,7 +73,7 @@ export function Create() {
         if (!abort.signal.aborted) setError(errorText(e));
       });
     return () => abort.abort();
-  }, [source, step, mode, previewVersion, provider]);
+  }, [source, step, mode, runtimeMode, previewVersion, provider]);
   useEffect(() => {
     if (error) errorRef.current?.focus();
   }, [error]);
@@ -81,6 +86,7 @@ export function Create() {
         provider,
         sourceId: source.id,
         workspaceMode: mode,
+        runtimeMode,
         title,
         previewHash: preview.previewHash,
         requestId: requestId.current,
@@ -315,6 +321,45 @@ export function Create() {
                 </label>
               ))}
             </div>
+          </fieldset>
+          <fieldset disabled={busy} className="workspace-field">
+            <legend>选择协作模式</legend>
+            <div className="workspace-grid">
+              {(["restricted", "trusted"] as RuntimeMode[]).map((value) => (
+                <label
+                  className={`workspace-card ${runtimeMode === value ? "selected" : ""}`}
+                  key={value}
+                >
+                  <input
+                    type="radio"
+                    name="runtimeMode"
+                    value={value}
+                    checked={runtimeMode === value}
+                    onChange={() => {
+                      setRuntimeMode(value);
+                      setPreview(undefined);
+                      requestId.current = crypto.randomUUID();
+                    }}
+                  />
+                  <div className="workspace-top">
+                    <span className="entry-icon">
+                      <Icon name="people" size={23} />
+                    </span>
+                    <span className="radio-dot" />
+                  </div>
+                  <h3>{runtimeModeName(value)}</h3>
+                  <strong>
+                    {value === "trusted"
+                      ? "信任同事使用我的运行环境"
+                      : "默认 · 保留权限限制"}
+                  </strong>
+                  <p>{runtimeModeDescription(value)}</p>
+                </label>
+              ))}
+            </div>
+            <p className="inline-note">
+              模式创建后固定，恢复时沿用。信任模式仍遵循原生客户端和系统的授权；原生不可用的能力不会自动启用。
+            </p>
           </fieldset>
           <fieldset disabled={busy} className="workspace-field">
             <legend>选择连接方式</legend>

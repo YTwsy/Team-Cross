@@ -43,13 +43,16 @@
   "provider": "codex",
   "sourceId": "来源原生会话 UUID",
   "workspaceMode": "existing",
+  "runtimeMode": "restricted",
   "requestId": "本次创建 UUID",
   "title": "自动生成且可编辑",
   "previewHash": "创建时回传预览哈希"
 }
 ```
 
-预览返回 `source`、`sourceTurnId`、`workspace`、`targetDirectory`、`previewHash`。不接受 dirty patch 或未跟踪文件选项。创建哈希绑定来源会话、完成轮、模式、目录、Git HEAD 和分支；未提交文件只是原目录当前现场，不捕获为快照。
+`runtimeMode` 为 `restricted|trusted`，省略默认为 `restricted`，未知值拒绝。Codex 与 Claude 均支持。它绑定预览哈希、创建请求去重与持久化协作记录，创建后没有修改入口；重试不能借同一个 requestId 改变模式。恢复继续同一 sessionId 与模式。信任模式继承当前主机原生配置，不是创建时配置文件的快照。
+
+预览返回 `runtimeMode`、`source`、`sourceTurnId`、`workspace`、`targetDirectory`、`previewHash`。不接受 dirty patch 或未跟踪文件选项。创建哈希绑定 Provider、协作模式、来源会话、完成轮、目录模式、目录、Git HEAD 和分支；未提交文件只是原目录当前现场，不捕获为快照。
 
 `action` 包括：`start` 恢复运行时，`share` 按显式 `transport` 生成邀请，`end` 结束共享，`handoff` 交给接收者，`reclaim` 发起者接回，`return` 接收者交还，`leave` 接收者离开，`request_input` / `cancel_input` 接收者申请或取消输入。申请同样校验 epoch，不自动交接。输入交接需要当前 `epoch`。WebGUI 必须让用户在 `lan` 和 `tailcat` 之间二选一；协议默认 `lan` 只用于已有本机调用者，不表示自动探测或回退。
 
@@ -59,7 +62,7 @@
 
 ## 共享邀请与传输
 
-原始邀请格式 `tcx3.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `3`，能力 `codex-collaboration-v3-explicit-transport`。公共字段含协作 ID、显示名称、主机、`transport`、SHA-256 SPKI 指纹、随机 secret 和到期时间。`expiresAt` 只约束首次加入，以墙钟比较；`tcx2` 及其他旧能力明确拒绝，双方需使用兼容版本。
+原始邀请格式 `tcx3.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `3`，能力 `codex-collaboration-v3-explicit-transport`。公共字段含协作 ID、显示名称、主机、`runtimeMode`、`transport`、SHA-256 SPKI 指纹、随机 secret 和到期时间。`runtimeMode` 供加入前展示，省略为受限、未知值拒绝；连接后的模式以 A 的记录为准。`expiresAt` 只约束首次加入，以墙钟比较；`tcx2` 及其他旧能力明确拒绝，双方需使用兼容版本。
 
 候选字段按传输互斥：
 
@@ -147,7 +150,9 @@ A 的 Codex app-server / Claude worker 通过 `teamcross mcp --data-dir … --ru
 
 每个协作保存独立 `annotationToken`，仅通过 A 上的 MCP 环境变量传递；普通状态、远端响应和原生 `config/read` 不暴露凭据。STDIO 每次调用重新读取本机连接地址，只使用协作凭据，不启动 Core、不使用管理 token。创建、明确恢复或重新开启共享时开启批注工具访问，结束共享关闭访问；发起者恢复后即使尚未重新邀请，也可读取。运行时未连接、已释放或 Core 关闭时拒绝访问。成员访问撤销仍由原生入口和共享路由处理。
 
-Codex 启动协作运行时前读取有效 MCP 名称，在进程配置中逐项禁用继承的服务并加入批注服务；有同名个人条目时选用未占用的后缀名称，避免混入原传输和环境配置。命令行 MCP 表会跨层合并，不能依靠空表或新表覆盖来隔离。创建、恢复和 TUI/Desktop 的模型选择保留该进程配置，个人配置文件不变。Claude 新协作使用唯一的 `--strict-mcp-config`，原生恢复沿用已保存的启动配置。新工具不注入业务 prompt，也不加载完整个人辅助 MCP。此前创建的 Claude worker 仍沿用其旧启动参数；不改写原生 job 状态，使用新建协作接入。
+Codex 启动协作运行时前按所选模式读取有效 MCP 名称。受限模式在进程配置中逐项禁用继承的服务；信任模式保留这些服务。两者均追加批注服务，有同名个人条目时选用未占用的后缀名称，避免混入原传输和环境配置。命令行 MCP 表会跨层合并，不能依靠空表或新表覆盖来隔离。创建、恢复和 TUI/Desktop 的模型选择保留该进程配置，启动时不改写个人配置文件。Claude 受限模式使用 `--strict-mcp-config`；信任模式在个人 MCP 之外追加带协作 ID 的批注服务名称，原生恢复沿用已保存的启动配置。批注工具不注入业务 prompt；信任模式可能同时加载邀请者原有的完整个人辅助 MCP。此前创建的 Claude worker 仍沿用其旧启动参数；不改写原生 job 状态，使用新建协作接入。
+
+Codex 信任模式支持原生 hook 确认：只含 `hooks.state` 或其子项的 `config/value/write`、`config/batchWrite` 由本机代理转发给 A，主机再次校验模式、输入归属及 `requestId`，移除客户端指定的 `filePath`；其他配置写入保持客户端本机路由。`hooks/list` 的 `cwds` 固定为执行目录。Team Cross 不自动确认 hook，也不把普通偏好写入升级为主机设置修改。
 
 实现见 [运行时批注适配](../../../internal/collab/runtime_annotations.go) 和 [受限 STDIO 工具](../../../internal/mcp/runtime.go)。
 

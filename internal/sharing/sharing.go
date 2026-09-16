@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 	"teamcross/internal/problem"
+	"teamcross/internal/runtimeconfig"
 	"time"
 
 	"github.com/grandcat/zeroconf"
@@ -55,17 +56,18 @@ type TailcatCandidate struct {
 }
 
 type Invitation struct {
-	Version    int               `json:"version"`
-	ID         string            `json:"id"`
-	Title      string            `json:"title"`
-	Host       string            `json:"host"`
-	Transport  Transport         `json:"transport"`
-	Endpoints  []string          `json:"endpoints,omitempty"`
-	Tailcat    *TailcatCandidate `json:"tailcat,omitempty"`
-	Pin        string            `json:"pin"`
-	Secret     string            `json:"secret"`
-	ExpiresAt  time.Time         `json:"expiresAt"`
-	Capability string            `json:"capability"`
+	RuntimeMode runtimeconfig.Mode `json:"runtimeMode,omitempty"`
+	Version     int                `json:"version"`
+	ID          string             `json:"id"`
+	Title       string             `json:"title"`
+	Host        string             `json:"host"`
+	Transport   Transport          `json:"transport"`
+	Endpoints   []string           `json:"endpoints,omitempty"`
+	Tailcat     *TailcatCandidate  `json:"tailcat,omitempty"`
+	Pin         string             `json:"pin"`
+	Secret      string             `json:"secret"`
+	ExpiresAt   time.Time          `json:"expiresAt"`
+	Capability  string             `json:"capability"`
 }
 type Runtime struct {
 	mu              sync.Mutex
@@ -109,7 +111,15 @@ func (r *Runtime) Close() {
 		}
 	})
 }
-func Start(ctx context.Context, transport Transport, id, title, host string, handler http.Handler, loopback bool) (*Runtime, error) {
+func Start(ctx context.Context, transport Transport, id, title, host string, handler http.Handler, loopback bool, modes ...runtimeconfig.Mode) (*Runtime, error) {
+	mode := runtimeconfig.Restricted
+	if len(modes) > 0 {
+		var err error
+		mode, err = runtimeconfig.Parse(modes[0])
+		if err != nil {
+			return nil, err
+		}
+	}
 	transport, err := ParseTransport(string(transport))
 	if err != nil {
 		return nil, err
@@ -131,7 +141,8 @@ func Start(ctx context.Context, transport Transport, id, title, host string, han
 	r := &Runtime{
 		transport: transport,
 		Invitation: Invitation{
-			Version: 3, ID: id, Title: title, Host: host, Transport: transport,
+			RuntimeMode: mode,
+			Version:     3, ID: id, Title: title, Host: host, Transport: transport,
 			Pin: hex.EncodeToString(pin[:]), Secret: NewCredential(), ExpiresAt: expiry, Capability: Capability,
 		},
 	}
@@ -215,6 +226,10 @@ func Decode(token string) (Invitation, error) {
 	}
 	if err = json.Unmarshal(b, &i); err != nil {
 		return i, problem.New("version_incompatible", "邀请版本或内容不受支持", "请确认双方使用兼容的 Team Cross 版本")
+	}
+	i.RuntimeMode, err = runtimeconfig.Parse(i.RuntimeMode)
+	if err != nil {
+		return i, problem.New("version_incompatible", "邀请的协作模式不受支持", "请确认双方使用兼容的 Team Cross 版本")
 	}
 	if err = validateInvitation(i); err != nil {
 		return i, problem.New("version_incompatible", "邀请版本或内容不受支持", "请确认双方使用兼容的 Team Cross 版本")

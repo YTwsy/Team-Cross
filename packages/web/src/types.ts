@@ -1,4 +1,11 @@
 export type Mode = "existing" | "worktree";
+export type RuntimeMode = "restricted" | "trusted";
+export const runtimeModeName = (mode?: RuntimeMode) =>
+  mode === "trusted" ? "信任模式" : "受限模式";
+export const runtimeModeDescription = (mode?: RuntimeMode) =>
+  mode === "trusted"
+    ? "沿用邀请者的原生配置与权限，包括 MCP、插件、hooks、网络、命令及已启用的浏览器和电脑控制。操作可能访问工作目录之外的数据，并使用邀请者的服务授权。"
+    : "使用 Team Cross 的受限运行配置，关闭个人 MCP、插件、hooks 等扩展，按协作权限处理代码操作。";
 export type ShareTransport = "lan" | "tailcat";
 export type AnnotationTarget = {
   kind: "history" | "file" | "changes";
@@ -33,6 +40,7 @@ export type AnnotationReply = {
   createdAt: string;
 };
 export type Collaboration = {
+  runtimeMode?: RuntimeMode;
   provider?: Provider;
   nativeWaiting?: string;
   capabilities?: {
@@ -93,6 +101,7 @@ export type Source = {
   status?: { type: string };
 };
 export type Preview = {
+  runtimeMode?: RuntimeMode;
   source: Source;
   sourceTurnId: string;
   previewHash: string;

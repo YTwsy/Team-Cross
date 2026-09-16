@@ -8,6 +8,7 @@ import (
 	"sync"
 	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
+	"teamcross/internal/runtimeconfig"
 	"teamcross/internal/sharing"
 	"teamcross/internal/workspace"
 	"time"
@@ -45,20 +46,22 @@ type Source struct {
 	} `json:"status"`
 }
 type CreateInput struct {
-	Provider      string `json:"provider,omitempty"`
-	SourceID      string `json:"sourceId"`
-	WorkspaceMode string `json:"workspaceMode"`
-	Title         string `json:"title"`
-	PreviewHash   string `json:"previewHash"`
-	RequestID     string `json:"requestId"`
+	RuntimeMode   runtimeconfig.Mode `json:"runtimeMode"`
+	Provider      string             `json:"provider,omitempty"`
+	SourceID      string             `json:"sourceId"`
+	WorkspaceMode string             `json:"workspaceMode"`
+	Title         string             `json:"title"`
+	PreviewHash   string             `json:"previewHash"`
+	RequestID     string             `json:"requestId"`
 }
 type Preview struct {
-	SourceFingerprint string            `json:"-"`
-	TargetDirectory   string            `json:"targetDirectory"`
-	Source            Source            `json:"source"`
-	SourceTurnID      string            `json:"sourceTurnId"`
-	Workspace         workspace.Preview `json:"workspace"`
-	Hash              string            `json:"previewHash"`
+	RuntimeMode       runtimeconfig.Mode `json:"runtimeMode"`
+	SourceFingerprint string             `json:"-"`
+	TargetDirectory   string             `json:"targetDirectory"`
+	Source            Source             `json:"source"`
+	SourceTurnID      string             `json:"sourceTurnId"`
+	Workspace         workspace.Preview  `json:"workspace"`
+	Hash              string             `json:"previewHash"`
 }
 type Annotation struct {
 	ID        string            `json:"id"`
@@ -122,32 +125,34 @@ type Command struct {
 	Error  string          `json:"error,omitempty"`
 }
 type Record struct {
-	AnnotationToken string             `json:"annotationToken,omitempty"`
-	Provider        string             `json:"provider,omitempty"`
-	NativeJobID     string             `json:"nativeJobId,omitempty"`
-	Model           string             `json:"model,omitempty"`
-	ModelProvider   string             `json:"modelProvider,omitempty"`
-	ReasoningEffort *string            `json:"reasoningEffort,omitempty"`
-	ID              string             `json:"id"`
-	Title           string             `json:"title"`
-	SourceID        string             `json:"sourceId"`
-	SourceTurnID    string             `json:"sourceTurnId"`
-	SessionID       string             `json:"sessionId"`
-	WorkspaceMode   string             `json:"workspaceMode"`
-	Repo            string             `json:"repo"`
-	ExecutionCwd    string             `json:"executionCwd"`
-	WorkspaceRoot   string             `json:"workspaceRoot"`
-	WorkspaceOwned  bool               `json:"workspaceOwned"`
-	Head            string             `json:"head"`
-	Branch          string             `json:"branch"`
-	ProviderHome    string             `json:"providerHome"`
-	State           string             `json:"state"`
-	Error           string             `json:"error,omitempty"`
-	CreatedAt       time.Time          `json:"createdAt"`
-	UpdatedAt       time.Time          `json:"updatedAt"`
-	PreviewHash     string             `json:"previewHash"`
-	Annotations     []Annotation       `json:"annotations"`
-	Commands        map[string]Command `json:"commands,omitempty"`
+	RuntimeMode         runtimeconfig.Mode `json:"runtimeMode"`
+	ProviderDefaultHome bool               `json:"providerDefaultHome,omitempty"`
+	AnnotationToken     string             `json:"annotationToken,omitempty"`
+	Provider            string             `json:"provider,omitempty"`
+	NativeJobID         string             `json:"nativeJobId,omitempty"`
+	Model               string             `json:"model,omitempty"`
+	ModelProvider       string             `json:"modelProvider,omitempty"`
+	ReasoningEffort     *string            `json:"reasoningEffort,omitempty"`
+	ID                  string             `json:"id"`
+	Title               string             `json:"title"`
+	SourceID            string             `json:"sourceId"`
+	SourceTurnID        string             `json:"sourceTurnId"`
+	SessionID           string             `json:"sessionId"`
+	WorkspaceMode       string             `json:"workspaceMode"`
+	Repo                string             `json:"repo"`
+	ExecutionCwd        string             `json:"executionCwd"`
+	WorkspaceRoot       string             `json:"workspaceRoot"`
+	WorkspaceOwned      bool               `json:"workspaceOwned"`
+	Head                string             `json:"head"`
+	Branch              string             `json:"branch"`
+	ProviderHome        string             `json:"providerHome"`
+	State               string             `json:"state"`
+	Error               string             `json:"error,omitempty"`
+	CreatedAt           time.Time          `json:"createdAt"`
+	UpdatedAt           time.Time          `json:"updatedAt"`
+	PreviewHash         string             `json:"previewHash"`
+	Annotations         []Annotation       `json:"annotations"`
+	Commands            map[string]Command `json:"commands,omitempty"`
 }
 type direct struct {
 	subscribed    bool

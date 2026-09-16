@@ -77,6 +77,10 @@ func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error 
 		result = map[string]any{"authToken": f.source.Name + "-token", "authMethod": "chatgpt"}
 	case "config/read":
 		result = map[string]any{"config": map[string]any{"model": "fixture-config-model", "mcp_servers": map[string]any{"private": "secret"}, "model_providers": map[string]any{"secret": "key"}}, "origins": map[string]string{"secret": "path"}}
+	case "hooks/list", "skills/list":
+		if cwds, ok := request["cwds"].([]any); ok && len(cwds) == 1 {
+			result = map[string]any{"data": []any{map[string]any{"cwd": cwds[0], "hooks": []any{}, "skills": []any{}, "errors": []any{}}}}
+		}
 	case "thread/read":
 		result = map[string]any{"thread": thread}
 	case "thread/turns/list":

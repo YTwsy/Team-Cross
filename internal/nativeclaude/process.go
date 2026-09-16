@@ -31,9 +31,15 @@ const VerifiedVersion = "2.1.268"
 var ErrRejected = errors.New("Claude 未接收此输入")
 
 // Home is A's effective personal Claude home, where the explicitly created
-// fork is published. RuntimeDir is the collaboration-owned CLAUDE_CONFIG_DIR
-// used for its transcript, settings, authentication snapshot, and job state.
-type Config struct{ Binary, Home, RuntimeDir, Cwd, Log, MCPConfig string }
+// fork is published. RuntimeDir holds ownership metadata; restricted mode also
+// uses it as CLAUDE_CONFIG_DIR for the transcript, settings and auth snapshot.
+type Config struct {
+	Binary, Home, RuntimeDir, Cwd, Log, MCPConfig string
+	Trusted                                       bool
+	// DefaultHome keeps native ~/.claude.json lookup when CLAUDE_CONFIG_DIR
+	// was unset. Explicitly setting it to ~/.claude changes that lookup.
+	DefaultHome bool
+}
 type Job struct {
 	ID         string `json:"id"`
 	SessionID  string `json:"sessionId"`
@@ -58,11 +64,13 @@ func (j Job) Busy() bool {
 }
 
 type marker struct {
-	Version   int    `json:"version"`
-	SourceID  string `json:"sourceId"`
-	SessionID string `json:"sessionId"`
-	JobID     string `json:"jobId,omitempty"`
-	Cwd       string `json:"cwd"`
+	Trusted     bool   `json:"trusted,omitempty"`
+	DefaultHome bool   `json:"defaultHome,omitempty"`
+	Version     int    `json:"version"`
+	SourceID    string `json:"sourceId"`
+	SessionID   string `json:"sessionId"`
+	JobID       string `json:"jobId,omitempty"`
+	Cwd         string `json:"cwd"`
 }
 type Process struct {
 	Config    Config
@@ -180,16 +188,32 @@ func writeJSON(path string, v any) error {
 	return os.Rename(path+".tmp", path)
 }
 func (c Config) configHome() string {
-	if c.RuntimeDir != "" {
+	if c.RuntimeDir != "" && !c.Trusted {
 		return c.RuntimeDir
 	}
 	return c.Home
+}
+func (c Config) environment() []string {
+	if !c.Trusted {
+		return Env(c.configHome())
+	}
+	var env []string
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if key != "CLAUDECODE" && key != "CLAUDE_CONFIG_DIR" {
+			env = append(env, entry)
+		}
+	}
+	if !c.DefaultHome {
+		env = append(env, "CLAUDE_CONFIG_DIR="+c.Home)
+	}
+	return env
 }
 func (c Config) command(ctx context.Context, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, c.Binary, args...)
-	cmd.Env = Env(c.configHome())
+	cmd.Env = c.environment()
 	cmd.Dir = c.Cwd
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -226,10 +250,9 @@ func containsPath(base, target string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
-// prepare verifies the selected personal-history snapshot, then copies only
-// that source transcript into the isolated runtime. Claude creates the fork
-// natively without seeing unrelated personal history or using personal
-// settings as a write target.
+// prepare verifies the selected personal-history snapshot. Restricted mode
+// copies only that source into an isolated home; trusted mode leaves native
+// configuration and history in the personal home.
 func prepare(c Config, source History) error {
 	if c.Home == "" || c.RuntimeDir == "" {
 		return fmt.Errorf("Claude 协作需要个人历史目录和独立运行目录")
@@ -263,6 +286,17 @@ func prepare(c Config, source History) error {
 	sum := sha256.Sum256(b)
 	if source.Fingerprint == "" || hex.EncodeToString(sum[:]) != source.Fingerprint {
 		return fmt.Errorf("Claude 来源已变化，请重新查看起点")
+	}
+	if c.Trusted {
+		// Native Claude uses the owner's settings, MCP, plugins, hooks, memory,
+		// credentials and permissions in place. This directory holds ownership
+		// only; no configuration or personal history is copied or rewritten.
+		if entries, err := os.ReadDir(c.RuntimeDir); err == nil && len(entries) != 0 {
+			return fmt.Errorf("Claude 运行目录已存在，请检查上次创建结果")
+		} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return os.MkdirAll(c.RuntimeDir, 0700)
 	}
 
 	var user map[string]json.RawMessage
@@ -375,7 +409,7 @@ func Fork(ctx context.Context, c Config, source History, title string) (*Process
 	if err := prepare(c, source); err != nil {
 		return nil, err
 	}
-	p := &Process{Config: c, meta: marker{Version: markerVersion, SourceID: source.ID, Cwd: c.Cwd}}
+	p := &Process{Config: c, meta: marker{Version: markerVersion, SourceID: source.ID, Cwd: c.Cwd, Trusted: c.Trusted, DefaultHome: c.DefaultHome}}
 	if err := writeJSON(runtimeFile(c, "teamcross-runtime.json"), p.meta); err != nil {
 		return nil, err
 	}
@@ -384,6 +418,9 @@ func Fork(ctx context.Context, c Config, source History, title string) (*Process
 		mcpConfig = `{"mcpServers":{}}`
 	}
 	args := []string{"--resume", source.ID, "--fork-session", "--bg", "--name", title, "--settings", runtimeFile(c, "settings.json"), "--setting-sources", "", "--strict-mcp-config", "--mcp-config", mcpConfig, "--permission-mode", "manual", "--tools", "Bash,Read,Write,Edit,Glob,Grep,AskUserQuestion", "--no-chrome"}
+	if c.Trusted {
+		args = []string{"--resume", source.ID, "--fork-session", "--bg", "--name", title, "--mcp-config", mcpConfig}
+	}
 	if source.Model != "" {
 		args = append(args, "--model", source.Model)
 	}
@@ -419,18 +456,20 @@ func Restore(ctx context.Context, c Config, id string) (*Process, error) {
 	if err != nil {
 		return nil, err
 	}
-	if json.Unmarshal(b, &m) != nil || m.Version != markerVersion || m.SessionID != id || !regexpJob.MatchString(m.JobID) || m.Cwd != c.Cwd {
+	if json.Unmarshal(b, &m) != nil || m.Version != markerVersion || m.SessionID != id || !regexpJob.MatchString(m.JobID) || m.Cwd != c.Cwd || m.Trusted != c.Trusted || m.DefaultHome != c.DefaultHome {
 		return nil, fmt.Errorf("Claude 协作运行时记录不匹配")
 	}
-	personal := c
-	personal.RuntimeDir = ""
-	personalJobs, err := personal.jobs(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("无法确认个人 Claude 会话占用：%w", err)
-	}
-	for _, j := range personalJobs {
-		if j.SessionID == id && j.Cwd == c.Cwd && j.PID > 0 && j.State != "stopped" && j.State != "failed" {
-			return nil, fmt.Errorf("Claude 会话已在 Team Cross 之外运行，请先结束该运行时")
+	if !c.Trusted {
+		personal := c
+		personal.RuntimeDir = ""
+		personalJobs, err := personal.jobs(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("无法确认个人 Claude 会话占用：%w", err)
+		}
+		for _, j := range personalJobs {
+			if j.SessionID == id && j.Cwd == c.Cwd && j.PID > 0 && j.State != "stopped" && j.State != "failed" {
+				return nil, fmt.Errorf("Claude 会话已在 Team Cross 之外运行，请先结束该运行时")
+			}
 		}
 	}
 	p := &Process{Config: c, meta: m}
@@ -536,6 +575,9 @@ func (p *Process) publishHistory() (string, error) {
 	if p.Config.Home == "" || p.Config.RuntimeDir == "" || p.Job.SessionID == "" {
 		return "", fmt.Errorf("Claude 协作历史位置不完整")
 	}
+	if p.Config.Trusted {
+		return historyPath(p.Config.Home, p.Job.SessionID)
+	}
 	runtimePath, runtimeErr := historyPath(p.Config.RuntimeDir, p.Job.SessionID)
 	personalPath, personalErr := historyPath(p.Config.Home, p.Job.SessionID)
 	if personalErr == nil {
@@ -605,7 +647,7 @@ func SavedHistory(home, runtimeDir, id, cwd string) (History, error) {
 	if json.Unmarshal(b, &m) != nil || m.Version != markerVersion || m.SessionID != id || !regexpJob.MatchString(m.JobID) || m.Cwd != cwd {
 		return History{}, fmt.Errorf("Claude 会话记录不匹配")
 	}
-	p := Process{Config: Config{Home: home, RuntimeDir: runtimeDir, Cwd: cwd}, Job: Job{SessionID: id}, meta: m}
+	p := Process{Config: Config{Home: home, RuntimeDir: runtimeDir, Cwd: cwd, Trusted: m.Trusted, DefaultHome: m.DefaultHome}, Job: Job{SessionID: id}, meta: m}
 	return p.History()
 }
 func (p *Process) Status(ctx context.Context) (Job, error) {
@@ -630,20 +672,70 @@ func (p *Process) stopJob() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	_, _ = p.Config.command(ctx, "stop", p.Job.ID)
+	if p.Config.Trusted {
+		// A trusted worker shares the personal daemon's job namespace. Verify
+		// the current identity before stopping; a stale/reused id is not ours.
+		if p.Job.SessionID == "" || p.Job.SessionID == p.meta.SourceID || p.Job.Cwd != p.Config.Cwd {
+			return
+		}
+		jobs, err := p.Config.jobs(ctx)
+		if err != nil {
+			return
+		}
+		owned := false
+		for _, job := range jobs {
+			if job.ID == p.Job.ID && job.SessionID == p.Job.SessionID && job.Cwd == p.Config.Cwd {
+				owned = true
+			}
+		}
+		if !owned {
+			return
+		}
+	}
+	_, stopErr := p.Config.command(ctx, "stop", p.Job.ID)
+	if stopErr != nil || !p.Config.Trusted || p.Socket == "" {
+		return
+	}
+	// Native stop acknowledges before the worker has necessarily exited. A
+	// resume during that interval creates a copy, so keep release pending until
+	// the personal daemon confirms this exact job is gone. Close has already
+	// disabled public calls; this private probe only reads worker liveness.
+	probe := Process{Job: p.Job, Socket: p.Socket}
+	for ctx.Err() == nil {
+		conn, ack, err := probe.connect(ctx, map[string]any{"op": "has"})
+		if err != nil {
+			return
+		}
+		_ = conn.Close()
+		var state struct {
+			Alive   bool `json:"alive"`
+			Present bool `json:"present"`
+		}
+		if json.Unmarshal(ack, &state) != nil || (!state.Alive && !state.Present) {
+			return
+		}
+		select {
+		case <-ctx.Done():
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
 }
 func (p *Process) Close() {
 	p.closeOnce.Do(func() {
 		p.closed.Store(true)
-		// The marker and daemon both belong to this collaboration config. Stop the
-		// exact job, then its isolated supervisor; personal Claude stays untouched.
+		// The marker identifies the collaboration-owned job. Only restricted
+		// mode owns the supervisor; trusted mode shares the personal daemon.
 		var m marker
 		b, err := os.ReadFile(runtimeFile(p.Config, "teamcross-runtime.json"))
-		if err != nil || json.Unmarshal(b, &m) != nil || m.Version != markerVersion || m.SourceID != p.meta.SourceID || m.Cwd != p.Config.Cwd || (m.SessionID != "" && m.SessionID != p.Job.SessionID) || (m.JobID != "" && m.JobID != p.Job.ID) {
+		if err != nil || json.Unmarshal(b, &m) != nil || m.Version != markerVersion || m.Trusted != p.Config.Trusted || m.DefaultHome != p.Config.DefaultHome || m.SourceID != p.meta.SourceID || m.Cwd != p.Config.Cwd || (m.SessionID != "" && m.SessionID != p.Job.SessionID) || (m.JobID != "" && m.JobID != p.Job.ID) {
 			return
 		}
 		p.stopJob()
 		_, _ = p.publishHistory()
+		if p.Config.Trusted {
+			// The owner may have other jobs on this personal daemon.
+			return
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		_, _ = p.Config.command(ctx, "daemon", "stop", "--any")

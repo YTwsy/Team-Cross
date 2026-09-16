@@ -106,7 +106,7 @@ func (a *App) onboarding(w http.ResponseWriter, r *http.Request, path string) bo
 		if e == nil && time.Now().After(inv.ExpiresAt) {
 			e = problem.New("invitation_expired", "邀请已到期", "请获取新邀请")
 		}
-		respond(w, map[string]any{"title": inv.Title, "host": inv.Host, "expiresAt": inv.ExpiresAt, "transport": inv.Transport}, e)
+		respond(w, map[string]any{"title": inv.Title, "host": inv.Host, "expiresAt": inv.ExpiresAt, "transport": inv.Transport, "runtimeMode": inv.RuntimeMode}, e)
 		return true
 	case path == "mcp/observed" && r.Method == "POST":
 		if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+a.Token)) != 1 {

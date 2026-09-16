@@ -1,4 +1,9 @@
-import { invitationText, transportName } from "../types";
+import {
+  invitationText,
+  transportName,
+  runtimeModeName,
+  runtimeModeDescription,
+} from "../types";
 import { useEffect, useRef, useState } from "react";
 import { APIError, api, errorText, useResource } from "../api";
 import {
@@ -40,6 +45,10 @@ function TechnicalInformation({
         </div>
       </div>
       <dl>
+        <div>
+          <dt>协作模式</dt>
+          <dd>{runtimeModeName(c.runtimeMode)} · 创建后固定</dd>
+        </div>
         <div>
           <dt>原生客户端</dt>
           <dd>
@@ -211,6 +220,10 @@ export function Detail({ id }: { id: string }) {
         message={error || resource.error || (!closed ? c.error : undefined)}
         retry={resource.reload}
       />
+      <div className="notice" role="note">
+        <strong>{runtimeModeName(c.runtimeMode)} · 创建后固定</strong>
+        <p>{runtimeModeDescription(c.runtimeMode)}</p>
+      </div>
       <div className="execution-strip">
         <div>
           <Icon name="desktop" />
