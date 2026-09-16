@@ -24,17 +24,29 @@ func (a *App) Active() int {
 	a.mu.Lock()
 	ss := []*Session{}
 	js := []*Joined{}
+	jobs := []*shareRequest{}
 	for _, s := range a.sessions {
 		ss = append(ss, s)
 	}
 	for _, j := range a.joined {
 		js = append(js, j)
 	}
+	for _, j := range a.shareRequests {
+		jobs = append(jobs, j)
+	}
 	a.mu.Unlock()
 	n := 0
+	activeRequests := map[string]bool{}
+	for _, j := range jobs {
+		r := j.snapshot()
+		if shareRequestActive(r.State) {
+			activeRequests[r.ID] = true
+			n++
+		}
+	}
 	for _, s := range ss {
 		s.mu.Lock()
-		if s.online || s.starting || s.share != nil {
+		if !activeRequests[s.record.ID] && (s.online || s.starting || s.share != nil) {
 			n++
 		}
 		s.mu.Unlock()

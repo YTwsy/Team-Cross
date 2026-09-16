@@ -37,6 +37,8 @@ flowchart LR
 
 仅复制 rollout 文件无法替代原生历史数据库。协作记录保存 `sourceId`、已确认的 `sourceTurnId` 和新 `sessionId`。创建调用 `thread/fork`，使用 `lastTurnId` 保留确认过的已完成起点。恢复调用 `thread/resume`，继续同一 ID。
 
+个人 Agent 的当前 Session 分享通过本机持久化请求等待来源本轮完成，不阻塞该 MCP 调用。Codex 原生调用元数据、Claude 的 Session 环境与工具调用历史分别验证来源；独立 Codex 读取进程会重建未结束轮次状态，因此创建前还读取原始 rollout 边界确认完成。工作线程只观察固定轮次；起点漂移、取消或 Core 停止后不自动选新来源或重放。完成后调用既有 Preview/Create/Share；保存部分创建结果，邀请失败可单独恢复。实现见 [current_share.go](../../../internal/collab/current_share.go) 与 [当前 Session 协议](protocol.md#当前-session-与延后分享)。
+
 直接客户端的 `initialize`、会话枚举和请求都经过协作网关。网关只暴露指定协作；固定 `threadId` 与 `cwd`；受限模式固定权限 profile，信任模式沿用原生权限，并允许当前输入者通过原生会话设置选择权限。模型及推理强度继承原生来源和当前输入者的选择。网关与 MCP 共享同一个上游控制连接，避免审批只被某个连接收到而另一入口无法回应。共享仍开放时，直接客户端断开不会终止 app-server。结束共享后，执行、审批、已接收请求和直接连接全部结束才关闭该 Session 的 app-server，释放原生 writer lock；仅 `thread/unsubscribe` 不作为释放依据。关闭过程在会话锁外等待进程退出，恢复等待退出完成，旧进程通知按代次丢弃。
 
 Desktop 使用本机安装版本的指定 WebSocket 入口，配合单独的 `CODEX_HOME` 与 Electron 数据目录，通过 `open -n` 启动。是否所有 Desktop 操作都适合远程执行需要按实际客户端版本验收；不能仅凭 app-server 协议相同宣布完整兼容。
@@ -65,6 +67,7 @@ Team Cross Next/
   connection.json
   core.lock
   joined.json
+  share-requests/<id>.json # 当前轮完成后的分享请求，重启不自动重放
   collaborations/<id>/
     collaboration.json
     runtime.log

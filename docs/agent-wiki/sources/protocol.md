@@ -20,6 +20,11 @@
 | `POST /invitations/pending` | 本机凭据保护，`{invitation}` 暂存并返回不含 secret 的随机 ID |
 | `POST /invitations/preview` | `{invitation}` 或 `{pendingId}`，只解析显示信息，不连接远端 |
 | `GET /sources?provider=codex|claude&search=&cursor=` | 分页搜索原生来源会话 |
+| `POST /sources/current` | 核对个人 MCP 的原生调用身份，返回来源与当前轮次 |
+| `POST /share-requests/preview` | 预览当前 Session 的本轮完成后分享 |
+| `POST /share-requests` | 幂等登记分享请求，立即返回，不等待本轮结束 |
+| `GET /share-requests/:id` | 查询请求状态、已创建协作 ID 和错误恢复提示 |
+| `POST /share-requests/:id/cancel` | 只取消仍在 waiting 的请求，保留已创建资源 |
 | `POST /preview` | 检查来源的最新完成轮与 Git 起点 |
 | `GET /collaborations` | 本机发起与加入的协作 |
 | `POST /collaborations` | 创建新的协作 fork |
@@ -52,7 +57,7 @@
 
 `runtimeMode` 为 `restricted|trusted`，省略默认为 `restricted`，未知值拒绝。Codex 与 Claude 均支持。它绑定预览哈希、创建请求去重与持久化协作记录，创建后没有修改入口；重试不能借同一个 requestId 改变模式。恢复继续同一 sessionId 与模式。信任模式继承当前主机原生配置，不是创建时配置文件的快照。
 
-预览返回 `runtimeMode`、`source`、`sourceTurnId`、`workspace`、`targetDirectory`、`previewHash`。不接受 dirty patch 或未跟踪文件选项。创建哈希绑定 Provider、协作模式、来源会话、完成轮、目录模式、目录、Git HEAD 和分支；未提交文件只是原目录当前现场，不捕获为快照。
+预览返回 `runtimeMode`、`source`、`sourceTurnId`、`sourceTurnStatus`、`workspace`、`targetDirectory`、`previewHash`。不接受 dirty patch 或未跟踪文件选项。创建哈希绑定 Provider、协作模式、来源会话、完成轮、目录模式、目录、Git HEAD 和分支；未提交文件只是原目录当前现场，不捕获为快照。Codex 来源有 rollout 路径时，以原始轮次事件核对运行/完成状态，避免独立读取进程将其他客户端仍在运行的轮次误判为中断。
 
 `action` 包括：`start` 恢复运行时，`share` 按显式 `transport` 生成邀请，`end` 结束共享，`handoff` 交给接收者，`reclaim` 发起者接回，`return` 接收者交还，`leave` 接收者离开，`request_input` / `cancel_input` 接收者申请或取消输入。申请同样校验 epoch，不自动交接。输入交接需要当前 `epoch`。WebGUI 必须让用户在 `lan` 和 `tailcat` 之间二选一；协议默认 `lan` 只用于已有本机调用者，不表示自动探测或回退。
 
@@ -123,6 +128,10 @@ CLI `collaborations [--id <id>] [--json]` 查询列表或详情；`input request
 | `list_source_sessions` | `{provider,search?,cursor?}` → `GET /sources`；只读取本机来源 |
 | `preview_collaboration` | `{provider,sourceId,workspaceMode,runtimeMode?,title?,requestId?}` → `POST /preview`；省略 requestId 时生成 UUID，并在结果附带 `requestId/workspaceMode` |
 | `create_collaboration` | 同预览，加必填 `requestId/previewHash` → `POST /collaborations` |
+| `get_current_source` | 无参数；用原生调用身份 → `POST /sources/current` |
+| `preview_current_share` | `{workspaceMode,transport,runtimeMode?,title?,requestId?}` → `POST /share-requests/preview`，返回 requestId 与 previewHash |
+| `share_current_session` | 同上，加必填 `requestId/previewHash` → `POST /share-requests`；不接受 provider/sourceId/caller 工具参数 |
+| `get_share_request` / `cancel_share_request` | `{id}` → `GET /share-requests/:id` / `POST /share-requests/:id/cancel` |
 | `create_invitation` | `{id,transport}` → `action:share`；传输必须显式指定；待用邀请增加 `invitationUrl` |
 | `preview_invitation` / `join_collaboration` | `{invitation}` → 预览 / 加入；不自动打开浏览器或原生客户端 |
 | `open_client` | `{id,client,launch?}` → `/open`，默认 launch=true；TUI 使用新终端窗口 |
@@ -131,6 +140,18 @@ CLI `collaborations [--id <id>] [--json]` 查询列表或详情；`input request
 来源 Provider 与个人辅助客户端独立。创建输入要求明确 Provider、来源和目录；预览与创建继续绑定固定模式和 Git 起点。工具校验参数类型、枚举和未知字段；共享运行时的内置批注 MCP 不增加这些管理工具。除明确邀请生成外，结果移除 `invitation`。已加入的邀请不会再次返回可加入凭据。
 
 CLI `sources/preview/create/share/invite/inspect-invitation/open/end/leave/resume` 复用同一 MCP 工具适配；参数见根 README。`share` 要求已有确认的 previewHash 和 requestId，不暗中更新起点；先创建再邀请。邀请失败时输出 `{stage:"created",collaboration,invitationError,recovery}` 并以非零状态退出，继续用 `invite`。`open --print-command` 仅返回启动计划，不接管当前终端。`join --no-open --json` 在原有 URL 和服务输出之外返回本机协作 `id`。
+
+### 当前 Session 与延后分享
+
+MCP 根据 `initialize.clientInfo.name` 识别个人客户端。Codex 从 `tools/call.params._meta.threadId` 及 `x-codex-turn-metadata.thread_id/turn_id` 取得会话与轮次，冲突拒绝；Claude 从 MCP 子进程的 `CLAUDE_CODE_SESSION_ID` 及调用元数据 `claudecode/toolUseId` 取得身份，再在该 Session 的当前主链中核对工具调用。Claude 历史异步落盘允许最多 3 秒有界等待。不会采用可能继承自其他启动器的 `CODEX_THREAD_ID`、最近会话或模型自行提供的 ID。上述客户端字段属于按实际版本验证的接入条件，不承诺所有版本或 Desktop 一定携带；缺失时回到明确来源选择。
+
+本机 HTTP 的 current 预览/提交是普通创建字段再加 `caller:{provider,sourceId,turnId?,toolUseId?}` 和 `transport`，MCP 适配层从传输生成 caller，Core 再核对来源与最新轮次。它表示调用来源，不授予超出本机管理接口的权限；共享运行时的批注 MCP 不暴露这些入口。
+
+延后分享预览哈希绑定来源 Provider、Session、本轮 ID、固定模式、目录、Git HEAD/分支和传输。运行中的 Claude transcript 会继续追加工具结果，因此该意图哈希不绑定中途 JSONL 指纹；本轮完成后重新使用普通 Preview/Create 绑定完整最终指纹。Codex 读取原生 rollout 的 `session_meta`、`task_started/task_complete/turn_aborted`，核对 Session 和最新轮次；读取不 resume 来源。未知、损坏或超过 64 MiB 的历史拒绝创建。
+
+请求状态为 `waiting → creating → inviting → ready`，另有 `cancelled/failed/interrupted`。同一 requestId 与相同预览返回原请求，参数变化拒绝；请求 ID 同时是拟创建的协作 ID。每个 Core 至多 32 个活动请求，单次请求限时 15 分钟；未完成请求计入 Core 停止保护。来源变成另一轮、Git 起点变化或本轮中断时失败，不自动选新起点或重复创建。`waiting` 可取消；已开始创建后不删除 fork/worktree。创建留下部分结果或邀请失败时，状态保留 collaborationId，先查询该协作，邀请只单独重试。
+
+状态和错误原子写入 `share-requests/<id>.json`，不保存邀请 secret。Core 关闭会取消并等待工作线程；重启把未完成记录改为 interrupted，不自动重放。ready 表示该请求已完成创建和邀请，不承诺之后共享一直有效；Core 重启后仍按普通协作规则恢复、重新邀请。CLI `share-status/cancel-share --id <请求ID> [--json]` 使用同一查询/取消工具，不从 shell 环境猜当前来源。
 
 Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客户端连接返回。A 的共享网关不支持远端修改主机账户，也不返回主机认证 token；`threadId/cwd/permissionProfile` 等共享执行参数由协作绑定。其他未开放的原生方法返回可读的“不支持”错误，不默认穿透。
 

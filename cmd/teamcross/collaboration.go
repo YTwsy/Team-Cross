@@ -22,7 +22,7 @@ import (
 
 func collaborationCommand(command string) bool {
 	switch command {
-	case "collaborations", "input", "sources", "preview", "create", "share", "invite", "inspect-invitation", "open", "end", "leave", "resume":
+	case "collaborations", "input", "sources", "preview", "create", "share", "invite", "inspect-invitation", "open", "end", "leave", "resume", "share-status", "cancel-share":
 		return true
 	}
 	return false
@@ -104,6 +104,9 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 		tool, params = "open_client", map[string]any{"id": *id, "client": *client, "launch": !*printCommand}
 	case "end", "leave", "resume":
 		tool = map[string]string{"end": "end_sharing", "leave": "leave_collaboration", "resume": "resume_collaboration"}[command]
+		params = map[string]any{"id": *id}
+	case "share-status", "cancel-share":
+		tool = map[string]string{"share-status": "get_share_request", "cancel-share": "cancel_share_request"}[command]
 		params = map[string]any{"id": *id}
 	}
 	if err != nil {

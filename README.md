@@ -86,7 +86,11 @@ teamcross share --provider codex --source <来源UUID> --workspace existing \
   --request-id <预览返回的requestId> --preview-hash <previewHash> --transport lan --json
 ```
 
-`--workspace worktree` 创建独立工作目录，`--runtime-mode trusted` 显式选择信任模式，预览和创建必须使用相同设置；默认受限。`--provider claude` 选择实验性 Claude 来源，与调用工具的个人客户端无关。`sources` 支持 `--cursor` 翻页。以上命令按需启动 Core，不打开浏览器。当前需要明确选择来源，不能把列表中的最近会话当作调用者的当前会话。
+`--workspace worktree` 创建独立工作目录，`--runtime-mode trusted` 显式选择信任模式，预览和创建必须使用相同设置；默认受限。`--provider claude` 选择实验性 Claude 来源，与调用工具的个人客户端无关。`sources` 支持 `--cursor` 翻页。以上命令按需启动 Core，不打开浏览器。
+
+也可以告诉已接入 MCP 的个人 Agent：“把当前 Session 分享出去，使用原目录、受限模式和局域网。”工具先核对原生客户端传来的当前会话身份、预览现场，再登记分享请求；**本轮答复结束后** Core 才创建 fork 和邀请，使 fork 包含本轮完整对话。Agent 先返回请求 ID，下一轮通过 `get_share_request` 查询，成功后用 `create_invitation` 取回邀请。登记成功不等于邀请已生成，不要让 Agent 在同一轮循环等待自己结束。
+
+终端可用 `teamcross share-status --id <请求ID> --json` 查询，或用 `teamcross cancel-share --id <请求ID>` 取消尚在等待的请求。已开始创建则保留实际结果；来源轮次或 Git 起点变化时停止，不自动换成新起点。Core 停止后未完成请求标记为中断，不在重启后自动创建。无法核对原生调用身份的客户端仍可走上面的明确来源流程，不能用“最近会话”替代“当前会话”。具体版本证据见 [个人 Agent 与 CLI 验证](docs/agent-wiki/sources/validation/agent-cli-collaboration-2026-09-16.md)。
 
 `create` 只创建协作，`invite --id <协作ID> --transport lan|tailcat` 只生成或取回待用邀请；`share` 顺序完成两者。邀请失败返回已创建的协作及恢复提示，后续只运行 `invite`，不换 requestId 重新创建。相同 requestId 的创建重试复用原协作；结果不明时先查询 `collaborations --id <requestId>`。邀请链接与邀请码供用户自行转交，不自动发送给同事。
 
@@ -155,6 +159,8 @@ claude mcp add --transport stdio --scope user teamcross -- /absolute/path/to/tea
 | `get_collaboration` | 查看执行主机、目录、输入者与运行状态 |
 | `list_source_sessions` / `preview_collaboration` | 选择本机来源、预览目录与固定协作模式 |
 | `create_collaboration` / `create_invitation` | 根据已确认起点创建 fork，并单独生成或取回邀请 |
+| `get_current_source` / `preview_current_share` / `share_current_session` | 核对并预览当前 Session，登记本轮结束后的分享 |
+| `get_share_request` / `cancel_share_request` | 查询分享请求，或取消仍在等待的请求 |
 | `preview_invitation` / `join_collaboration` | 预览并加入用户选定的邀请 |
 | `open_client` | 获得输入权后打开新 TUI 或专用 Desktop 窗口 |
 | `end_sharing` / `leave_collaboration` / `resume_collaboration` | 结束共享、主动离开或恢复同一协作运行时 |

@@ -110,7 +110,7 @@ func run(args []string) error {
 	switch command {
 	case "serve", "join", "mcp", "status", "doctor", "stop":
 	default:
-		return fmt.Errorf("用法: teamcross [serve | join | sources | preview | create | share | invite | inspect-invitation | collaborations | input | open | end | leave | resume | mcp | status | doctor | stop | version | cli-status | install-cli | uninstall-cli]")
+		return fmt.Errorf("用法: teamcross [serve | join | sources | preview | create | share | invite | inspect-invitation | collaborations | input | open | end | leave | resume | share-status | cancel-share | mcp | status | doctor | stop | version | cli-status | install-cli | uninstall-cli]")
 	}
 	var e error
 	*data, e = service.Normalize(*data)

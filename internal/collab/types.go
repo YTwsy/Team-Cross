@@ -60,6 +60,7 @@ type Preview struct {
 	TargetDirectory   string             `json:"targetDirectory"`
 	Source            Source             `json:"source"`
 	SourceTurnID      string             `json:"sourceTurnId"`
+	SourceTurnStatus  string             `json:"sourceTurnStatus"`
 	Workspace         workspace.Preview  `json:"workspace"`
 	Hash              string             `json:"previewHash"`
 }
@@ -230,6 +231,8 @@ type Settings struct {
 	DesktopApp   string `json:"desktopApp"`
 }
 type App struct {
+	shareRequests map[string]*shareRequest
+	shareWorkers  sync.WaitGroup
 	joinMu        sync.Mutex
 	mcpSetupMu    sync.Mutex
 	retiredShares []*sharing.Runtime

@@ -49,6 +49,8 @@ go build -o bin/teamcross ./cmd/teamcross
 | [model_test.go](../../../../internal/collab/model_test.go) | 模型继承、设置更新、拒绝请求、恢复与通知 |
 | [process_test.go](../../../../internal/nativecodex/process_test.go) | 客户端配置与启动不强制模型 |
 | [server_test.go](../../../../internal/mcp/server_test.go) | STDIO 读取不发送输入，保留输入文本与请求 ID |
+| [current_test.go](../../../../internal/mcp/current_test.go) / [current_share_test.go](../../../../internal/collab/current_share_test.go) / [source_turn_test.go](../../../../internal/nativecodex/source_turn_test.go) | 原生调用身份、历史落盘等待、固定轮次完成、去重、取消、漂移、中断与重启不重放 |
+| [management_test.go](../../../../internal/collab/management_test.go) / [input_management_test.go](../../../../internal/collab/input_management_test.go) / [collaboration_test.go](../../../../cmd/teamcross/collaboration_test.go) | MCP/CLI 创建与加入、输入归属与 epoch、角色拒绝、邀请失败恢复、同 fork 恢复 |
 | [service_test.go](../../../../internal/service/service_test.go) / [onboarding_test.go](../../../../internal/collab/onboarding_test.go) | 实例身份、控制协议、稳定 opt 路径、邀请预览、Core 心跳与输入申请 |
 | [cliinstall_test.go](../../../../internal/cliinstall/cliinstall_test.go) | 参数与带引号路径、未知命令保护、并发安装、重复移除和 App 更新后的命令行为 |
 | [verify-release.py](../../../../scripts/verify-release.py) / [verify-homebrew.py](../../../../scripts/verify-homebrew.py) | CLI/App/DMG、App 命令安装、稳定/RC 独立 Homebrew 定义、临时前缀安装、同渠道双向互斥、升级与卸载；`--public` 另要求通过公开 Release URL 安装 |
@@ -61,6 +63,20 @@ GitHub 托管 `macos-15` arm64 完整候选、正式版本号路径、`v0.1.6-rc
 `v0.1.6-rc.3` 的 App 图标非透明范围、旧式 ICNS 打包、公开资产、tag provenance、Homebrew RC 与尚未完成的真实 macOS 26 显示验收见 [2026-09-16 App 图标与 v0.1.6-rc.3 发布验证](app-icon-release-v0.1.6-rc.3-2026-09-16.md)。
 
 ## 真实模型和客户端
+
+个人 MCP 当前 Session 分享与 CLI 接力使用 [verify-agent-cli.py](../../../../scripts/verify-agent-cli.py)，每次选择新的空测试目录：
+
+```sh
+python3 scripts/verify-agent-cli.py \
+  --provider codex \
+  --fixture-dir /private/tmp/teamcross-agent-cli-fresh-fixture \
+  --teamcross-bin /absolute/path/to/teamcross \
+  --codex-bin /absolute/path/to/codex
+```
+
+另以 `--provider claude --claude-bin /absolute/path/to/claude` 使用新的 fixture 重跑；Claude 要求已配置的本机 CliProxyAPI 路由，默认只读 `~/.claude/settings.json` 的授权用于内存转发，证据不保存真实密钥。两者限定 Luna，使用专用个人配置和会话；Codex fixture 仅为本次获授权的 `share_current_session` 设置[单工具批准](https://learn.chatgpt.com/docs/extend/mcp)，Claude 使用精确工具 allowlist，不修改用户个人 MCP 权限。
+
+检查实际个人 MCP 的来源身份、登记后本轮完成、新 fork 包含最后 assistant 答复、CLI 无浏览器加入、批注/回复、非输入者拒绝、申请/交接/交还/接回、直接 TUI 连接、工具任务与重复 requestId、结束后同 fork 恢复。Claude 在首次输入持久化 fork 后核对完整历史。脚本退出精确关闭自身 Core、PTY 与测试 daemon，保留证据。它是同机两个 Core 的 loopback TLS 验证，不证明两台 Mac、Tailcat 或 Desktop；结果见 [2026-09-16 验证](agent-cli-collaboration-2026-09-16.md)。
 
 [TestLiveCodex](../../../../internal/collab/live_test.go) 默认跳过。显式选择一个新的专用测试目录后运行：
 
