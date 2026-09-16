@@ -138,6 +138,8 @@ claude mcp add --transport stdio --scope user teamcross -- /absolute/path/to/tea
 | --- | --- |
 | `list_collaborations` | 定位本机发起或已加入的协作 |
 | `get_collaboration` | 查看执行主机、目录、输入者与运行状态 |
+| `request_input` / `cancel_input_request` | 接收者申请或取消输入，不自动交接 |
+| `handoff_input` / `reclaim_input` / `return_input` | 发起者交接或接回，接收者交还输入；传入详情中的 `epoch` |
 | `read_context` | 读取历史、事件、相对路径文件、当前 Git 改动与批注原文引用 |
 | `send_input` | 开始一轮或对当前轮补充输入 |
 | `interrupt_turn` | 中断指定当前轮 |
@@ -146,6 +148,17 @@ claude mcp add --transport stdio --scope user teamcross -- /absolute/path/to/tea
 | `reply_to_annotation` | 回复已有原批注，返回原批注及全部回复；不创建嵌套批注 |
 
 发送成功和执行完成分别表示不同状态。断线或响应超时时先查询实际结果，不自动重复写入。工具不会自动为输入添加参与者身份。
+
+终端也可以查询协作和管理输入，无需打开浏览器：
+
+```sh
+teamcross collaborations --json
+teamcross collaborations --id <协作ID> --json
+teamcross input request --id <协作ID> --epoch <详情中的epoch>
+teamcross input handoff --id <协作ID> --epoch <最新epoch>
+```
+
+`input` 还支持 `cancel`、`reclaim`、`return`。每次先查询详情，再传入看到的输入状态版本；过期操作会被拒绝，结果不明时先查询，不自动重放。发起者只能向已加入的同事交出输入，交出和交还需等待当前轮结束；接回输入不自动中断正在执行的轮次。交接关闭旧直接客户端，辅助工具仍可读取上下文。
 
 历史默认返回最近 8 轮；工具可将 `nextCursor` 传入 `read_context` 的 `cursor` 读取更早内容。WebGUI 可翻阅更早的一页，完整对话在 Codex 中查看。
 

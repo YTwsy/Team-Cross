@@ -136,6 +136,12 @@ func (s *Session) Action(ctx context.Context, action string, expected ...uint64)
 		if s.share == nil {
 			return fmt.Errorf("请先创建邀请")
 		}
+		if s.share.InvitationState() != "joined" {
+			return problem.New("participant_required", "同事尚未加入协作", "请等待同事加入后交出输入")
+		}
+		if !s.online || s.writer != "owner" {
+			return problem.New("input_changed", "当前无法交出输入", "请刷新协作状态")
+		}
 		if s.busy {
 			return fmt.Errorf("当前轮正在运行，请完成后交出输入")
 		}
@@ -204,7 +210,7 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 				s.remoteSeen = time.Time{}
 				s.inputRequested = false
 			}
-		} else if in.Epoch != s.epoch {
+		} else if in.Epoch != s.epoch || s.writer != "owner" {
 			e = problem.New("input_changed", "输入归属已变化", "请刷新后重试")
 		} else {
 			s.inputRequested = r.URL.Path == "/v2/request_input" && s.writer != "remote"

@@ -11,6 +11,7 @@ WebGUI 是协作管理界面；完整对话和执行交互在对应原生客户�
 | 视觉、键盘与通用组件 | [styles.css](../../../../packages/web/src/styles.css)、[ui.tsx](../../../../packages/web/src/components/ui.tsx) |
 | 本机管理与客户端启动 | [http.go](../../../../internal/collab/http.go)、[launch.go](../../../../internal/collab/launch.go) |
 | STDIO 工具与协议输入 | [mcp/server.go](../../../../internal/mcp/server.go) |
+| 终端协作查询与输入管理 | [collaboration.go](../../../../cmd/teamcross/collaboration.go) |
 
 ## 修改时守住的边界
 

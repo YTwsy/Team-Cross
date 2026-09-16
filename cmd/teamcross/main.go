@@ -42,6 +42,9 @@ func main() {
 }
 func printJSON(v any) error { return json.NewEncoder(os.Stdout).Encode(v) }
 func run(args []string) error {
+	if len(args) > 0 && collaborationCommand(args[0]) {
+		return runCollaboration(args, os.Stdout, os.Stderr)
+	}
 	command := "serve"
 	if len(args) > 0 && (!strings.HasPrefix(args[0], "-") || args[0] == "--version") {
 		command = args[0]
@@ -107,7 +110,7 @@ func run(args []string) error {
 	switch command {
 	case "serve", "join", "mcp", "status", "doctor", "stop":
 	default:
-		return fmt.Errorf("用法: teamcross [serve | join | mcp | status | doctor | stop | version | cli-status | install-cli | uninstall-cli]")
+		return fmt.Errorf("用法: teamcross [serve | join | collaborations | input | mcp | status | doctor | stop | version | cli-status | install-cli | uninstall-cli]")
 	}
 	var e error
 	*data, e = service.Normalize(*data)

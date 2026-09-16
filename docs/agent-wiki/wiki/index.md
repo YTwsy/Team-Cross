@@ -17,6 +17,8 @@
 
 ## 完整事实来源
 
+- [2026-09-16 个人 Agent 与 CLI](../sources/validation/agent-cli-collaboration-2026-09-16.md)：输入接力入口、Core 统一条件与各批次实际验证边界。
+
 - [项目简报](../sources/project-brief.md)：定位、支持范围与主要边界。
 - [核心模型与词汇](../sources/product-core-and-glossary.md)、[产品流程](../sources/product-flows.md)：产品语义与用户动作。
 - [架构](../sources/architecture.md)、[协议](../sources/protocol.md)：完整职责、数据流、字段与路由。

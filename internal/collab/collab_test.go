@@ -227,6 +227,7 @@ func TestInputOwnershipDedupAndApproval(t *testing.T) {
 	if e = s.Action(ctx, "share"); e != nil {
 		t.Fatal(e)
 	}
+	joinFixture(t, s)
 	if e = s.Action(ctx, "handoff"); e != nil {
 		t.Fatal(e)
 	}
@@ -287,6 +288,7 @@ func TestNativeAndToolShareOneWriter(t *testing.T) {
 	if e = s.Action(ctx, "share"); e != nil {
 		t.Fatal(e)
 	}
+	joinFixture(t, s)
 	if e = s.Action(ctx, "handoff"); e != nil {
 		t.Fatal(e)
 	}

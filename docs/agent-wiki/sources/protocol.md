@@ -112,6 +112,10 @@ TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS/Tailcat 路�
 
 STDIO MCP 采用逐行 JSON-RPC 2.0，协议版本 `2024-11-05`；只在 stdout 输出协议消息。工具输入和结果遵循上述管理 API。
 
+个人 MCP 提供 `request_input/cancel_input_request/handoff_input/reclaim_input/return_input`，参数为 `{id,epoch}`，分别映射 `request_input/cancel_input/handoff/reclaim/return`。`epoch` 必须是刚查询到的正整数状态版本；缺失、过期、错误角色、尚未加入或忙碌交出/交还均拒绝。接回不自动中断轮次。成功后查询详情获取新版本，失败或超时不自动刷新版本重放动作。普通详情和输入管理结果均移除 `invitation`；工具错误以 JSON 文本返回 `code/error/recovery` 并设置 `isError:true`。
+
+CLI `collaborations [--id <id>] [--json]` 查询列表或详情；`input request|cancel|handoff|reclaim|return --id <id> --epoch <版本> [--json]` 使用同一工具适配与 Core API。两者支持 `--data-dir`，按需启动或复用 Core，不打开浏览器。`status` 保持服务诊断语义，不能代替协作详情。
+
 Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客户端连接返回。A 的共享网关不支持远端修改主机账户，也不返回主机认证 token；`threadId/cwd/permissionProfile` 等共享执行参数由协作绑定。其他未开放的原生方法返回可读的“不支持”错误，不默认穿透。
 
 ## 模型设置

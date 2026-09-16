@@ -105,6 +105,7 @@ func TestTrustedRPCPreservesNativePermissionsAndWriterGate(t *testing.T) {
 	if _, err = s.RPC(ctx, "remote", "thread/resume", map[string]any{"permissions": ":full-access"}, "foreign-settings"); err == nil {
 		t.Fatal("non-writer changed trusted permissions")
 	}
+	joinFixture(t, s)
 	if err = s.Action(ctx, "handoff"); err != nil {
 		t.Fatal(err)
 	}
@@ -211,6 +212,7 @@ func TestHookTrustStaysOnHostAndRequiresTrustedWriter(t *testing.T) {
 			if _, err = s.RPC(ctx, "remote", "config/batchWrite", params(), "non-writer"); err == nil {
 				t.Fatal("non-writer approved hooks")
 			}
+			joinFixture(t, s)
 			if err = s.Action(ctx, "handoff"); err != nil {
 				t.Fatal(err)
 			}
