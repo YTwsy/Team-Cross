@@ -15,6 +15,8 @@ GitHub `CI` workflow 自动执行 Go/Web 与 Homebrew 定义工程门槛；unsig
 
 ## 已记录的验收
 
+[2026-09-16 App 图标与 v0.1.6-rc.3 发布](../../sources/validation/app-icon-release-v0.1.6-rc.3-2026-09-16.md) 记录非透明主体范围、sRGB/alpha 规范化、传统 ICNS 打包、tag 与公开资产、严格 provenance、受保护 Homebrew RC 发布及 SHA-256。它没有完成真实 macOS 26 的 Finder/Dock/Launchpad 目视验收，也不证明 Developer ID 签名或公证。
+
 [2026-09-15 GitHub CI、unsigned 发布与 v0.1.6-rc.1/v0.1.6-rc.2](../../sources/validation/github-ci-release-2026-09-15.md) 记录 PR/main 工程门槛、CI 发现并修复的 CLI 启动器并发竞态、正式版本号 gate 调整、两个 RC 的 tag 与公开 Pre-release，以及 `v0.1.6-rc.2` 的 GitHub App、受保护 tap PR、公共 Formula/Cask 安装、SHA-256 和 provenance 复核。它不证明 Developer ID 签名、公证、真实模型或两台 Mac 网络。
 
 [2026-09-15 Tailcat 显式连接方式](../../sources/validation/tailcat-transport-2026-09-15.md) 记录 `lan|tailcat` 二选一、`tcx3`、Go 1.27.1、工程/race/Web 门槛、同机 Tailcat 数据面和 arm64 发布构建链。两台物理 Mac、不同网络、强制持续 DERP、正式签名公证与发布仍未覆盖。

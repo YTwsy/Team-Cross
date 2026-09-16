@@ -57,6 +57,8 @@ go build -o bin/teamcross ./cmd/teamcross
 
 GitHub 托管 `macos-15` arm64 完整候选、正式版本号路径、`v0.1.6-rc.1`/`v0.1.6-rc.2` 发布、受保护 Homebrew tap、来源提交、校验值、attestation 与未覆盖边界见 [2026-09-15 GitHub CI、unsigned 发布与 v0.1.6-rc.1/v0.1.6-rc.2 验证](github-ci-release-2026-09-15.md)。
 
+`v0.1.6-rc.3` 的 App 图标非透明范围、旧式 ICNS 打包、公开资产、tag provenance、Homebrew RC 与尚未完成的真实 macOS 26 显示验收见 [2026-09-16 App 图标与 v0.1.6-rc.3 发布验证](app-icon-release-v0.1.6-rc.3-2026-09-16.md)。
+
 ## 真实模型和客户端
 
 [TestLiveCodex](../../../../internal/collab/live_test.go) 默认跳过。显式选择一个新的专用测试目录后运行：
