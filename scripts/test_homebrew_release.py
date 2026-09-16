@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
 import json
+import os
 import pathlib
+import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 
 
@@ -145,6 +148,71 @@ class HomebrewReleaseTest(unittest.TestCase):
         self.assertNotIn("pull/12", second)
         self.assertIn("pull/13", second)
         self.assertIn("team-cross@rc", second)
+
+
+class HomebrewCheckRegistrationTest(unittest.TestCase):
+    def test_registration_and_check_failures(self) -> None:
+        workflow = (
+            pathlib.Path(__file__).resolve().parents[1]
+            / ".github/workflows/homebrew-publish.yml"
+        ).read_text()
+        step = workflow.split("      - name: Wait for protected tap merge", 1)[1]
+        step = step.split("\n      - name:", 1)[0]
+        script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            gh = root / "gh"
+            gh.write_text('''#!/bin/bash
+set -eu
+if [[ "$1 $2" == "pr merge" ]]; then exit 0; fi
+if [[ "$1 $2" == "pr checks" ]]; then echo checks >> "$TRACE"; exit "$CHECK_RC"; fi
+if [[ "$*" == *statusCheckRollup* ]]; then
+  n=0; [[ ! -f "$COUNT" ]] || n=$(cat "$COUNT")
+  n=$((n+1)); echo "$n" > "$COUNT"
+  [[ "$API_ERROR" == 0 ]] || exit 2
+  if ((n >= REGISTER_AFTER)); then echo true; else echo false; fi
+elif [[ "$*" == *mergeCommit* ]]; then echo abcdef1234567890
+else echo MERGED
+fi
+''')
+            gh.chmod(0o755)
+            sleep = root / "sleep"
+            sleep.write_text("#!/bin/sh\nexit 0\n")
+            sleep.chmod(0o755)
+            cases = [
+                ("delayed", 3, 0, 0, 0, 3, True),
+                ("immediate", 1, 0, 0, 0, 1, True),
+                ("missing", 100, 0, 0, 1, 60, False),
+                ("api-error", 1, 1, 0, 2, 1, False),
+                ("failed-check", 1, 0, 1, 1, 1, True),
+            ]
+            for name, after, api_error, check_rc, want_rc, count, watched in cases:
+                with self.subTest(name=name):
+                    case = root / name
+                    case.mkdir()
+                    env = {
+                        **os.environ,
+                        "PATH": str(root) + os.pathsep + os.environ["PATH"],
+                        "ALREADY_PUBLISHED": "false",
+                        "APP_TOKEN": "test-only",
+                        "PR_URL": "https://example.invalid/pr/1",
+                        "EXISTING_TAP_COMMIT": "",
+                        "GITHUB_OUTPUT": str(case / "output"),
+                        "COUNT": str(case / "count"),
+                        "TRACE": str(case / "trace"),
+                        "REGISTER_AFTER": str(after),
+                        "API_ERROR": str(api_error),
+                        "CHECK_RC": str(check_rc),
+                    }
+                    result = subprocess.run(
+                        ["/bin/bash", "-e", "-o", "pipefail", "-c", script],
+                        env=env, cwd=root, text=True, capture_output=True, timeout=10,
+                    )
+                    self.assertEqual(result.returncode, want_rc, result.stderr)
+                    self.assertEqual(int((case / "count").read_text()), count)
+                    self.assertEqual((case / "trace").exists(), watched)
+                    if want_rc == 0:
+                        self.assertIn("tap_commit=abcdef1234567890", (case / "output").read_text())
 
 
 if __name__ == "__main__":

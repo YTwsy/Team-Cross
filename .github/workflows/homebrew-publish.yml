@@ -264,6 +264,22 @@ jobs:
             tap_commit="$EXISTING_TAP_COMMIT"
           else
             GH_TOKEN="$APP_TOKEN" gh pr merge "$PR_URL" --auto --squash --delete-branch
+            # A newly created PR can precede registration of its checks. The
+            # checks --watch command exits immediately when none exist yet.
+            check_registered=false
+            for attempt in {1..60}; do
+              check_registered="$(GH_TOKEN="$APP_TOKEN" gh pr view "$PR_URL" \
+                --json statusCheckRollup \
+                --jq 'any(.statusCheckRollup[]; .name == "Verify public Formula and Cask")')"
+              if [[ "$check_registered" == "true" ]]; then
+                break
+              fi
+              sleep 10
+            done
+            if [[ "$check_registered" != "true" ]]; then
+              echo "required tap check did not register within ten minutes: $PR_URL" >&2
+              exit 1
+            fi
             GH_TOKEN="$APP_TOKEN" gh pr checks "$PR_URL" --watch --fail-fast --interval 10
             for attempt in {1..60}; do
               state="$(GH_TOKEN="$APP_TOKEN" gh pr view "$PR_URL" --json state --jq .state)"
