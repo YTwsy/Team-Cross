@@ -20,8 +20,10 @@
 - [项目简报](../sources/project-brief.md)：定位、支持范围与主要边界。
 - [核心模型与词汇](../sources/product-core-and-glossary.md)、[产品流程](../sources/product-flows.md)：产品语义与用户动作。
 - [架构](../sources/architecture.md)、[协议](../sources/protocol.md)：完整职责、数据流、字段与路由。
+- [协作模式决策](../sources/decisions/runtime-modes.md)：创建时固定的受限/信任模式、原生配置继承、两种 Provider 的生命周期和权限边界。
 - [目录与生命周期决策](../sources/decisions/workspace-and-lifecycle.md)、[原生客户端与模型决策](../sources/decisions/native-clients-and-models.md)、[输入与共享决策](../sources/decisions/input-and-sharing.md)：取舍及重新评估条件。
 - [验证契约](../sources/validation/test-gates.md)、[2026-09-10 安装与首次体验](../sources/validation/onboarding-macos-2026-09-10.md)、[2026-09-09 原生协作](../sources/validation/native-collaboration-2026-09-09.md)：应做什么和已验证什么。
+- [2026-09-16 信任模式](../sources/validation/trusted-runtime-2026-09-16.md)：Codex / Claude 个人配置继承、原生确认、固定模式、同 session 恢复、受限回归、工程与浏览器验证。
 - [2026-09-16 App 图标与 v0.1.6-rc.3 发布](../sources/validation/app-icon-release-v0.1.6-rc.3-2026-09-16.md)：非透明主体范围、sRGB/alpha、传统 ICNS、tag、公开资产、provenance、Homebrew RC 与 macOS 26 显示验收边界。
 - [2026-09-15 GitHub CI、unsigned 发布与 v0.1.6-rc.1/v0.1.6-rc.2](../sources/validation/github-ci-release-2026-09-15.md)：PR/main 门槛、正式版本号策略、托管 arm64 构建、GitHub App、受保护 Homebrew tap、校验和、provenance、tag 与公开 Pre-release。
 - [2026-09-15 Tailcat 显式连接方式](../sources/validation/tailcat-transport-2026-09-15.md)：`tcx3`、Go 1.27.1、同机 Tailcat 数据面、WebGUI、arm64 构建链及尚待两台 Mac 完成的网络门槛。

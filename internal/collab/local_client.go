@@ -32,6 +32,37 @@ func localClientMethod(method string) bool {
 	return false
 }
 
+// Native hook review updates the trust state of A's hooks. Keep this narrow:
+// all other preference/configuration writes still belong to the local client.
+// The host separately checks trusted mode and current input ownership.
+func hookTrustWrite(method string, params map[string]any) bool {
+	stateKey := func(edit map[string]any) bool {
+		key, _ := edit["keyPath"].(string)
+		return key == "hooks.state" || strings.HasPrefix(key, "hooks.state.")
+	}
+	if method == "config/value/write" {
+		return stateKey(params)
+	}
+	if method != "config/batchWrite" {
+		return false
+	}
+	edits, ok := params["edits"].([]any)
+	if !ok || len(edits) == 0 {
+		return false
+	}
+	for _, value := range edits {
+		edit, ok := value.(map[string]any)
+		if !ok || !stateKey(edit) {
+			return false
+		}
+	}
+	return true
+}
+
+func localClientRequest(method string, params map[string]any) bool {
+	return localClientMethod(method) && !hookTrustWrite(method, params)
+}
+
 func localAccountNotification(method string) bool {
 	return strings.HasPrefix(method, "account/") || method == "loginChatGptComplete" || method == "authStatusChange"
 }

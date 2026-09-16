@@ -504,6 +504,7 @@ describe("产品路径", () => {
     await waitFor(() => expect(location.hash).toBe("#/collaborations/new"));
     const request = calls.find((c) => c.path === "collaborations")!.body;
     expect(request.workspaceMode).toBe("worktree");
+    expect(request.runtimeMode).toBe("restricted");
     expect(request.previewHash).toBe("worktree");
     expect(request).not.toHaveProperty("untrackedFiles");
     expect(
@@ -513,6 +514,77 @@ describe("产品路径", () => {
     ).toBe(true);
     expect(sessionStorage.getItem("teamcross.transport.new")).toBe("tailcat");
     expect(calls.some((c) => c.path.endsWith("/rpc"))).toBe(false);
+  });
+  it.each(["codex", "claude"])(
+    "%s 创建信任模式重新确认起点并固定授权",
+    async (provider) => {
+      mockFetch((path, body) =>
+        path.startsWith("sources")
+          ? { data: [source] }
+          : path === "preview"
+            ? {
+                runtimeMode: body.runtimeMode,
+                previewHash: body.runtimeMode,
+                workspace: {
+                  sourceCwd: source.cwd,
+                  head: "abcdef",
+                  branch: "main",
+                  dirty: false,
+                },
+              }
+            : {
+                ...collaboration,
+                id: "trusted-fork",
+                provider,
+                runtimeMode: "trusted",
+              },
+      );
+      const user = userEvent.setup();
+      render(<Create />);
+      if (provider === "claude")
+        await user.click(
+          screen.getByRole("button", { name: "Claude Code · 实验性" }),
+        );
+      await user.click(
+        await screen.findByRole("radio", { name: /讨论协作入口/ }),
+      );
+      await user.click(screen.getByRole("button", { name: /下一步/ }));
+      await screen.findByText("确认起点");
+      expect(screen.getByRole("radio", { name: /受限模式/ })).toBeChecked();
+      const original = calls.find((c) => c.path === "preview")!.body;
+      await user.click(screen.getByRole("radio", { name: /信任模式/ }));
+      await waitFor(() =>
+        expect(
+          calls.filter((c) => c.path === "preview").at(-1)!.body.runtimeMode,
+        ).toBe("trusted"),
+      );
+      await screen.findByText("确认起点");
+      expect(screen.getByText(/模式创建后固定/)).toBeVisible();
+      await user.click(screen.getByRole("button", { name: /创建并邀请/ }));
+      await waitFor(() =>
+        expect(location.hash).toBe("#/collaborations/trusted-fork"),
+      );
+      const input = calls.find((c) => c.path === "collaborations")!.body;
+      expect(input).toMatchObject({
+        provider,
+        runtimeMode: "trusted",
+        previewHash: "trusted",
+      });
+      expect(input.requestId).not.toBe(original.requestId);
+    },
+  );
+  it("协作者详情显示固定的信任范围且不提供模式切换", async () => {
+    mockFetch((path) =>
+      path.includes("/context")
+        ? {}
+        : { ...collaboration, role: "remote", runtimeMode: "trusted" },
+    );
+    render(<Detail id="c1" />);
+    expect(await screen.findByText("信任模式 · 创建后固定")).toBeVisible();
+    expect(screen.getByText(/沿用邀请者的原生配置与权限/)).toBeVisible();
+    expect(
+      screen.queryByRole("radio", { name: /模式/ }),
+    ).not.toBeInTheDocument();
   });
   it("失效邀请给出下一步并保留输入供修正", async () => {
     mockFetch(() => new Error("邀请已到期，请让发起者重新分享"));

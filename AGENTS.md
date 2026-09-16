@@ -26,6 +26,7 @@
 - 协作始终创建所选 Provider 的新原生 fork。原目录模式保留当前 Git 状态；新 worktree 从选定 HEAD 检出，不恢复未提交内容。
 - 原目录由用户拥有，不能在协作结束、创建失败或清理时删除。新 worktree 同样在结束共享后保留。
 - 会话和执行留在 A；本机原生 TUI 与 Codex 专用 Desktop 直接接入，个人 Codex TUI/Desktop 或 Claude Code TUI 通过 MCP 辅助，辅助客户端与目标协作的 Provider 独立。
+- 协作模式在创建时固定：默认受限，信任模式沿用邀请者的原生配置与权限；Codex 与实验性 Claude 均支持。恢复沿用模式，不提供切换；细则见 [协作模式](docs/agent-wiki/sources/decisions/runtime-modes.md)。
 - 所有写入入口共享输入归属；读取可并行。发送、接收和完成是不同状态。断线不自动重放写入。
 - 不对 Provider 输入自动添加同事身份，不要求问题描述或结果验收。
 - 产品不固定模型或推理强度。创建继承原生来源，恢复读取协作会话的持久化设置，后续遵循当前输入者在 Codex 中的选择；界面只报告运行时确认的设置。

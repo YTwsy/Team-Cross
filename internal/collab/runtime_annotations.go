@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"teamcross/internal/mcp"
+	"teamcross/internal/runtimeconfig"
 	"teamcross/internal/service"
 
 	"github.com/google/uuid"
@@ -45,10 +46,15 @@ func (s *Session) annotationLaunch() (annotationLaunch, error) {
 }
 
 func (c annotationLaunch) codexOverrides(inherited []string) []string {
+	return c.codexOverridesForMode(inherited, runtimeconfig.Restricted)
+}
+func (c annotationLaunch) codexOverridesForMode(inherited []string, mode runtimeconfig.Mode) []string {
 	var entries []string
-	for _, name := range inherited {
-		key, _ := json.Marshal(name)
-		entries = append(entries, fmt.Sprintf("%s={enabled=false}", key))
+	if mode != runtimeconfig.Trusted {
+		for _, name := range inherited {
+			key, _ := json.Marshal(name)
+			entries = append(entries, fmt.Sprintf("%s={enabled=false}", key))
+		}
 	}
 	// Do not merge a user's same-named HTTP/STDIO transport or extra env into
 	// our entry. Pick an unused name if the reserved base name already exists.
@@ -67,7 +73,10 @@ func (c annotationLaunch) codexOverrides(inherited []string) []string {
 }
 
 func (c annotationLaunch) claudeConfig() string {
-	data, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{mcp.RuntimeServer: c}})
+	return c.claudeConfigNamed(mcp.RuntimeServer)
+}
+func (c annotationLaunch) claudeConfigNamed(name string) string {
+	data, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{name: c}})
 	return string(data)
 }
 

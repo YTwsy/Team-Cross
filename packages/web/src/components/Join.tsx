@@ -3,10 +3,14 @@ import { api, errorText } from "../api";
 import {
   type Collaboration,
   type ShareTransport,
+  type RuntimeMode,
   transportName,
+  runtimeModeName,
+  runtimeModeDescription,
 } from "../types";
 import { ErrorBox, Icon, PageHeading } from "./ui";
 type InvitationPreview = {
+  runtimeMode?: RuntimeMode;
   title: string;
   host: string;
   expiresAt: string;
@@ -94,6 +98,10 @@ export function Join({ pendingId }: { pendingId?: string }) {
               <h3>{preview.title}</h3>
               <p>执行主机：{preview.host}</p>
               <p>连接方式：{transportName(preview.transport)}</p>
+              <p>
+                协作模式：{runtimeModeName(preview.runtimeMode)} · 创建后固定
+              </p>
+              <p>{runtimeModeDescription(preview.runtimeMode)}</p>
               <p>
                 请在 {new Date(preview.expiresAt).toLocaleString("zh-CN")}{" "}
                 前首次加入。

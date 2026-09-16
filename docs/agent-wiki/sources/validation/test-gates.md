@@ -45,6 +45,7 @@ go build -o bin/teamcross ./cmd/teamcross
 | [collab_test.go](../../../../internal/collab/collab_test.go) | 创建恢复不发送 prompt、输入归属、去重、审批、原生与工具并行、访问范围、本机登录路由 |
 | [lifecycle_test.go](../../../../internal/collab/lifecycle_test.go) / [membership_test.go](../../../../internal/sharing/membership_test.go) | 首次加入期限、持久成员、丢失响应、主动离开、空闲释放、并发请求和旧连接隔离 |
 | [invitation_test.go](../../../../internal/sharing/invitation_test.go) / [tailcat_test.go](../../../../internal/sharing/tailcat_test.go) | `tcx3` 传输字段互斥、Tailcat 地址与精确版本检查、回调 listener 关闭并发 |
+| [runtime_mode_test.go](../../../../internal/collab/runtime_mode_test.go) | 创建模式与预览绑定、不可切换、原生权限、hook 确认归属、同 ID 恢复和结束访问 |
 | [model_test.go](../../../../internal/collab/model_test.go) | 模型继承、设置更新、拒绝请求、恢复与通知 |
 | [process_test.go](../../../../internal/nativecodex/process_test.go) | 客户端配置与启动不强制模型 |
 | [server_test.go](../../../../internal/mcp/server_test.go) | STDIO 读取不发送输入，保留输入文本与请求 ID |
@@ -156,3 +157,11 @@ python3 scripts/verify-annotations.py \
 脚本通过直接 TUI 读取只有批注与人工回复中才有的标记，再回复原批注，并验证结束共享后恢复同一会话仍能读取。真实模型只使用 Luna，Claude 沿用本页的 loopback guard；Codex 使用专用配置和已有登录凭据，不修改个人配置。检查继承的个人 MCP 被禁用；只接受本次批注工具对应的确认，不跳过所有审批。
 
 `--keep-preview-seconds` 可暂留 fixture 供 WebGUI / 专用 Desktop 检查；写入 fixture 的 `finish-preview` 可提前结束。Desktop 须另外确认窗口内的实际读取与回复，进程启动或网关连接不等价于完成验收。当前结果见 [2026-09-13 批注验证](annotations-2026-09-13.md)。
+
+## 信任模式
+
+为上面的 `verify-annotations.py` 增加 `--runtime-mode trusted`，分别为 Codex 和 Claude 使用新的专用 fixture。脚本继承测试 home 的只读个人 MCP 和无副作用标记 hook，并确认原生 TUI 实际读取工具返回值、执行 hook、读写批注、结束和同 ID 恢复。Codex 另核对主机权限 profile 与原生 hook 审阅写回 A；允许原生插件加载，不调用无关个人工具。Claude 的临时 home 与 Luna guard 保持隔离。默认参数仍验证受限模式的个人 MCP 隔离。
+
+可信执行不等于跳过原生确认；脚本只能确认可见的专用测试 hook 和批注工具。新配置或插件可能延长客户端启动时间，必须等原生历史实际呈现再发送输入。Claude 结束应等待精确 worker 退出，保留个人 daemon 及其他 job；普通主机环境和沙箱的进程身份探测能力分别记录。浏览器、电脑控制、组织策略、第三方登录与专用 Desktop 窗口需要各自的实际验收，不能由继承配置测试直接推断。
+
+当前真实结果、版本和未覆盖范围见 [2026-09-16 信任模式验收](trusted-runtime-2026-09-16.md)。

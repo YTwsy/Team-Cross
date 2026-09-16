@@ -86,10 +86,11 @@ func (s *Session) Share(ctx context.Context, requested string) error {
 	s.shareGeneration++
 	generation := s.shareGeneration
 	id, title := s.record.ID, s.record.Title
+	mode := s.record.RuntimeMode
 	host, loopback := s.app.Host, s.app.Config.Loopback
 	s.mu.Unlock()
 
-	runtime, startErr := sharing.Start(startCtx, transport, id, title, host, http.HandlerFunc(s.remoteHTTP), loopback)
+	runtime, startErr := sharing.Start(startCtx, transport, id, title, host, http.HandlerFunc(s.remoteHTTP), loopback, mode)
 	cancel()
 
 	s.mu.Lock()
@@ -671,9 +672,9 @@ func (j *Joined) attach(w http.ResponseWriter, r *http.Request) {
 				if message.Method == "" && localClient.reply(ctx, message) {
 					continue
 				}
-				if localClientMethod(message.Method) && len(message.ID) > 0 {
-					var params map[string]any
-					_ = json.Unmarshal(message.Params, &params)
+				var params map[string]any
+				_ = json.Unmarshal(message.Params, &params)
+				if localClientRequest(message.Method, params) && len(message.ID) > 0 {
 					var result json.RawMessage
 					e := localClient.call(ctx, message.Method, params, &result)
 					reply := nativecodex.Message{ID: message.ID, Result: result}

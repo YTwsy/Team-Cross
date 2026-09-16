@@ -19,6 +19,7 @@ import (
 	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/problem"
+	"teamcross/internal/runtimeconfig"
 )
 
 func providerName(v string) (string, error) {
@@ -157,7 +158,11 @@ func (s *Session) createClaude(ctx context.Context, preview Preview, title strin
 		return err
 	}
 	dir := filepath.Join(s.app.Config.DataDir, "collaborations", r.ID)
-	driver, err := nativeclaude.Fork(ctx, nativeclaude.Config{Binary: binary, Home: r.ProviderHome, RuntimeDir: filepath.Join(dir, "claude-runtime"), Cwd: r.ExecutionCwd, Log: filepath.Join(dir, "runtime.log"), MCPConfig: launch.claudeConfig()}, source, title)
+	mcpConfig := launch.claudeConfig()
+	if r.RuntimeMode == runtimeconfig.Trusted {
+		mcpConfig = launch.claudeConfigNamed("teamcross_annotations_" + strings.ReplaceAll(r.ID, "-", ""))
+	}
+	driver, err := nativeclaude.Fork(ctx, nativeclaude.Config{Binary: binary, Home: r.ProviderHome, RuntimeDir: filepath.Join(dir, "claude-runtime"), Cwd: r.ExecutionCwd, Log: filepath.Join(dir, "runtime.log"), MCPConfig: mcpConfig, Trusted: r.RuntimeMode == runtimeconfig.Trusted, DefaultHome: r.ProviderDefaultHome}, source, title)
 	if err != nil {
 		return err
 	}
@@ -193,7 +198,7 @@ func (a *App) restoreClaude(ctx context.Context, r Record) (*claudeRuntime, erro
 		return nil, err
 	}
 	dir := filepath.Join(a.Config.DataDir, "collaborations", r.ID)
-	p, err := nativeclaude.Restore(ctx, nativeclaude.Config{Binary: binary, Home: r.ProviderHome, RuntimeDir: filepath.Join(dir, "claude-runtime"), Cwd: r.ExecutionCwd, Log: filepath.Join(dir, "runtime.log")}, r.SessionID)
+	p, err := nativeclaude.Restore(ctx, nativeclaude.Config{Binary: binary, Home: r.ProviderHome, RuntimeDir: filepath.Join(dir, "claude-runtime"), Cwd: r.ExecutionCwd, Log: filepath.Join(dir, "runtime.log"), Trusted: r.RuntimeMode == runtimeconfig.Trusted, DefaultHome: r.ProviderDefaultHome}, r.SessionID)
 	if err != nil {
 		return nil, err
 	}

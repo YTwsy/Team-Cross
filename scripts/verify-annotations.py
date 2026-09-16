@@ -10,9 +10,12 @@ import importlib.util
 import json
 import os
 import pathlib
+import shlex
 import shutil
 import subprocess
+import sys
 import time
+import traceback
 import uuid
 
 spec = importlib.util.spec_from_file_location('annotation_native_fixture', pathlib.Path(__file__).with_name('verify-claude-native.py'))
@@ -35,7 +38,7 @@ def run(args):
     n.TOKEN = ''
     guard = None
     cores, terminals = [], []
-    report = {'provider': args.provider, 'scope': 'one Mac, two real Cores', 'model': n.MODEL}
+    report = {'provider': args.provider, 'runtimeMode': args.runtime_mode, 'scope': 'one Mac, two real Cores', 'model': n.MODEL}
     try:
         repo = root/'repo'; repo.mkdir()
         for command in (['init','-b','main'], ['config','user.name','Team Cross Annotation Fixture'], ['config','user.email','fixture@example.invalid']):
@@ -72,13 +75,42 @@ def run(args):
             # Codex merges MCP configuration tables across layers.
             with (home/'config.toml').open('a') as config:
                 config.write('[mcp_servers.personal_fixture]\ncommand="/usr/bin/false"\n')
+        trusted = args.runtime_mode == 'trusted'
+        if trusted:
+            fixture_mcp = pathlib.Path(__file__).with_name('trusted-runtime-fixture.py').resolve()
+            fixture_args=[str(fixture_mcp),str(root/'mcp-proof.log')]
+            hook_command = "printf '%s\\n' TCX_INHERITED_HOOK >> "+shlex.quote(str(root/'hook-proof.log'))
+            if args.provider == 'codex':
+                (home/'config.toml').write_text(
+                    'model = "'+n.MODEL+'"\nmodel_reasoning_effort = "low"\n'
+                    'default_permissions="trusted-fixture"\napproval_policy="on-request"\napprovals_reviewer="user"\n'
+                    '[permissions.trusted-fixture]\nextends=":workspace"\n[permissions.trusted-fixture.network]\nenabled=true\n'
+                    '[features]\nhooks=true\ncode_mode_host=true\nplugins=true\n'
+                    '[mcp_servers.personal_fixture]\ncommand='+json.dumps(sys.executable)+'\nargs='+json.dumps(fixture_args)+'\n'
+                    '[[hooks.UserPromptSubmit]]\nhooks=[{type="command",command='+json.dumps(hook_command)+'}]\n')
+            else:
+                settings_data=json.loads(settings.read_text())
+                settings_data.update({'disableAllHooks':False,'hooks':{'UserPromptSubmit':[{'hooks':[{'type':'command','command':hook_command}]}]},'permissions':{'allow':['mcp__personal_fixture__read_fixture']}})
+                settings.write_text(json.dumps(settings_data))
+                state_path=home/'.claude.json'
+                state=json.loads(state_path.read_text()) if state_path.exists() else {}
+                state.update({'hasCompletedOnboarding':True,'lastOnboardingVersion':report['version'].split()[0],'autoUpdates':False,'theme':'light','hasSeenTasksHint':True})
+                state['projects']={str(repo):{'hasTrustDialogAccepted':True,'hasCompletedProjectOnboarding':True,'projectOnboardingSeenCount':1,'allowedTools':[]}}
+                state['mcpServers']={'personal_fixture':{'command':sys.executable,'args':fixture_args}}
+                state_path.write_text(json.dumps(state));state_path.chmod(0o600)
         a = n.Core('core-a',env); cores.append(a)
         b = n.Core('core-b',env); cores.append(b)
         if args.provider == 'codex':
             for core in (a,b): core.api('settings',{'binary':args.codex_bin, 'claudeBinary':n.CLI})
-        body = {'provider':args.provider,'sourceId':source,'workspaceMode':'existing','requestId':str(uuid.uuid4()),'title':'批注闭环验证 · '+args.provider}
+        body = {'provider':args.provider,'runtimeMode':args.runtime_mode,'sourceId':source,'workspaceMode':'existing','requestId':str(uuid.uuid4()),'title':('信任模式验证' if trusted else '批注闭环验证')+' · '+args.provider}
         body['previewHash'] = a.api('preview',body)['previewHash']
         c = a.api('collaborations',body); base='collaborations/'+c['id']
+        assert c['runtimeMode']==args.runtime_mode
+        if trusted and args.provider=='codex':
+            # `codex exec` seeds with approval=never. Exercise the native
+            # writer's permission choice before the TUI's approval round trip.
+            a.api(base+'/rpc',{'method':'thread/settings/update','params':{'permissions':'trusted-fixture','approvalPolicy':'on-request','approvalsReviewer':'user'},'requestId':'fixture-native-permissions'})
+            report['native_permissions_selected']=True
         report.update({'id':c['id'],'sessionId':c['sessionId'],'core':a.url,'detail':a.url+'/#/'+base})
         def action(value): return a.api(base+'/action',{'action':value,'epoch':a.api(base)['epoch']})
         shared=action('share'); joined=b.api('join',{'invitation':shared['invitation']}); bbase='collaborations/'+joined['id']
@@ -95,22 +127,56 @@ def run(args):
             # Codex includes disabled entries in status, with no serverInfo or
             # tools. Only the scoped server may have a handshake and tools.
             active=[server for server in servers if server.get('serverInfo') or server.get('tools')]
-            assert [server['name'] for server in active]==['teamcross_annotations'], 'Inherited MCP servers must not be active'
-            assert set(active[0]['tools'])=={'read_annotations','reply_to_annotation'}
-            report['inherited_mcp_disabled']=True
+            active_names={server['name'] for server in active}
+            if trusted:
+                assert {'teamcross_annotations','personal_fixture'} <= active_names, 'Inherited MCP fixture missing'
+                report['active_mcp_servers']=sorted(active_names)
+            else:
+                assert active_names=={'teamcross_annotations'}, 'Unexpected effective MCP servers'
+            annotations=next(server for server in active if server['name']=='teamcross_annotations')
+            assert set(annotations['tools'])=={'read_annotations','reply_to_annotation'}
+            report['inherited_mcp_disabled']=not trusted
+            if trusted:
+                config=a.api(base+'/rpc',{'method':'config/read','params':{}})['config']
+                assert config.get('default_permissions')=='trusted-fixture', 'Host permission profile was overridden'
+                report['host_permissions_inherited']=True
         n.emit('native_ready',provider=args.provider,detail=report['detail'],root=str(root))
         def notes():return a.api(base+'/context?kind=annotations')['annotations']
         def send_native_prompt(tui, prompt):
             if args.provider != 'codex':
                 tui.prompt(prompt);return
+            if trusted:
+                # Review only the one harmless fixture hook, through the real
+                # native prompt. Do not bypass trust or approve unrelated hooks.
+                hooks=a.api(base+'/rpc',{'method':'hooks/list','params':{}})
+                pending=[h for entry in hooks['data'] for h in entry['hooks'] if h['enabled'] and h['trustStatus'] in ('untrusted','modified')]
+                if pending:
+                    assert len(pending)==1 and pending[0].get('command')==hook_command, 'Unexpected hook requires review'
+                    n.wait_until(lambda:'Trustallandcontinue' in ''.join(n.terminal_text(tui.data).split()),20,tui)
+                    tui.send('2');tui.read(.3);tui.send('\r')
+                    def hook_trusted():
+                        hooks=a.api(base+'/rpc',{'method':'hooks/list','params':{}})
+                        return any(h['key']==pending[0]['key'] and h['trustStatus']=='trusted' for entry in hooks['data'] for h in entry['hooks'])
+                    n.wait_until(hook_trusted,15,tui)
+                    report['native_hook_review_on_host']=True
+                    tui.read(.3)
+            # A gateway resume can finish before the TUI has enabled its input
+            # handler. Hook review precedes the actual session footer.
+            n.wait_until(lambda:c['title'] in n.terminal_text(tui.data),25,tui)
+            # Loaded plugins/MCP can still delay replay of the resumed history.
+            # The model footer alone is not proof that the composer is ready.
+            n.wait_until(lambda:'TCX_ANNOTATION_SOURCE' in n.terminal_text(tui.data),120,tui)
             offset=len(tui.data)
             tui.send('\x1b[200~'+prompt+'\x1b[201~')
             # session_ready confirms the gateway attachment, while Codex can
             # still be painting the composer. Submit after the draft is echoed.
             suffix=''.join(prompt.split())[-80:]
-            n.wait_until(lambda:suffix in ''.join(n.terminal_text(tui.data[offset:]).split()),10,tui)
+            n.wait_until(lambda:suffix in ''.join(n.terminal_text(tui.data[offset:]).split()) or 'Pasted' in n.terminal_text(tui.data[offset:]),15,tui)
             tui.send('\r')
-        send_native_prompt(terminal,'Use only the Team Cross shared-runtime MCP tools. Call read_annotations without arguments and read all root annotations and replies. Then reply_to_annotation on the root annotation you read, text starting with TCX_AGENT_REPLY_OK followed by both TCX marker values you actually read from the root annotation and the human reply, requestId="native-agent-reply". Do not use shell/file tools, add_annotation, send_input, or any other MCP server. Then reply TCX_NATIVE_ANNOTATIONS_DONE. This is a dedicated test and this reply is authorized.')
+        prompt='Use the Team Cross shared-runtime MCP tools. Call read_annotations without arguments and read all root annotations and replies. Then reply_to_annotation on the root annotation you read, text starting with TCX_AGENT_REPLY_OK followed by both TCX marker values you actually read from the root annotation and the human reply, requestId="native-agent-reply". Do not use shell/file tools, add_annotation, or send_input. Then reply TCX_NATIVE_ANNOTATIONS_DONE. This is a dedicated test and this reply is authorized.'
+        if trusted:
+            prompt='First call the personal_fixture MCP read_fixture tool. Also include its exact returned marker in your annotation reply. '+prompt
+        send_native_prompt(terminal,prompt)
         approved=0;screen_offset=0;approved_ids=set()
         def approve_fixture_tool(terminal, core, route):
             nonlocal approved,screen_offset
@@ -125,11 +191,14 @@ def run(args):
             else:
                 recent=n.terminal_text(terminal.data[screen_offset:]).lower()
                 compact=''.join(recent.split())
-                if status.get('nativeWaiting')=='permission prompt' and 'teamcross_annotations' in recent and ('readannotationstool' in compact or 'replytoannotationtool' in compact):
+                server='teamcross_annotations_'+c['id'].replace('-','')[:8] if trusted else 'teamcross_annotations'
+                fixture_description='读取当前teamcross协作的批注' in compact or '在当前协作的原批注下回复' in compact
+                if status.get('nativeWaiting')=='permission prompt' and server in recent and ('readannotationstool' in compact or 'replytoannotationtool' in compact or fixture_description):
                     terminal.send('\r');approved+=1;screen_offset=len(terminal.data)
         start=time.monotonic()
         while time.monotonic()-start<150:
             text=terminal.read(.2)
+            (root/'evidence/native-progress.txt').write_text(n.clean(text))
             if any(reply.get('requestId')=='native-agent-reply' for note in notes() for reply in note.get('replies',[])):break
             # Native Claude can ask for MCP permission. Only approve a visible
             # Team Cross annotation tool confirmation in this dedicated fixture.
@@ -139,6 +208,10 @@ def run(args):
         expected='Claude Code' if args.provider=='claude' else 'Codex'
         saved=notes();reply=next(reply for note in saved for reply in note.get('replies',[]) if reply.get('requestId')=='native-agent-reply')
         assert reply['author']==expected and 'TCX_NATIVE_NOTE_SECRET_729' in reply['text'] and 'TCX_HUMAN_REPLY_483' in reply['text']
+        if trusted:
+            assert (root/'mcp-proof.log').exists() and 'TCX_INHERITED_TOOL_583' in (root/'mcp-proof.log').read_text(), 'Inherited personal tool was not used'
+            assert (root/'hook-proof.log').exists() and 'TCX_INHERITED_HOOK' in (root/'hook-proof.log').read_text(), 'Owner hook did not run'
+            report.update({'inherited_mcp_used':True,'inherited_hook_ran':True})
         n.wait_until(lambda:not a.api(base)['busy'],50,terminal)
         history=a.api(base+'/context?kind=history')
         events=a.api(base+'/context?kind=events')
@@ -148,7 +221,7 @@ def run(args):
         report.update({'native_read_and_reply':True,'native_mcp_approvals':approved,'root_count':len(saved)})
         terminal.close();n.wait_until(lambda:not a.api(base)['connected'],12)
         action('reclaim');action('end');n.wait_until(lambda:a.api(base)['runtimeState']=='released',40)
-        restored=action('start');assert restored['sessionId']==c['sessionId']
+        restored=action('start');assert restored['sessionId']==c['sessionId'] and restored['runtimeMode']==args.runtime_mode
         # Exercise the original persisted STDIO launch configuration after restore.
         restored_plan=a.api(base+'/open',{'client':'tui','launch':False})
         restored_tui=n.Terminal(args.provider+'-restored',restored_plan['command'],env);terminals.append(restored_tui)
@@ -169,6 +242,7 @@ def run(args):
             while time.monotonic()<end and not (root/'finish-preview').exists():time.sleep(.5)
         action('end')
     except Exception as error:
+        (root/'evidence/failure.txt').write_text(n.clean(traceback.format_exc()))
         report['error']=n.clean(type(error).__name__+': '+str(error));n.emit('annotation_acceptance_failed',error=report['error'])
     finally:
         for resource in list(reversed(terminals))+list(reversed(cores)):
@@ -188,6 +262,7 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--fixture-dir',type=pathlib.Path,required=True)
     parser.add_argument('--provider',choices=['codex','claude'],required=True)
+    parser.add_argument('--runtime-mode',choices=['restricted','trusted'],default='restricted')
     parser.add_argument('--teamcross-bin',required=True)
     parser.add_argument('--codex-bin',default='/Applications/ChatGPT.app/Contents/Resources/codex')
     parser.add_argument('--claude-bin',default=shutil.which('claude'))

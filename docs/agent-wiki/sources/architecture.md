@@ -33,11 +33,11 @@ flowchart LR
 
 ## 原生运行时
 
-浏览来源时按需创建只读用途的 app-server 控制连接；不会自动发送 prompt。每次协作有单独的 app-server 进程，以 A 的原生会话库读取来源并执行 fork。独立进程的配置以命令行参数覆盖，不重写 A 的个人配置。
+浏览来源时按需创建只读用途的 app-server 控制连接；不会自动发送 prompt。每次协作有单独的 app-server 进程，以 A 的原生会话库读取来源并执行 fork。受限模式通过命令行参数覆盖原生配置；信任模式加载 A 的原生配置与权限，仅追加当前协作批注 MCP。两种模式启动时都不由 Team Cross 重写 A 的个人配置；信任模式中，当前输入者的原生 hook 确认由 Codex 写回 A 的配置。具体继承与生命周期见 [协作模式](decisions/runtime-modes.md)。
 
 仅复制 rollout 文件无法替代原生历史数据库。协作记录保存 `sourceId`、已确认的 `sourceTurnId` 和新 `sessionId`。创建调用 `thread/fork`，使用 `lastTurnId` 保留确认过的已完成起点。恢复调用 `thread/resume`，继续同一 ID。
 
-直接客户端的 `initialize`、会话枚举和请求都经过协作网关。网关只暴露指定协作；固定 `threadId`、`cwd` 与权限 profile。模型及推理强度继承原生来源和当前输入者的选择。网关与 MCP 共享同一个上游控制连接，避免审批只被某个连接收到而另一入口无法回应。共享仍开放时，直接客户端断开不会终止 app-server。结束共享后，执行、审批、已接收请求和直接连接全部结束才关闭该 Session 的 app-server，释放原生 writer lock；仅 `thread/unsubscribe` 不作为释放依据。关闭过程在会话锁外等待进程退出，恢复等待退出完成，旧进程通知按代次丢弃。
+直接客户端的 `initialize`、会话枚举和请求都经过协作网关。网关只暴露指定协作；固定 `threadId` 与 `cwd`；受限模式固定权限 profile，信任模式沿用原生权限，并允许当前输入者通过原生会话设置选择权限。模型及推理强度继承原生来源和当前输入者的选择。网关与 MCP 共享同一个上游控制连接，避免审批只被某个连接收到而另一入口无法回应。共享仍开放时，直接客户端断开不会终止 app-server。结束共享后，执行、审批、已接收请求和直接连接全部结束才关闭该 Session 的 app-server，释放原生 writer lock；仅 `thread/unsubscribe` 不作为释放依据。关闭过程在会话锁外等待进程退出，恢复等待退出完成，旧进程通知按代次丢弃。
 
 Desktop 使用本机安装版本的指定 WebSocket 入口，配合单独的 `CODEX_HOME` 与 Electron 数据目录，通过 `open -n` 启动。是否所有 Desktop 操作都适合远程执行需要按实际客户端版本验收；不能仅凭 app-server 协议相同宣布完整兼容。
 
@@ -111,4 +111,4 @@ CLI、App 和 MCP 的共用启动、发现、版本检查和退出机制见 [分
 
 ## Claude 实验性执行端
 
-Claude 的个人 CLI/TUI home 保存原始来源，并只新增用户明确创建的 fork 历史入口；每个 `collaborations/<id>/claude-runtime` 是独立 worker 配置，保存所选来源快照、本次原生 fork、受限 settings、认证快照、daemon/job 和运行所有权状态。fork 首次落盘后，[nativeclaude](../../../internal/nativeclaude/) 只把这一份 transcript 以同文件入口发布到个人 `projects`，不会把完整个人 history 链接进 worker；[协作适配](../../../internal/collab/claude.go) 复用目录、输入归属、TLS 成员、MCP 与生命周期。个人历史可见性、单 worker、惰性落盘、最低版本和控制能力边界见 [Claude 接入契约](decisions/claude-native-tui.md)；上述 Codex app-server RPC 语义不自动适用于 Claude。
+Claude 的个人 CLI/TUI home 保存原始来源，并只新增用户明确创建的 fork 历史入口；受限模式的每个 `collaborations/<id>/claude-runtime` 是独立 worker 配置，保存所选来源快照、本次原生 fork、受限 settings、认证快照、daemon/job 和运行所有权状态。fork 首次落盘后，[nativeclaude](../../../internal/nativeclaude/) 只把这一份 transcript 以同文件入口发布到个人 `projects`，不会把完整个人 history 链接进 worker；[协作适配](../../../internal/collab/claude.go) 复用目录、输入归属、TLS 成员、MCP 与生命周期。信任模式直接使用个人配置目录创建新 fork，历史由原生 Claude 管理，仅将所有权标记存入协作目录，结束时保留个人 daemon。个人历史可见性、单 worker、惰性落盘、最低版本和控制能力边界见 [Claude 接入契约](decisions/claude-native-tui.md)；上述 Codex app-server RPC 语义不自动适用于 Claude。

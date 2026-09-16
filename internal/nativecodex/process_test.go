@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"teamcross/internal/runtimeconfig"
 	"testing"
 )
 
@@ -32,7 +33,7 @@ fi
 		t.Fatal(err)
 	}
 	t.Setenv("TEAMCROSS_TEST_ARGUMENTS", arguments)
-	names, err := MCPServerNames(context.Background(), binary, t.TempDir(), t.TempDir())
+	names, err := MCPServerNames(context.Background(), binary, t.TempDir(), t.TempDir(), runtimeconfig.Restricted)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,6 +50,33 @@ fi
 	}
 	if !strings.Contains(string(data), "features.plugins=false\n") || !strings.Contains(string(data), "features.apps=false\n") {
 		t.Fatalf("MCP discovery did not use runtime isolation: %q", data)
+	}
+	names, err = MCPServerNames(context.Background(), binary, t.TempDir(), t.TempDir(), runtimeconfig.Trusted)
+	if err != nil || !reflect.DeepEqual(names, []string{"codex_app", "cua_repl", "personal"}) {
+		t.Fatalf("trusted discovery lost plugin tools: %v %v", names, err)
+	}
+	data, _ = os.ReadFile(arguments)
+	if string(data) != "mcp\nlist\n--json\n" {
+		t.Fatalf("trusted discovery imposed configuration: %s", data)
+	}
+}
+
+func TestTrustedRuntimeAndClientDoNotImposePermissionsOrFeatures(t *testing.T) {
+	args := runtimeConfigArgs([]string{"app-server"}, runtimeconfig.Trusted, "mcp_servers.fixture={command=\"fixture\"}")
+	if !reflect.DeepEqual(args, []string{"app-server", "-c", "mcp_servers.fixture={command=\"fixture\"}"}) {
+		t.Fatalf("trusted runtime changed native settings: %v", args)
+	}
+	home := t.TempDir()
+	if err := WriteConfigForMode(home, runtimeconfig.Trusted); err != nil {
+		t.Fatal(err)
+	}
+	config, _ := os.ReadFile(filepath.Join(home, "config.toml"))
+	if strings.Contains(string(config), "=") {
+		t.Fatalf("trusted client imposed settings: %s", config)
+	}
+	params := SessionOverrides("shared", "/selected", runtimeconfig.Trusted)
+	if params["threadId"] != "shared" || params["cwd"] != "/selected" || len(params) != 3 {
+		t.Fatalf("trusted binding imposed settings or lost identity: %v", params)
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/problem"
+	"teamcross/internal/runtimeconfig"
 	"teamcross/internal/service"
 	"time"
 )
@@ -56,7 +57,14 @@ func (a *App) ClientPlan(ctx context.Context, id, client string, launch bool) (m
 		return nil, e
 	}
 	home := filepath.Join(a.Config.DataDir, "clients", id, client, "codex-home")
-	if e = nativecodex.WriteConfig(home); e != nil {
+	mode := runtimeconfig.Restricted
+	if view["runtimeMode"] != nil {
+		mode, e = runtimeconfig.Parse(runtimeconfig.Mode(fmt.Sprint(view["runtimeMode"])))
+		if e != nil {
+			return nil, e
+		}
+	}
+	if e = nativecodex.WriteConfigForMode(home, mode); e != nil {
 		return nil, e
 	}
 	binary, e := a.binary()

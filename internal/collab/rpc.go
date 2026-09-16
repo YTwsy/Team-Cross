@@ -20,6 +20,7 @@ import (
 	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/problem"
+	"teamcross/internal/runtimeconfig"
 	"teamcross/internal/workspace"
 )
 
@@ -101,6 +102,15 @@ func (s *Session) Events(after uint64) map[string]any {
 func mutating(method string) bool {
 	return method == "turn/start" || method == "turn/steer" || method == "turn/interrupt" || method == "thread/name/set" || method == "thread/settings/update"
 }
+
+func resumeMutates(params map[string]any) bool {
+	for _, key := range []string{"model", "modelProvider", "effort", "config", "collaborationMode", "permissions", "sandbox", "approvalPolicy", "approvalsReviewer", "runtimeWorkspaceRoots", "baseInstructions", "developerInstructions", "personality", "serviceTier"} {
+		if params[key] != nil {
+			return true
+		}
+	}
+	return false
+}
 func (s *Session) RPC(ctx context.Context, role, method string, params map[string]any, requestID string) (json.RawMessage, error) {
 	if params == nil {
 		params = map[string]any{}
@@ -128,6 +138,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	}
 	s.activeCalls++
 	defer s.finishCall()
+	discoveryLookupCwd := ""
 	if method == "thread/list" || method == "thread/loaded/list" {
 		s.mu.Unlock()
 		var read map[string]any
@@ -140,6 +151,14 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 		return json.Marshal(map[string]any{"data": []any{read["thread"]}, "nextCursor": nil})
 	}
 	switch method {
+	case "config/value/write", "config/batchWrite":
+		if r.RuntimeMode != runtimeconfig.Trusted || !hookTrustWrite(method, params) {
+			s.mu.Unlock()
+			return nil, fmt.Errorf("此入口只允许信任模式确认原生 hook")
+		}
+		// Trust is persisted in the owner's default config, never a path chosen
+		// by the remote client. Native reload and optimistic locking still apply.
+		delete(params, "filePath")
 	case "threadSection/list":
 		s.mu.Unlock()
 		return json.Marshal(map[string]any{"data": []any{}, "nextCursor": nil})
@@ -150,6 +169,10 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 		s.mu.Unlock()
 		return json.Marshal(map[string]any{"data": []any{}, "connectors": []any{}})
 	case "permissionProfile/list":
+		if r.RuntimeMode == runtimeconfig.Trusted {
+			params["cwd"] = r.ExecutionCwd
+			break
+		}
 		s.mu.Unlock()
 		return json.Marshal(map[string]any{"data": []any{map[string]any{"id": nativecodex.Profile, "allowed": true, "description": "协作执行目录"}}, "nextCursor": nil})
 	case "project/list":
@@ -181,16 +204,22 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 			return nil, fmt.Errorf("此连接只访问指定的协作会话")
 		}
 		params["threadId"] = r.SessionID
-	case "account/read", "account/rateLimits/read", "model/list", "config/read", "configRequirements/read", "skills/list", "hooks/list", "mcpServerStatus/list", "experimentalFeature/list", "app/list", "plugin/list", "collaborationMode/list", "remoteControl/status/read":
+	case "account/read", "account/rateLimits/read", "model/list", "config/read", "configRequirements/read", "skills/list", "hooks/list", "mcpServerStatus/list", "experimentalFeature/list", "app/list", "app/installed", "plugin/list", "collaborationMode/list", "remoteControl/status/read":
 		if method == "config/read" {
 			params["includeLayers"] = false
 			params["cwd"] = r.ExecutionCwd
 		}
-		if method == "skills/list" {
+		if method == "skills/list" || method == "hooks/list" {
+			// A remote TUI keys its pending discovery by its local cwd. Resolve
+			// only A's execution directory, but preserve that lookup key below.
+			if cwds, ok := params["cwds"].([]any); ok && len(cwds) == 1 {
+				discoveryLookupCwd, _ = cwds[0].(string)
+			}
+			delete(params, "cwd")
 			params["cwds"] = []string{r.ExecutionCwd}
 		}
-		if method == "hooks/list" {
-			params["cwd"] = r.ExecutionCwd
+		if method == "plugin/list" {
+			params["cwds"] = []string{r.ExecutionCwd}
 		}
 	default:
 		s.mu.Unlock()
@@ -207,7 +236,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	if method == "thread/resume" && s.direct != nil && s.direct.role == role {
 		s.direct.subscribed = true
 	}
-	write := mutating(method) || (method == "thread/resume" && (params["model"] != nil || params["modelProvider"] != nil || params["config"] != nil || params["collaborationMode"] != nil))
+	write := mutating(method) || hookTrustWrite(method, params) || (method == "thread/resume" && resumeMutates(params))
 	if write && role != s.writer {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("当前由另一位参与者输入，请先交接输入")
@@ -241,10 +270,15 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 				delete(params, "effort")
 			}
 		}
-		for _, k := range []string{"path", "history", "config", "sandbox", "sandboxPolicy", "baseInstructions", "developerInstructions", "environments", "multiAgentMode", "collaborationMode"} {
+		for _, k := range []string{"path", "history", "config", "baseInstructions", "developerInstructions", "environments", "runtimeWorkspaceRoots"} {
 			delete(params, k)
 		}
-		for k, v := range nativecodex.Overrides(r.SessionID, r.ExecutionCwd) {
+		if r.RuntimeMode != runtimeconfig.Trusted {
+			for _, k := range []string{"sandbox", "sandboxPolicy", "multiAgentMode", "collaborationMode"} {
+				delete(params, k)
+			}
+		}
+		for k, v := range nativecodex.SessionOverrides(r.SessionID, r.ExecutionCwd, r.RuntimeMode) {
 			params[k] = v
 		}
 		if len(modelConfig) > 0 {
@@ -290,6 +324,15 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	s.mu.Unlock()
 	var result json.RawMessage
 	err := p.Call(ctx, method, params, &result)
+	if (method == "hooks/list" || method == "skills/list") && err == nil && discoveryLookupCwd != "" {
+		var response struct {
+			Data []map[string]any `json:"data"`
+		}
+		if json.Unmarshal(result, &response) == nil && len(response.Data) == 1 {
+			response.Data[0]["cwd"] = discoveryLookupCwd
+			result, err = json.Marshal(response)
+		}
+	}
 	if err == nil && (method == "turn/start" || method == "thread/resume" || method == "thread/settings/update") {
 		s.refreshModel(ctx, p)
 	}
@@ -298,7 +341,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 		if json.Unmarshal(result, &v) == nil {
 			safe := map[string]any{}
 			if config, ok := v["config"].(map[string]any); ok {
-				for _, key := range []string{"model", "model_provider", "model_reasoning_effort", "model_context_window", "model_auto_compact_token_limit", "approval_policy", "default_permissions", "web_search", "tui", "features", "service_tier", "personality"} {
+				for _, key := range []string{"model", "model_provider", "model_reasoning_effort", "model_context_window", "model_auto_compact_token_limit", "approval_policy", "approvals_reviewer", "default_permissions", "sandbox_mode", "web_search", "tui", "features", "service_tier", "personality"} {
 					if value, ok := config[key]; ok {
 						safe[key] = value
 					}
@@ -577,7 +620,7 @@ func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
 		var params map[string]any
 		_ = json.Unmarshal(m.Params, &params)
 		var result json.RawMessage
-		if role == "owner" && localClientMethod(m.Method) {
+		if role == "owner" && localClientRequest(m.Method, params) {
 			e = local.call(ctx, m.Method, params, &result)
 		} else {
 			result, e = s.RPC(ctx, role, m.Method, params, "direct:"+connectionID+":"+string(m.ID))

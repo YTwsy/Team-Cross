@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"teamcross/internal/buildinfo"
+	"teamcross/internal/runtimeconfig"
 	"time"
 
 	"github.com/coder/websocket"
@@ -74,16 +75,18 @@ func Version(ctx context.Context, binary string) (string, error) {
 	return strings.TrimSpace(string(data)), err
 }
 
-func runtimeConfigArgs(args []string, overrides ...string) []string {
-	for _, value := range []string{
-		`default_permissions="teamcross-native"`, `approval_policy="on-request"`,
-		`permissions.teamcross-native={extends=":workspace",network={enabled=false}}`,
-		`web_search="disabled"`, `allow_login_shell=false`, `features.code_mode_host=true`,
-		`features.plugins=false`, `features.apps=false`, `features.hooks=false`,
-		`features.plugin_hooks=false`, `features.memories=false`, `features.multi_agent=false`,
-		`features.multi_agent_v2=false`, `features.goals=false`, `features.browser_use=false`, `features.computer_use=false`,
-	} {
-		args = append(args, "-c", value)
+func runtimeConfigArgs(args []string, mode runtimeconfig.Mode, overrides ...string) []string {
+	if mode != runtimeconfig.Trusted {
+		for _, value := range []string{
+			`default_permissions="teamcross-native"`, `approval_policy="on-request"`,
+			`permissions.teamcross-native={extends=":workspace",network={enabled=false}}`,
+			`web_search="disabled"`, `allow_login_shell=false`, `features.code_mode_host=true`,
+			`features.plugins=false`, `features.apps=false`, `features.hooks=false`,
+			`features.plugin_hooks=false`, `features.memories=false`, `features.multi_agent=false`,
+			`features.multi_agent_v2=false`, `features.goals=false`, `features.browser_use=false`, `features.computer_use=false`,
+		} {
+			args = append(args, "-c", value)
+		}
 	}
 	for _, value := range overrides {
 		args = append(args, "-c", value)
@@ -97,10 +100,10 @@ func runtimeConfigArgs(args []string, overrides ...string) []string {
 // individually before adding its scoped tools. Applying the runtime settings
 // here also excludes plugin-provided MCP entries whose transports disappear
 // when plugins are disabled for the worker.
-func MCPServerNames(ctx context.Context, binary, home, cwd string) ([]string, error) {
+func MCPServerNames(ctx context.Context, binary, home, cwd string, mode runtimeconfig.Mode) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, binary, runtimeConfigArgs([]string{"mcp", "list", "--json"})...)
+	cmd := exec.CommandContext(ctx, binary, runtimeConfigArgs([]string{"mcp", "list", "--json"}, mode)...)
 	cmd.Dir, cmd.Env = cwd, environment(home)
 	data, err := cmd.Output()
 	if err != nil {
@@ -133,8 +136,17 @@ func environment(home string) []string {
 
 // WriteConfig only writes a Team Cross-owned directory, never the user's config.
 func WriteConfig(home string) error {
+	return WriteConfigForMode(home, runtimeconfig.Restricted)
+}
+
+func WriteConfigForMode(home string, mode runtimeconfig.Mode) error {
 	if err := os.MkdirAll(home, 0700); err != nil {
 		return err
+	}
+	if mode == runtimeconfig.Trusted {
+		// The remote runtime supplies settings. Do not send restricted local
+		// defaults back to the owner's trusted thread during native bootstrap.
+		return os.WriteFile(filepath.Join(home, "config.toml"), []byte("# Settings are supplied by the shared runtime.\n"), 0600)
 	}
 	return os.WriteFile(filepath.Join(home, "config.toml"), []byte(`default_permissions = "teamcross-native"
 approval_policy = "on-request"
@@ -160,6 +172,13 @@ enabled = false
 }
 
 func Start(ctx context.Context, binary, home, cwd, logPath string, overrides ...string) (*Process, error) {
+	return StartWithMode(ctx, binary, home, cwd, logPath, runtimeconfig.Restricted, overrides...)
+}
+
+func StartWithMode(ctx context.Context, binary, home, cwd, logPath string, mode runtimeconfig.Mode, overrides ...string) (*Process, error) {
+	if _, err := runtimeconfig.Parse(mode); err != nil {
+		return nil, err
+	}
 	// Reserve a loopback port. The readiness handshake detects a lost bind race.
 	l, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
@@ -174,7 +193,7 @@ func Start(ctx context.Context, binary, home, cwd, logPath string, overrides ...
 	p := &Process{URL: "ws://" + address, done: make(chan struct{}), pending: make(map[string]chan Message)}
 	// Native fork must use A's native history database. Apply configuration to
 	// this process only instead of modifying A's personal config.toml.
-	args := runtimeConfigArgs([]string{"app-server", "--listen", p.URL}, overrides...)
+	args := runtimeConfigArgs([]string{"app-server", "--listen", p.URL}, mode, overrides...)
 	p.cmd = exec.Command(binary, args...)
 	p.cmd.Dir = cwd
 	p.cmd.Env = environment(home)
@@ -339,6 +358,13 @@ func (p *Process) Close() {
 
 func Overrides(threadID, cwd string) map[string]any {
 	return map[string]any{"threadId": threadID, "cwd": cwd, "permissions": Profile, "runtimeWorkspaceRoots": []string{cwd}, "approvalPolicy": "on-request", "approvalsReviewer": "user"}
+}
+
+func SessionOverrides(threadID, cwd string, mode runtimeconfig.Mode) map[string]any {
+	if mode == runtimeconfig.Trusted {
+		return map[string]any{"threadId": threadID, "cwd": cwd, "runtimeWorkspaceRoots": []string{cwd}}
+	}
+	return Overrides(threadID, cwd)
 }
 
 func Quote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
