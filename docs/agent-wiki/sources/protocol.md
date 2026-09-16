@@ -116,6 +116,22 @@ STDIO MCP 采用逐行 JSON-RPC 2.0，协议版本 `2024-11-05`；只在 stdout 
 
 CLI `collaborations [--id <id>] [--json]` 查询列表或详情；`input request|cancel|handoff|reclaim|return --id <id> --epoch <版本> [--json]` 使用同一工具适配与 Core API。两者支持 `--data-dir`，按需启动或复用 Core，不打开浏览器。`status` 保持服务诊断语义，不能代替协作详情。
 
+### 个人 MCP 管理入口
+
+| 工具 | 参数与映射 |
+| --- | --- |
+| `list_source_sessions` | `{provider,search?,cursor?}` → `GET /sources`；只读取本机来源 |
+| `preview_collaboration` | `{provider,sourceId,workspaceMode,runtimeMode?,title?,requestId?}` → `POST /preview`；省略 requestId 时生成 UUID，并在结果附带 `requestId/workspaceMode` |
+| `create_collaboration` | 同预览，加必填 `requestId/previewHash` → `POST /collaborations` |
+| `create_invitation` | `{id,transport}` → `action:share`；传输必须显式指定；待用邀请增加 `invitationUrl` |
+| `preview_invitation` / `join_collaboration` | `{invitation}` → 预览 / 加入；不自动打开浏览器或原生客户端 |
+| `open_client` | `{id,client,launch?}` → `/open`，默认 launch=true；TUI 使用新终端窗口 |
+| `end_sharing` / `leave_collaboration` / `resume_collaboration` | `{id}` → `action:end/leave/start`，Core 检查本机角色 |
+
+来源 Provider 与个人辅助客户端独立。创建输入要求明确 Provider、来源和目录；预览与创建继续绑定固定模式和 Git 起点。工具校验参数类型、枚举和未知字段；共享运行时的内置批注 MCP 不增加这些管理工具。除明确邀请生成外，结果移除 `invitation`。已加入的邀请不会再次返回可加入凭据。
+
+CLI `sources/preview/create/share/invite/inspect-invitation/open/end/leave/resume` 复用同一 MCP 工具适配；参数见根 README。`share` 要求已有确认的 previewHash 和 requestId，不暗中更新起点；先创建再邀请。邀请失败时输出 `{stage:"created",collaboration,invitationError,recovery}` 并以非零状态退出，继续用 `invite`。`open --print-command` 仅返回启动计划，不接管当前终端。`join --no-open --json` 在原有 URL 和服务输出之外返回本机协作 `id`。
+
 Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客户端连接返回。A 的共享网关不支持远端修改主机账户，也不返回主机认证 token；`threadId/cwd/permissionProfile` 等共享执行参数由协作绑定。其他未开放的原生方法返回可读的“不支持”错误，不默认穿透。
 
 ## 模型设置

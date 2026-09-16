@@ -110,7 +110,7 @@ func run(args []string) error {
 	switch command {
 	case "serve", "join", "mcp", "status", "doctor", "stop":
 	default:
-		return fmt.Errorf("用法: teamcross [serve | join | collaborations | input | mcp | status | doctor | stop | version | cli-status | install-cli | uninstall-cli]")
+		return fmt.Errorf("用法: teamcross [serve | join | sources | preview | create | share | invite | inspect-invitation | collaborations | input | open | end | leave | resume | mcp | status | doctor | stop | version | cli-status | install-cli | uninstall-cli]")
 	}
 	var e error
 	*data, e = service.Normalize(*data)
@@ -219,6 +219,7 @@ func run(args []string) error {
 		return e
 	}
 	target := s.URL
+	joinedID := ""
 	if command == "join" {
 		invitation := ""
 		if *stdin {
@@ -247,11 +248,12 @@ func run(args []string) error {
 			target += "/#/join/" + out.ID
 		} else {
 			target += "/#/collaborations/" + out.ID
+			joinedID = out.ID
 		}
 	}
 	s.Token = ""
 	if *jsonOut {
-		if e = printJSON(map[string]any{"url": target, "service": s}); e != nil {
+		if e = printJSON(map[string]any{"id": joinedID, "url": target, "service": s}); e != nil {
 			return e
 		}
 	} else {

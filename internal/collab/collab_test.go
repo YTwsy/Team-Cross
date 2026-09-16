@@ -73,6 +73,8 @@ func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error 
 	}
 	var result any = map[string]any{}
 	switch method {
+	case "thread/list":
+		result = map[string]any{"data": []Source{f.source}, "nextCursor": nil}
 	case "getAuthStatus":
 		result = map[string]any{"authToken": f.source.Name + "-token", "authMethod": "chatgpt"}
 	case "config/read":
