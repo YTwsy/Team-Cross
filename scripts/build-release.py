@@ -10,8 +10,9 @@ def build_app_icon(source, destination, stage):
     for points,scale in ((16,1),(16,2),(32,1),(32,2),(128,1),(128,2),(256,1),(256,2),(512,1),(512,2)):
         pixels=points*scale;suffix=f'@{scale}x' if scale>1 else ''
         target=iconset/f'icon_{points}x{points}{suffix}.png'
-        if pixels==1024: shutil.copy2(source,target)
-        else: run('sips','-z',str(pixels),str(pixels),str(source),'--out',str(target),stdout=subprocess.DEVNULL)
+        run('sips','-z',str(pixels),str(pixels),str(source),'--out',str(target),stdout=subprocess.DEVNULL)
+    # iconutil rejects otherwise valid iconsets when downloaded source metadata propagates into the renditions.
+    run('xattr','-cr',str(iconset))
     run('iconutil','-c','icns',str(iconset),'-o',str(destination))
 p = argparse.ArgumentParser()
 p.add_argument('--version', default='0.1.6-dev')
