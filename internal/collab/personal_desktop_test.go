@@ -32,6 +32,7 @@ func TestPersonalDesktopOpensPersistedForkWithoutRuntimeChanges(t *testing.T) {
 	if err := s.Action(ctx, "share"); err != nil {
 		t.Fatal(err)
 	}
+	joinFixture(t, s)
 	if err := s.Action(ctx, "handoff"); err != nil {
 		t.Fatal(err)
 	}

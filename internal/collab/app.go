@@ -106,6 +106,10 @@ func Open(cfg Config) (*App, error) {
 	for _, j := range a.joined {
 		j.startHeartbeat()
 	}
+	if err = a.loadShareRequests(); err != nil {
+		a.Close()
+		return nil, err
+	}
 	return a, nil
 }
 func readJSON(path string, out any) error {
@@ -205,6 +209,10 @@ func (a *App) Sources(ctx context.Context, search, cursor string) (map[string]an
 	return result, e
 }
 func (a *App) Preview(ctx context.Context, in CreateInput) (Preview, error) {
+	return a.preview(ctx, in, false)
+}
+
+func (a *App) preview(ctx context.Context, in CreateInput, allowActive bool) (Preview, error) {
 	var p Preview
 	mode, err := runtimeconfig.Parse(in.RuntimeMode)
 	if err != nil {
@@ -245,10 +253,21 @@ func (a *App) Preview(ctx context.Context, in CreateInput) (Preview, error) {
 	if e := a.sourceCall(ctx, provider, "thread/turns/list", map[string]any{"threadId": in.SourceID, "limit": 1, "sortDirection": "desc", "itemsView": "summary"}, &turns); e != nil {
 		return p, e
 	}
-	if len(turns.Data) == 0 || turns.Data[0].ID == "" || turns.Data[0].Status == "inProgress" {
+	if provider == "codex" && p.Source.Path != "" && len(turns.Data) == 1 {
+		id, status, err := nativecodex.SourceTurn(p.Source.Path, in.SourceID)
+		if err != nil {
+			return p, err
+		}
+		if id != turns.Data[0].ID {
+			return p, fmt.Errorf("来源轮次正在变化，请重新查看起点")
+		}
+		turns.Data[0].Status = status
+	}
+	if len(turns.Data) == 0 || turns.Data[0].ID == "" || (!allowActive && turns.Data[0].Status == "inProgress") {
 		return p, fmt.Errorf("来源还没有可分支的已完成对话，请等待当前轮完成")
 	}
 	p.SourceTurnID = turns.Data[0].ID
+	p.SourceTurnStatus = turns.Data[0].Status
 	w, e := workspace.Inspect(ctx, p.Source.Cwd, in.WorkspaceMode)
 	if e != nil {
 		return p, e
@@ -280,6 +299,10 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 		return nil, fmt.Errorf("创建请求缺少唯一标识")
 	}
 	a.mu.Lock()
+	if a.closed {
+		a.mu.Unlock()
+		return nil, fmt.Errorf("Core 已退出")
+	}
 	old := a.sessions[in.RequestID]
 	a.mu.Unlock()
 	if old != nil {
@@ -326,6 +349,10 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 	}
 	s := a.newSession(r)
 	a.mu.Lock()
+	if a.closed {
+		a.mu.Unlock()
+		return nil, fmt.Errorf("Core 已退出")
+	}
 	if old = a.sessions[r.ID]; old != nil {
 		a.mu.Unlock()
 		return a.Create(ctx, in)
@@ -551,6 +578,7 @@ func (a *App) Close() {
 	for _, c := range clients {
 		c.Close()
 	}
+	a.stopShareRequests()
 	_ = a.saveJoined()
 	a.mu.Lock()
 	sessions := make([]*Session, 0, len(a.sessions))

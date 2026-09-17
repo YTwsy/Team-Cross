@@ -2,6 +2,8 @@
 
 WebGUI 是协作管理界面；完整对话和执行交互在对应原生客户端。MCP 让普通本地会话访问已发起或加入的协作。先核对 [产品流程](../../sources/product-flows.md) 与 [协议](../../sources/protocol.md)。
 
+个人 MCP 和 CLI 也支持选择来源、预览、创建、邀请、加入、直接客户端启动及结束/恢复；[管理工具](../../../../internal/mcp/management.go) 统一映射现有 Core API。个人 MCP 还可通过 [当前来源工具](../../../../internal/mcp/current.go) 核对调用者 Session、预览并登记本轮结束后的分享；无法核对身份时明确选择来源，不猜最近会话。登记后结束本轮，再查询状态和取回邀请；等待可取消，重启不自动重放。邀请失败后只重试分享，不重复 fork。共享运行时的内置批注 MCP 保持当前协作范围。
+
 ## 页面与工具入口
 
 | 任务 | 代码入口 |
@@ -11,6 +13,7 @@ WebGUI 是协作管理界面；完整对话和执行交互在对应原生客户�
 | 视觉、键盘与通用组件 | [styles.css](../../../../packages/web/src/styles.css)、[ui.tsx](../../../../packages/web/src/components/ui.tsx) |
 | 本机管理与客户端启动 | [http.go](../../../../internal/collab/http.go)、[launch.go](../../../../internal/collab/launch.go) |
 | STDIO 工具与协议输入 | [mcp/server.go](../../../../internal/mcp/server.go) |
+| 终端协作查询与输入管理 | [collaboration.go](../../../../cmd/teamcross/collaboration.go) |
 
 ## 修改时守住的边界
 

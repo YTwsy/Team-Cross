@@ -8,6 +8,7 @@ Go Core 负责协作与本机管理；A 的专属 Codex app-server 持有共享�
 | --- | --- |
 | 命令、监听、Web 嵌入与关闭 | [cmd/teamcross/main.go](../../../../cmd/teamcross/main.go) |
 | 创建、记录持久化、恢复与进程管理 | [collab/app.go](../../../../internal/collab/app.go) |
+| 当前会话身份与本轮结束后分享 | [mcp/current.go](../../../../internal/mcp/current.go)、[collab/current_share.go](../../../../internal/collab/current_share.go)、[nativecodex/source_turn.go](../../../../internal/nativecodex/source_turn.go) |
 | 原生 WebSocket RPC 和请求分发 | [nativecodex/process.go](../../../../internal/nativecodex/process.go) |
 | 本机管理、共享与接收端代理 | [http.go](../../../../internal/collab/http.go)、[network.go](../../../../internal/collab/network.go) |
 | 工具、工作目录与 TLS/传输 | [mcp](../../../../internal/mcp/)、[workspace](../../../../internal/workspace/)、[sharing](../../../../internal/sharing/) |

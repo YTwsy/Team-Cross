@@ -21,16 +21,18 @@ import (
 )
 
 type fakeRuntime struct {
-	mu       sync.Mutex
-	source   Source
-	calls    []string
-	forks    int
-	handler  func(nativecodex.Message)
-	last     map[string]any
-	fail     bool
-	alive    bool
-	threads  map[string]Source
-	requests map[string]map[string]any
+	mu               sync.Mutex
+	source           Source
+	calls            []string
+	forks            int
+	handler          func(nativecodex.Message)
+	last             map[string]any
+	fail             bool
+	alive            bool
+	threads          map[string]Source
+	requests         map[string]map[string]any
+	sourceTurnID     string
+	sourceTurnStatus string
 }
 
 func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error {
@@ -73,6 +75,8 @@ func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error 
 	}
 	var result any = map[string]any{}
 	switch method {
+	case "thread/list":
+		result = map[string]any{"data": []Source{f.source}, "nextCursor": nil}
 	case "getAuthStatus":
 		result = map[string]any{"authToken": f.source.Name + "-token", "authMethod": "chatgpt"}
 	case "config/read":
@@ -84,7 +88,14 @@ func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error 
 	case "thread/read":
 		result = map[string]any{"thread": thread}
 	case "thread/turns/list":
-		result = map[string]any{"data": []any{map[string]any{"id": "turn-fixture", "status": "completed"}}}
+		turn, status := f.sourceTurnID, f.sourceTurnStatus
+		if turn == "" {
+			turn = "turn-fixture"
+		}
+		if status == "" {
+			status = "completed"
+		}
+		result = map[string]any{"data": []any{map[string]any{"id": turn, "status": status}}}
 	case "thread/fork":
 		f.forks++
 		thread.ID = uuid.NewString()
@@ -227,6 +238,7 @@ func TestInputOwnershipDedupAndApproval(t *testing.T) {
 	if e = s.Action(ctx, "share"); e != nil {
 		t.Fatal(e)
 	}
+	joinFixture(t, s)
 	if e = s.Action(ctx, "handoff"); e != nil {
 		t.Fatal(e)
 	}
@@ -287,6 +299,7 @@ func TestNativeAndToolShareOneWriter(t *testing.T) {
 	if e = s.Action(ctx, "share"); e != nil {
 		t.Fatal(e)
 	}
+	joinFixture(t, s)
 	if e = s.Action(ctx, "handoff"); e != nil {
 		t.Fatal(e)
 	}

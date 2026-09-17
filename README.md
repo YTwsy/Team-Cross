@@ -77,6 +77,23 @@ teamcross stop --force
 
 创建不发送业务指令。来源会话和 Git 起点发生变化时，需要重新查看起点。当前支持普通 Git 仓库；含 submodule 的仓库暂不支持。
 
+也可以从个人 Agent 的 Team Cross 工具或终端发起。先选择明确的本机来源、预览起点，再创建并邀请：
+
+```sh
+teamcross sources --provider codex --search '会话名称' --json
+teamcross preview --provider codex --source <来源UUID> --workspace existing --json
+teamcross share --provider codex --source <来源UUID> --workspace existing \
+  --request-id <预览返回的requestId> --preview-hash <previewHash> --transport lan --json
+```
+
+`--workspace worktree` 创建独立工作目录，`--runtime-mode trusted` 显式选择信任模式，预览和创建必须使用相同设置；默认受限。`--provider claude` 选择实验性 Claude 来源，与调用工具的个人客户端无关。`sources` 支持 `--cursor` 翻页。以上命令按需启动 Core，不打开浏览器。
+
+也可以告诉已接入 MCP 的个人 Agent：“把当前 Session 分享出去，使用原目录、受限模式和局域网。”工具先核对原生客户端传来的当前会话身份、预览现场，再登记分享请求；**本轮答复结束后** Core 才创建 fork 和邀请，使 fork 包含本轮完整对话。Agent 先返回请求 ID，下一轮通过 `get_share_request` 查询，成功后用 `create_invitation` 取回邀请。登记成功不等于邀请已生成，不要让 Agent 在同一轮循环等待自己结束。
+
+终端可用 `teamcross share-status --id <请求ID> --json` 查询，或用 `teamcross cancel-share --id <请求ID>` 取消尚在等待的请求。已开始创建则保留实际结果；来源轮次或 Git 起点变化时停止，不自动换成新起点。Core 停止后未完成请求标记为中断，不在重启后自动创建。无法核对原生调用身份的客户端仍可走上面的明确来源流程，不能用“最近会话”替代“当前会话”。具体版本证据见 [个人 Agent 与 CLI 验证](docs/agent-wiki/sources/validation/agent-cli-collaboration-2026-09-16.md)。
+
+`create` 只创建协作，`invite --id <协作ID> --transport lan|tailcat` 只生成或取回待用邀请；`share` 顺序完成两者。邀请失败返回已创建的协作及恢复提示，后续只运行 `invite`，不换 requestId 重新创建。相同 requestId 的创建重试复用原协作；结果不明时先查询 `collaborations --id <requestId>`。邀请链接与邀请码供用户自行转交，不自动发送给同事。
+
 Codex 协作创建成功后，发起者可在详情顶部点击“在个人 Codex 中打开”，直接定位新的协作会话，无需先在 Desktop 列表中找到它。创建、同事对话和输入交接不会自动切换你的页面。该入口打开你平时使用的 Desktop；共享期间的操作继续使用直接客户端或辅助工具。结束共享并释放会话后，入口变为“在个人 Codex 中继续”。系统打开请求成功不代表新对话已实时同步。
 
 ## 邀请与加入
@@ -86,6 +103,8 @@ Codex 协作创建成功后，发起者可在详情顶部点击“在个人 Code
 ```sh
 teamcross join 'tcx3.…'
 ```
+
+终端可先用 `teamcross inspect-invitation --stdin --json` 读取邀请声明的名称、主机和模式，再通过 `teamcross join --stdin --no-open --json` 加入；两次分别输入同一份邀请。预览仅解析本地内容，实际加入才验证远端。加入 JSON 返回本机协作 `id`。个人 MCP 对应 `preview_invitation` 与 `join_collaboration`。
 
 邀请使用临时 TLS 证书和主机指纹，一小时期限只限制首次加入，且一份邀请只接纳一人。成功加入后使用独立访问凭据，关闭客户端或暂时断线不撤销加入资格，B 重启 Core 后使用已保存凭据重新连接。B 主动离开、A 结束共享或退出/重启 A 的 Core 后，需要新邀请。发起者需保持 Team Cross 运行。
 
@@ -138,6 +157,15 @@ claude mcp add --transport stdio --scope user teamcross -- /absolute/path/to/tea
 | --- | --- |
 | `list_collaborations` | 定位本机发起或已加入的协作 |
 | `get_collaboration` | 查看执行主机、目录、输入者与运行状态 |
+| `list_source_sessions` / `preview_collaboration` | 选择本机来源、预览目录与固定协作模式 |
+| `create_collaboration` / `create_invitation` | 根据已确认起点创建 fork，并单独生成或取回邀请 |
+| `get_current_source` / `preview_current_share` / `share_current_session` | 核对并预览当前 Session，登记本轮结束后的分享 |
+| `get_share_request` / `cancel_share_request` | 查询分享请求，或取消仍在等待的请求 |
+| `preview_invitation` / `join_collaboration` | 预览并加入用户选定的邀请 |
+| `open_client` | 获得输入权后打开新 TUI 或专用 Desktop 窗口 |
+| `end_sharing` / `leave_collaboration` / `resume_collaboration` | 结束共享、主动离开或恢复同一协作运行时 |
+| `request_input` / `cancel_input_request` | 接收者申请或取消输入，不自动交接 |
+| `handoff_input` / `reclaim_input` / `return_input` | 发起者交接或接回，接收者交还输入；传入详情中的 `epoch` |
 | `read_context` | 读取历史、事件、相对路径文件、当前 Git 改动与批注原文引用 |
 | `send_input` | 开始一轮或对当前轮补充输入 |
 | `interrupt_turn` | 中断指定当前轮 |
@@ -146,6 +174,19 @@ claude mcp add --transport stdio --scope user teamcross -- /absolute/path/to/tea
 | `reply_to_annotation` | 回复已有原批注，返回原批注及全部回复；不创建嵌套批注 |
 
 发送成功和执行完成分别表示不同状态。断线或响应超时时先查询实际结果，不自动重复写入。工具不会自动为输入添加参与者身份。
+
+终端也可以查询协作和管理输入，无需打开浏览器：
+
+```sh
+teamcross collaborations --json
+teamcross collaborations --id <协作ID> --json
+teamcross input request --id <协作ID> --epoch <详情中的epoch>
+teamcross input handoff --id <协作ID> --epoch <最新epoch>
+```
+
+`input` 还支持 `cancel`、`reclaim`、`return`。每次先查询详情，再传入看到的输入状态版本；过期操作会被拒绝，结果不明时先查询，不自动重放。发起者只能向已加入的同事交出输入，交出和交还需等待当前轮结束；接回输入不自动中断正在执行的轮次。交接关闭旧直接客户端，辅助工具仍可读取上下文。
+
+取得输入后，用 `teamcross open --id <协作ID> --client tui` 打开新终端窗口，或 `--client desktop` 打开 Codex 专用窗口；`--print-command` 只取得启动计划。Claude 仅支持 TUI。启动请求成功后仍需查看 `clientState`，不把它等同于会话已打开。`end --id` 由发起者结束共享，`leave --id` 由接收者离开，`resume --id` 恢复已有 fork；这些动作保留原生会话与工作目录。
 
 历史默认返回最近 8 轮；工具可将 `nextCursor` 传入 `read_context` 的 `cursor` 读取更早内容。WebGUI 可翻阅更早的一页，完整对话在 Codex 中查看。
 
