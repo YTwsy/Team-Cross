@@ -1,5 +1,7 @@
 # 输入协调与共享
 
+下一阶段首版须支持三人及以上；多成员改造先读 [协作空间任务页](collaboration-spaces.md)。下列 `writer`、单远端成员和双人门槛说明当前实现，不能直接作为多人验收结论。
+
 个人 MCP 与 CLI 已提供申请、取消、交接、接回与交还入口；参数与命令见 [协议](../../sources/protocol.md)。Core 统一检查角色、成员加入、忙碌状态和 epoch。CLI 协作详情与服务 `status` 分开，输入管理不自动发送或中断模型。
 
 先读 [输入与共享决策](../../sources/decisions/input-and-sharing.md)，再按 [协议](../../sources/protocol.md) 核对字段和操作。

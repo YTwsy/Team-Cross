@@ -26,6 +26,10 @@ main 已采用原生协作架构，当前仍处于原型阶段，可以按确认
 
 同机 A/B、同机 Tailcat、两台 Mac 的 LAN、两台 Mac 不同网络和强制 DERP 中继分别报告。Desktop 指定运行时入口依赖已测试的客户端版本，不能仅凭共用 app-server 协议就宣称所有 Desktop 功能兼容。
 
+## 下一阶段已确认范围
+
+独立只读分享可以不创建可执行 fork；首版同时支持三人及以上，不能以双人实现代替。任一参与者可以发布多份选定范围的会话材料，供人和 Agent 按需读取、批注和回应。对象语义见 [核心词汇](product-core-and-glossary.md#下一阶段的对象边界)，设计基线、实施顺序与首版完成标准见 [协作空间契约](decisions/collaboration-spaces.md)。这些能力尚未实现，不改变上文对当前实际支持范围的说明。
+
 ## 主要来源
 
 [用户说明](../../../README.md) · [产品流程](product-flows.md) · [核心词汇](product-core-and-glossary.md) · [架构](architecture.md) · [协议](protocol.md) · [验收导航](../wiki/concepts/validation-gates.md)

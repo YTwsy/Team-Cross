@@ -11,6 +11,7 @@
 | 当前任务 | 优先阅读 |
 | --- | --- |
 | 产品范围、命名、用户流程 | [产品模型与词汇](docs/agent-wiki/wiki/concepts/product-model-and-glossary.md) |
+| 独立只读分享、三人以上、多会话材料 | [协作空间](docs/agent-wiki/wiki/concepts/collaboration-spaces.md)（已确认目标，尚未实现） |
 | 模块、启动、数据路径 | [运行时架构](docs/agent-wiki/wiki/concepts/runtime-architecture.md) |
 | Git、worktree、fork、恢复与结束 | [目录与生命周期](docs/agent-wiki/wiki/concepts/workspace-and-lifecycle.md) |
 | TUI/Desktop、登录、模型与原生接入 | [原生客户端与模型](docs/agent-wiki/wiki/concepts/native-clients-and-models.md) |
@@ -23,7 +24,7 @@
 
 ## 产品与工程边界
 
-- 协作始终创建所选 Provider 的新原生 fork。原目录模式保留当前 Git 状态；新 worktree 从选定 HEAD 检出，不恢复未提交内容。
+- 可执行协作始终创建所选 Provider 的新原生 fork。原目录模式保留当前 Git 状态；新 worktree 从选定 HEAD 检出，不恢复未提交内容。下一阶段允许独立只读分享不创建 fork，且首版必须支持三人及以上；按 [协作空间契约](docs/agent-wiki/sources/decisions/collaboration-spaces.md) 实现，不把尚未完成的目标说成当前能力。
 - 原目录由用户拥有，不能在协作结束、创建失败或清理时删除。新 worktree 同样在结束共享后保留。
 - 会话和执行留在 A；本机原生 TUI 与 Codex 专用 Desktop 直接接入，个人 Codex TUI/Desktop 或 Claude Code TUI 通过 MCP 辅助，辅助客户端与目标协作的 Provider 独立。
 - 协作模式在创建时固定：默认受限，信任模式沿用邀请者的原生配置与权限；Codex 与实验性 Claude 均支持。恢复沿用模式，不提供切换；细则见 [协作模式](docs/agent-wiki/sources/decisions/runtime-modes.md)。

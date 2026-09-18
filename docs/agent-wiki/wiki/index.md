@@ -7,6 +7,7 @@
 | 当前任务 | 优先阅读 | 主要实现 |
 | --- | --- | --- |
 | 判断产品范围、命名或用户流程 | [产品模型与词汇](concepts/product-model-and-glossary.md) | [协作类型](../../../internal/collab/types.go)、[WebGUI](../../../packages/web/src/) |
+| 实现独立只读分享、三人以上与多会话材料 | [协作空间](concepts/collaboration-spaces.md)（已确认目标，尚未实现） | [协作类型](../../../internal/collab/types.go)、[共享成员](../../../internal/sharing/sharing.go)、[MCP](../../../internal/mcp/server.go) |
 | 调整模块、启动或数据路径 | [运行时架构](concepts/runtime-architecture.md) | [CLI](../../../cmd/teamcross/main.go)、[协作核心](../../../internal/collab/app.go) |
 | 修改原目录、worktree、fork 或恢复 | [目录与生命周期](concepts/workspace-and-lifecycle.md) | [workspace](../../../internal/workspace/)、[app.go](../../../internal/collab/app.go) |
 | 修改 TUI/Desktop、登录、模型或原生接入 | [原生客户端与模型](concepts/native-clients-and-models.md) | [nativecodex](../../../internal/nativecodex/)、[本机路由](../../../internal/collab/local_client.go) |
@@ -16,6 +17,8 @@
 | 安装、App 外壳与首次体验 | [分发与首次体验](../sources/distribution-and-onboarding.md) | [公共启动器](../../../internal/service/service.go)、[App](../../../apps/macos/TeamCross.swift)、[构建](../../../scripts/build-release.py) |
 
 ## 完整事实来源
+
+- [只读分享与多人协作空间](../sources/decisions/collaboration-spaces.md)：首版已确认支持独立只读分享和三人及以上；设计基线、实施批次与验收要求，不是当前能力记录。
 
 - [2026-09-16 个人 Agent 与 CLI](../sources/validation/agent-cli-collaboration-2026-09-16.md)：输入接力入口、Core 统一条件与各批次实际验证边界。
 

@@ -16,6 +16,8 @@ Agent Session 入手，为具体的一次工作增加共同视图、可定位批
 
 > 它是否从一个具体 Session 出发，并帮助另一个人理解、审阅、控制或继续这次工作？
 
+下一阶段已确认支持独立只读会话分享和三人及以上参与，允许各方发布多个选定范围的 Session 供阅读与讨论；这些能力尚未实现。产品边界与实施要求见 [协作空间设计契约](docs/agent-wiki/sources/decisions/collaboration-spaces.md)，下文仍说明当前版本的实际能力。
+
 ## 安装
 
 面向 Apple Silicon、macOS 14 及以上。首个公开版本为 `v0.1.1`，当前预发布版本为 `v0.1.7-rc.1`；CLI、App 和 Homebrew 产物使用相同版本。GitHub Release 成功后，受保护的后续流程才会通过独立 tap PR 发布 Homebrew 定义。发布入口为 [GitHub Releases](https://github.com/YTwsy/Team-Cross/releases)，对应渠道的 Release 与公共 tap 验证完成后可使用以下方式。

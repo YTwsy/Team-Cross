@@ -6,6 +6,7 @@
 | --- | --- |
 | 产品功能与使用流程 | [产品流程](agent-wiki/sources/product-flows.md) |
 | 概念、命名与产品边界 | [核心模型与词汇](agent-wiki/sources/product-core-and-glossary.md) |
+| 下一阶段独立只读分享与三人以上协作 | [协作空间契约](agent-wiki/sources/decisions/collaboration-spaces.md)（尚未实现） |
 | 模块职责、数据路径与原生接入 | [架构](agent-wiki/sources/architecture.md) |
 | API、邀请、原生 RPC 与 MCP | [协议](agent-wiki/sources/protocol.md) |
 | 修改后应验证什么 | [验证门槛](agent-wiki/sources/validation/test-gates.md) |

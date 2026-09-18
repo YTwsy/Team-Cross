@@ -2,6 +2,8 @@
 
 Team Cross 从已有 Codex 来源会话创建新的协作 fork，在 A 的执行目录中继续；B 可直接操作，也可用自己的本地 Codex 通过工具辅助。两种入口都支持 TUI 和 Desktop。
 
+上文是当前实现。下一阶段已确认独立只读分享与首版三人及以上参与，开始该改造先读 [协作空间任务页](collaboration-spaces.md) 和 [完整契约](../../sources/decisions/collaboration-spaces.md)；不要把只读材料与可操作 fork 混为同一个对象。
+
 ## 先读
 
 [项目简报](../../sources/project-brief.md) · [完整词汇](../../sources/product-core-and-glossary.md) · [用户流程](../../sources/product-flows.md)
