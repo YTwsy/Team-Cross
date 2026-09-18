@@ -1,16 +1,28 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useResource } from "../api";
+import { readingTitle } from "../reading";
 import {
   codeLines,
   codeTargetMatches,
   diffLines,
   lineTarget,
   targetLabel,
-  textSelection,
   type CodeLine,
 } from "../annotations";
-import type { AnnotationTarget, Changes, FileContext, History } from "../types";
+import type {
+  Annotation,
+  AnnotationTarget,
+  Changes,
+  FileContext,
+  History,
+} from "../types";
 import type { AnnotationRequest } from "./Annotations";
+import {
+  ReaderMessage,
+  ReadingLayout,
+  type Annotate,
+  type Discuss,
+} from "./Reading";
 import { Empty, ErrorBox, Icon, Loading } from "./ui";
 
 function parentElement(node: Node) {
@@ -30,6 +42,8 @@ export function Context({
   location,
   agentName = "Codex",
   technical,
+  annotations = [],
+  onDiscuss,
 }: {
   id: string;
   sessionId: string;
@@ -37,7 +51,9 @@ export function Context({
   online: boolean;
   closed: boolean;
   canAnnotate: boolean;
-  onAnnotate: (target: AnnotationTarget) => void;
+  onAnnotate: Annotate;
+  annotations?: Annotation[];
+  onDiscuss?: Discuss;
   location?: AnnotationRequest;
   agentName?: string;
   technical?: ReactNode;
@@ -62,7 +78,46 @@ export function Context({
     0,
     sequence,
   );
-  const data = context.dataPath === contextPath ? context.data : undefined;
+  const latest = context.dataPath === contextPath ? context.data : undefined;
+  const [historyView, setHistoryView] = useState<{
+    path: string;
+    data: History;
+    signature: string;
+  }>();
+  const acceptNextHistory = useRef(false);
+  const historySignature = useMemo(
+    () => (latest && "thread" in latest ? JSON.stringify(latest) : ""),
+    [latest],
+  );
+  useEffect(() => {
+    if (!latest || !("thread" in latest) || !contextPath) return;
+    if (
+      !historyView ||
+      historyView.path !== contextPath ||
+      acceptNextHistory.current
+    ) {
+      setHistoryView({
+        path: contextPath,
+        data: latest,
+        signature: historySignature,
+      });
+      acceptNextHistory.current = false;
+    }
+  }, [latest, contextPath, historySignature, historyView]);
+  const data =
+    tab === "history" && historyView?.path === contextPath
+      ? historyView.data
+      : latest;
+  const historyPending =
+    tab === "history" &&
+    latest &&
+    "thread" in latest &&
+    historyView?.path === contextPath &&
+    historyView.signature !== historySignature;
+  function refresh() {
+    acceptNextHistory.current = true;
+    context.reload();
+  }
   const lines = useMemo(() => {
     if (tab === "file" && data && "text" in data)
       return codeLines(data.text, data.path || file);
@@ -101,6 +156,7 @@ export function Context({
     setLocationStatus("正在查找批注原文…");
     searched.current = new Set();
     finishedLocation.current = false;
+    acceptNextHistory.current = true;
     context.reload();
     panel.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
   }, [location, context.reload]);
@@ -154,8 +210,16 @@ export function Context({
     finishedLocation.current = true;
   }, [activeTarget, tab, data, context.loading, codeMatch, sessionId]);
 
-  function start(target: AnnotationTarget) {
-    onAnnotate({ ...target, sessionId });
+  function start(target: AnnotationTarget, element?: HTMLElement) {
+    const range = window.getSelection();
+    onAnnotate(
+      { ...target, sessionId },
+      element
+        ? { element }
+        : range?.rangeCount && panel.current
+          ? { element: panel.current, range: range.getRangeAt(0).cloneRange() }
+          : undefined,
+    );
   }
   function changeTab(next: ContextTab) {
     setActiveTarget(undefined);
@@ -172,25 +236,6 @@ export function Context({
     const range = selected.getRangeAt(0);
     const startElement = parentElement(range.startContainer);
     const endElement = parentElement(range.endContainer);
-    const message = startElement?.closest<HTMLElement>("[data-message-text]");
-    if (
-      message &&
-      message === endElement?.closest("[data-message-text]") &&
-      panel.current?.contains(message)
-    ) {
-      const selectedText = textSelection(message);
-      if (selectedText && message.dataset.itemId) {
-        setSelection({
-          kind: "history",
-          turnId: message.dataset.turnId!,
-          itemId: message.dataset.itemId,
-          cursor: cursor || undefined,
-          ...selectedText,
-        });
-        setSelectionHint("");
-        return;
-      }
-    }
     const first = startElement?.closest<HTMLElement>("[data-code-row]");
     const last = endElement?.closest<HTMLElement>("[data-code-row]");
     if (
@@ -249,7 +294,12 @@ export function Context({
           <button
             className="code-annotate"
             aria-label={`批注 ${targetLabel(target)}`}
-            onClick={() => start(target)}
+            onClick={(event) =>
+              start(
+                target,
+                event.currentTarget.closest<HTMLElement>("[data-code-row]")!,
+              )
+            }
           >
             <Icon name="plus" size={12} />
           </button>
@@ -266,86 +316,79 @@ export function Context({
     if (tab === "history" && "thread" in data) {
       const turns = data.thread.turns || [];
       body = turns.length ? (
-        <div
-          className="history"
-          onMouseUp={captureSelection}
-          onKeyUp={captureSelection}
+        <ReadingLayout
+          outline={turns.map((turn, i) => ({
+            id: turn.id,
+            label: readingTitle(
+              turn.items?.find((item) => item.type === "userMessage")?.text ||
+                turn.items?.[0]?.text ||
+                `第 ${i + 1} 轮`,
+            ),
+            onSelect: () =>
+              Array.from(
+                panel.current?.querySelectorAll<HTMLElement>(
+                  "[data-reader-turn]",
+                ) || [],
+              )
+                .find((el) => el.dataset.readerTurn === turn.id)
+                ?.scrollIntoView({ block: "start", behavior: "smooth" }),
+          }))}
         >
-          {turns.map((turn) => (
-            <div key={turn.id} className="history-turn">
-              {(turn.items || [])
-                .filter(
-                  (item) =>
-                    item.type === "userMessage" || item.type === "agentMessage",
-                )
-                .map((item, index) => {
-                  const text =
-                    item.text ||
-                    item.content?.map((part) => part.text || "").join("\n") ||
-                    "";
-                  const excerpt = Array.from(text).slice(0, 8000).join("");
-                  const highlighted =
-                    activeTarget?.kind === "history" &&
-                    (!activeTarget.sessionId ||
-                      activeTarget.sessionId === sessionId) &&
-                    turn.id === activeTarget.turnId &&
-                    item.id === activeTarget.itemId &&
-                    text.slice(
-                      activeTarget.startOffset || 0,
-                      activeTarget.endOffset,
-                    ) === activeTarget.quote;
-                  return (
-                    <div
-                      className={`history-message ${item.type}`}
-                      key={item.id || index}
-                    >
-                      <div className="message-heading">
-                        <span className="eyebrow">
-                          {item.type === "userMessage" ? "用户" : agentName}
-                        </span>
-                        {canAnnotate && item.id && excerpt.trim() && (
-                          <button
-                            className="message-annotate"
-                            onClick={() =>
-                              start({
-                                kind: "history",
-                                turnId: turn.id,
-                                itemId: item.id!,
-                                cursor: cursor || undefined,
-                                startOffset: 0,
-                                endOffset: excerpt.length,
-                                quote: excerpt,
-                              })
-                            }
-                          >
-                            <Icon name="comment" size={13} />
-                            批注这条消息
-                          </button>
-                        )}
-                      </div>
-                      <p
-                        data-message-text
-                        data-turn-id={turn.id}
-                        data-item-id={item.id}
-                      >
-                        {highlighted ? (
-                          <>
-                            {text.slice(0, activeTarget.startOffset || 0)}
-                            <mark data-annotation-highlight>
-                              {activeTarget.quote}
-                            </mark>
-                            {text.slice(activeTarget.endOffset)}
-                          </>
-                        ) : (
-                          text
-                        )}
-                      </p>
-                    </div>
-                  );
-                })}
-            </div>
-          ))}
-        </div>
+          <div className="history">
+            {turns.map((turn, turnIndex) => (
+              <div
+                key={turn.id}
+                className="history-turn"
+                data-reader-turn={turn.id}
+              >
+                <div className="reader-turn-heading">第 {turnIndex + 1} 轮</div>
+                {(turn.items || [])
+                  .filter((item) =>
+                    [
+                      "userMessage",
+                      "agentMessage",
+                      "toolCall",
+                      "toolResult",
+                      "commandExecution",
+                      "fileChange",
+                    ].includes(item.type),
+                  )
+                  .map((item, index) => {
+                    const text =
+                      item.text ||
+                      item.content?.map((part) => part.text || "").join("\n") ||
+                      "";
+                    return (
+                      <ReaderMessage
+                        key={item.id || index}
+                        source={text}
+                        label={
+                          item.type === "userMessage"
+                            ? "用户"
+                            : item.type === "agentMessage"
+                              ? agentName
+                              : "工具过程"
+                        }
+                        target={{
+                          kind: "history",
+                          sessionId,
+                          turnId: turn.id,
+                          itemId: item.id,
+                          cursor: cursor || undefined,
+                          quote: text,
+                        }}
+                        activeTarget={activeTarget}
+                        annotations={annotations}
+                        onAnnotate={onAnnotate}
+                        onDiscuss={onDiscuss}
+                        disabled={!canAnnotate}
+                      />
+                    );
+                  })}
+              </div>
+            ))}
+          </div>
+        </ReadingLayout>
       ) : (
         <Empty icon="comment" title="还没有新的活动">
           <p>在 {agentName} 中继续，最新的上下文会出现在这里。</p>
@@ -403,7 +446,7 @@ export function Context({
             className="icon-button"
             aria-label="刷新上下文"
             disabled={!online}
-            onClick={context.reload}
+            onClick={refresh}
           >
             <Icon name="refresh" size={17} />
           </button>
@@ -447,7 +490,7 @@ export function Context({
           </button>
         </form>
       )}
-      {canAnnotate && tab !== "technical" && (
+      {canAnnotate && tab !== "technical" && tab !== "history" && (
         <div
           className={`context-selection ${selection ? "has-selection" : ""}`}
         >
@@ -455,9 +498,7 @@ export function Context({
             {selection
               ? targetLabel(selection)
               : selectionHint ||
-                (tab === "history"
-                  ? "选中文字可批注，也可以针对整条消息留下意见。"
-                  : "点击行旁的 +，或拖选同一侧的连续代码行来批注。")}
+                "点击行旁的 +，或拖选同一侧的连续代码行来批注。"}
           </span>
           {selection && (
             <button
@@ -495,7 +536,25 @@ export function Context({
         technical
       ) : (
         <>
-          <ErrorBox message={context.error} retry={context.reload} />
+          <ErrorBox message={context.error} retry={refresh} />
+          {historyPending && (
+            <div className="reader-update" role="status">
+              <span>对话有新内容，当前阅读位置已保留。</span>
+              <button
+                className="button small"
+                onClick={() => {
+                  if (latest && "thread" in latest && contextPath)
+                    setHistoryView({
+                      path: contextPath,
+                      data: latest,
+                      signature: historySignature,
+                    });
+                }}
+              >
+                显示新内容
+              </button>
+            </div>
+          )}
           {!online ? (
             <Empty
               icon="link"
@@ -546,7 +605,7 @@ export function Context({
       <div className="panel-footnote">
         {tab === "technical"
           ? "这些信息来自当前协作记录和运行时最近确认的状态。"
-          : `这里只保留轻量上下文，完整对话与执行交互请在 ${agentName} 中查看。`}
+          : `这里展示已读取的协作上下文；执行交互继续使用 ${agentName} 原生客户端。`}
       </div>
     </section>
   );

@@ -38,8 +38,8 @@ func TestMaterialsBrowserFixture(t *testing.T) {
 		f.source.Name = name + " · 接口超时调查"
 		f.source.Preview = "连接池与服务端耗时的交叉验证"
 		f.history = []MaterialTurn{
-			{ID: "verification", Status: "completed", Items: []MaterialItem{{ID: "final", Type: "agentMessage", Text: "复测通过：两组数据中，连接池等待下降，服务端耗时保持稳定。建议在此次发布中保留验证条件。"}}},
-			{ID: "analysis", Status: "completed", Items: []MaterialItem{{ID: "analysis", Type: "agentMessage", Text: "观察到超时集中在请求获取连接之前。可以先对照连接池等待与服务端耗时，排除业务逻辑本身。"}, {ID: "tool", Type: "toolResult", Text: "样本：请求 200 次；连接池等待 p95 420 ms；服务端 p95 30 ms。"}}},
+			{ID: "verification", Status: "completed", Items: []MaterialItem{{ID: "final", Type: "agentMessage", Text: "## 复测结果\n\n两组数据中，**连接池等待下降**，服务端耗时保持稳定。建议在此次发布中保留验证条件。\n\n| 指标 | 调整前 | 调整后 |\n| --- | --- | --- |\n| 连接池等待 P95 | 420 ms | 38 ms |\n| 服务端耗时 P95 | 30 ms | 31 ms |\n\n> 样本量仍然有限，需要在相同并发条件下继续观察。\n\n- [x] 保留观测数据\n- [ ] 对照生产并发复测"}}},
+			{ID: "analysis", Status: "completed", Items: []MaterialItem{{ID: "analysis", Type: "agentMessage", Text: "## 连接池等待分析\n\n观察到超时集中在**请求获取连接之前**。可以先对照连接池等待与服务端耗时，排除业务逻辑本身。\n\n### 验证步骤\n\n1. 固定并发为 20，重复 200 次请求。\n2. 分别记录等待时间与服务端耗时。\n3. 复测中文🙂，再复测中文🙂，检查选区引用是否精确。\n\n```go\nfunc observe(wait time.Duration) {\n    fmt.Printf(\"连接池等待: %s\\n\", wait)\n}\n```\n\n参数使用 `MaxConnsPerHost`，并记录 [连接池文档](https://pkg.go.dev/net/http#Transport) 中的取值依据。\n\n原文映射也覆盖实体 &amp; 和转义 \\*，保存时保留材料的固定版本。"}, {ID: "tool", Type: "toolResult", Text: "样本：请求 200 次；连接池等待 p95 420 ms；服务端 p95 30 ms。\n观察命令输出保留为原文。"}}},
 			{ID: "private", Status: "completed", Items: []MaterialItem{{ID: "private", Type: "agentMessage", Text: "仅本机可见：另外一个客户的无关问题，不应纳入本次分享。"}}},
 		}
 	}

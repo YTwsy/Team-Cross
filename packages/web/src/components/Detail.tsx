@@ -450,10 +450,13 @@ export function Detail({ id }: { id: string }) {
           <Materials
             collaboration={c}
             reload={resource.reload}
-            onAnnotate={(target) =>
-              setAnnotationRequest({ target, serial: Date.now() })
+            onAnnotate={(target, origin) =>
+              setAnnotationRequest({ target, origin, serial: Date.now() })
             }
             location={annotationLocation}
+            onDiscuss={(annotationId, origin) =>
+              setAnnotationRequest({ annotationId, origin, serial: Date.now() })
+            }
           />
           <Context
             id={id}
@@ -463,8 +466,8 @@ export function Detail({ id }: { id: string }) {
               <TechnicalInformation collaboration={c} agentName={agentName} />
             }
             canAnnotate={owner || (c.online && !closed)}
-            onAnnotate={(target) =>
-              setAnnotationRequest({ target, serial: Date.now() })
+            onAnnotate={(target, origin) =>
+              setAnnotationRequest({ target, origin, serial: Date.now() })
             }
             location={
               annotationLocation?.target?.kind === "material"
@@ -477,6 +480,10 @@ export function Detail({ id }: { id: string }) {
                 c.state === "ready" &&
                 c.runtimeState !== "releasing" &&
                 c.runtimeState !== "starting")
+            }
+            annotations={c.annotations}
+            onDiscuss={(annotationId, origin) =>
+              setAnnotationRequest({ annotationId, origin, serial: Date.now() })
             }
             sequence={c.sequence}
             closed={closed}

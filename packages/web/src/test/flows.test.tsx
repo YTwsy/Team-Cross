@@ -461,7 +461,11 @@ describe("产品路径", () => {
           },
     );
     render(<Detail id="c1" />);
-    expect(await screen.findByText("释放后保留的对话")).toBeVisible();
+    expect(
+      await screen.findByText("释放后保留的对话", {
+        selector: "[data-source-start]",
+      }),
+    ).toBeVisible();
     expect(calls.every((c) => c.body === undefined)).toBe(true);
     await userEvent
       .setup()

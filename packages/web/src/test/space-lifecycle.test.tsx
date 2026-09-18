@@ -197,6 +197,6 @@ it("keeps a member in discussion after execution is enabled until execution acce
   expect(
     screen.queryByRole("button", { name: "申请输入" }),
   ).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "附上这次调查" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "发布会话材料" })).toBeEnabled();
   expect(screen.queryByText("这次共享已结束")).not.toBeInTheDocument();
 });

@@ -137,7 +137,12 @@ export function ReadOnlySpace({
           <Materials
             collaboration={c}
             reload={reload}
-            onAnnotate={(target) => setRequest({ target, serial: Date.now() })}
+            onAnnotate={(target, origin) =>
+              setRequest({ target, origin, serial: Date.now() })
+            }
+            onDiscuss={(annotationId, origin) =>
+              setRequest({ annotationId, origin, serial: Date.now() })
+            }
             location={location}
           />
           <section className="panel optional-execution">

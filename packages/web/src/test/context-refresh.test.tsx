@@ -102,7 +102,9 @@ describe("协作上下文刷新", () => {
     async (role) => {
       current.role = role;
       await openDetail();
-      const message = screen.getByText("已加载的对话");
+      const message = screen.getByText("已加载的对话", {
+        selector: "[data-source-start]",
+      });
       const container = message.closest(".history")!;
       container.scrollTop = 160;
       const next = deferred();
@@ -117,16 +119,29 @@ describe("协作上下文刷新", () => {
       await act(async () => {
         next.resolve(history("对话有了新内容"));
       });
-      expect(screen.getByText("对话有了新内容").closest(".history")).toBe(
-        container,
-      );
+      expect(message).toBeVisible();
+      expect(
+        screen.queryByText("对话有了新内容", {
+          selector: "[data-source-start]",
+        }),
+      ).not.toBeInTheDocument();
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "显示新内容" }));
+      });
+      expect(
+        screen
+          .getByText("对话有了新内容", { selector: "[data-source-start]" })
+          .closest(".history"),
+      ).toBe(container);
       expect(container.scrollTop).toBe(160);
     },
   );
 
   it("手动刷新失败保留对话，重试后原位更新", async () => {
     await openDetail();
-    const message = screen.getByText("已加载的对话");
+    const message = screen.getByText("已加载的对话", {
+      selector: "[data-source-start]",
+    });
     const container = message.closest(".history");
     const next = deferred();
     readContext = () => next.promise;
@@ -145,9 +160,11 @@ describe("协作上下文刷新", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "重试" }));
     });
-    expect(screen.getByText("重试后的对话").closest(".history")).toBe(
-      container,
-    );
+    expect(
+      screen
+        .getByText("重试后的对话", { selector: "[data-source-start]" })
+        .closest(".history"),
+    ).toBe(container);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -158,7 +175,9 @@ describe("协作上下文刷新", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("tab", { name: "代码改动" }));
     });
-    expect(screen.queryByText("已加载的对话")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("已加载的对话", { selector: "[data-source-start]" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("正在加载…")).toBeVisible();
     await act(async () => {
       changes.resolve(
@@ -202,11 +221,20 @@ describe("协作上下文刷新", () => {
     await poll();
     readContext = () => history("最新对话");
     await poll();
-    expect(screen.getByText("最新对话")).toBeVisible();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "显示新内容" }));
+    });
+    expect(
+      screen.getByText("最新对话", { selector: "[data-source-start]" }),
+    ).toBeVisible();
     await act(async () => {
       older.resolve(history("过期对话"));
     });
-    expect(screen.getByText("最新对话")).toBeVisible();
-    expect(screen.queryByText("过期对话")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("最新对话", { selector: "[data-source-start]" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("过期对话", { selector: "[data-source-start]" }),
+    ).not.toBeInTheDocument();
   });
 });

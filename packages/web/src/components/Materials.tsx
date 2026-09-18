@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, errorText } from "../api";
-import { textSelection } from "../annotations";
+import { joinMaterialSegments, readingTitle } from "../reading";
+import {
+  ReaderMessage,
+  ReadingLayout,
+  type Annotate,
+  type Discuss,
+} from "./Reading";
 import type {
   AnnotationTarget,
   Collaboration,
   Material,
+  Annotation,
   MaterialPage,
   MaterialReference,
 } from "../types";
@@ -13,110 +20,11 @@ import { Publisher, itemLabel } from "./Publisher";
 import { Copy, ErrorBox, Loading, Modal } from "./ui";
 import type { AnnotationRequest } from "./Annotations";
 
-export function MaterialReferenceLinks({
-  references = [],
-  materials = [],
-  onLocate,
-}: {
-  references?: MaterialReference[];
-  materials?: Material[];
-  onLocate: (ref: MaterialReference) => void;
-}) {
-  return (
-    <div className="material-reference-links">
-      {references.map((r, i) => {
-        const m = materials.find((m) => m.id === r.materialId),
-          v = m?.versions.find((v) => v.version === r.version);
-        return (
-          <button
-            type="button"
-            className="text-link small-text"
-            key={`${r.materialId}-${r.version}-${i}`}
-            onClick={() => onLocate(r)}
-          >
-            {v?.title || "会话材料"} · 版本 {r.version}
-            {m?.withdrawnAt
-              ? " · 已撤回"
-              : m && r.version !== m.versions.at(-1)?.version
-                ? " · 有新版本"
-                : ""}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-export function MaterialReferencePicker({
-  materials = [],
-  value,
-  onChange,
-  disabled,
-}: {
-  materials?: Material[];
-  value: MaterialReference[];
-  onChange: (refs: MaterialReference[]) => void;
-  disabled: boolean;
-}) {
-  const choices = materials
-    .filter((m) => !m.withdrawnAt)
-    .flatMap((m) =>
-      m.versions.map((v) => ({ m, v, key: `${m.id}:${v.version}` })),
-    );
-  return (
-    <div className="material-reference-picker">
-      <label className="field">
-        附上已发布调查
-        <select
-          aria-label="附上已发布调查"
-          value=""
-          disabled={disabled || value.length >= 16}
-          onChange={(e) => {
-            const entry = choices.find((c) => c.key === e.target.value);
-            if (
-              entry &&
-              !value.some(
-                (r) =>
-                  r.materialId === entry.m.id && r.version === entry.v.version,
-              )
-            )
-              onChange([
-                ...value,
-                { materialId: entry.m.id, version: entry.v.version },
-              ]);
-          }}
-        >
-          <option value="">选择材料与固定版本…</option>
-          {choices.map(({ m, v, key }) => (
-            <option key={key} value={key}>
-              {m.author} · {v.title} · 版本 {v.version}
-            </option>
-          ))}
-        </select>
-      </label>
-      {value.map((r, i) => (
-        <div className="material-attached" key={`${r.materialId}:${r.version}`}>
-          <span>
-            {choices.find(
-              (c) => c.m.id === r.materialId && c.v.version === r.version,
-            )?.v.title || "会话材料"}{" "}
-            · 版本 {r.version}
-          </span>
-          <button
-            type="button"
-            className="text-link"
-            disabled={disabled}
-            onClick={() => onChange(value.filter((_, n) => n !== i))}
-          >
-            移除引用
-          </button>
-        </div>
-      ))}
-      {!choices.length && (
-        <p className="small-text muted">先在材料区发布会话，即可附到这里。</p>
-      )}
-    </div>
-  );
-}
+type ReadingMemory = {
+  turn: string;
+  page: MaterialPage;
+  position?: { key: string; top: number };
+};
 
 function MaterialReader({
   spaceId,
@@ -125,36 +33,84 @@ function MaterialReader({
   target,
   onAnnotate,
   disabled,
+  annotations = [],
+  onDiscuss,
+  memory,
+  onVersion,
 }: {
   spaceId: string;
   material: Material;
   reference: MaterialReference;
   target?: AnnotationTarget;
-  onAnnotate: (target: AnnotationTarget) => void;
+  onAnnotate: Annotate;
+  annotations?: Annotation[];
+  onDiscuss?: Discuss;
   disabled: boolean;
+  memory: Map<string, ReadingMemory>;
+  onVersion: (version: number) => void;
 }) {
-  const [version, setVersion] = useState(reference.version);
-  const [turn, setTurn] = useState(reference.turnId || "");
+  const version = reference.version,
+    memoryKey = `${material.id}:${version}`;
+  const cached = memory.get(memoryKey);
+  const [turn, setTurn] = useState(reference.turnId || cached?.turn || "");
   const [page, setPage] = useState<MaterialPage>();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [selection, setSelection] = useState<AnnotationTarget>();
   const request = useRef(0);
+  const searchedPages = useRef(0);
   const panel = useRef<HTMLDivElement>(null);
+  const restore = useRef(!target ? cached?.position : undefined);
+  useLayoutEffect(
+    () => () => {
+      const entry = memory.get(memoryKey);
+      const anchor = Array.from(
+        panel.current?.querySelectorAll<HTMLElement>("[data-reading-key]") ||
+          [],
+      ).find((el) => el.getBoundingClientRect().bottom > 80);
+      if (entry && anchor)
+        entry.position = {
+          key: anchor.dataset.readingKey!,
+          top: anchor.getBoundingClientRect().top,
+        };
+    },
+    [memory, memoryKey],
+  );
+  useLayoutEffect(() => {
+    if (!page || !restore.current) return;
+    const position = restore.current;
+    const anchor = Array.from(
+      panel.current?.querySelectorAll<HTMLElement>("[data-reading-key]") || [],
+    ).find((el) => el.dataset.readingKey === position.key);
+    if (anchor)
+      window.scrollBy?.(0, anchor.getBoundingClientRect().top - position.top);
+    restore.current = undefined;
+  }, [page]);
   useEffect(() => {
     const serial = ++request.current,
       abort = new AbortController();
     setPage(undefined);
-    setSelection(undefined);
     setLoading(true);
     setError("");
+    const remembered = memory.get(memoryKey);
+    if (remembered?.turn === turn) {
+      setPage(remembered.page);
+      setLoading(false);
+      return () => {
+        request.current++;
+      };
+    }
     api<MaterialPage>(
       `collaborations/${spaceId}/read-material`,
       { materialId: material.id, version, turnId: turn },
       abort.signal,
     )
       .then((p) => {
-        if (serial === request.current) setPage(p);
+        if (serial === request.current) {
+          if (!memory.has(memoryKey) && memory.size >= 6)
+            memory.delete(memory.keys().next().value!);
+          memory.set(memoryKey, { turn, page: p });
+          setPage(p);
+        }
       })
       .catch((e) => {
         if (!abort.signal.aborted) setError(errorText(e));
@@ -166,10 +122,10 @@ function MaterialReader({
       abort.abort();
       request.current++;
     };
-  }, [spaceId, material.id, version, turn]);
+  }, [spaceId, material.id, version, turn, memory, memoryKey]);
   useEffect(() => {
     panel.current
-      ?.querySelector("[data-material-match]")
+      ?.querySelector("[data-annotation-highlight]")
       ?.scrollIntoView?.({ block: "nearest" });
   }, [page, target]);
   async function more() {
@@ -182,16 +138,46 @@ function MaterialReader({
         `collaborations/${spaceId}/read-material`,
         { materialId: material.id, version, cursor: page.nextCursor },
       );
-      if (serial === request.current)
-        setPage((p) =>
-          p ? { ...next, segments: [...p.segments, ...next.segments] } : next,
-        );
+      if (serial === request.current) {
+        const joined = {
+          ...next,
+          segments: [...page.segments, ...next.segments],
+        };
+        memory.set(memoryKey, { turn, page: joined });
+        setPage(joined);
+      }
     } catch (e) {
       if (serial === request.current) setError(errorText(e));
     } finally {
       if (serial === request.current) setLoading(false);
     }
   }
+  const located =
+    !!target &&
+    joinMaterialSegments(page?.segments || []).some((segment) => {
+      const start = (target.startOffset || 0) - segment.startOffset;
+      const end = (target.endOffset || 0) - segment.startOffset;
+      return (
+        segment.turnId === target.turnId &&
+        segment.itemId === target.itemId &&
+        start >= 0 &&
+        end <= segment.text.length &&
+        segment.text.slice(start, end) === target.quote
+      );
+    });
+  useEffect(() => {
+    if (
+      target &&
+      page?.nextCursor &&
+      !located &&
+      !loading &&
+      !error &&
+      searchedPages.current < 20
+    ) {
+      searchedPages.current++;
+      void more();
+    }
+  }, [page, target, located, loading, error]);
   const v = material.versions.find((v) => v.version === version);
   return (
     <div ref={panel} className="material-reader">
@@ -201,8 +187,7 @@ function MaterialReader({
           <select
             value={version}
             onChange={(e) => {
-              setVersion(Number(e.target.value));
-              setTurn("");
+              onVersion(Number(e.target.value));
             }}
           >
             {material.versions.map((v) => (
@@ -224,28 +209,25 @@ function MaterialReader({
           轮，移出公开范围 {v.changes.removed} 轮。旧版本及旧引用保持不变。
         </p>
       )}
-      <p className="small-text muted">
-        {v?.provider} · 来源 {v?.sourceId} · 公开 {v?.turnCount} 轮 ·{" "}
-        {v?.noticeCount || 0} 处导出说明
-      </p>
+      <details className="reader-provenance">
+        <summary>
+          {v?.provider} · 公开 {v?.turnCount} 轮 · 版本 {version}
+        </summary>
+        <p className="small-text muted">
+          来源 {v?.sourceId} · {v?.noticeCount || 0} 处导出说明
+        </p>
+      </details>
       {target?.quote && (
         <blockquote className="annotation-preview">
           <strong>所引用的原文 · 版本 {target.version}</strong>
           <p>{target.quote}</p>
+          {!loading && page && !located && (
+            <span>
+              这页尚未找到引用位置。
+              {page.nextCursor ? "可继续读取正文。" : "以下保留批注时的片段。"}
+            </span>
+          )}
         </blockquote>
-      )}
-      {page && (
-        <label className="field">
-          在公开范围内定位
-          <select value={turn} onChange={(e) => setTurn(e.target.value)}>
-            <option value="">从公开范围开头阅读</option>
-            {page.turns.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </label>
       )}
       {!!v?.readingStartId && !turn && (
         <button
@@ -256,101 +238,65 @@ function MaterialReader({
         </button>
       )}
       <ErrorBox message={error} />
-      <div className="material-body">
-        {page?.segments.map((segment, i) => {
-          const match =
-            target?.kind === "material" &&
-            target.version === version &&
-            target.turnId === segment.turnId &&
-            target.itemId === segment.itemId &&
-            target.startOffset! >= segment.startOffset &&
-            target.endOffset! <= segment.endOffset &&
-            segment.text.slice(
-              target.startOffset! - segment.startOffset,
-              target.endOffset! - segment.startOffset,
-            ) === target.quote;
-          const capture = (el: HTMLElement) => {
-            const selected = textSelection(el);
-            setSelection(
-              selected
-                ? {
+      {page && (
+        <ReadingLayout
+          outline={page.turns.map((t) => ({
+            id: t.id,
+            label: readingTitle(
+              page.segments.find((s) => s.turnId === t.id && s.text.trim())
+                ?.text || t.label,
+            ),
+            onSelect: () => {
+              const found = Array.from(
+                panel.current?.querySelectorAll<HTMLElement>(
+                  "[data-reader-turn]",
+                ) || [],
+              ).find((el) => el.dataset.readerTurn === t.id);
+              if (found)
+                found.scrollIntoView({ block: "start", behavior: "smooth" });
+              else setTurn(t.id);
+            },
+          }))}
+        >
+          <div className="material-body">
+            {joinMaterialSegments(page.segments).map((segment, i, all) => (
+              <div
+                key={`${version}:${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
+                data-reader-turn={segment.turnId}
+                data-reading-key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
+              >
+                {(!i || all[i - 1]?.turnId !== segment.turnId) && (
+                  <div className="reader-turn-heading">
+                    第{" "}
+                    {page.turns.findIndex((t) => t.id === segment.turnId) + 1}{" "}
+                    轮
+                  </div>
+                )}
+                <ReaderMessage
+                  source={segment.text}
+                  label={itemLabel(segment.type)}
+                  notice={segment.notice}
+                  target={{
                     kind: "material",
                     materialId: material.id,
                     version,
                     turnId: segment.turnId,
                     itemId: segment.itemId,
-                    ...selected,
-                    startOffset: segment.startOffset + selected.startOffset,
-                    endOffset: segment.startOffset + selected.endOffset,
-                  }
-                : undefined,
-            );
-          };
-          return (
-            <article
-              className="material-message"
-              key={`${version}:${segment.turnId}:${segment.itemId}:${i}`}
-              data-material-match={match || undefined}
-            >
-              <strong>{itemLabel(segment.type)}</strong>
-              {segment.notice && (
-                <p className="inline-note">{segment.notice}</p>
-              )}
-              <pre
-                tabIndex={0}
-                onMouseUp={(e) => capture(e.currentTarget)}
-                onKeyUp={(e) => capture(e.currentTarget)}
-              >
-                {match ? (
-                  <>
-                    {segment.text.slice(
-                      0,
-                      target!.startOffset! - segment.startOffset,
-                    )}
-                    <mark>{target!.quote}</mark>
-                    {segment.text.slice(
-                      target!.endOffset! - segment.startOffset,
-                    )}
-                  </>
-                ) : (
-                  segment.text
-                )}
-              </pre>
-              {!!segment.text && [...segment.text].length <= 8000 && (
-                <button
-                  className="text-link small-text"
+                    startOffset: segment.startOffset,
+                    endOffset: segment.endOffset,
+                    quote: segment.text,
+                  }}
+                  activeTarget={target}
+                  annotations={annotations}
+                  onAnnotate={onAnnotate}
+                  onDiscuss={onDiscuss}
                   disabled={disabled}
-                  onClick={() =>
-                    onAnnotate({
-                      kind: "material",
-                      materialId: material.id,
-                      version,
-                      turnId: segment.turnId,
-                      itemId: segment.itemId,
-                      quote: segment.text,
-                      startOffset: segment.startOffset,
-                      endOffset: segment.endOffset,
-                    })
-                  }
-                >
-                  引用这段文字
-                </button>
-              )}
-            </article>
-          );
-        })}
-      </div>
-      {selection && (
-        <div className="context-selection has-selection">
-          <span>已选原文 · 版本 {version}</span>
-          <button
-            className="button primary small"
-            disabled={disabled}
-            onClick={() => onAnnotate(selection)}
-          >
-            引用原文并批注
-          </button>
-        </div>
+                  actionLabel="引用这段文字"
+                />
+              </div>
+            ))}
+          </div>
+        </ReadingLayout>
       )}
       {loading && <Loading text="正在读取已公开正文…" />}
       {page?.nextCursor && (
@@ -376,10 +322,12 @@ export function Materials({
   reload,
   onAnnotate,
   location,
+  onDiscuss,
 }: {
   collaboration: Collaboration;
   reload: () => void;
-  onAnnotate: (target: AnnotationTarget) => void;
+  onAnnotate: Annotate;
+  onDiscuss?: Discuss;
   location?: AnnotationRequest;
 }) {
   const [publishing, setPublishing] = useState<Material | null | undefined>();
@@ -388,6 +336,7 @@ export function Materials({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const readingPanel = useRef<HTMLDivElement>(null);
+  const memory = useRef(new Map<string, ReadingMemory>());
   const materials = c.materials || [];
   const self = c.selfId || c.role;
   const disabled =
@@ -403,8 +352,11 @@ export function Materials({
       });
   }, [location]);
   useEffect(() => {
-    if (reading) readingPanel.current?.scrollIntoView?.({ block: "nearest" });
-  }, [reading]);
+    for (const key of memory.current.keys()) {
+      if (!materials.some((m) => !m.withdrawnAt && key.startsWith(`${m.id}:`)))
+        memory.current.delete(key);
+    }
+  }, [materials]);
   const selected = materials.find((m) => m.id === reading?.materialId);
   async function confirmWithdraw() {
     if (!withdraw) return;
@@ -437,7 +389,7 @@ export function Materials({
           disabled={disabled}
           onClick={() => setPublishing(null)}
         >
-          附上这次调查
+          发布会话材料
         </button>
       </div>
       <p className="muted small-text">
@@ -448,7 +400,10 @@ export function Materials({
         {materials.map((m) => {
           const v = m.versions.at(-1)!;
           return (
-            <article className="material-card" key={m.id}>
+            <article
+              className={`material-card ${reading?.materialId === m.id ? "is-reading" : ""}`}
+              key={m.id}
+            >
               <div>
                 <strong>{v.title}</strong>
                 <p>
@@ -521,6 +476,10 @@ export function Materials({
               key={`${reading.materialId}:${reading.version}:${reading.turnId || ""}:${location?.serial || 0}`}
               spaceId={c.id}
               material={selected}
+              memory={memory.current}
+              onVersion={(version) =>
+                setReading({ materialId: selected.id, version })
+              }
               reference={reading}
               target={
                 location?.target?.materialId === selected.id
@@ -528,6 +487,8 @@ export function Materials({
                   : undefined
               }
               onAnnotate={onAnnotate}
+              annotations={c.annotations}
+              onDiscuss={onDiscuss}
               disabled={disabled}
             />
           )}
@@ -536,7 +497,7 @@ export function Materials({
       {reading && !selected && <p role="status">当前空间没有这份材料。</p>}
       {publishing !== undefined && (
         <Modal
-          title={publishing ? "更新会话材料" : "附上这次调查"}
+          title={publishing ? "更新会话材料" : "发布会话材料"}
           onClose={() => setPublishing(undefined)}
         >
           <Publisher

@@ -83,7 +83,7 @@ it("a read-only space lists metadata without native context or automatic materia
   );
   render(<Detail id="space" />);
   await screen.findByRole("heading", { name: "多人调查" });
-  expect(screen.getByRole("button", { name: "附上这次调查" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "发布会话材料" })).toBeEnabled();
   expect(
     screen.queryByRole("button", { name: /恢复运行时|申请输入|接回输入/ }),
   ).not.toBeInTheDocument();
@@ -206,8 +206,8 @@ it("keeps an attachment pinned when a newer material version arrives", async () 
     />,
   );
   await user.click(screen.getByRole("button", { name: "回复" }));
-  const selectors = screen.getAllByLabelText("附上已发布调查");
-  await user.selectOptions(selectors[1]!, "m1:1");
+  await user.click(screen.getAllByRole("button", { name: "引用材料" })[1]!);
+  await user.click(screen.getByRole("button", { name: /网络验证 · v1/ }));
   const updated = {
     ...material,
     versions: [...material.versions, { ...material.versions[0]!, version: 2 }],

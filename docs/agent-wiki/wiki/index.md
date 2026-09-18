@@ -39,6 +39,7 @@
 - [2026-09-15 GitHub CI、unsigned 发布与 v0.1.6-rc.1/v0.1.6-rc.2](../sources/validation/github-ci-release-2026-09-15.md)：PR/main 门槛、正式版本号策略、托管 arm64 构建、GitHub App、受保护 Homebrew tap、校验和、provenance、tag 与公开 Pre-release。
 - [2026-09-15 Tailcat 显式连接方式](../sources/validation/tailcat-transport-2026-09-15.md)：`tcx3`、Go 1.27.1、同机 Tailcat 数据面、WebGUI、arm64 构建链及尚待两台 Mac 完成的网络门槛。
 - [2026-09-14 Codex 动态 MCP 与运行时恢复](../sources/validation/codex-runtime-mcp-2026-09-14.md)：CLI 版本变化后的插件动态 MCP 回归、隔离配置修复、真实 Luna 创建与同 session 恢复边界。
+- [2026-09-19 材料阅读与原文旁批注](../sources/validation/reading-and-annotations-2026-09-19.md)：Markdown 阅读器、UTF-16 原文映射、响应式旁批、固定版本引用、79 项 Web 回归与三 Core 浏览器闭环。
 - [2026-09-10 WebGUI 上下文刷新](../sources/validation/webgui-context-refresh-2026-09-10.md)：自动及手动刷新、阅读位置回归与浏览器证据。
 - [2026-09-11 WebGUI 原处批注](../sources/validation/webgui-annotations-2026-09-11.md)：原文定位、批注快照、MCP 往返、变化提示与浏览器证据。
 - [2026-09-13 批注闭环](../sources/validation/annotations-2026-09-13.md)：直接原生 TUI 的读取/回复/恢复、MCP 隔离、内嵌编辑与单层回复、浏览器证据及 Desktop 尚未覆盖的窗口边界。

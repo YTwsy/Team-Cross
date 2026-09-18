@@ -1,6 +1,6 @@
 # WebGUI 与本地 MCP
 
-WebGUI 是协作管理界面；完整对话和执行交互在对应原生客户端。MCP 让普通本地会话访问已发起或加入的协作。先核对 [产品流程](../../sources/product-flows.md) 与 [协议](../../sources/protocol.md)。
+WebGUI 提供协作管理、材料阅读与原文讨论；执行交互在对应原生客户端。MCP 让普通本地会话访问已发起或加入的协作。先核对 [产品流程](../../sources/product-flows.md) 与 [协议](../../sources/protocol.md)。
 
 独立只读分享、多会话材料与三人以上入口见 [协作空间任务页](collaboration-spaces.md)。公开范围预览必须覆盖实际发布的工具输出和附件，页面隐藏不能代替 Core、MCP/CLI 与运行时工具共同的数据范围限制；导出缺失与截断必须显式标记。
 
@@ -28,11 +28,13 @@ WebGUI 是协作管理界面；完整对话和执行交互在对应原生客户�
 
 详情页把执行主机、目录、当前输入者和共享状态收在同一执行信息卡；共享详情按需浮层展开，不推动下方内容。右侧信息区先展示紧凑的参与成员，再展示批注；技术信息位于“协作上下文”的最后一个标签，不继续堆叠在右栏。
 
-主要动作随连接、输入交接、运行和审批状态改变。批注可独立保存，读取或批注不隐式开始模型轮次。页面展示轻量历史，完整历史交给原生客户端；MCP 可继续分页读取。
+主要动作随连接、输入交接、运行和审批状态改变。批注可独立保存，读取或批注不隐式开始模型轮次。已发布材料和已授权上下文共用阅读器，支持 Markdown、代码高亮、轮次目录、工具折叠、专注阅读与原文切换；执行交互继续在原生客户端，历史与材料仍按需分页。
 
 批注从对话文字或代码行发起，自动携带原文与结构化定位，编辑失败保留当前页草稿；点击批注可查找原文，变化后展示引用片段而不猜测新位置。页面内编辑取代弹窗，原文和整体意见分别保留当前页草稿；原批注下可展开单层回复，刷新期间保留正在填写的内容。个人 MCP 通过 `read_context kind=annotations` 读取，并可 `reply_to_annotation`。共享运行时自动提供当前协作的 `read_annotations` 和 `reply_to_annotation`，直接客户端可以在原会话内处理讨论。字段与快照边界以 [协议](../../sources/protocol.md#批注引用) 为准；交互实现见 [Context.tsx](../../../../packages/web/src/components/Context.tsx) / [Annotations.tsx](../../../../packages/web/src/components/Annotations.tsx)，回归见 [批注测试](../../../../packages/web/src/test/annotations.test.tsx)。
 
-同一上下文刷新时保留内容与阅读位置，首次加载或切换资源才显示加载占位；具体行为见 [上下文阅读](../../sources/product-flows.md#上下文阅读)，回归入口见 [上下文刷新测试](../../../../packages/web/src/test/context-refresh.test.tsx)。
+选区浮条打开原文旁编辑卡，窄屏在消息下方展开；编辑卡与批注面板共用草稿状态，收起和失败保留当前页草稿。会话新内容先提示，读者点击后更新；材料在当前页记住最近六个已读版本的位置。首次加载或切换资源才显示加载占位；具体行为见 [上下文阅读](../../sources/product-flows.md#上下文阅读)，回归入口见 [上下文刷新测试](../../../../packages/web/src/test/context-refresh.test.tsx)。
+
+共用阅读实现见 [Reading.tsx](../../../../packages/web/src/components/Reading.tsx)、[MarkdownText.tsx](../../../../packages/web/src/components/MarkdownText.tsx) 与 [原文位置映射](../../../../packages/web/src/reading.ts)。改动排版时必须保留 UTF-16 原文定位；引用材料选择器默认只列元数据，预览按需读取。回归见 [阅读与引用测试](../../../../packages/web/src/test/reading.test.tsx)。
 
 首页最近协作先显示本机快照，不因已加入的旧协作失联而串行等待；远端状态在后台刷新并由下一次轮询更新。进入详情仍实时探测单个协作，MCP 需要确认当前状态时使用 `get_collaboration`。
 
