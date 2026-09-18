@@ -31,7 +31,10 @@
 | `POST /join` | `{invitation}` 或 `{pendingId}`，连接邀请并幂等返回本机加入记录 |
 | `GET /collaborations/:id` | 状态、目录、输入者、批注 |
 | `GET /collaborations/:id/context?kind=&path=&after=&cursor=` | `history/changes/file/annotations/events` |
-| `POST /collaborations/:id/action` | `{action,transport?,epoch}`；`share` 使用 `lan|tailcat`，省略仅为兼容本机调用并默认 `lan` |
+| `POST /collaborations/:id/action` | `{action,transport?,epoch,memberId?}`；`share` 使用 `lan|tailcat`，省略仅为兼容本机调用并默认 `lan` |
+| `POST /collaborations/:id/invitations` | `{transport,requestId?}` 生成独立邀请或取回最近邀请；也可只传 `{invitationId}` 取回指定邀请 |
+| `POST /collaborations/:id/revoke-invitation` | `{invitationId}`，只撤销该未使用邀请，不影响其他邀请或已加入成员 |
+| `POST /collaborations/:id/remove-member` | `{memberId}`，撤销该成员及旧请求；当前输入者被移除时输入归还发起者 |
 | `POST /collaborations/:id/open` | `{client:tui|desktop,launch:boolean}` 直接客户端 |
 | `POST /collaborations/:id/personal-desktop` | `{launch:boolean}`，仅本机发起的 Codex 协作；在个人 Desktop 定位已保存的 fork |
 | `POST /collaborations/:id/assist` | `{provider:codex|claude,client:tui|desktop,launch:boolean}`，Provider 选择个人客户端，省略默认 Codex；Claude 仅 TUI |
@@ -67,7 +70,7 @@
 
 ## 共享邀请与传输
 
-原始邀请格式 `tcx3.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `3`，能力 `codex-collaboration-v3-explicit-transport`。公共字段含协作 ID、显示名称、主机、`runtimeMode`、`transport`、SHA-256 SPKI 指纹、随机 secret 和到期时间。`runtimeMode` 供加入前展示，省略为受限、未知值拒绝；连接后的模式以 A 的记录为准。`expiresAt` 只约束首次加入，以墙钟比较；`tcx2` 及其他旧能力明确拒绝，双方需使用兼容版本。
+原始邀请格式 `tcx3.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `3`，能力 `collaboration-spaces-v1-multi-member`。公共字段含协作 ID、显示名称、主机、`runtimeMode`、`transport`、SHA-256 SPKI 指纹、随机 secret 和到期时间。`runtimeMode` 供加入前展示，省略为受限、未知值拒绝；连接后的模式以 A 的记录为准。`expiresAt` 只约束首次加入，以墙钟比较；`tcx2` 及其他旧能力明确拒绝，双方需使用兼容版本。
 
 候选字段按传输互斥：
 
@@ -85,8 +88,8 @@ Tailcat 地址包含 WireGuard 节点材料和默认预共享密钥，整个邀�
 | 路径 | 功能 |
 | --- | --- |
 | `GET /v2/invitation` | 验证未使用邀请并发现地址，不读取协作上下文、不加入 |
-| `POST /v2/join` | `{credential}`，一次性确认加入；不同凭据不能重复使用同一邀请 |
-| `POST /v2/leave` | 主动离开，撤销成员凭据、关闭远端直接连接并将输入归还 A |
+| `POST /v2/join` | `{credential,name?}`，一次性确认加入；不同凭据不能重复使用同一邀请 |
+| `POST /v2/leave` | 主动离开，只撤销本人凭据；若为当前输入者，关闭其直接连接并将输入归还 A |
 | `GET /v2/status` | 此协作状态，不返回邀请 secret |
 | `GET /v2/context` | 此协作上下文 |
 | `POST /v2/rpc` | 有输入归属检查的原生请求 |
@@ -103,21 +106,28 @@ TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS/Tailcat 路�
 
 ## 状态与事件
 
-协作状态 `preparing/ready/error`，接收者还可为 `joining/left/ended`。`online` 表示运行时是否连接，`busy` 表示轮次是否运行，`approvals` 表示待回应数量，`sharing` 表示共享是否开启，`sharingPreparing` 表示所选传输仍在建立，`transport` 为当前或正在准备的 `lan|tailcat`，`connected` 表示是否已有直接客户端。`participantOnline` 表示参与方 Core 的有效心跳，`inputRequested` 表示有效输入申请；两者与直接客户端连接独立。`clientState` 为 `disconnected/connected/session_ready`，最后一种必须由该直接连接成功读取或恢复绑定的 thread 确认。
+`role` 仅区分本机发起者 `owner` 与加入者 `remote`；授权不使用共同的 `remote` 身份。`selfId` 为本机成员身份（发起者为 `owner`），`writer` 为 `owner` 或具体成员 ID。直接客户端和辅助工具比较 `selfId` 与 `writer`。`members` 返回 `{id,name,joinedAt,active,online,inputRequested}` 数组；每人凭据独立，显示名称允许重复，不用于授权或去重。`invitations` 仅向发起者返回各邀请的 `{id,state,expiresAt,memberId?}`，不含凭据。
 
-`participantJoined` 独立于在线心跳；`invitationState` 为 `pending/joined/expired/left`，只有 `pending` 状态向 A 返回邀请码和 `expiresAt`，B 状态不带加入期限。`runtimeState` 为 `running/starting/releasing/released/offline`，`releasePending` 表示共享关闭后仍在等待工作或客户端结束。退出过程完成后才显示 `released`；恢复等待旧进程完全退出。
+`handoff` 的 `memberId` 指向已加入成员；多于一位成员时省略会拒绝，只有一位时可明确推导。所有成员都能申请输入，其他成员持有输入时也能排队；不会自动交接，交给 C 不清除 B 的申请。离线只改变在线状态，主动离开或移除才撤销资格。
+
+邀请的 `requestId` 用于独立创建和重试：相同 ID 取回原邀请状态，新 ID 生成另一份单人邀请；省略只取回最近邀请。邀请重试不会重新接纳已退出成员。`invitationId` 只用于取回指定邀请，不能与新建的 `requestId` 混用。使用相同网络通道邀请多人，不因单个邀请使用、撤回或到期关闭其他成员连接；更换传输前必须显式结束共享。
+
+
+协作状态 `preparing/ready/error`，接收者还可为 `joining/left/ended`。`online` 表示运行时是否连接，`busy` 表示轮次是否运行，`approvals` 表示待回应数量，`sharing` 表示共享是否开启，`sharingPreparing` 表示所选传输仍在建立，`transport` 为当前或正在准备的 `lan|tailcat`，`connected` 表示是否已有直接客户端。`participantOnline` 表示至少一位成员 Core 的有效心跳；发起者的 `inputRequested` 表示任一成员申请，加入者的该字段只表示本人申请；两者与直接客户端连接独立。`clientState` 为 `disconnected/connected/session_ready`，最后一种必须由该直接连接成功读取或恢复绑定的 thread 确认。
+
+`participantJoined` 独立于在线心跳；`invitationState` 为 `pending/joined/expired/left/revoked`，只有 `pending` 状态向 A 返回邀请码和 `expiresAt`，B 状态不带加入期限。`runtimeState` 为 `running/starting/releasing/released/offline`，`releasePending` 表示共享关闭后仍在等待工作或客户端结束。退出过程完成后才显示 `released`；恢复等待旧进程完全退出。
 
 `context?kind=history` 返回 `{thread,nextCursor}`；`thread.turns` 是最近一页的至多 8 轮，页内按时间正序排列。传回非空 `nextCursor` 到 `cursor` 可读取更早的一页；`null` 表示没有更多历史。元数据和分页读取均不创建或执行轮次；会话释放后通过只读控制进程读取，不 `thread/resume`、不重新占用原生写入锁。
 
 `context?kind=events&after=N` 返回 `{events,cursor,approvals,busy,online}`。每个事件有 `sequence/method/params/time`；保留最近 600 项。长期对话以原生历史为准，跨服务重启不要把旧事件 cursor 当作永久日志位置。`get_collaboration` 的 `sequence` 可判断当前游标是否重置。
 
-原生写入请求必须有 `requestId`。一次原生客户端连接会得到新的连接标识，与客户端 RPC ID 一起构成写入 ID，连接断开后不会自动重新执行旧 RPC。`completed` 表示 RPC 得到响应，轮次最终结果需等待 `turn/completed`。
+原生写入请求必须有 `requestId`，持久去重键包含成员 ID、原生方法和请求 ID；不同成员不复用写入结果，同一请求改变内容会拒绝。一次原生客户端连接会得到新的连接标识，与客户端 RPC ID 一起构成写入 ID，连接断开后不会自动重新执行旧 RPC。`completed` 表示 RPC 得到响应，轮次最终结果需等待 `turn/completed`。
 
 `info.mcpClients.codex|claude` 各含 `configured`、`command`、`configError?`、`observedAt`；配置检测限定本机辅助目录。`mcpProbed` 是共用工具服务的独立协议检查。兼容 CLI 诊断的顶层 `mcpConfigured/mcpCommand/mcpObservedAt` 仍对应 Codex。实际调用根据 MCP 初始化声明的客户端名识别，未知名不冒充 Codex；该信息只用于诊断，不授予协作权限。
 
 STDIO MCP 采用逐行 JSON-RPC 2.0，协议版本 `2024-11-05`；只在 stdout 输出协议消息。工具输入和结果遵循上述管理 API。
 
-个人 MCP 提供 `request_input/cancel_input_request/handoff_input/reclaim_input/return_input`，参数为 `{id,epoch}`，分别映射 `request_input/cancel_input/handoff/reclaim/return`。`epoch` 必须是刚查询到的正整数状态版本；缺失、过期、错误角色、尚未加入或忙碌交出/交还均拒绝。接回不自动中断轮次。成功后查询详情获取新版本，失败或超时不自动刷新版本重放动作。普通详情和输入管理结果均移除 `invitation`；工具错误以 JSON 文本返回 `code/error/recovery` 并设置 `isError:true`。
+个人 MCP 提供 `request_input/cancel_input_request/handoff_input/reclaim_input/return_input`，参数为 `{id,epoch,memberId?}`（`memberId` 用于选择交接接收者），分别映射 `request_input/cancel_input/handoff/reclaim/return`。`epoch` 必须是刚查询到的正整数状态版本；缺失、过期、错误角色、尚未加入或忙碌交出/交还均拒绝。接回不自动中断轮次。成功后查询详情获取新版本，失败或超时不自动刷新版本重放动作。普通详情和输入管理结果均移除 `invitation`；工具错误以 JSON 文本返回 `code/error/recovery` 并设置 `isError:true`。
 
 CLI `collaborations [--id <id>] [--json]` 查询列表或详情；`input request|cancel|handoff|reclaim|return --id <id> --epoch <版本> [--json]` 使用同一工具适配与 Core API。两者支持 `--data-dir`，按需启动或复用 Core，不打开浏览器。`status` 保持服务诊断语义，不能代替协作详情。
 
@@ -230,3 +240,5 @@ Claude 状态返回 `provider:claude`、`nativeJobId`、`nativeWaiting`，以及
 Claude 控制 RPC 支持绑定会话的 `thread/read`、`thread/turns/list`、`thread/list`、`thread/loaded/list`、`thread/unsubscribe` 和空闲时 `turn/start`。后者只接受一段非空、至多 256 KiB 的文本，不接受模型覆盖；返回 `{accepted:true,provider:"claude"}` 表示 worker 接收，不伪造 turn ID。补充、中断、审批和设置方法返回 `native_client_required`。历史分页中 `turn.id` 是原生用户消息 UUID，供阅读与批注定位，不作为原生控制用 turn ID。
 
 Claude 事件使用 `teamcross/claudeState`、`teamcross/claudeHistory` 与已确认的 `thread/settings/updated`；状态轮询不是 Codex 的 `turn/completed` 流。控制端需要同时读状态和历史确认结果。原生 TUI 原始输入没有请求 ID 或逐包执行确认，连接层不会缓存或重放；它不提供 RPC 的幂等接收承诺。
+
+多人成员的个人 MCP 入口包括 `create_invitation`（新增 `requestId` 与指定取回的 `invitationId`）、`remove_member` 和 `revoke_invitation`。CLI 对应 `invite --request-id <新ID>`、`remove-member --id <协作> --member <成员ID>`、`revoke-invitation --id <协作> --invitation-id <邀请ID>`；多人交接使用 `input handoff --id <协作> --member <成员ID> --epoch <版本>`。批注及回复由主机绑定 `authorId` 和显示名称，不采信请求提供的作者。

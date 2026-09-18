@@ -40,7 +40,9 @@ func managementTools() []map[string]any {
 		tool("list_source_sessions", "分页搜索本机个人来源会话。provider 指来源，而非调用工具的个人客户端；不查询远端私人历史，不把最新会话当成当前会话。", map[string]any{"provider": choice("codex", "claude"), "search": str("名称或内容搜索"), "cursor": str("上一页的 nextCursor")}, []string{"provider"}, true),
 		tool("preview_collaboration", "预览明确选定来源、Git 起点、执行目录和权限模式；不创建 fork。existing 保留原现场，worktree 从 HEAD 检出且不复制未提交内容。默认 restricted，trusted 沿用发起者原生配置与权限。展示结果；保留返回的 requestId 与 previewHash。", preview, []string{"provider", "sourceId", "workspaceMode"}, true),
 		tool("create_collaboration", "根据已确认的预览创建新的原生 fork，不发送业务输入。必须保留预览的 requestId、previewHash 和模式；超时先以 requestId 查询协作，不能改 ID 重建。成功后单独 create_invitation。", create, []string{"provider", "sourceId", "workspaceMode", "requestId", "previewHash"}, false),
-		tool("create_invitation", "为本机发起的协作生成或取回未使用邀请，返回邀请码和 App 链接供用户转交。明确选择 LAN 或实验性 Tailcat；不自动降级。相同连接方式复用现有邀请，已加入成员不产生第二份可加入邀请。邀请是秘密；不会自动发给同事。", map[string]any{"id": id["id"], "transport": choice("lan", "tailcat")}, []string{"id", "transport"}, false),
+		tool("create_invitation", "为本机发起的协作生成或取回未使用邀请，返回邀请码和 App 链接供用户转交。明确选择 LAN 或实验性 Tailcat；不自动降级。不传 requestId 时取回最近邀请；为另一位同事创建时使用新的 requestId，相同 requestId 重试取回原邀请。邀请是秘密；不会自动发给同事。", map[string]any{"id": id["id"], "transport": choice("lan", "tailcat"), "requestId": str("新邀请的唯一请求标识；重试保持相同，省略只取回最近邀请"), "invitationId": str("可选：只取回这份邀请；不能与 requestId 同时使用")}, []string{"id", "transport"}, false),
+		tool("remove_member", "发起者撤销指定成员的访问；其他成员继续参与，当前输入者被移除时控制归还发起者。", map[string]any{"id": id["id"], "memberId": str("members 中的具体成员 ID")}, []string{"id", "memberId"}, false),
+		tool("revoke_invitation", "撤销尚未使用的一份邀请；不撤销已经加入的成员。", map[string]any{"id": id["id"], "invitationId": str("invitations 中的邀请 ID")}, []string{"id", "invitationId"}, false),
 		tool("preview_invitation", "只解析邀请中的名称、主机、模式与到期时间；不联系远端、不加入。显示信息尚未通过远端验证。", map[string]any{"invitation": str("用户提供的原始邀请码或 App 链接")}, []string{"invitation"}, true),
 		tool("join_collaboration", "明确加入用户选定的邀请，复用本机加入记录；不打开浏览器或原生客户端，不自动取得输入权。首次加入前展示 preview_invitation 的信息。", map[string]any{"invitation": str("同一份已预览邀请")}, []string{"invitation"}, false),
 		tool("open_client", "打开当前协作的直接原生客户端；必须已获得输入权。TUI 打开新终端窗口，Desktop 是独立专用窗口，Claude 仅 TUI。launch=false 只生成启动计划；launched 只表示启动请求成功，之后查询 clientState。", map[string]any{"id": id["id"], "client": choice("tui", "desktop"), "launch": map[string]any{"type": "boolean", "default": true}}, []string{"id", "client"}, false),
@@ -148,7 +150,10 @@ func (b Backend) invokeManagement(ctx context.Context, name string, args map[str
 	base := "collaborations/" + url.PathEscape(id)
 	switch name {
 	case "create_invitation":
-		out, err := b.Call(ctx, "POST", base+"/action", map[string]any{"action": "share", "transport": args["transport"]})
+		if args["requestId"] != nil && args["invitationId"] != nil {
+			return true, nil, fmt.Errorf("新建邀请与取回指定邀请不能同时选择")
+		}
+		out, err := b.Call(ctx, "POST", base+"/invitations", map[string]any{"transport": args["transport"], "requestId": args["requestId"], "invitationId": args["invitationId"]})
 		if err != nil {
 			return true, nil, err
 		}
@@ -161,6 +166,10 @@ func (b Backend) invokeManagement(ctx context.Context, name string, args map[str
 		}
 		out, err = json.Marshal(result)
 		return true, out, err
+	case "remove_member":
+		return call("POST", base+"/remove-member", map[string]any{"memberId": args["memberId"]}, false)
+	case "revoke_invitation":
+		return call("POST", base+"/revoke-invitation", map[string]any{"invitationId": args["invitationId"]}, false)
 	case "open_client":
 		launch := true
 		if v, ok := args["launch"].(bool); ok {

@@ -16,7 +16,7 @@ Agent Session 入手，为具体的一次工作增加共同视图、可定位批
 
 > 它是否从一个具体 Session 出发，并帮助另一个人理解、审阅、控制或继续这次工作？
 
-下一阶段已确认支持独立只读会话分享和三人及以上参与，允许各方发布多个选定范围的 Session 供阅读与讨论；这些能力尚未实现。产品边界与实施要求见 [协作空间设计契约](docs/agent-wiki/sources/decisions/collaboration-spaces.md)，下文仍说明当前版本的实际能力。
+当前原生协作已增加三人及以上的成员模型：为每位同事生成独立邀请、分别显示输入申请、向指定成员交接或逐人移除。下一阶段的独立只读分享、多份已发布 Session 与可选执行会话仍在实现中。产品边界与实施要求见 [协作空间设计契约](docs/agent-wiki/sources/decisions/collaboration-spaces.md)，下文仍说明当前版本的实际能力。
 
 ## 安装
 
@@ -122,7 +122,9 @@ teamcross join 'tcx3.…'
 - **直接操作：** 使用本机 Codex TUI，或专用于该协作的独立 Codex Desktop。客户端连接同一个共享 fork，实际执行在发起者主机。同一协作只保留一个直接客户端，切换前关闭原直接客户端。
 - **用自己的客户端辅助：** 选择个人 Codex（TUI/Desktop）或 Claude Code TUI，保持自己的普通会话，通过 Team Cross 工具选择目标、读取历史、查看文件和改动、参与输入或添加批注。这些会话拥有各自的本地上下文。
 
-参与方在线状态由 Core 心跳维持，关闭浏览器不会被当作离开。接收者可申请或取消申请输入；发起者明确交接或接回，接收者也可以交还输入。申请本身不会自动交接或启动模型。直接客户端和辅助工具的写入统一检查输入归属，读取可以并行。Codex 协作可通过原生客户端或 MCP 补充、中断、回应审批；Claude 协作的这些操作使用原生 TUI。
+多位同事使用各自的邀请加入，发起者可继续生成邀请，也可单独撤销待用邀请或移除某位成员。输入只交给选定成员；移除当前输入者会接回控制，不自动中断模型，其他成员继续参与。
+
+参与方在线状态由各自的 Core 心跳维持，关闭浏览器不会被当作离开。接收者可申请或取消申请输入；发起者明确交接或接回，接收者也可以交还输入。申请本身不会自动交接或启动模型。直接客户端和辅助工具的写入统一检查输入归属，读取可以并行。Codex 协作可通过原生客户端或 MCP 补充、中断、回应审批；Claude 协作的这些操作使用原生 TUI。
 
 界面分别展示启动请求、客户端连接和共享会话就绪状态；连接成功不等于会话已打开。专用 Desktop 第一次打开时可能需要完成登录或跳过引导，之后从左侧打开协作会话。它与原有 Desktop 使用独立应用数据目录；账户登录与客户端偏好在使用者本机处理，共享会话的模型调用仍由发起者运行时承担。此入口面向协作会话的历史、输入、审批与代码操作，Desktop 的其他全局功能不在首轮兼容承诺中。
 
@@ -183,7 +185,7 @@ claude mcp add --transport stdio --scope user teamcross -- /absolute/path/to/tea
 teamcross collaborations --json
 teamcross collaborations --id <协作ID> --json
 teamcross input request --id <协作ID> --epoch <详情中的epoch>
-teamcross input handoff --id <协作ID> --epoch <最新epoch>
+teamcross input handoff --id <协作ID> --member <成员ID> --epoch <最新epoch>
 ```
 
 `input` 还支持 `cancel`、`reclaim`、`return`。每次先查询详情，再传入看到的输入状态版本；过期操作会被拒绝，结果不明时先查询，不自动重放。发起者只能向已加入的同事交出输入，交出和交还需等待当前轮结束；接回输入不自动中断正在执行的轮次。交接关闭旧直接客户端，辅助工具仍可读取上下文。
@@ -253,3 +255,5 @@ TEAMCROSS_LIVE_DIR=/private/tmp/teamcross-fresh-fixture \
 工程知识按 `sources/` 与 `wiki/` 分层维护。首次进入仓库先读 [AGENTS.md](AGENTS.md) 和 [Agent Wiki 索引](docs/agent-wiki/wiki/index.md)，完整导航见 [文档入口](docs/README.md)。
 
 直接阅读：[架构](docs/agent-wiki/sources/architecture.md) · [接口](docs/agent-wiki/sources/protocol.md) · [产品流程](docs/agent-wiki/sources/product-flows.md)。
+
+为另一位同事生成邀请可使用 `teamcross invite --id <协作ID> --transport lan --request-id <新UUID>`，重试保留相同请求 ID。多人验证范围见 [2026-09-18 多成员基础](docs/agent-wiki/sources/validation/multi-member-2026-09-18.md)。

@@ -77,6 +77,10 @@ func (s *Session) annotate(in Annotation, author string, contexts ...context.Con
 	in.Replies = nil // Client-supplied replies and author identities are never imported.
 	in.Text = text
 	in.Author = author
+	in.AuthorID = "owner"
+	if len(contexts) > 0 {
+		in.AuthorID = sharing.MemberID(contexts[0])
+	}
 	in.CreatedAt = time.Now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -292,6 +296,7 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 			Action    string `json:"action"`
 			Transport string `json:"transport"`
 			Epoch     uint64 `json:"epoch"`
+			MemberID  string `json:"memberId"`
 		}
 		if !decode(w, r, &in) {
 			return
@@ -335,9 +340,48 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 			}
 			e = s.Share(ctx, in.Transport)
 		} else {
-			e = s.Action(ctx, in.Action, in.Epoch)
+			e = s.ActionFor(ctx, in.Action, in.MemberID, in.Epoch)
 		}
 		respond(w, s.view(), e)
+	case "invitations", "revoke-invitation", "remove-member":
+		var in struct {
+			Transport    string `json:"transport"`
+			RequestID    string `json:"requestId"`
+			MemberID     string `json:"memberId"`
+			InvitationID string `json:"invitationId"`
+		}
+		if !decode(w, r, &in) {
+			return
+		}
+		s, e := a.owned(id)
+		if e != nil {
+			respond(w, nil, e)
+			return
+		}
+		if action == "invitations" {
+			var invite sharing.IssuedInvitation
+			if in.InvitationID != "" {
+				invite, e = s.Invitation(in.InvitationID)
+			} else {
+				invite, e = s.Invite(ctx, in.Transport, in.RequestID)
+			}
+			out := s.view()
+			delete(out, "invitation")
+			delete(out, "expiresAt")
+			out["invitationId"], out["invitationState"], out["requestId"] = invite.ID, invite.State, in.RequestID
+			if invite.Token != "" {
+				out["invitation"] = invite.Token
+				out["expiresAt"] = invite.ExpiresAt
+			}
+			respond(w, out, e)
+		} else {
+			if action == "remove-member" {
+				e = s.RevokeMember(in.MemberID)
+			} else {
+				e = s.RevokeInvitation(in.InvitationID)
+			}
+			respond(w, s.view(), e)
+		}
 	case "personal-desktop":
 		var in struct {
 			Launch bool `json:"launch"`

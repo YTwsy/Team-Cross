@@ -101,3 +101,55 @@ func TestLeaveInvalidatesOpenRequestsAndOriginalInvitation(t *testing.T) {
 		t.Fatal("leave silently rejoined")
 	}
 }
+
+func TestIndependentAdmissionsAndStaleRequestCancellation(t *testing.T) {
+	r := &Runtime{Invitation: Invitation{Secret: NewCredential(), ExpiresAt: time.Now().Add(time.Hour)}}
+	defer r.Close()
+	started, revoked := make(chan struct{}), make(chan struct{})
+	h := r.authorize(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/pending" {
+			close(started)
+			<-req.Context().Done()
+			if Authorized(req.Context(), r) {
+				t.Error("revoked request remained authorized")
+			}
+			close(revoked)
+		}
+	}))
+	first, _ := r.IssueInvitation("B")
+	second, _ := r.IssueInvitation("C")
+	if first.ID == second.ID || first.Token == second.Token {
+		t.Fatal("invitations reused")
+	}
+	// Test admission directly; the transport-independent envelope isn't complete here.
+	r.mu.Lock()
+	bs := r.invitations[first.ID].invitation.Secret
+	cs := r.invitations[second.ID].invitation.Secret
+	r.mu.Unlock()
+	b, c := NewCredential(), NewCredential()
+	for _, row := range [][2]string{{bs, b}, {cs, c}} {
+		if w := membershipRequest(h, "POST", "/v2/join", row[0], map[string]string{"credential": row[1]}); w.Code != 200 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+	}
+	go membershipRequest(h, "GET", "/pending", b, nil)
+	<-started
+	members := r.Members()
+	if len(members) != 2 {
+		t.Fatal(members)
+	}
+	r.RevokeMember(members[0].ID)
+	select {
+	case <-revoked:
+	case <-time.After(time.Second):
+		t.Fatal("pending request survived member revocation")
+	}
+	if w := membershipRequest(h, "GET", "/v2/status", c, nil); w.Code != 200 {
+		t.Fatal("C lost access", w.Code)
+	}
+	other := &Runtime{Invitation: Invitation{Secret: NewCredential(), ExpiresAt: time.Now().Add(time.Hour)}}
+	defer other.Close()
+	if w := membershipRequest(other.authorize(http.NotFoundHandler()), "GET", "/v2/status", c, nil); w.Code != 401 {
+		t.Fatal("credential crossed space", w.Code)
+	}
+}

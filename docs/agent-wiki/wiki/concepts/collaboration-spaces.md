@@ -1,6 +1,6 @@
 # 只读分享与多人协作空间
 
-状态：下一阶段已确认范围，尚未实现。完整设计和实施门槛见 [协作空间契约](../../sources/decisions/collaboration-spaces.md)，对象语义见 [核心词汇](../../sources/product-core-and-glossary.md#下一阶段的对象边界)。
+状态：下一阶段已确认范围，首版尚未完成。完整设计和实施门槛见 [协作空间契约](../../sources/decisions/collaboration-spaces.md)，对象语义见 [核心词汇](../../sources/product-core-and-glossary.md#下一阶段的对象边界)。
 
 ## 已确认的首版目标
 
@@ -18,7 +18,7 @@
 
 ## 代码与检查
 
-现有入口：[types.go](../../../../internal/collab/types.go)、[sharing.go](../../../../internal/sharing/sharing.go)、[network.go](../../../../internal/collab/network.go)、[MCP](../../../../internal/mcp/server.go)、[WebGUI](../../../../packages/web/src/components/)。当前仍是 `Record` 与单 fork 绑定、单个远端成员；不要把这里的目标当作已经可用的接口。
+现有入口：[types.go](../../../../internal/collab/types.go)、[sharing.go](../../../../internal/sharing/sharing.go)、[network.go](../../../../internal/collab/network.go)、[MCP](../../../../internal/mcp/server.go)、[WebGUI](../../../../packages/web/src/components/)。当前仍是 `Record` 与单 fork 绑定；多邀请、逐人成员身份、撤销和输入交接已实现，空间与材料继续按契约拆分。实际边界见 [多成员基础验证](../../sources/validation/multi-member-2026-09-18.md)。
 
 按来源契约中的顺序实现空间/成员、材料、讨论引用、多人接力和完整入口；这些是同一首版的内部批次。按 [验证门槛](validation-gates.md) 补范围隔离、多成员撤销和交接竞态；同机三 Core 与三台 Mac 分别报告，旧双人结果不能替代。
 

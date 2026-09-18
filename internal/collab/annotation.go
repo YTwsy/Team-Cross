@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"teamcross/internal/sharing"
 )
 
 func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, author string) (Annotation, error) {
@@ -26,13 +27,14 @@ func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, 
 	if s.closed || !s.callerValidLocked(ctx) {
 		return Annotation{}, fmt.Errorf("共享已结束或连接已变化")
 	}
+	authorID := sharing.MemberID(ctx)
 	index := -1
 	for i, annotation := range s.record.Annotations {
 		if annotation.ID == in.AnnotationID {
 			index = i
 		}
 		for _, reply := range annotation.Replies {
-			if reply.RequestID == in.RequestID && reply.Author == author {
+			if reply.RequestID == in.RequestID && reply.AuthorID == authorID && reply.Author == author {
 				if annotation.ID != in.AnnotationID || reply.Text != in.Text {
 					return Annotation{}, fmt.Errorf("此 requestId 已用于其他回复，请先核对已保存的结果")
 				}
@@ -46,7 +48,7 @@ func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, 
 	previous, updated := s.record.Annotations, s.record.UpdatedAt
 	annotation := previous[index]
 	annotation.Replies = append(append([]AnnotationReply(nil), annotation.Replies...), AnnotationReply{
-		ID: uuid.NewString(), RequestID: in.RequestID, Text: in.Text, Author: author, CreatedAt: time.Now(),
+		ID: uuid.NewString(), RequestID: in.RequestID, Text: in.Text, Author: author, AuthorID: authorID, CreatedAt: time.Now(),
 	})
 	// Context and view readers can still hold the previous snapshot outside mu.
 	s.record.Annotations = append([]Annotation(nil), previous...)

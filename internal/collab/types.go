@@ -70,6 +70,7 @@ type Annotation struct {
 	Reference string            `json:"reference,omitempty"`
 	Target    *AnnotationTarget `json:"target,omitempty"`
 	Author    string            `json:"author"`
+	AuthorID  string            `json:"authorId"`
 	CreatedAt time.Time         `json:"createdAt"`
 	Replies   []AnnotationReply `json:"replies,omitempty"`
 }
@@ -80,6 +81,7 @@ type AnnotationReply struct {
 	RequestID string    `json:"requestId"`
 	Text      string    `json:"text"`
 	Author    string    `json:"author"`
+	AuthorID  string    `json:"authorId"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
@@ -198,8 +200,7 @@ type Session struct {
 	server           *http.Server
 	endpoint         string
 	starting         bool
-	remoteSeen       time.Time
-	inputRequested   bool
+	presence         map[string]memberPresence
 }
 type Joined struct {
 	app           *App

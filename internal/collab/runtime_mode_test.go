@@ -102,14 +102,14 @@ func TestTrustedRPCPreservesNativePermissionsAndWriterGate(t *testing.T) {
 	if err = s.Share(ctx, "lan"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.RPC(ctx, "remote", "thread/resume", map[string]any{"permissions": ":full-access"}, "foreign-settings"); err == nil {
+	if _, err = s.RPC(ctx, firstRemote(s), "thread/resume", map[string]any{"permissions": ":full-access"}, "foreign-settings"); err == nil {
 		t.Fatal("non-writer changed trusted permissions")
 	}
 	joinFixture(t, s)
 	if err = s.Action(ctx, "handoff"); err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.RPC(ctx, "remote", "thread/settings/update", map[string]any{"permissions": ":read-only", "approvalPolicy": "on-request", "approvalsReviewer": "user", "cwd": "/outside"}, "trusted-settings")
+	_, err = s.RPC(ctx, firstRemote(s), "thread/settings/update", map[string]any{"permissions": ":read-only", "approvalPolicy": "on-request", "approvalsReviewer": "user", "cwd": "/outside"}, "trusted-settings")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestTrustedRPCPreservesNativePermissionsAndWriterGate(t *testing.T) {
 	if settings["permissions"] != ":read-only" || settings["cwd"] != s.record.ExecutionCwd || settings["threadId"] != s.record.SessionID {
 		t.Fatal("trusted settings were overwritten or lost session binding", settings)
 	}
-	_, err = s.RPC(ctx, "remote", "permissionProfile/list", map[string]any{"cwd": "/outside"}, "")
+	_, err = s.RPC(ctx, firstRemote(s), "permissionProfile/list", map[string]any{"cwd": "/outside"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestTrustedRPCPreservesNativePermissionsAndWriterGate(t *testing.T) {
 		t.Fatal(profiles)
 	}
 	for _, method := range []string{"hooks/list", "skills/list"} {
-		discovery, err := s.RPC(ctx, "remote", method, map[string]any{"cwds": []any{"/participant/local-cwd"}}, "")
+		discovery, err := s.RPC(ctx, firstRemote(s), method, map[string]any{"cwds": []any{"/participant/local-cwd"}}, "")
 		if err != nil || !bytes.Contains(discovery, []byte(`"cwd":"/participant/local-cwd"`)) {
 			t.Fatal("native discovery lost the client's lookup key", method, string(discovery), err)
 		}
@@ -141,23 +141,23 @@ func TestTrustedRPCPreservesNativePermissionsAndWriterGate(t *testing.T) {
 			t.Fatal("native discovery did not resolve the host execution directory", method, cwds)
 		}
 	}
-	config, err := s.RPC(ctx, "remote", "config/read", nil, "")
+	config, err := s.RPC(ctx, firstRemote(s), "config/read", nil, "")
 	if err != nil || bytes.Contains(config, []byte("secret")) {
 		t.Fatal("private config exported", err)
 	}
-	if _, err = s.RPC(ctx, "remote", "thread/read", map[string]any{"threadId": "another-thread"}, ""); err == nil {
+	if _, err = s.RPC(ctx, firstRemote(s), "thread/read", map[string]any{"threadId": "another-thread"}, ""); err == nil {
 		t.Fatal("trusted gateway exposed another thread")
 	}
 	if err = s.Action(ctx, "reclaim"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.RPC(ctx, "remote", "turn/start", nil, "stale-input"); err == nil {
+	if _, err = s.RPC(ctx, firstRemote(s), "turn/start", nil, "stale-input"); err == nil {
 		t.Fatal("reclaimed writer retained access")
 	}
 	if err = s.Action(ctx, "end"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.RPC(ctx, "remote", "config/read", nil, ""); err == nil {
+	if _, err = s.RPC(ctx, firstRemote(s), "config/read", nil, ""); err == nil {
 		t.Fatal("ended access survived")
 	}
 }
@@ -209,14 +209,14 @@ func TestHookTrustStaysOnHostAndRequiresTrustedWriter(t *testing.T) {
 			if localClientRequest("config/batchWrite", params()) {
 				t.Fatal("host hook trust was routed to the participant's local config")
 			}
-			if _, err = s.RPC(ctx, "remote", "config/batchWrite", params(), "non-writer"); err == nil {
+			if _, err = s.RPC(ctx, firstRemote(s), "config/batchWrite", params(), "non-writer"); err == nil {
 				t.Fatal("non-writer approved hooks")
 			}
 			joinFixture(t, s)
 			if err = s.Action(ctx, "handoff"); err != nil {
 				t.Fatal(err)
 			}
-			_, err = s.RPC(ctx, "remote", "config/batchWrite", params(), "approve-hook")
+			_, err = s.RPC(ctx, firstRemote(s), "config/batchWrite", params(), "approve-hook")
 			if mode == runtimeconfig.Restricted {
 				if err == nil {
 					t.Fatal("restricted runtime allowed hook trust writes")
@@ -234,10 +234,10 @@ func TestHookTrustStaysOnHostAndRequiresTrustedWriter(t *testing.T) {
 			}
 			mixed := params()
 			mixed["edits"] = append(mixed["edits"].([]any), map[string]any{"keyPath": "mcp_servers", "value": "unexpected"})
-			if _, err = s.RPC(ctx, "remote", "config/batchWrite", mixed, "mixed-config"); err == nil {
+			if _, err = s.RPC(ctx, firstRemote(s), "config/batchWrite", mixed, "mixed-config"); err == nil {
 				t.Fatal("hook trust allowed other host config writes")
 			}
-			if _, err = s.RPC(ctx, "remote", "hooks/list", map[string]any{"cwds": []string{"/outside"}}, ""); err != nil {
+			if _, err = s.RPC(ctx, firstRemote(s), "hooks/list", map[string]any{"cwds": []string{"/outside"}}, ""); err != nil {
 				t.Fatal(err)
 			}
 			f.mu.Lock()

@@ -88,7 +88,7 @@ Tailcat 建立时允许网络等待，Session 锁在启动期间释放；详情�
 
 ## 输入协调与失败语义
 
-`writer` 为 `owner` 或 `remote`；交接增加 `epoch`。所有原生和 MCP 写入先检查归属。运行中的 `turn/start` 不再接受另一轮开始；补充使用 `turn/steer`，中断使用 `turn/interrupt`。审批只接受当前输入者回应一次。
+`writer` 为 `owner` 或具体成员 ID，`role` 仅用于区分本机发起者与加入者，`selfId` 标识当前成员；交接增加 `epoch`。所有原生和 MCP 写入先检查归属。运行中的 `turn/start` 不再接受另一轮开始；补充使用 `turn/steer`，中断使用 `turn/interrupt`。审批只接受当前输入者回应一次。
 
 写入携带 `requestId`，记录请求哈希、`pending/completed/failed/unknown`。相同 ID、相同内容的完成请求返回已有响应；内容改变则拒绝。状态不明时先读取事件和会话结果，不能自动重发。重启后未完成写入标为 `unknown`。
 

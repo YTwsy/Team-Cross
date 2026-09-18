@@ -2677,3 +2677,38 @@ mark[data-annotation-highlight] {
 .client-grid:has(> .client-card:only-child) {
   grid-template-columns: 1fr;
 }
+
+.member-entry {
+  min-width: 0;
+  padding-block: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.member-entry .participant {
+  align-items: flex-start;
+}
+.member-entry .participant > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.member-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0 4px 42px;
+}
+.invitation-management {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+.invitation-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.invitation-row small {
+  display: block;
+  color: var(--muted);
+}

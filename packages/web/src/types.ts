@@ -62,7 +62,22 @@ export type Collaboration = {
   branch: string;
   host: string;
   role: "owner" | "remote";
-  writer: "owner" | "remote";
+  writer: string;
+  selfId?: string;
+  members?: {
+    id: string;
+    name: string;
+    active: boolean;
+    online: boolean;
+    inputRequested: boolean;
+    joinedAt: string;
+  }[];
+  invitations?: {
+    id: string;
+    state: string;
+    expiresAt: string;
+    memberId?: string;
+  }[];
   state: string;
   error?: string;
   createdAt: string;
@@ -75,7 +90,7 @@ export type Collaboration = {
   connected: boolean;
   participantOnline?: boolean;
   participantJoined?: boolean;
-  invitationState?: "pending" | "joined" | "expired" | "left";
+  invitationState?: "pending" | "joined" | "expired" | "left" | "revoked";
   runtimeState?: "running" | "starting" | "releasing" | "released" | "offline";
   releasePending?: boolean;
   inputRequested?: boolean;

@@ -131,7 +131,7 @@ func writeJSONFile(path string, value any) error {
 	return os.Rename(tmp, path)
 }
 func (a *App) newSession(r Record) *Session {
-	return &Session{app: a, record: r, writer: "owner", epoch: 1, approvals: map[string]Approval{}}
+	return &Session{app: a, record: r, writer: "owner", epoch: 1, presence: map[string]memberPresence{}, approvals: map[string]Approval{}}
 }
 func (s *Session) saveLocked() error {
 	return writeJSONFile(filepath.Join(s.app.Config.DataDir, "collaborations", s.record.ID, "collaboration.json"), s.record)
@@ -658,8 +658,20 @@ func (s *Session) view() map[string]any {
 		out["nativeWaiting"] = s.nativeWaiting
 		out["capabilities"] = map[string]bool{"nativeTui": true, "nativeDesktop": false, "sendInput": true, "steerInput": false, "interruptTurn": false, "respondToRequest": false}
 	}
-	out["participantOnline"] = s.share != nil && time.Since(s.remoteSeen) < 30*time.Second
-	out["inputRequested"] = out["participantOnline"] == true && s.inputRequested
+	out["selfId"] = "owner"
+	out["members"] = s.membersLocked()
+	out["participantOnline"], out["participantJoined"], out["inputRequested"] = false, false, false
+	for _, m := range s.membersLocked() {
+		if m.Active {
+			out["participantJoined"] = true
+		}
+		if m.Online {
+			out["participantOnline"] = true
+		}
+		if m.InputRequested {
+			out["inputRequested"] = true
+		}
+	}
 	out["clientState"] = "disconnected"
 	if s.direct != nil {
 		out["clientState"] = "connected"
@@ -672,10 +684,11 @@ func (s *Session) view() map[string]any {
 		out["transport"] = string(s.share.Transport())
 		state := s.share.InvitationState()
 		out["invitationState"] = state
-		out["participantJoined"] = state == "joined"
+		out["invitations"] = s.share.Invitations()
 		if state == "pending" {
 			out["invitation"] = s.share.Token()
-			out["expiresAt"] = s.share.Invitation.ExpiresAt
+			invite, _ := s.share.IssueInvitation("")
+			out["expiresAt"] = invite.ExpiresAt
 		}
 	} else if s.sharePreparing {
 		out["transport"] = string(s.shareTransport)

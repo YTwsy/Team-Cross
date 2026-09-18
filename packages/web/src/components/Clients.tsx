@@ -48,7 +48,8 @@ export function Clients({
   const directClients = claude
     ? (["tui"] as const)
     : (["tui", "desktop"] as const);
-  const mine = collaboration.writer === collaboration.role;
+  const mine =
+    collaboration.writer === (collaboration.selfId || collaboration.role);
   async function open(client: string, launch: boolean) {
     setBusy(client);
     setError("");

@@ -61,10 +61,10 @@ func TestModelSettingsFollowNativeChoices(t *testing.T) {
 	if err = s.Action(ctx, "share"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.RPC(ctx, "remote", "thread/settings/update", map[string]any{"model": "blocked"}, "blocked-update"); err == nil {
+	if _, err = s.RPC(ctx, firstRemote(s), "thread/settings/update", map[string]any{"model": "blocked"}, "blocked-update"); err == nil {
 		t.Fatal("nonwriter selected model")
 	}
-	if _, err = s.RPC(ctx, "remote", "thread/resume", map[string]any{"model": "blocked"}, "blocked-resume"); err == nil {
+	if _, err = s.RPC(ctx, firstRemote(s), "thread/resume", map[string]any{"model": "blocked"}, "blocked-resume"); err == nil {
 		t.Fatal("nonwriter changed model through resume")
 	}
 	notification, _ := json.Marshal(map[string]any{"threadId": s.record.SessionID, "threadSettings": map[string]any{"model": "fixture-notified-model", "modelProvider": "fixture-provider", "effort": "high"}})

@@ -25,7 +25,7 @@ func (s *Session) attachClaude(w http.ResponseWriter, r *http.Request, role stri
 	}
 	s.mu.Lock()
 	p, ok := s.process.(claudeTerminal)
-	if !ok || !s.callerValidLocked(r.Context()) || s.writer != role || !s.online || s.starting || s.record.State != "ready" || (role == "remote" && s.share == nil) {
+	if !ok || !s.callerValidLocked(r.Context()) || s.writer != role || !s.online || s.starting || s.record.State != "ready" || (role != "owner" && (s.share == nil || !s.share.HasMember(role))) {
 		s.mu.Unlock()
 		http.Error(w, "等待输入交接或恢复运行时", 403)
 		return

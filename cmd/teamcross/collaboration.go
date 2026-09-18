@@ -22,7 +22,7 @@ import (
 
 func collaborationCommand(command string) bool {
 	switch command {
-	case "collaborations", "input", "sources", "preview", "create", "share", "invite", "inspect-invitation", "open", "end", "leave", "resume", "share-status", "cancel-share":
+	case "remove-member", "revoke-invitation", "collaborations", "input", "sources", "preview", "create", "share", "invite", "inspect-invitation", "open", "end", "leave", "resume", "share-status", "cancel-share":
 		return true
 	}
 	return false
@@ -45,6 +45,8 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 	f.SetOutput(diagnostic)
 	data := f.String("data-dir", collab.DefaultDataDir(), "本机数据目录")
 	id := f.String("id", "", "协作 ID；省略时列出协作")
+	memberID := f.String("member", "", "输入接收者或要移除的具体成员 ID")
+	invitationID := f.String("invitation-id", "", "要撤销的待用邀请 ID")
 	epoch := f.Uint64("epoch", 0, "查看协作后得到的输入状态版本")
 	jsonOut := f.Bool("json", false, "输出 JSON")
 	provider := f.String("provider", "", "来源会话的 codex 或 claude")
@@ -76,6 +78,9 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 	switch command {
 	case "collaborations", "input":
 		tool, params, err = collaborationInvocation(command, action, *id, *epoch)
+		if command == "input" && *memberID != "" {
+			params["memberId"] = *memberID
+		}
 	case "sources":
 		tool, params = "list_source_sessions", map[string]any{"provider": *provider, "search": *search, "cursor": *cursor}
 	case "preview", "create", "share":
@@ -93,6 +98,13 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 		}
 	case "invite":
 		tool, params = "create_invitation", map[string]any{"id": *id, "transport": *transport}
+		if *requestID != "" {
+			params["requestId"] = *requestID
+		}
+	case "remove-member":
+		tool, params = "remove_member", map[string]any{"id": *id, "memberId": *memberID}
+	case "revoke-invitation":
+		tool, params = "revoke_invitation", map[string]any{"id": *id, "invitationId": *invitationID}
 	case "inspect-invitation":
 		if *stdin {
 			var raw []byte

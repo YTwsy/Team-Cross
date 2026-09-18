@@ -450,7 +450,7 @@ func TestClaudeUncertainSendIsNotReplayed(t *testing.T) {
 		t.Fatal("multiple writes", p.writes)
 	}
 	s.mu.Lock()
-	state := s.record.Commands["same-request"].State
+	state := s.record.Commands["owner:turn/start:same-request"].State
 	s.mu.Unlock()
 	if state != "unknown" {
 		t.Fatal(state)

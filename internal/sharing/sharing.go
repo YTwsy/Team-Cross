@@ -29,7 +29,7 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
-const Capability = "codex-collaboration-v3-explicit-transport"
+const Capability = "collaboration-spaces-v1-multi-member"
 
 type Transport string
 
@@ -72,10 +72,11 @@ type Invitation struct {
 type Runtime struct {
 	mu              sync.Mutex
 	revoked         bool
-	used            bool
-	member          string
-	memberCtx       context.Context
-	cancel          context.CancelFunc
+	invitations     map[string]*admission
+	members         map[string]*member
+	inviteRequests  map[string]string
+	latestInvite    string
+	initialExposed  bool
 	Invitation      Invitation
 	server          *http.Server
 	mdns            *zeroconf.Server
@@ -85,8 +86,11 @@ type Runtime struct {
 }
 
 func (r *Runtime) Token() string {
-	b, _ := json.Marshal(r.Invitation)
-	return "tcx3." + base64.RawURLEncoding.EncodeToString(b)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.initializeLocked()
+	r.initialExposed = true
+	return encodeInvitation(*r.invitations[r.latestInvite].invitation)
 }
 func (r *Runtime) Transport() Transport { return r.transport }
 func (r *Runtime) Revoke() {

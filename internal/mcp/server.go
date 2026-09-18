@@ -110,7 +110,7 @@ func (b Backend) Invoke(ctx context.Context, name string, args map[string]any) (
 		if err != nil {
 			return nil, err
 		}
-		out, err := b.Call(ctx, "POST", base+"/action", map[string]any{"action": action, "epoch": epoch})
+		out, err := b.Call(ctx, "POST", base+"/action", map[string]any{"action": action, "epoch": epoch, "memberId": args["memberId"]})
 		return withoutInvitations(out), err
 	}
 	switch name {
@@ -161,7 +161,7 @@ var inputActions = map[string]string{
 
 func inputTool(name, description string) map[string]any {
 	return tool(name, description+" 先 get_collaboration，传入所看到的 epoch；状态过期或结果不明时先查询，不自动重试交接。操作成功后查询最新状态。", map[string]any{
-		"id": str("本机协作 ID"), "epoch": map[string]any{"type": "integer", "minimum": 1, "description": "get_collaboration 返回的输入状态版本"},
+		"memberId": str("handoff_input 的目标成员 ID，来自 members；多人时必须指定"), "id": str("本机协作 ID"), "epoch": map[string]any{"type": "integer", "minimum": 1, "description": "get_collaboration 返回的输入状态版本"},
 	}, []string{"id", "epoch"}, false)
 }
 

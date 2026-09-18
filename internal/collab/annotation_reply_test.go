@@ -128,7 +128,7 @@ func TestRemoteAnnotationReplyMembershipAndStrictShape(t *testing.T) {
 	if err = j.request(ctx, "POST", "/v2/annotation-replies", in, &out); err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Replies) != 1 || out.Replies[0].Author != "协作者" || s.writer != "owner" {
+	if len(out.Replies) != 1 || out.Replies[0].Author != b.Host || out.Replies[0].AuthorID != firstRemote(s) || s.writer != "owner" {
 		t.Fatal(out)
 	}
 	if err = j.request(ctx, "POST", "/v2/annotation-replies", map[string]any{"annotationId": root.ID, "text": "bad", "requestId": "bad", "target": map[string]string{"kind": "annotation"}}, &out); err == nil {

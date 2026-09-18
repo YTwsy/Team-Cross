@@ -101,7 +101,7 @@ func TestJoinedAccessSurvivesDeadlineAndParticipantCoreRestart(t *testing.T) {
 	if state := s.view()["invitationState"]; state != "left" {
 		t.Fatal("explicit leave not revoked", state)
 	}
-	if e = s.Action(ctx, "share"); e != nil {
+	if _, e = s.Invite(ctx, "lan", "after-leave"); e != nil {
 		t.Fatal(e)
 	}
 	if _, e = c.Join(ctx, s.share.Token()); e != nil {

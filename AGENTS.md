@@ -11,7 +11,7 @@
 | 当前任务 | 优先阅读 |
 | --- | --- |
 | 产品范围、命名、用户流程 | [产品模型与词汇](docs/agent-wiki/wiki/concepts/product-model-and-glossary.md) |
-| 独立只读分享、三人以上、多会话材料 | [协作空间](docs/agent-wiki/wiki/concepts/collaboration-spaces.md)（已确认目标，尚未实现） |
+| 独立只读分享、三人以上、多会话材料 | [协作空间](docs/agent-wiki/wiki/concepts/collaboration-spaces.md)（已确认目标，分阶段实现中） |
 | 模块、启动、数据路径 | [运行时架构](docs/agent-wiki/wiki/concepts/runtime-architecture.md) |
 | Git、worktree、fork、恢复与结束 | [目录与生命周期](docs/agent-wiki/wiki/concepts/workspace-and-lifecycle.md) |
 | TUI/Desktop、登录、模型与原生接入 | [原生客户端与模型](docs/agent-wiki/wiki/concepts/native-clients-and-models.md) |

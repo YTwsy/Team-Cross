@@ -13,6 +13,7 @@ import {
   projectName,
 } from "../types";
 import { Clients } from "./Clients";
+import { Members } from "./Members";
 import { Context } from "./Context";
 import { Annotations, type AnnotationRequest } from "./Annotations";
 import {
@@ -106,6 +107,7 @@ export function Detail({ id }: { id: string }) {
     () => sessionStorage.getItem(`teamcross.create.${id}`) || "",
   );
   const actionSerial = useRef(0);
+  const invitationRequest = useRef(crypto.randomUUID());
   useEffect(() => {
     sessionStorage.removeItem(`teamcross.create.${id}`);
     sessionStorage.removeItem(`teamcross.invite.${id}`);
@@ -119,7 +121,11 @@ export function Detail({ id }: { id: string }) {
     useState<AnnotationRequest>();
   const [annotationLocation, setAnnotationLocation] =
     useState<AnnotationRequest>();
-  async function action(value: string, transport?: ShareTransport) {
+  async function action(
+    value: string,
+    transport?: ShareTransport,
+    memberId?: string,
+  ) {
     if (!c) return;
     const serial = ++actionSerial.current;
     setBusy(value);
@@ -129,6 +135,7 @@ export function Detail({ id }: { id: string }) {
         action: value,
         ...(transport ? { transport } : {}),
         epoch: c.epoch,
+        ...(memberId ? { memberId } : {}),
       });
       if (serial !== actionSerial.current) return;
       resource.reload();
@@ -144,6 +151,58 @@ export function Detail({ id }: { id: string }) {
         setError(errorText(e));
     } finally {
       if (serial === actionSerial.current) setBusy("");
+    }
+  }
+  async function manage(path: string, body: object) {
+    setBusy(path);
+    setError("");
+    try {
+      await api(`collaborations/${id}/${path}`, body);
+      resource.reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy("");
+    }
+  }
+  async function inviteAnother() {
+    setBusy("share");
+    setError("");
+    try {
+      const result = await api<Collaboration>(
+        `collaborations/${id}/invitations`,
+        {
+          transport: c?.transport || shareTransport,
+          requestId: invitationRequest.current,
+        },
+      );
+      resource.setData(result);
+      invitationRequest.current = crypto.randomUUID();
+      setModal("invite");
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy("");
+    }
+  }
+  async function copyInvitation(invitationId: string) {
+    setBusy("copy-invitation");
+    setError("");
+    try {
+      const invite = await api<Collaboration>(
+        `collaborations/${id}/invitations`,
+        { invitationId },
+      );
+      if (!invite.invitation)
+        throw new Error("这份邀请已使用或失效，请刷新查看。");
+      await navigator.clipboard.writeText(
+        invitationText(invite.invitation, c?.transport),
+      );
+      setPersonalOpenNote("已复制所选邀请。");
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy("");
     }
   }
   async function openPersonalCodex() {
@@ -176,7 +235,11 @@ export function Detail({ id }: { id: string }) {
   const agentName = c.provider === "claude" ? "Claude Code" : "Codex";
   const waiting = c.approvals > 0 || !!c.nativeWaiting;
   const owner = c.role === "owner";
-  const mine = c.role === c.writer;
+  const mine = (c.selfId || c.role) === c.writer;
+  const writerName =
+    c.writer === "owner"
+      ? "发起者"
+      : c.members?.find((m) => m.id === c.writer)?.name || "同事";
   const closed = ["ended", "left", "expired"].includes(c.state);
   const canOpenPersonalCodex =
     owner &&
@@ -249,9 +312,7 @@ export function Detail({ id }: { id: string }) {
           </span>
           <span>
             <small>当前输入者</small>
-            <strong>
-              {closed ? "共享已关闭" : mine ? "我" : owner ? "同事" : "发起者"}
-            </strong>
+            <strong>{closed ? "共享已关闭" : mine ? "我" : writerName}</strong>
           </span>
         </div>
         <div className="execution-sharing">
@@ -394,7 +455,7 @@ export function Detail({ id }: { id: string }) {
                   : "在个人 Codex 中打开"}
             </button>
           )}
-          {owner && c.online && !c.participantJoined && (
+          {owner && c.online && (
             <button
               className="button"
               disabled={!!busy || c.sharingPreparing}
@@ -441,99 +502,16 @@ export function Detail({ id }: { id: string }) {
           />
         </div>
         <aside className="detail-aside">
-          <section className="panel participants-panel">
-            <div className="panel-heading">
-              <h2>参与协作</h2>
-              <span className="participants-caption">
-                {c.participantJoined ? "已加入" : "等待加入"}
-              </span>
-            </div>
-            <div className="aside-participant-list">
-              <div className="participant">
-                <span className="avatar self">{owner ? "我" : "A"}</span>
-                <div>
-                  <strong>{owner ? "我" : "发起者"}</strong>
-                  <span>
-                    执行主机 · {c.writer === "owner" ? "正在输入" : "可查看"}
-                  </span>
-                </div>
-              </div>
-              <div className="participant">
-                <span className="avatar">{owner ? "同" : "我"}</span>
-                <div>
-                  <strong>{owner ? "同事" : "我"}</strong>
-                  <span>
-                    {c.sharing
-                      ? c.writer === "remote"
-                        ? "已获输入权"
-                        : c.participantOnline
-                          ? "已加入 · 在线查看"
-                          : c.participantJoined
-                            ? "已加入 · 暂时离线"
-                            : c.invitationState === "left"
-                              ? "同事已离开"
-                              : "等待同事加入"
-                      : "共享未开启"}
-                  </span>
-                </div>
-              </div>
-            </div>
-            {owner && c.inputRequested && (
-              <div className="notice" role="status">
-                同事正在申请输入，请在准备好后交接。
-              </div>
-            )}
-            <div className="participants-actions">
-              {owner && c.sharing && (
-                <button
-                  className="button small"
-                  disabled={
-                    !!busy ||
-                    (mine && (c.busy || c.participantJoined === false))
-                  }
-                  onClick={() => void action(mine ? "handoff" : "reclaim")}
-                >
-                  <Icon name="people" size={14} />
-                  {mine ? "将输入交给同事" : "接回输入"}
-                </button>
-              )}
-              {!owner && c.sharing && !mine && (
-                <button
-                  className="button small"
-                  disabled={!!busy || !c.online}
-                  onClick={() =>
-                    void action(
-                      c.inputRequested ? "cancel_input" : "request_input",
-                    )
-                  }
-                >
-                  {c.inputRequested ? "取消输入申请" : "申请输入"}
-                </button>
-              )}
-              {!owner && c.sharing && mine && (
-                <button
-                  className="button small"
-                  disabled={!!busy || c.busy}
-                  onClick={() => void action("return")}
-                >
-                  <Icon name="people" size={14} />
-                  交还输入
-                </button>
-              )}
-              <button
-                className="text-link small-text"
-                disabled={closed}
-                onClick={() => setModal("assist")}
-              >
-                使用自己的客户端辅助 <Icon name="arrow" size={14} />
-              </button>
-            </div>
-            {owner && c.sharing && c.busy && mine && (
-              <p className="small-text muted participants-action-note">
-                当前轮完成后可以交出输入。
-              </p>
-            )}
-          </section>
+          <Members
+            collaboration={c}
+            busy={!!busy}
+            closed={closed}
+            onAction={(value, memberId) =>
+              void action(value, undefined, memberId)
+            }
+            onRemove={(memberId) => void manage("remove-member", { memberId })}
+            onAssist={() => setModal("assist")}
+          />
           <Annotations
             key={id}
             id={id}
@@ -618,10 +596,6 @@ export function Detail({ id }: { id: string }) {
                     />
                   </details>
                 </>
-              ) : c.participantJoined ? (
-                <p className="notice">
-                  同事已加入，访问持续有效，无需再次发送邀请。
-                </p>
               ) : c.sharingPreparing || busy === "share" ? (
                 <>
                   <Loading
@@ -653,6 +627,7 @@ export function Detail({ id }: { id: string }) {
                           <input
                             type="radio"
                             name="inviteTransport"
+                            disabled={c.sharing}
                             value={value}
                             checked={shareTransport === value}
                             onChange={() => setShareTransport(value)}
@@ -682,7 +657,7 @@ export function Detail({ id }: { id: string }) {
                   <button
                     className="button primary full-width"
                     disabled={!!busy}
-                    onClick={() => void action("share", shareTransport)}
+                    onClick={() => void inviteAnother()}
                   >
                     {c.invitationState === "expired" ||
                     c.invitationState === "left"
@@ -691,8 +666,55 @@ export function Detail({ id }: { id: string }) {
                   </button>
                 </>
               )}
+              {c.sharing && !c.sharingPreparing && (
+                <div className="invitation-management">
+                  {c.invitation && (
+                    <button
+                      className="button full-width"
+                      disabled={!!busy}
+                      onClick={() => void inviteAnother()}
+                    >
+                      为另一位同事生成邀请
+                    </button>
+                  )}
+                  {c.invitations
+                    ?.filter((invite) => invite.state === "pending")
+                    .map((invite) => (
+                      <div className="invitation-row" key={invite.id}>
+                        <span>
+                          待用邀请 · {invite.id.slice(0, 8)}
+                          <small>
+                            {new Date(invite.expiresAt).toLocaleTimeString(
+                              "zh-CN",
+                            )}{" "}
+                            前可加入
+                          </small>
+                        </span>
+                        <button
+                          className="text-link"
+                          disabled={!!busy}
+                          onClick={() => void copyInvitation(invite.id)}
+                          aria-label={`复制邀请 ${invite.id.slice(0, 8)}`}
+                        >
+                          复制
+                        </button>
+                        <button
+                          className="text-link danger"
+                          disabled={!!busy}
+                          onClick={() =>
+                            void manage("revoke-invitation", {
+                              invitationId: invite.id,
+                            })
+                          }
+                        >
+                          撤销邀请
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
               <p className="small-text muted">
-                邀请仅限一人首次加入，有效期一小时。加入后持续有效；你决定何时交出输入。发起者退出
+                每份邀请仅限一人首次加入，有效期一小时。加入后持续有效；你决定何时交出输入。发起者退出
                 Team Cross 时会结束本次共享。
                 {(c.transport || shareTransport) === "tailcat" &&
                   " Tailcat 为实验性连接，无法直连时可能使用第三方 DERP 中继。"}
