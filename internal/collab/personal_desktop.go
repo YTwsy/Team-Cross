@@ -19,8 +19,11 @@ func (a *App) PersonalDesktopPlan(ctx context.Context, id string, launch bool) (
 		return nil, err
 	}
 	s.mu.Lock()
-	r := s.record
+	r := s.snapshotLocked()
 	s.mu.Unlock()
+	if r.ExecutionRecord == nil {
+		return nil, fmt.Errorf("空间尚未启用共同执行")
+	}
 	provider, err := providerName(r.Provider)
 	if err != nil || provider != "codex" {
 		return nil, fmt.Errorf("只有本机发起的 Codex 协作可以在个人 Codex 中打开")

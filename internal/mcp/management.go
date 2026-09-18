@@ -13,6 +13,7 @@ import (
 )
 
 type creationInput struct {
+	SpaceID       string             `json:"spaceId,omitempty"`
 	Provider      string             `json:"provider"`
 	SourceID      string             `json:"sourceId"`
 	WorkspaceMode string             `json:"workspaceMode"`
@@ -26,7 +27,7 @@ func choice(values ...string) map[string]any { return map[string]any{"type": "st
 
 func creationProperties() map[string]any {
 	return map[string]any{
-		"provider": choice("codex", "claude"), "sourceId": str("明确选择的本机来源会话 UUID；不能用协作 ID 代替"),
+		"spaceId": str("可选：本机已有只读空间 ID；启用执行保留原链接和成员；随后用 set_execution_access 明确开放完整历史与目录"), "provider": choice("codex", "claude"), "sourceId": str("明确选择的本机来源会话 UUID；不能用协作 ID 代替"),
 		"workspaceMode": choice("existing", "worktree"), "runtimeMode": choice("restricted", "trusted"),
 		"title": str("可选的协作名称"), "requestId": str("创建 UUID；预览可省略，由工具生成；创建和重试保持相同"),
 	}
@@ -40,7 +41,10 @@ func managementTools() []map[string]any {
 		tool("list_source_sessions", "分页搜索本机个人来源会话。provider 指来源，而非调用工具的个人客户端；不查询远端私人历史，不把最新会话当成当前会话。", map[string]any{"provider": choice("codex", "claude"), "search": str("名称或内容搜索"), "cursor": str("上一页的 nextCursor")}, []string{"provider"}, true),
 		tool("preview_collaboration", "预览明确选定来源、Git 起点、执行目录和权限模式；不创建 fork。existing 保留原现场，worktree 从 HEAD 检出且不复制未提交内容。默认 restricted，trusted 沿用发起者原生配置与权限。展示结果；保留返回的 requestId 与 previewHash。", preview, []string{"provider", "sourceId", "workspaceMode"}, true),
 		tool("create_collaboration", "根据已确认的预览创建新的原生 fork，不发送业务输入。必须保留预览的 requestId、previewHash 和模式；超时先以 requestId 查询协作，不能改 ID 重建。成功后单独 create_invitation。", create, []string{"provider", "sourceId", "workspaceMode", "requestId", "previewHash"}, false),
-		tool("create_invitation", "为本机发起的协作生成或取回未使用邀请，返回邀请码和 App 链接供用户转交。明确选择 LAN 或实验性 Tailcat；不自动降级。相同连接方式复用现有邀请，已加入成员不产生第二份可加入邀请。邀请是秘密；不会自动发给同事。", map[string]any{"id": id["id"], "transport": choice("lan", "tailcat")}, []string{"id", "transport"}, false),
+		tool("create_invitation", "生成或取回当前空间的可复用邀请链接，多位同事使用同一链接分别加入。明确选择 LAN 或实验性 Tailcat；不自动降级。reset=true 与 requestId 明确重置链接，旧链接失效，现有成员保留。链接有效至关闭、重置或本次共享结束；不会自动发给同事。", map[string]any{"id": id["id"], "transport": choice("lan", "tailcat"), "requestId": str("操作的唯一请求标识；重置时必填，重试保持相同"), "reset": map[string]any{"type": "boolean"}, "invitationId": str("可选：只取回这份邀请；不能与 requestId 或 reset 同时使用")}, []string{"id", "transport"}, false),
+		tool("remove_member", "发起者撤销指定成员的访问；其他成员继续参与，当前输入者被移除时控制归还发起者。", map[string]any{"id": id["id"], "memberId": str("members 中的具体成员 ID")}, []string{"id", "memberId"}, false),
+		tool("revoke_invitation", "关闭链接加入；已加入成员继续参与。", map[string]any{"id": id["id"], "invitationId": str("invitations 中的邀请 ID")}, []string{"id", "invitationId"}, false),
+		tool("set_execution_access", "发起者为指定成员开放或收回原生历史、目录和执行访问。成员仍留在空间；收回时接回该成员的输入，但不自动中断模型。", map[string]any{"id": id["id"], "memberId": str("具体成员 ID"), "allowed": map[string]any{"type": "boolean"}}, []string{"id", "memberId", "allowed"}, false),
 		tool("preview_invitation", "只解析邀请中的名称、主机、模式与到期时间；不联系远端、不加入。显示信息尚未通过远端验证。", map[string]any{"invitation": str("用户提供的原始邀请码或 App 链接")}, []string{"invitation"}, true),
 		tool("join_collaboration", "明确加入用户选定的邀请，复用本机加入记录；不打开浏览器或原生客户端，不自动取得输入权。首次加入前展示 preview_invitation 的信息。", map[string]any{"invitation": str("同一份已预览邀请")}, []string{"invitation"}, false),
 		tool("open_client", "打开当前协作的直接原生客户端；必须已获得输入权。TUI 打开新终端窗口，Desktop 是独立专用窗口，Claude 仅 TUI。launch=false 只生成启动计划；launched 只表示启动请求成功，之后查询 clientState。", map[string]any{"id": id["id"], "client": choice("tui", "desktop"), "launch": map[string]any{"type": "boolean", "default": true}}, []string{"id", "client"}, false),
@@ -148,7 +152,10 @@ func (b Backend) invokeManagement(ctx context.Context, name string, args map[str
 	base := "collaborations/" + url.PathEscape(id)
 	switch name {
 	case "create_invitation":
-		out, err := b.Call(ctx, "POST", base+"/action", map[string]any{"action": "share", "transport": args["transport"]})
+		if args["invitationId"] != nil && (args["requestId"] != nil || args["reset"] == true) {
+			return true, nil, fmt.Errorf("新建邀请与取回指定邀请不能同时选择")
+		}
+		out, err := b.Call(ctx, "POST", base+"/invitations", map[string]any{"transport": args["transport"], "requestId": args["requestId"], "invitationId": args["invitationId"], "reset": args["reset"]})
 		if err != nil {
 			return true, nil, err
 		}
@@ -161,6 +168,12 @@ func (b Backend) invokeManagement(ctx context.Context, name string, args map[str
 		}
 		out, err = json.Marshal(result)
 		return true, out, err
+	case "set_execution_access":
+		return call("POST", base+"/execution-access", map[string]any{"memberId": args["memberId"], "allowed": args["allowed"]}, false)
+	case "remove_member":
+		return call("POST", base+"/remove-member", map[string]any{"memberId": args["memberId"]}, false)
+	case "revoke_invitation":
+		return call("POST", base+"/revoke-invitation", map[string]any{"invitationId": args["invitationId"]}, false)
 	case "open_client":
 		launch := true
 		if v, ok := args["launch"].(bool); ok {

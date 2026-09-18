@@ -1,5 +1,4 @@
 import {
-  invitationText,
   transportName,
   runtimeModeName,
   runtimeModeDescription,
@@ -13,11 +12,14 @@ import {
   projectName,
 } from "../types";
 import { Clients } from "./Clients";
+import { Materials } from "./Materials";
+import { InvitationPanel } from "./InvitationPanel";
+import { ReadOnlySpace } from "./ReadOnlySpace";
+import { Members } from "./Members";
 import { Context } from "./Context";
 import { Annotations, type AnnotationRequest } from "./Annotations";
 import {
   Badge,
-  Copy,
   Empty,
   ErrorBox,
   Icon,
@@ -119,7 +121,11 @@ export function Detail({ id }: { id: string }) {
     useState<AnnotationRequest>();
   const [annotationLocation, setAnnotationLocation] =
     useState<AnnotationRequest>();
-  async function action(value: string, transport?: ShareTransport) {
+  async function action(
+    value: string,
+    transport?: ShareTransport,
+    memberId?: string,
+  ) {
     if (!c) return;
     const serial = ++actionSerial.current;
     setBusy(value);
@@ -129,6 +135,7 @@ export function Detail({ id }: { id: string }) {
         action: value,
         ...(transport ? { transport } : {}),
         epoch: c.epoch,
+        ...(memberId ? { memberId } : {}),
       });
       if (serial !== actionSerial.current) return;
       resource.reload();
@@ -144,6 +151,18 @@ export function Detail({ id }: { id: string }) {
         setError(errorText(e));
     } finally {
       if (serial === actionSerial.current) setBusy("");
+    }
+  }
+  async function manage(path: string, body: object) {
+    setBusy(path);
+    setError("");
+    try {
+      await api(`collaborations/${id}/${path}`, body);
+      resource.reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy("");
     }
   }
   async function openPersonalCodex() {
@@ -173,10 +192,23 @@ export function Detail({ id }: { id: string }) {
         {resource.loading && <Loading />}
       </>
     );
+  if (c.hasExecution === false)
+    return (
+      <ReadOnlySpace
+        collaboration={c}
+        reload={resource.reload}
+        update={resource.setData}
+        showInvite={modal === "invite"}
+      />
+    );
   const agentName = c.provider === "claude" ? "Claude Code" : "Codex";
   const waiting = c.approvals > 0 || !!c.nativeWaiting;
   const owner = c.role === "owner";
-  const mine = c.role === c.writer;
+  const mine = (c.selfId || c.role) === c.writer;
+  const writerName =
+    c.writer === "owner"
+      ? "发起者"
+      : c.members?.find((m) => m.id === c.writer)?.name || "同事";
   const closed = ["ended", "left", "expired"].includes(c.state);
   const canOpenPersonalCodex =
     owner &&
@@ -249,9 +281,7 @@ export function Detail({ id }: { id: string }) {
           </span>
           <span>
             <small>当前输入者</small>
-            <strong>
-              {closed ? "共享已关闭" : mine ? "我" : owner ? "同事" : "发起者"}
-            </strong>
+            <strong>{closed ? "共享已关闭" : mine ? "我" : writerName}</strong>
           </span>
         </div>
         <div className="execution-sharing">
@@ -394,7 +424,7 @@ export function Detail({ id }: { id: string }) {
                   : "在个人 Codex 中打开"}
             </button>
           )}
-          {owner && c.online && !c.participantJoined && (
+          {owner && c.state !== "preparing" && (
             <button
               className="button"
               disabled={!!busy || c.sharingPreparing}
@@ -404,8 +434,8 @@ export function Detail({ id }: { id: string }) {
               {busy === "share"
                 ? "正在生成…"
                 : c.invitation
-                  ? "查看邀请"
-                  : "邀请同事"}
+                  ? "邀请成员"
+                  : "邀请成员"}
             </button>
           )}
         </div>
@@ -417,6 +447,17 @@ export function Detail({ id }: { id: string }) {
       )}
       <div className="detail-grid">
         <div className="detail-main">
+          <Materials
+            collaboration={c}
+            reload={resource.reload}
+            onAnnotate={(target, origin) =>
+              setAnnotationRequest({ target, origin, serial: Date.now() })
+            }
+            location={annotationLocation}
+            onDiscuss={(annotationId, origin) =>
+              setAnnotationRequest({ annotationId, origin, serial: Date.now() })
+            }
+          />
           <Context
             id={id}
             sessionId={c.sessionId}
@@ -425,10 +466,14 @@ export function Detail({ id }: { id: string }) {
               <TechnicalInformation collaboration={c} agentName={agentName} />
             }
             canAnnotate={owner || (c.online && !closed)}
-            onAnnotate={(target) =>
-              setAnnotationRequest({ target, serial: Date.now() })
+            onAnnotate={(target, origin) =>
+              setAnnotationRequest({ target, origin, serial: Date.now() })
             }
-            location={annotationLocation}
+            location={
+              annotationLocation?.target?.kind === "material"
+                ? undefined
+                : annotationLocation
+            }
             online={
               c.online ||
               (owner &&
@@ -436,110 +481,47 @@ export function Detail({ id }: { id: string }) {
                 c.runtimeState !== "releasing" &&
                 c.runtimeState !== "starting")
             }
+            annotations={c.annotations}
+            onDiscuss={(annotationId, origin) =>
+              setAnnotationRequest({ annotationId, origin, serial: Date.now() })
+            }
             sequence={c.sequence}
             closed={closed}
           />
         </div>
         <aside className="detail-aside">
-          <section className="panel participants-panel">
-            <div className="panel-heading">
-              <h2>参与协作</h2>
-              <span className="participants-caption">
-                {c.participantJoined ? "已加入" : "等待加入"}
-              </span>
-            </div>
-            <div className="aside-participant-list">
-              <div className="participant">
-                <span className="avatar self">{owner ? "我" : "A"}</span>
-                <div>
-                  <strong>{owner ? "我" : "发起者"}</strong>
-                  <span>
-                    执行主机 · {c.writer === "owner" ? "正在输入" : "可查看"}
-                  </span>
-                </div>
-              </div>
-              <div className="participant">
-                <span className="avatar">{owner ? "同" : "我"}</span>
-                <div>
-                  <strong>{owner ? "同事" : "我"}</strong>
-                  <span>
-                    {c.sharing
-                      ? c.writer === "remote"
-                        ? "已获输入权"
-                        : c.participantOnline
-                          ? "已加入 · 在线查看"
-                          : c.participantJoined
-                            ? "已加入 · 暂时离线"
-                            : c.invitationState === "left"
-                              ? "同事已离开"
-                              : "等待同事加入"
-                      : "共享未开启"}
-                  </span>
-                </div>
-              </div>
-            </div>
-            {owner && c.inputRequested && (
-              <div className="notice" role="status">
-                同事正在申请输入，请在准备好后交接。
-              </div>
-            )}
-            <div className="participants-actions">
-              {owner && c.sharing && (
-                <button
-                  className="button small"
-                  disabled={
-                    !!busy ||
-                    (mine && (c.busy || c.participantJoined === false))
-                  }
-                  onClick={() => void action(mine ? "handoff" : "reclaim")}
-                >
-                  <Icon name="people" size={14} />
-                  {mine ? "将输入交给同事" : "接回输入"}
-                </button>
-              )}
-              {!owner && c.sharing && !mine && (
-                <button
-                  className="button small"
-                  disabled={!!busy || !c.online}
-                  onClick={() =>
-                    void action(
-                      c.inputRequested ? "cancel_input" : "request_input",
-                    )
-                  }
-                >
-                  {c.inputRequested ? "取消输入申请" : "申请输入"}
-                </button>
-              )}
-              {!owner && c.sharing && mine && (
-                <button
-                  className="button small"
-                  disabled={!!busy || c.busy}
-                  onClick={() => void action("return")}
-                >
-                  <Icon name="people" size={14} />
-                  交还输入
-                </button>
-              )}
-              <button
-                className="text-link small-text"
-                disabled={closed}
-                onClick={() => setModal("assist")}
-              >
-                使用自己的客户端辅助 <Icon name="arrow" size={14} />
-              </button>
-            </div>
-            {owner && c.sharing && c.busy && mine && (
-              <p className="small-text muted participants-action-note">
-                当前轮完成后可以交出输入。
-              </p>
-            )}
-          </section>
+          <Members
+            collaboration={c}
+            busy={!!busy}
+            closed={closed}
+            onAction={(value, memberId) =>
+              void action(value, undefined, memberId)
+            }
+            onRemove={(memberId) => void manage("remove-member", { memberId })}
+            onExecutionAccess={(memberId, allowed) =>
+              void manage("execution-access", { memberId, allowed })
+            }
+            onAssist={() => setModal("assist")}
+          />
           <Annotations
             key={id}
             id={id}
             annotations={c.annotations || []}
+            materials={c.materials}
+            onLocateMaterial={(ref) =>
+              setAnnotationLocation({
+                target: {
+                  kind: "material",
+                  materialId: ref.materialId,
+                  version: ref.version,
+                  turnId: ref.turnId,
+                  quote: "",
+                },
+                serial: Date.now(),
+              })
+            }
             request={annotationRequest}
-            disabled={!owner && (!c.online || closed)}
+            disabled={!owner && (c.reachable === false || closed)}
             onSaved={(annotation) => {
               resource.setData((current) =>
                 current
@@ -570,7 +552,7 @@ export function Detail({ id }: { id: string }) {
         <Modal
           title={
             modal === "invite"
-              ? "邀请同事加入"
+              ? "邀请成员"
               : modal === "end"
                 ? c.sharingPreparing
                   ? "取消生成邀请？"
@@ -582,122 +564,14 @@ export function Detail({ id }: { id: string }) {
           onClose={() => setModal(null)}
         >
           {modal === "invite" ? (
-            <>
-              <p className="muted">
-                让同事在自己的 Mac 上打开 Team
-                Cross，选择「加入协作」并粘贴邀请。
-              </p>
-              <div className="invite-card">
-                <Icon
-                  name={
-                    (c.transport || shareTransport) === "tailcat"
-                      ? "globe"
-                      : "link"
-                  }
-                  size={24}
-                />
-                <strong>{c.title}</strong>
-                <span className="muted">
-                  {c.host} · {transportName(c.transport || shareTransport)}
-                </span>
-              </div>
-              {c.invitation ? (
-                <>
-                  <Copy
-                    text={invitationText(c.invitation, c.transport)}
-                    label="复制邀请"
-                    className="primary full-width"
-                  />
-                  <details className="technical">
-                    <summary>查看邀请内容</summary>
-                    <textarea
-                      readOnly
-                      aria-label="邀请内容"
-                      value={c.invitation}
-                      rows={4}
-                    />
-                  </details>
-                </>
-              ) : c.participantJoined ? (
-                <p className="notice">
-                  同事已加入，访问持续有效，无需再次发送邀请。
-                </p>
-              ) : c.sharingPreparing || busy === "share" ? (
-                <>
-                  <Loading
-                    text={
-                      shareTransport === "tailcat"
-                        ? "正在建立 Tailcat 跨网络通道…"
-                        : "正在生成局域网邀请…"
-                    }
-                  />
-                  {c.sharingPreparing && (
-                    <button
-                      className="button full-width"
-                      onClick={() => void action("end")}
-                    >
-                      取消生成邀请
-                    </button>
-                  )}
-                </>
-              ) : (
-                <>
-                  <fieldset className="workspace-field invite-transport-field">
-                    <legend>连接方式</legend>
-                    <div className="workspace-grid">
-                      {(["lan", "tailcat"] as ShareTransport[]).map((value) => (
-                        <label
-                          className={`workspace-card ${shareTransport === value ? "selected" : ""}`}
-                          key={value}
-                        >
-                          <input
-                            type="radio"
-                            name="inviteTransport"
-                            value={value}
-                            checked={shareTransport === value}
-                            onChange={() => setShareTransport(value)}
-                          />
-                          <div className="workspace-top">
-                            <span className="entry-icon">
-                              <Icon
-                                name={value === "lan" ? "link" : "globe"}
-                                size={21}
-                              />
-                            </span>
-                            <span className="radio-dot" />
-                          </div>
-                          <h3>{value === "lan" ? "局域网" : "Tailcat"}</h3>
-                          <strong>
-                            {value === "lan" ? "默认" : "跨网络 · 实验性"}
-                          </strong>
-                          <p>
-                            {value === "lan"
-                              ? "两台 Mac 位于同一局域网。"
-                              : "无需 Tailscale 账号，必要时经 DERP 中继。"}
-                          </p>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                  <button
-                    className="button primary full-width"
-                    disabled={!!busy}
-                    onClick={() => void action("share", shareTransport)}
-                  >
-                    {c.invitationState === "expired" ||
-                    c.invitationState === "left"
-                      ? "生成新邀请"
-                      : "生成邀请"}
-                  </button>
-                </>
-              )}
-              <p className="small-text muted">
-                邀请仅限一人首次加入，有效期一小时。加入后持续有效；你决定何时交出输入。发起者退出
-                Team Cross 时会结束本次共享。
-                {(c.transport || shareTransport) === "tailcat" &&
-                  " Tailcat 为实验性连接，无法直连时可能使用第三方 DERP 中继。"}
-              </p>
-            </>
+            <InvitationPanel
+              collaboration={c}
+              initialTransport={shareTransport}
+              onUpdated={(value) => {
+                resource.setData(value);
+                resource.reload();
+              }}
+            />
           ) : modal === "end" ? (
             <>
               {c.sharingPreparing ? (

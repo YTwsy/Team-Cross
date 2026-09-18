@@ -31,7 +31,7 @@ func TestParticipantAnnotationRoundTripAndRevokedAccess(t *testing.T) {
 	if err := j.request(ctx, "POST", "/v2/annotations", in, &result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Author != "协作者" || result.Target.SessionID != s.record.SessionID || result.Target.EndOffset != 9 {
+	if result.Author != b.Host || result.AuthorID != firstRemote(s) || result.Target.SessionID != s.record.SessionID || result.Target.EndOffset != 9 {
 		t.Fatal(result)
 	}
 	var read struct {

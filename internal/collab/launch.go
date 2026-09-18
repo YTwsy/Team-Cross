@@ -45,7 +45,7 @@ func (a *App) ClientPlan(ctx context.Context, id, client string, launch bool) (m
 	if view["online"] != true {
 		return nil, fmt.Errorf("请先恢复协作运行时")
 	}
-	role, _ := view["role"].(string)
+	role, _ := view["selfId"].(string)
 	if view["writer"] != role {
 		return nil, fmt.Errorf("请先完成输入交接")
 	}

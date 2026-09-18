@@ -1,4 +1,4 @@
-// Package sharing supplies single-use invitations and pinned-TLS membership
+// Package sharing supplies reusable space links and pinned-TLS membership
 // over explicitly selected LAN or Tailcat transports.
 package sharing
 
@@ -29,7 +29,7 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
-const Capability = "codex-collaboration-v3-explicit-transport"
+const Capability = "collaboration-spaces-v3-links"
 
 type Transport string
 
@@ -56,6 +56,7 @@ type TailcatCandidate struct {
 }
 
 type Invitation struct {
+	ReadOnly    bool               `json:"readOnly"`
 	RuntimeMode runtimeconfig.Mode `json:"runtimeMode,omitempty"`
 	Version     int                `json:"version"`
 	ID          string             `json:"id"`
@@ -66,16 +67,17 @@ type Invitation struct {
 	Tailcat     *TailcatCandidate  `json:"tailcat,omitempty"`
 	Pin         string             `json:"pin"`
 	Secret      string             `json:"secret"`
-	ExpiresAt   time.Time          `json:"expiresAt"`
+	ExpiresAt   time.Time          `json:"expiresAt,omitzero"`
 	Capability  string             `json:"capability"`
 }
 type Runtime struct {
 	mu              sync.Mutex
 	revoked         bool
-	used            bool
-	member          string
-	memberCtx       context.Context
-	cancel          context.CancelFunc
+	invitations     map[string]*admission
+	members         map[string]*member
+	inviteRequests  map[string]string
+	latestInvite    string
+	initialExposed  bool
 	Invitation      Invitation
 	server          *http.Server
 	mdns            *zeroconf.Server
@@ -85,8 +87,11 @@ type Runtime struct {
 }
 
 func (r *Runtime) Token() string {
-	b, _ := json.Marshal(r.Invitation)
-	return "tcx3." + base64.RawURLEncoding.EncodeToString(b)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.initializeLocked()
+	r.initialExposed = true
+	return encodeInvitation(*r.invitations[r.latestInvite].invitation)
 }
 func (r *Runtime) Transport() Transport { return r.transport }
 func (r *Runtime) Revoke() {
@@ -120,6 +125,18 @@ func Start(ctx context.Context, transport Transport, id, title, host string, han
 			return nil, err
 		}
 	}
+	return StartSpace(ctx, transport, id, title, host, handler, loopback, false, mode)
+}
+func StartSpace(ctx context.Context, transport Transport, id, title, host string, handler http.Handler, loopback, readOnly bool, mode runtimeconfig.Mode) (*Runtime, error) {
+	if readOnly {
+		mode = ""
+	} else {
+		var err error
+		mode, err = runtimeconfig.Parse(mode)
+		if err != nil {
+			return nil, err
+		}
+	}
 	transport, err := ParseTransport(string(transport))
 	if err != nil {
 		return nil, err
@@ -129,8 +146,6 @@ func Start(ctx context.Context, transport Transport, id, title, host string, han
 		return nil, err
 	}
 	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
-	// Admission uses wall time on both Macs, including time spent asleep.
-	expiry := time.Now().Add(time.Hour).Round(0)
 	tmpl := &x509.Certificate{SerialNumber: serial, Subject: pkix.Name{CommonName: "Team Cross " + id}, NotBefore: time.Now().Add(-time.Minute), NotAfter: time.Now().AddDate(1, 0, 0), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
 	if err != nil {
@@ -141,9 +156,9 @@ func Start(ctx context.Context, transport Transport, id, title, host string, han
 	r := &Runtime{
 		transport: transport,
 		Invitation: Invitation{
-			RuntimeMode: mode,
-			Version:     3, ID: id, Title: title, Host: host, Transport: transport,
-			Pin: hex.EncodeToString(pin[:]), Secret: NewCredential(), ExpiresAt: expiry, Capability: Capability,
+			RuntimeMode: mode, ReadOnly: readOnly,
+			Version: 3, ID: id, Title: title, Host: host, Transport: transport,
+			Pin: hex.EncodeToString(pin[:]), Secret: NewCredential(), Capability: Capability,
 		},
 	}
 	r.server = &http.Server{ReadHeaderTimeout: 10 * time.Second, Handler: r.authorize(handler)}
@@ -227,14 +242,20 @@ func Decode(token string) (Invitation, error) {
 	if err = json.Unmarshal(b, &i); err != nil {
 		return i, problem.New("version_incompatible", "邀请版本或内容不受支持", "请确认双方使用兼容的 Team Cross 版本")
 	}
-	i.RuntimeMode, err = runtimeconfig.Parse(i.RuntimeMode)
+	if i.ReadOnly {
+		if i.RuntimeMode != "" {
+			return i, fmt.Errorf("只读邀请不能含执行权限")
+		}
+	} else {
+		i.RuntimeMode, err = runtimeconfig.Parse(i.RuntimeMode)
+	}
 	if err != nil {
 		return i, problem.New("version_incompatible", "邀请的协作模式不受支持", "请确认双方使用兼容的 Team Cross 版本")
 	}
 	if err = validateInvitation(i); err != nil {
 		return i, problem.New("version_incompatible", "邀请版本或内容不受支持", "请确认双方使用兼容的 Team Cross 版本")
 	}
-	if time.Now().After(i.ExpiresAt) {
+	if !i.ExpiresAt.IsZero() && time.Now().After(i.ExpiresAt) {
 		return i, problem.New("invitation_expired", "邀请已到期", "请让发起者重新分享")
 	}
 	return i, nil

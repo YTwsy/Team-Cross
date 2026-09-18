@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/problem"
+	"teamcross/internal/runtimeconfig"
 	"teamcross/internal/sharing"
 )
 
@@ -35,13 +36,12 @@ func (s *Session) endShareLocked() {
 		s.app.mu.Unlock()
 		s.share = nil
 	}
-	if s.direct != nil && s.direct.role == "remote" {
+	if s.direct != nil && s.direct.role != "owner" {
 		s.direct.close()
 		s.direct = nil
 	}
 	s.writer = "owner"
-	s.inputRequested = false
-	s.remoteSeen = time.Time{}
+	s.presence = map[string]memberPresence{}
 	s.epoch++
 	s.releaseWhenIdle = true
 	s.annotationAccess = false
@@ -62,22 +62,24 @@ func (s *Session) Share(ctx context.Context, requested string) error {
 		return problem.New("sharing_preparing", "另一种连接方式正在准备", "请等待完成或先结束共享")
 	}
 	if s.share != nil {
-		state := s.share.InvitationState()
-		if state == "pending" || state == "joined" {
-			if s.share.Transport() == transport {
-				s.mu.Unlock()
-				return nil
-			}
-			if state == "joined" {
-				s.mu.Unlock()
-				return problem.New("sharing_active", "同事已经加入当前共享", "请先结束共享，再选择其他连接方式")
-			}
+		if s.share.Transport() != transport {
+			s.mu.Unlock()
+			return problem.New("sharing_active", "空间已使用另一种连接方式", "请先结束共享再切换；切换会撤销所有成员")
 		}
-		s.endShareLocked()
-	}
-	if !s.online || s.record.State != "ready" {
 		s.mu.Unlock()
-		return fmt.Errorf("请先恢复协作运行时")
+		return nil
+	}
+	if s.closed {
+		s.mu.Unlock()
+		return fmt.Errorf("Core 已退出")
+	}
+	if s.record.ExecutionRecord == nil && s.record.State == "ended" {
+		s.record.State = "ready"
+		if err := s.saveLocked(); err != nil {
+			s.record.State = "ended"
+			s.mu.Unlock()
+			return err
+		}
 	}
 	startCtx, cancel := context.WithCancel(ctx)
 	s.sharePreparing = true
@@ -86,11 +88,15 @@ func (s *Session) Share(ctx context.Context, requested string) error {
 	s.shareGeneration++
 	generation := s.shareGeneration
 	id, title := s.record.ID, s.record.Title
-	mode := s.record.RuntimeMode
+	readOnly := s.record.ExecutionRecord == nil
+	mode := runtimeconfig.Mode("")
+	if !readOnly {
+		mode = s.record.RuntimeMode
+	}
 	host, loopback := s.app.Host, s.app.Config.Loopback
 	s.mu.Unlock()
 
-	runtime, startErr := sharing.Start(startCtx, transport, id, title, host, http.HandlerFunc(s.remoteHTTP), loopback, mode)
+	runtime, startErr := sharing.StartSpace(startCtx, transport, id, title, host, http.HandlerFunc(s.remoteHTTP), loopback, readOnly, mode)
 	cancel()
 
 	s.mu.Lock()
@@ -107,10 +113,7 @@ func (s *Session) Share(ctx context.Context, requested string) error {
 	if startErr != nil {
 		return startErr
 	}
-	if !s.online || s.record.State != "ready" {
-		runtime.Close()
-		return fmt.Errorf("协作运行时已经停止，请恢复后重试")
-	}
+
 	s.share = runtime
 	s.releaseWhenIdle = false
 	s.annotationAccess = true
@@ -118,6 +121,9 @@ func (s *Session) Share(ctx context.Context, requested string) error {
 }
 
 func (s *Session) Action(ctx context.Context, action string, expected ...uint64) error {
+	return s.ActionFor(ctx, action, "", expected...)
+}
+func (s *Session) ActionFor(ctx context.Context, action, memberID string, expected ...uint64) error {
 	if action == "start" {
 		return s.start(ctx, true)
 	}
@@ -129,15 +135,30 @@ func (s *Session) Action(ctx context.Context, action string, expected ...uint64)
 	if len(expected) > 0 && (action == "handoff" || action == "reclaim") && expected[0] != s.epoch {
 		return fmt.Errorf("输入状态已变化，请刷新后重试")
 	}
+	if action != "end" && s.record.ExecutionRecord == nil {
+		return fmt.Errorf("空间尚未启用共同执行")
+	}
 	switch action {
 	case "end":
+		if s.record.ExecutionRecord == nil {
+			previous := s.record.State
+			s.record.State = "ended"
+			if err := s.saveLocked(); err != nil {
+				s.record.State = previous
+				return err
+			}
+		}
 		s.endShareLocked()
 	case "handoff":
 		if s.share == nil {
 			return fmt.Errorf("请先创建邀请")
 		}
-		if s.share.InvitationState() != "joined" {
-			return problem.New("participant_required", "同事尚未加入协作", "请等待同事加入后交出输入")
+		target, err := s.handoffMemberLocked(memberID)
+		if err != nil {
+			return err
+		}
+		if !s.share.HasExecutionAccess(target) {
+			return fmt.Errorf("请先向该成员开放执行访问")
 		}
 		if !s.online || s.writer != "owner" {
 			return problem.New("input_changed", "当前无法交出输入", "请刷新协作状态")
@@ -149,8 +170,10 @@ func (s *Session) Action(ctx context.Context, action string, expected ...uint64)
 			s.direct.close()
 			s.direct = nil
 		}
-		s.writer = "remote"
-		s.inputRequested = false
+		s.writer = target
+		p := s.presence[target]
+		p.Requested = false
+		s.presence[target] = p
 		s.epoch++
 	case "reclaim":
 		if s.direct != nil {
@@ -158,7 +181,6 @@ func (s *Session) Action(ctx context.Context, action string, expected ...uint64)
 			s.direct = nil
 		}
 		s.writer = "owner"
-		s.inputRequested = false
 		s.epoch++
 	default:
 		return fmt.Errorf("未知协作操作")
@@ -166,6 +188,7 @@ func (s *Session) Action(ctx context.Context, action string, expected ...uint64)
 	return nil
 }
 func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
+	memberID := sharing.MemberID(r.Context())
 	s.mu.Lock()
 	allowed := s.share != nil && sharing.Authorized(r.Context(), s.share)
 	s.mu.Unlock()
@@ -173,16 +196,19 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "共享已结束", http.StatusGone)
 		return
 	}
+	if materialHTTP(w, r, strings.TrimPrefix(r.URL.Path, "/v2/"), true, func(action string, in any) (any, error) {
+		if action == "materials" && in != nil {
+			return s.publish(r.Context(), in.(publicationUpload))
+		}
+		return s.materialOperation(r.Context(), action, in)
+	}) {
+		return
+	}
 	if r.Method == "POST" && r.URL.Path == "/v2/leave" {
 		s.mu.Lock()
 		ok := s.share != nil && s.share.Leave(r.Context())
 		if ok {
-			if s.direct != nil && s.direct.role == "remote" {
-				s.direct.close()
-				s.direct = nil
-			}
-			s.writer, s.inputRequested, s.remoteSeen = "owner", false, time.Time{}
-			s.epoch++
+			s.removeMemberLocked(memberID)
 		}
 		s.mu.Unlock()
 		respond(w, map[string]bool{"ok": ok}, nil)
@@ -201,35 +227,56 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		if s.share == nil || !sharing.Authorized(r.Context(), s.share) {
 			e = problem.New("sharing_ended", "共享已结束", "请获取新邀请")
 		} else if r.URL.Path == "/v2/presence" {
+			p := s.presence[memberID]
 			if in.Online {
-				if time.Since(s.remoteSeen) > 30*time.Second {
-					s.inputRequested = false
-				}
-				s.remoteSeen = time.Now()
+				p.Seen = time.Now()
 			} else {
-				s.remoteSeen = time.Time{}
-				s.inputRequested = false
+				p.Seen = time.Time{}
 			}
-		} else if in.Epoch != s.epoch || s.writer != "owner" {
+			s.presence[memberID] = p
+		} else if s.record.ExecutionRecord == nil || !sharing.ExecutionAuthorized(r.Context(), s.share) {
+			e = fmt.Errorf("空间尚未启用共同执行")
+		} else if in.Epoch != s.epoch || s.writer == memberID {
 			e = problem.New("input_changed", "输入归属已变化", "请刷新后重试")
 		} else {
-			s.inputRequested = r.URL.Path == "/v2/request_input" && s.writer != "remote"
-			s.remoteSeen = time.Now()
+			p := s.presence[memberID]
+			p.Requested = r.URL.Path == "/v2/request_input"
+			p.Seen = time.Now()
+			s.presence[memberID] = p
 		}
 		s.mu.Unlock()
 		respond(w, map[string]bool{"ok": e == nil}, e)
 		return
 	}
 
-	if r.URL.Path == "/v2/connect" {
-		s.attach(w, r, "remote")
+	if r.URL.Path == "/v2/status" {
+		out := s.viewFor(r.Context())
+		delete(out, "invitation")
+		delete(out, "invitationId")
+		delete(out, "expiresAt")
+		out["role"] = "remote"
+		out["selfId"] = memberID
+		delete(out, "invitations")
+		s.mu.Lock()
+		out["inputRequested"] = s.presence[memberID].Requested
+		s.mu.Unlock()
+		respond(w, out, nil)
 		return
 	}
-	if r.URL.Path == "/v2/status" {
-		out := s.view()
-		delete(out, "invitation")
-		out["role"] = "remote"
-		respond(w, out, nil)
+	// Native endpoints use a cancellable grant separate from space membership.
+	if r.URL.Path == "/v2/connect" || r.URL.Path == "/v2/rpc" || r.URL.Path == "/v2/respond" || r.URL.Path == "/v2/return" || (r.URL.Path == "/v2/context" && r.URL.Query().Get("kind") != "annotations") {
+		s.mu.Lock()
+		ctx, cancel, ok := sharing.ExecutionContext(r.Context(), s.share)
+		s.mu.Unlock()
+		defer cancel()
+		if !ok {
+			respond(w, nil, problem.New("execution_access_required", "尚未获得执行访问", "请由发起者在成员列表开放"))
+			return
+		}
+		r = r.WithContext(ctx)
+	}
+	if r.URL.Path == "/v2/connect" {
+		s.attach(w, r, memberID)
 		return
 	}
 	if r.Method == "POST" && r.URL.Path == "/v2/return" {
@@ -241,7 +288,7 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		s.mu.Lock()
 		var e error
-		if !sharing.Authorized(r.Context(), s.share) || in.Epoch != s.epoch || s.writer != "remote" {
+		if !sharing.ExecutionAuthorized(r.Context(), s.share) || in.Epoch != s.epoch || s.writer != memberID {
 			e = fmt.Errorf("输入状态已变化，请刷新")
 		} else if s.busy {
 			e = fmt.Errorf("请等待当前轮完成后交还输入")
@@ -251,7 +298,9 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 				s.direct = nil
 			}
 			s.writer = "owner"
-			s.inputRequested = false
+			p := s.presence[memberID]
+			p.Requested = false
+			s.presence[memberID] = p
 			s.epoch++
 		}
 		s.mu.Unlock()
@@ -269,7 +318,7 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		if !decode(w, r, &in) {
 			return
 		}
-		out, e := s.RPC(r.Context(), "remote", in.Method, in.Params, in.RequestID)
+		out, e := s.RPC(r.Context(), memberID, in.Method, in.Params, in.RequestID)
 		respond(w, out, e)
 		return
 	}
@@ -278,7 +327,7 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		if !decode(w, r, &in) {
 			return
 		}
-		respond(w, map[string]bool{"ok": true}, s.Respond(r.Context(), "remote", in.ID, in.Result))
+		respond(w, map[string]bool{"ok": true}, s.Respond(r.Context(), memberID, in.ID, in.Result))
 		return
 	}
 	if r.Method == "POST" && r.URL.Path == "/v2/annotations" {
@@ -286,7 +335,7 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		if !decode(w, r, &in) {
 			return
 		}
-		out, e := s.annotate(in, "协作者", r.Context())
+		out, e := s.annotate(in, sharing.MemberName(r.Context()), r.Context())
 		respond(w, out, e)
 		return
 	}
@@ -295,15 +344,15 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		if !decodeAnnotationReply(w, r, &in) {
 			return
 		}
-		out, e := s.replyAnnotation(r.Context(), in, "协作者")
+		out, e := s.replyAnnotation(r.Context(), in, sharing.MemberName(r.Context()))
 		respond(w, out, e)
 		return
 	}
 	http.NotFound(w, r)
 }
 func (a *App) Join(ctx context.Context, token string) (*Joined, error) {
-	// Serialize local admission so two clicks cannot consume one invitation with
-	// different credentials. Network calls never hold App.mu.
+	// Serialize local admission so two clicks cannot create separate identities
+	// in the same space. Network calls never hold App.mu.
 	a.joinMu.Lock()
 	defer a.joinMu.Unlock()
 	invitation, decodeErr := sharing.Decode(token)
@@ -314,7 +363,9 @@ func (a *App) Join(ctx context.Context, token string) (*Joined, error) {
 	var j *Joined
 	for _, old := range a.joined {
 		old.mu.Lock()
-		match := old.Invitation.ID == invitation.ID && old.Invitation.Secret == invitation.Secret && !old.left && old.Credential != ""
+		// A rotated admission link still leads an existing member to the same
+		// sharing generation, authenticated by its pinned host certificate.
+		match := old.Invitation.ID == invitation.ID && old.Invitation.Pin == invitation.Pin && !old.left && !old.ended && old.Credential != ""
 		old.mu.Unlock()
 		if match {
 			j = old
@@ -371,7 +422,7 @@ func (a *App) Join(ctx context.Context, token string) (*Joined, error) {
 	if e = a.saveJoined(); e != nil {
 		return nil, e
 	}
-	if e = j.request(ctx, "POST", "/v2/join", map[string]string{"credential": j.Credential}, nil); e != nil {
+	if e = j.request(ctx, "POST", "/v2/join", map[string]string{"credential": j.Credential, "name": a.Host}, nil); e != nil {
 		return nil, e
 	}
 	j.mu.Lock()
@@ -517,10 +568,18 @@ func (j *Joined) cachedViewLocked() map[string]any {
 	for k, v := range j.Last {
 		out[k] = v
 	}
+	if out["hasExecution"] == nil {
+		// A member may first open the page after its invitation was revoked.
+		// The invitation still identifies the scope that member joined.
+		out["hasExecution"] = !j.Invitation.ReadOnly
+	}
 	if !j.statusChecked || j.Error != "" {
-		out["online"] = false
-		out["runtimeState"] = "offline"
-		out["releasePending"] = false
+		out["reachable"] = false
+		if out["hasExecution"] != false {
+			out["online"] = false
+			out["runtimeState"] = "offline"
+			out["releasePending"] = false
+		}
 	}
 	if j.Error != "" {
 		out["error"] = j.Error
@@ -531,10 +590,12 @@ func (j *Joined) cachedViewLocked() map[string]any {
 	if j.ended {
 		out["state"] = "ended"
 		out["sharing"] = false
-		out["writer"] = "owner"
-		out["connected"] = false
-		out["busy"] = false
-		out["approvals"] = 0
+		if out["hasExecution"] != false {
+			out["writer"] = "owner"
+			out["connected"] = false
+			out["busy"] = false
+			out["approvals"] = 0
+		}
 	}
 	if j.left {
 		out["state"] = "left"

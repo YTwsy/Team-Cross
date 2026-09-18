@@ -10,10 +10,11 @@ import {
 } from "../types";
 import { ErrorBox, Icon, PageHeading } from "./ui";
 type InvitationPreview = {
+  readOnly?: boolean;
   runtimeMode?: RuntimeMode;
   title: string;
   host: string;
-  expiresAt: string;
+  expiresAt?: string;
   transport: ShareTransport;
 };
 export function Join({ pendingId }: { pendingId?: string }) {
@@ -96,23 +97,41 @@ export function Join({ pendingId }: { pendingId?: string }) {
           {preview && (
             <div className="notice">
               <h3>{preview.title}</h3>
-              <p>执行主机：{preview.host}</p>
+              <p>托管主机：{preview.host}</p>
               <p>连接方式：{transportName(preview.transport)}</p>
-              <p>
-                协作模式：{runtimeModeName(preview.runtimeMode)} · 创建后固定
-              </p>
-              <p>{runtimeModeDescription(preview.runtimeMode)}</p>
-              <p>
-                请在 {new Date(preview.expiresAt).toLocaleString("zh-CN")}{" "}
-                前首次加入。
-              </p>
+              {preview.readOnly ? (
+                <p>
+                  只读分享与讨论：可以查看已发布材料、发布自己的调查与回复；没有原生执行或目录访问权。
+                </p>
+              ) : (
+                <>
+                  <p>
+                    协作模式：{runtimeModeName(preview.runtimeMode)} ·
+                    创建后固定
+                  </p>
+                  <p>{runtimeModeDescription(preview.runtimeMode)}</p>
+                </>
+              )}
+              {preview.expiresAt && !preview.expiresAt.startsWith("0001-") ? (
+                <p>
+                  请在 {new Date(preview.expiresAt).toLocaleString("zh-CN")}{" "}
+                  前首次加入。
+                </p>
+              ) : (
+                <p>
+                  同一链接可供多人加入，有效至发起者关闭、重置链接或结束本次共享。
+                </p>
+              )}
               <p>
                 加入后持续有效，直到你主动离开或发起者结束共享。关闭客户端或暂时断线后可以重新连接。
               </p>
-              <p>
-                加入后可以读取这次协作的历史、文件与改动，并留下批注。代码和模型调用仍在发起者的
-                Mac 上执行，输入需要发起者交接。
-              </p>
+              {!preview.readOnly && (
+                <p>
+                  加入后可以读取这次协作的历史、文件与改动，并留下批注。代码和模型调用仍在发起者的
+                  Mac 上执行，输入需要发起者交接。
+                </p>
+              )}
+              <p>新加入的成员也能读取空间中尚未撤回的已有材料。</p>
               <small>以上为邀请声明的信息，连接时会核验主机指纹。</small>
             </div>
           )}

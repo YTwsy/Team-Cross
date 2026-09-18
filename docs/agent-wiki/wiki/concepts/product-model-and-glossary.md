@@ -1,6 +1,8 @@
 # 产品模型与词汇
 
-Team Cross 从已有 Codex 来源会话创建新的协作 fork，在 A 的执行目录中继续；B 可直接操作，也可用自己的本地 Codex 通过工具辅助。两种入口都支持 TUI 和 Desktop。
+Team Cross 空间保存成员、已发布会话材料与讨论；可独立只读分享，也可关联一个新的原生 fork 在 A 的目录中共同执行。各人的个人 Agent 按需读取材料并参与讨论。
+
+空间及三人以上流程先读 [协作空间任务页](collaboration-spaces.md) 和 [完整契约](../../sources/decisions/collaboration-spaces.md)；不要把只读材料与可操作 fork 混为同一个对象。
 
 ## 先读
 

@@ -11,7 +11,7 @@ import (
 )
 
 // TestLiveTailcatCollaboration is an opt-in, same-Mac integration smoke. It
-// covers Team Cross's explicit transport selection, one-time admission,
+// covers Team Cross's explicit transport selection, reusable admission,
 // persistent member status and direct-client WebSocket bridge over Tailcat.
 // Two physical Macs and a forced relay path remain separate acceptance gates.
 func TestLiveTailcatCollaboration(t *testing.T) {
@@ -29,8 +29,8 @@ func TestLiveTailcatCollaboration(t *testing.T) {
 		t.Fatal(err)
 	}
 	ownerView := session.view()
-	if ownerView["sharing"] != true || ownerView["transport"] != "tailcat" || ownerView["invitationState"] != "pending" {
-		t.Fatalf("unexpected owner view: %#v", ownerView)
+	if ownerView["sharing"] != true || ownerView["transport"] != "tailcat" || ownerView["invitationState"] != "active" {
+		t.Fatalf("unexpected owner sharing/transport/link: %v %v %v", ownerView["sharing"], ownerView["transport"], ownerView["invitationState"])
 	}
 
 	joined, err := b.Join(ctx, session.share.Token())
@@ -41,8 +41,16 @@ func TestLiveTailcatCollaboration(t *testing.T) {
 	if remoteView["online"] != true || remoteView["state"] != "ready" || remoteView["transport"] != "tailcat" {
 		t.Fatalf("unexpected remote view: %#v", remoteView)
 	}
+	c, _, _ := fixture(t)
+	third, err := c.Join(ctx, session.share.Token())
+	if err != nil {
+		t.Fatal("same link rejected third participant", err)
+	}
+	if third.view(ctx)["selfId"] == remoteView["selfId"] {
+		t.Fatal("members share identity")
+	}
 
-	if err = session.Action(ctx, "handoff"); err != nil {
+	if err = session.ActionFor(ctx, "handoff", remoteView["selfId"].(string)); err != nil {
 		t.Fatal(err)
 	}
 	endpoint, err := b.endpoint(joined.ID)

@@ -385,19 +385,26 @@ describe("产品路径", () => {
             role: "owner",
             participantJoined: true,
             participantOnline: false,
+            members: [
+              {
+                id: "b",
+                name: "同事",
+                active: true,
+                online: false,
+                inputRequested: false,
+              },
+            ],
             invitationState: "joined",
           },
     );
     const user = userEvent.setup();
     render(<Detail id="c1" />);
-    expect(await screen.findByText("已加入 · 暂时离线")).toBeVisible();
+    expect(await screen.findByText("暂时离线")).toBeVisible();
     await user.click(screen.getByLabelText("查看共享状态详情"));
     expect(
       screen.getByText("同事已加入，访问持续有效，直到主动离开或结束共享。"),
     ).toBeVisible();
-    expect(
-      screen.queryByRole("button", { name: "邀请同事" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "邀请成员" })).toBeEnabled();
     expect(screen.queryByText(/邀请有效至/)).not.toBeInTheDocument();
   });
   it("未使用的过期邀请可重新生成，不结束本地会话", async () => {
@@ -417,12 +424,17 @@ describe("产品路径", () => {
     expect(
       await screen.findByText("邀请尚未使用且已到期，可以重新邀请同事。"),
     ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "邀请同事" }));
-    expect(screen.getByRole("radio", { name: /局域网.*默认/ })).toBeChecked();
-    await user.click(screen.getByRole("button", { name: "生成新邀请" }));
+    await user.click(screen.getByRole("button", { name: "邀请成员" }));
+    expect(screen.getByRole("combobox", { name: "连接方式" })).toHaveValue(
+      "lan",
+    );
+    await user.click(screen.getByRole("button", { name: "重新开放链接" }));
     expect(
       calls.some(
-        (c) => c.body?.action === "share" && c.body?.transport === "lan",
+        (c) =>
+          c.path.endsWith("/invitations") &&
+          c.body?.transport === "lan" &&
+          !!c.body?.requestId,
       ),
     ).toBe(true);
     expect(calls.some((c) => c.body?.action === "end")).toBe(false);
@@ -449,7 +461,11 @@ describe("产品路径", () => {
           },
     );
     render(<Detail id="c1" />);
-    expect(await screen.findByText("释放后保留的对话")).toBeVisible();
+    expect(
+      await screen.findByText("释放后保留的对话", {
+        selector: "[data-source-start]",
+      }),
+    ).toBeVisible();
     expect(calls.every((c) => c.body === undefined)).toBe(true);
     await userEvent
       .setup()
@@ -887,5 +903,79 @@ describe("Claude 原生协作", () => {
       screen.getByText("请在当前 Claude Code 客户端中查看并回应请求。"),
     ).toBeVisible();
     expect(screen.queryByText("Codex 正在执行")).not.toBeInTheDocument();
+  });
+});
+
+describe("多人成员与邀请", () => {
+  const members = [
+    {
+      id: "member-b",
+      name: "Bob",
+      active: true,
+      online: true,
+      inputRequested: true,
+      joinedAt: "2026-09-18T00:00:00Z",
+    },
+    {
+      id: "member-c",
+      name: "Carol",
+      active: true,
+      online: true,
+      inputRequested: true,
+      joinedAt: "2026-09-18T00:00:01Z",
+    },
+  ];
+  it("发起者明确交给 C，成员列表保留 B，已有人加入仍可继续邀请", async () => {
+    mockFetch((path) =>
+      path.includes("/context")
+        ? { thread: { turns: [] } }
+        : {
+            ...collaboration,
+            role: "owner",
+            selfId: "owner",
+            members,
+            participantJoined: true,
+          },
+    );
+    const user = userEvent.setup();
+    render(<Detail id="c1" />);
+    await user.click(
+      await screen.findByRole("button", { name: "将输入交给Carol" }),
+    );
+    expect(
+      calls.some(
+        (call) =>
+          call.body?.action === "handoff" &&
+          call.body.memberId === "member-c" &&
+          call.body.epoch === 1,
+      ),
+    ).toBe(true);
+    expect(screen.getByText("Bob")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "邀请成员" }));
+    await user.click(screen.getByRole("button", { name: "重新开放链接" }));
+    expect(
+      calls.some(
+        (call) => call.path.endsWith("/invitations") && !!call.body.requestId,
+      ),
+    ).toBe(true);
+  });
+  it("C 正在输入时 B 仍可申请输入，不能因同为受邀者而直接操作", async () => {
+    mockFetch((path) =>
+      path.includes("/context")
+        ? { thread: { turns: [] } }
+        : { ...collaboration, selfId: "member-b", writer: "member-c", members },
+    );
+    const user = userEvent.setup();
+    render(<Detail id="c1" />);
+    await user.click(await screen.findByRole("button", { name: "申请输入" }));
+    expect(calls.some((call) => call.body?.action === "request_input")).toBe(
+      true,
+    );
+    expect(
+      screen.queryByRole("button", { name: "打开 Codex" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "交还输入" }),
+    ).not.toBeInTheDocument();
   });
 });

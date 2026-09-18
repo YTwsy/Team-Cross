@@ -1,0 +1,2 @@
+# Shiki's generated grammar chunk preserves meaningful whitespace in template literals.
+internal/webassets/dist/assets/syntax-*.js -whitespace

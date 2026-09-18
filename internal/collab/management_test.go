@@ -98,8 +98,8 @@ func TestMCPManagementCreatesInvitesJoinsAndResumesSameFork(t *testing.T) {
 				t.Fatal(plan)
 			}
 			used := invokeObject(t, owner, "create_invitation", map[string]any{"id": id, "transport": "lan"})
-			if used["invitation"] != nil || used["invitationUrl"] != nil || used["invitationState"] != "joined" {
-				t.Fatal("reissued consumed invitation")
+			if used["invitation"] != invitation || used["invitationUrl"] == nil || used["invitationState"] != "active" {
+				t.Fatal("reusable invitation disappeared after joining")
 			}
 			invokeObject(t, guest, "leave_collaboration", map[string]any{"id": guestID})
 			invokeObject(t, owner, "end_sharing", map[string]any{"id": id})

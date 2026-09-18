@@ -22,7 +22,7 @@ import (
 
 func collaborationCommand(command string) bool {
 	switch command {
-	case "collaborations", "input", "sources", "preview", "create", "share", "invite", "inspect-invitation", "open", "end", "leave", "resume", "share-status", "cancel-share":
+	case "execution-access", "space", "freeze", "publication-preview", "publish", "publication-status", "materials", "read-material", "withdraw-material", "remove-member", "revoke-invitation", "collaborations", "input", "sources", "preview", "create", "share", "invite", "inspect-invitation", "open", "end", "leave", "resume", "share-status", "cancel-share":
 		return true
 	}
 	return false
@@ -44,7 +44,20 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 	f := flag.NewFlagSet(command, flag.ContinueOnError)
 	f.SetOutput(diagnostic)
 	data := f.String("data-dir", collab.DefaultDataDir(), "本机数据目录")
+	spaceID := f.String("space", "", "为已有空间启用执行；保留邀请和成员，另行开放执行访问")
+	draftID := f.String("draft", "", "本机冻结草稿 ID")
+	previewID := f.String("preview-id", "", "确认的材料预览 ID")
+	startTurn := f.String("start-turn", "", "公开首轮 ID")
+	endTurn := f.String("end-turn", "", "公开末轮 ID")
+	readingStart := f.String("reading-start", "", "建议阅读起点")
+	materialID := f.String("material", "", "已发布材料 ID")
+	materialVersion := f.Int("version", 0, "固定材料版本")
+	baseVersion := f.Int("base-version", 0, "更新前的材料版本")
 	id := f.String("id", "", "协作 ID；省略时列出协作")
+	memberID := f.String("member", "", "输入接收者或要移除的具体成员 ID")
+	resetInvite := f.Bool("reset", false, "重置邀请链接；旧链接失效，保留已有成员，需要 request-id")
+	allowExecution := f.Bool("allow", false, "向指定成员开放执行访问；false 收回")
+	invitationID := f.String("invitation-id", "", "要关闭的邀请链接 ID")
 	epoch := f.Uint64("epoch", 0, "查看协作后得到的输入状态版本")
 	jsonOut := f.Bool("json", false, "输出 JSON")
 	provider := f.String("provider", "", "来源会话的 codex 或 claude")
@@ -74,14 +87,42 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 	var params map[string]any
 	var err error
 	switch command {
+	case "space":
+		tool, params = "create_readonly_space", map[string]any{"title": *title, "requestId": *requestID}
+	case "freeze":
+		tool, params = "freeze_source_session", map[string]any{"provider": *provider, "sourceId": *source}
+	case "publication-preview":
+		tool, params = "preview_publication", map[string]any{"draftId": *draftID, "title": *title, "startTurnId": *startTurn, "endTurnId": *endTurn, "readingStartId": *readingStart}
+	case "publish":
+		tool, params = "publish_material", map[string]any{"id": *id, "previewId": *previewID, "previewHash": *previewHash, "requestId": *requestID}
+		if *materialID != "" {
+			params["materialId"], params["baseVersion"] = *materialID, *baseVersion
+		}
+	case "publication-status":
+		tool, params = "get_publication_status", map[string]any{"id": *id, "requestId": *requestID}
+	case "materials":
+		tool, params = "list_materials", map[string]any{"id": *id}
+	case "read-material":
+		tool, params = "read_material", map[string]any{"id": *id, "materialId": *materialID, "version": *materialVersion, "cursor": *cursor}
+		if *startTurn != "" {
+			params["turnId"] = *startTurn
+		}
+	case "withdraw-material":
+		tool, params = "withdraw_material", map[string]any{"id": *id, "materialId": *materialID}
 	case "collaborations", "input":
 		tool, params, err = collaborationInvocation(command, action, *id, *epoch)
+		if command == "input" && *memberID != "" {
+			params["memberId"] = *memberID
+		}
 	case "sources":
 		tool, params = "list_source_sessions", map[string]any{"provider": *provider, "search": *search, "cursor": *cursor}
 	case "preview", "create", "share":
 		params = map[string]any{"provider": *provider, "sourceId": *source, "workspaceMode": *workspace, "runtimeMode": *runtimeMode, "title": *title}
 		if *requestID != "" {
 			params["requestId"] = *requestID
+		}
+		if *spaceID != "" {
+			params["spaceId"] = *spaceID
 		}
 		tool = "preview_collaboration"
 		if command != "preview" {
@@ -91,8 +132,20 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 		if command == "share" && *transport != "lan" && *transport != "tailcat" {
 			err = fmt.Errorf("share 必须明确指定 --transport lan 或 tailcat")
 		}
+	case "execution-access":
+		tool, params = "set_execution_access", map[string]any{"id": *id, "memberId": *memberID, "allowed": *allowExecution}
 	case "invite":
 		tool, params = "create_invitation", map[string]any{"id": *id, "transport": *transport}
+		if *resetInvite {
+			params["reset"] = true
+		}
+		if *requestID != "" {
+			params["requestId"] = *requestID
+		}
+	case "remove-member":
+		tool, params = "remove_member", map[string]any{"id": *id, "memberId": *memberID}
+	case "revoke-invitation":
+		tool, params = "revoke_invitation", map[string]any{"id": *id, "invitationId": *invitationID}
 	case "inspect-invitation":
 		if *stdin {
 			var raw []byte
@@ -186,7 +239,12 @@ func printCollaborationResult(w io.Writer, raw json.RawMessage, jsonOut bool) er
 	for _, row := range rows {
 		v, ok := row.(map[string]any)
 		if ok && v["id"] != nil && v["role"] != nil {
-			if _, err := fmt.Fprintf(w, "%v · %v\n主机：%v · 当前输入者：%v · 本机角色：%v\n状态：%v · 运行中：%v · 输入版本：%v\n目录：%v\n", v["id"], v["title"], v["host"], v["writer"], v["role"], v["state"], v["busy"], v["epoch"], v["executionCwd"]); err != nil {
+			if v["hasExecution"] == false {
+				_, err := fmt.Fprintf(w, "%v · %v\n托管主机：%v · 只读分享与讨论 · %v\n", v["id"], v["title"], v["host"], v["state"])
+				if err != nil {
+					return err
+				}
+			} else if _, err := fmt.Fprintf(w, "%v · %v\n主机：%v · 当前输入者：%v · 本机角色：%v\n状态：%v · 运行中：%v · 输入版本：%v\n目录：%v\n", v["id"], v["title"], v["host"], v["writer"], v["role"], v["state"], v["busy"], v["epoch"], v["executionCwd"]); err != nil {
 				return err
 			}
 			if v["invitationUrl"] != nil {

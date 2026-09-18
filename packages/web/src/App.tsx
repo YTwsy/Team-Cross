@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Home } from "./components/Home";
+import { StartSpace } from "./components/Publisher";
 import { Create } from "./components/Create";
 import { Detail } from "./components/Detail";
 import { Join } from "./components/Join";
@@ -43,7 +44,9 @@ export default function App() {
   const detailId = route.match(/^\/collaborations\/([^/]+)$/)?.[1];
   const page =
     route === "/create" ? (
-      <Create />
+      <StartSpace />
+    ) : route.startsWith("/execute/") ? (
+      <Create spaceId={route.slice(9)} />
     ) : route === "/join" || route.startsWith("/join/") ? (
       <Join
         pendingId={route.startsWith("/join/") ? route.slice(6) : undefined}

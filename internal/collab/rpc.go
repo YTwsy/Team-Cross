@@ -21,6 +21,7 @@ import (
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/problem"
 	"teamcross/internal/runtimeconfig"
+	"teamcross/internal/sharing"
 	"teamcross/internal/workspace"
 )
 
@@ -117,12 +118,16 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	}
 	s.mu.Lock()
 	p := s.process
-	r := s.record
-	if p == nil || !s.online {
+	r := s.snapshotLocked()
+	if !sharing.ExecutionAuthorized(ctx, s.share) {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("尚未获得执行访问")
+	}
+	if r.ExecutionRecord == nil || p == nil || !s.online {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("协作运行时未连接，请让发起者恢复运行时")
 	}
-	if role == "remote" && s.share == nil {
+	if role != "owner" && (s.share == nil || !s.share.HasExecutionAccess(role)) {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("共享已结束")
 	}
@@ -285,6 +290,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 			params["config"] = modelConfig
 		}
 	}
+	commandKey := role + ":" + method + ":" + requestID
 	hash := ""
 	if write {
 		if requestID == "" {
@@ -294,7 +300,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 		b, _ := json.Marshal([]any{method, params})
 		sum := sha256.Sum256(b)
 		hash = hex.EncodeToString(sum[:])
-		if old, ok := s.record.Commands[requestID]; ok {
+		if old, ok := s.record.Commands[commandKey]; ok {
 			s.mu.Unlock()
 			if old.Hash != hash {
 				return nil, fmt.Errorf("requestId 已用于不同输入")
@@ -308,12 +314,12 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 			s.mu.Unlock()
 			return nil, fmt.Errorf("会话正在执行，请等待完成或使用补充输入")
 		}
-		s.record.Commands[requestID] = Command{ID: requestID, Hash: hash, State: "pending"}
+		s.record.Commands[commandKey] = Command{ID: requestID, Hash: hash, State: "pending"}
 		if method == "turn/start" {
 			s.busy = true
 		}
 		if err := s.saveLocked(); err != nil {
-			delete(s.record.Commands, requestID)
+			delete(s.record.Commands, commandKey)
 			if method == "turn/start" {
 				s.busy = false
 			}
@@ -365,7 +371,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	}
 	if write {
 		s.mu.Lock()
-		c := s.record.Commands[requestID]
+		c := s.record.Commands[commandKey]
 		if err != nil {
 			c.State = "unknown"
 			c.Error = err.Error()
@@ -379,7 +385,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 			c.State = "completed"
 			c.Result = result
 		}
-		s.record.Commands[requestID] = c
+		s.record.Commands[commandKey] = c
 		s.record.UpdatedAt = time.Now()
 		_ = s.saveLocked()
 		s.mu.Unlock()
@@ -388,7 +394,11 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 }
 func (s *Session) Respond(ctx context.Context, role string, id json.RawMessage, result any) error {
 	s.mu.Lock()
-	if !s.callerValidLocked(ctx) || role != s.writer || (role == "remote" && s.share == nil) {
+	if s.record.ExecutionRecord == nil {
+		s.mu.Unlock()
+		return fmt.Errorf("空间尚未启用共同执行")
+	}
+	if !s.callerValidLocked(ctx) || !sharing.ExecutionAuthorized(ctx, s.share) || role != s.writer || (role != "owner" && (s.share == nil || !s.share.HasExecutionAccess(role))) {
 		s.mu.Unlock()
 		return fmt.Errorf("请先取得输入权")
 	}
@@ -428,12 +438,28 @@ func (s *Session) Context(ctx context.Context, kind, path string, after uint64, 
 		return nil, fmt.Errorf("共享已结束")
 	}
 	p := s.process
-	r := s.record
+	r := s.snapshotLocked()
+	executionAccess := sharing.ExecutionAuthorized(ctx, s.share)
+	r.Annotations = visibleAnnotations(r.Annotations, executionAccess)
+	if !executionAccess {
+		r.ExecutionRecord = nil
+		p = nil
+	}
 	if p != nil {
 		s.activeCalls++
 		defer s.finishCall()
 	}
 	s.mu.Unlock()
+	if kind == "annotations" {
+		out := map[string]any{"annotations": r.Annotations, "spaceId": r.ID}
+		if r.ExecutionRecord != nil {
+			out["sessionId"], out["executionCwd"] = r.SessionID, r.ExecutionCwd
+		}
+		return out, nil
+	}
+	if r.ExecutionRecord == nil {
+		return nil, fmt.Errorf("只读空间仅提供已发布材料和讨论")
+	}
 	if r.Provider == "claude" && (kind == "" || kind == "history") {
 		return claudeContext(r, s.app.Config.DataDir, cursors)
 	}
@@ -499,6 +525,11 @@ func (s *Session) Context(ctx context.Context, kind, path string, after uint64, 
 }
 func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
 	s.mu.Lock()
+	if s.record.ExecutionRecord == nil || !sharing.ExecutionAuthorized(r.Context(), s.share) || (role != "owner" && (s.share == nil || !s.share.HasExecutionAccess(role))) {
+		s.mu.Unlock()
+		http.Error(w, "空间尚未启用共同执行", 403)
+		return
+	}
 	claude := s.record.Provider == "claude"
 	s.mu.Unlock()
 	if claude {
@@ -510,7 +541,7 @@ func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
 		return
 	}
 	s.mu.Lock()
-	if !s.callerValidLocked(r.Context()) || s.writer != role || !s.online || s.starting || s.record.State != "ready" || (role == "remote" && s.share == nil) {
+	if !s.callerValidLocked(r.Context()) || !sharing.ExecutionAuthorized(r.Context(), s.share) || s.writer != role || !s.online || s.starting || s.record.State != "ready" || (role != "owner" && (s.share == nil || !s.share.HasExecutionAccess(role))) {
 		s.mu.Unlock()
 		http.Error(w, "等待输入交接或恢复运行时", 403)
 		return

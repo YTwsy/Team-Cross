@@ -78,7 +78,7 @@ func (a *App) onboarding(w http.ResponseWriter, r *http.Request, path string) bo
 			respond(w, nil, e)
 			return true
 		}
-		if time.Now().After(inv.ExpiresAt) {
+		if !inv.ExpiresAt.IsZero() && time.Now().After(inv.ExpiresAt) {
 			respond(w, nil, problem.New("invitation_expired", "邀请已到期", "请向发起者获取新邀请"))
 			return true
 		}
@@ -115,10 +115,14 @@ func (a *App) onboarding(w http.ResponseWriter, r *http.Request, path string) bo
 			return true
 		}
 		inv, e := sharing.Decode(token)
-		if e == nil && time.Now().After(inv.ExpiresAt) {
+		if e == nil && !inv.ExpiresAt.IsZero() && time.Now().After(inv.ExpiresAt) {
 			e = problem.New("invitation_expired", "邀请已到期", "请获取新邀请")
 		}
-		respond(w, map[string]any{"title": inv.Title, "host": inv.Host, "expiresAt": inv.ExpiresAt, "transport": inv.Transport, "runtimeMode": inv.RuntimeMode}, e)
+		out := map[string]any{"title": inv.Title, "host": inv.Host, "transport": inv.Transport, "runtimeMode": inv.RuntimeMode, "readOnly": inv.ReadOnly}
+		if !inv.ExpiresAt.IsZero() {
+			out["expiresAt"] = inv.ExpiresAt
+		}
+		respond(w, out, e)
 		return true
 	case path == "mcp/observed" && r.Method == "POST":
 		if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+a.Token)) != 1 {

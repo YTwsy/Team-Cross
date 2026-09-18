@@ -16,7 +16,7 @@ export function Home() {
       <PageHeading
         eyebrow="一起继续，已有的工作"
         title="协作空间"
-        subtitle="从一个已有会话出发，把上下文和工作现场交给同事。"
+        subtitle="分享已完成的调查，汇集各自的分析，需要时再一起继续执行。"
       />
       <div className="entry-grid">
         <a href="#/create" className="entry-card">
@@ -25,7 +25,7 @@ export function Home() {
           </div>
           <div>
             <h2>发起协作</h2>
-            <p>选一个 Codex 或 Claude Code 会话，邀请同事一起继续。</p>
+            <p>选择会话与公开范围，分享审阅或共同继续执行。</p>
           </div>
           <Icon name="arrow" />
         </a>
@@ -79,7 +79,11 @@ export function Home() {
               <div className="row-main">
                 <h3>{c.title}</h3>
                 <div className="row-meta">
-                  <span>{projectName(c.repo)}</span>
+                  <span>
+                    {c.hasExecution === false
+                      ? `${c.materials?.filter((m) => !m.withdrawnAt).length || 0} 份会话材料`
+                      : projectName(c.repo)}
+                  </span>
                   <span className="separator">·</span>
                   <span title={c.host}>{c.host}</span>
                   <span className="separator">·</span>

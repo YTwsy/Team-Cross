@@ -134,3 +134,19 @@ func TestMissingForkNeverFallsBackToSource(t *testing.T) {
 		t.Fatal("lost fork silently reverted to source", err)
 	}
 }
+
+func TestVisibleToolResultsArePreservedForPublication(t *testing.T) {
+	path := historyFixture(t, t.TempDir(), uuid.NewString())
+	appendRecord(t, path, `{"type":"user","uuid":"u2","parentUuid":"a1","message":{"content":"check logs"}}`)
+	appendRecord(t, path, `{"type":"assistant","uuid":"a2","parentUuid":"u2","message":{"content":[{"type":"tool_use","id":"tool-1","name":"Bash","input":{"command":"cat log"}}],"stop_reason":"tool_use"}}`)
+	appendRecord(t, path, `{"type":"user","uuid":"r2","parentUuid":"a2","message":{"content":[{"type":"tool_result","tool_use_id":"tool-1","content":[{"type":"text","text":"evidence-output"},{"type":"image","source":{"data":"private-image"}}]}]}}`)
+	appendRecord(t, path, `{"type":"assistant","uuid":"a3","parentUuid":"r2","message":{"content":[{"type":"text","text":"finished"}],"stop_reason":"end_turn"}}`)
+	h, err := ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(h.Turns)
+	if !strings.Contains(string(raw), "evidence-output") || !strings.Contains(string(raw), "工具输出附件未导出") || strings.Contains(string(raw), "private-image") {
+		t.Fatal(string(raw))
+	}
+}

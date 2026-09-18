@@ -191,7 +191,7 @@ describe("原处批注", () => {
     ).toBeInTheDocument();
     expect(aside).toContainElement(participants);
     expect(
-      within(participants).getByRole("heading", { name: "参与协作" }),
+      within(participants).getByRole("heading", { name: "参与成员" }),
     ).toBeVisible();
     expect(
       participants.compareDocumentPosition(annotations) &
@@ -217,7 +217,9 @@ describe("原处批注", () => {
   it("选中重复片段时保留准确消息与 UTF-16 范围，保存不发送模型输入", async () => {
     const user = userEvent.setup();
     render(<Detail id="annotations" />);
-    const message = await screen.findByText(original);
+    const message = await screen.findByText(original, {
+      selector: "[data-source-start]",
+    });
     const start = original.lastIndexOf("中文");
     select(
       message.firstChild!,
@@ -257,7 +259,7 @@ describe("原处批注", () => {
   it("连续文件行自动引用，返回旧批注时不高亮已变化的同号行", async () => {
     const user = userEvent.setup();
     render(<Detail id="annotations" />);
-    await screen.findByText(original);
+    await screen.findByText(original, { selector: "[data-source-start]" });
     await user.click(screen.getByRole("tab", { name: "查看文件" }));
     await user.type(screen.getByLabelText("相对执行目录的文件路径"), file.path);
     await user.click(screen.getByRole("button", { name: "查看" }));

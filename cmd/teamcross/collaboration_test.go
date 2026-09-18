@@ -76,7 +76,7 @@ func TestCLIShareKeepsCreatedCollaborationOnInvitationFailure(t *testing.T) {
 				t.Error(in)
 			}
 			json.NewEncoder(w).Encode(map[string]any{"id": id, "state": "ready", "sessionId": "new-fork"})
-		case "/api/collaborations/" + id + "/action":
+		case "/api/collaborations/" + id + "/invitations":
 			invites++
 			if invites == 1 {
 				w.WriteHeader(400)

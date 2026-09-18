@@ -15,7 +15,7 @@ import {
   runtimeModeDescription,
 } from "../types";
 import { Empty, ErrorBox, Icon, Loading, PageHeading } from "./ui";
-export function Create() {
+export function Create({ spaceId }: { spaceId?: string } = {}) {
   const [provider, setProvider] = useState<Provider>("codex");
   const [step, setStep] = useState(1);
   const [search, setSearch] = useState("");
@@ -62,6 +62,7 @@ export function Create() {
       {
         provider,
         sourceId: source.id,
+        ...(spaceId ? { spaceId } : {}),
         workspaceMode: mode,
         runtimeMode,
         requestId: requestId.current,
@@ -73,7 +74,7 @@ export function Create() {
         if (!abort.signal.aborted) setError(errorText(e));
       });
     return () => abort.abort();
-  }, [source, step, mode, runtimeMode, previewVersion, provider]);
+  }, [source, step, mode, runtimeMode, previewVersion, provider, spaceId]);
   useEffect(() => {
     if (error) errorRef.current?.focus();
   }, [error]);
@@ -85,23 +86,26 @@ export function Create() {
       const c = await api<Collaboration>("collaborations", {
         provider,
         sourceId: source.id,
+        ...(spaceId ? { spaceId } : {}),
         workspaceMode: mode,
         runtimeMode,
         title,
         previewHash: preview.previewHash,
         requestId: requestId.current,
       });
-      sessionStorage.setItem(`teamcross.transport.${c.id}`, shareTransport);
-      try {
-        await api(`collaborations/${c.id}/action`, {
-          action: "share",
-          transport: shareTransport,
-          epoch: c.epoch,
-        });
-      } catch (e) {
-        sessionStorage.setItem(`teamcross.create.${c.id}`, errorText(e));
+      if (!spaceId) {
+        sessionStorage.setItem(`teamcross.transport.${c.id}`, shareTransport);
+        try {
+          await api(`collaborations/${c.id}/action`, {
+            action: "share",
+            transport: shareTransport,
+            epoch: c.epoch,
+          });
+        } catch (e) {
+          sessionStorage.setItem(`teamcross.create.${c.id}`, errorText(e));
+        }
+        sessionStorage.setItem(`teamcross.invite.${c.id}`, "1");
       }
-      sessionStorage.setItem(`teamcross.invite.${c.id}`, "1");
       location.hash = `/collaborations/${c.id}`;
     } catch (e) {
       setError(errorText(e));
@@ -117,9 +121,23 @@ export function Create() {
         协作空间
       </a>
       <PageHeading
-        title="发起协作"
-        subtitle="保留已有上下文，开启一个新的协作会话。"
+        title={spaceId ? "启用共同执行" : "发起协作"}
+        subtitle={
+          spaceId
+            ? "在当前空间开始共同执行，保留已有成员、材料和讨论。"
+            : "创建协作空间，并直接开始共同执行。"
+        }
       />
+      {spaceId && (
+        <div className="notice">
+          <strong>确认新增的共享范围</strong>
+          <p>
+            将创建新的原生
+            fork，开放其历史、执行目录、文件与改动读取，并按所选权限执行。原来发布的片段范围不会限制这个
+            fork。原邀请链接和成员保留；在成员列表向需要参与执行的人开放新增访问。
+          </p>
+        </div>
+      )}
       <ol className="steps">
         <li className={step === 1 ? "active" : "done"}>
           <span>{step === 2 ? <Icon name="check" size={15} /> : "1"}</span>
@@ -361,45 +379,47 @@ export function Create() {
               模式创建后固定，恢复时沿用。信任模式仍遵循原生客户端和系统的授权；原生不可用的能力不会自动启用。
             </p>
           </fieldset>
-          <fieldset disabled={busy} className="workspace-field">
-            <legend>选择连接方式</legend>
-            <div className="workspace-grid">
-              {(["lan", "tailcat"] as ShareTransport[]).map((value) => (
-                <label
-                  className={`workspace-card ${shareTransport === value ? "selected" : ""}`}
-                  key={value}
-                >
-                  <input
-                    type="radio"
-                    name="shareTransport"
-                    value={value}
-                    checked={shareTransport === value}
-                    onChange={() => setShareTransport(value)}
-                  />
-                  <div className="workspace-top">
-                    <span className="entry-icon">
-                      <Icon
-                        name={value === "lan" ? "link" : "globe"}
-                        size={23}
-                      />
-                    </span>
-                    <span className="radio-dot" />
-                  </div>
-                  <h3>{value === "lan" ? "局域网" : "Tailcat 跨网络"}</h3>
-                  <strong>
-                    {value === "lan"
-                      ? "默认 · 快速直连"
-                      : "实验性 · 无需 Tailscale 账号"}
-                  </strong>
-                  <p>
-                    {value === "lan"
-                      ? "适合两台 Mac 位于同一局域网，连接不会经过公网中继。"
-                      : "通过 Tailcat 建立加密通道；无法点对点直连时可能经过第三方 DERP 中继。"}
-                  </p>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          {!spaceId && (
+            <fieldset disabled={busy} className="workspace-field">
+              <legend>选择连接方式</legend>
+              <div className="workspace-grid">
+                {(["lan", "tailcat"] as ShareTransport[]).map((value) => (
+                  <label
+                    className={`workspace-card ${shareTransport === value ? "selected" : ""}`}
+                    key={value}
+                  >
+                    <input
+                      type="radio"
+                      name="shareTransport"
+                      value={value}
+                      checked={shareTransport === value}
+                      onChange={() => setShareTransport(value)}
+                    />
+                    <div className="workspace-top">
+                      <span className="entry-icon">
+                        <Icon
+                          name={value === "lan" ? "link" : "globe"}
+                          size={23}
+                        />
+                      </span>
+                      <span className="radio-dot" />
+                    </div>
+                    <h3>{value === "lan" ? "局域网" : "Tailcat 跨网络"}</h3>
+                    <strong>
+                      {value === "lan"
+                        ? "默认 · 快速直连"
+                        : "实验性 · 无需 Tailscale 账号"}
+                    </strong>
+                    <p>
+                      {value === "lan"
+                        ? "适合两台 Mac 位于同一局域网，连接不会经过公网中继。"
+                        : "通过 Tailcat 建立加密通道；无法点对点直连时可能经过第三方 DERP 中继。"}
+                    </p>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
           <div ref={errorRef} tabIndex={-1}>
             <ErrorBox
               message={error}
@@ -449,16 +469,18 @@ export function Create() {
               </div>
             )
           )}
-          <label className="field">
-            协作名称
-            <input
-              value={title}
-              maxLength={160}
-              disabled={busy}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="为这次协作起个名字"
-            />
-          </label>
+          {!spaceId && (
+            <label className="field">
+              协作名称
+              <input
+                value={title}
+                maxLength={160}
+                disabled={busy}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="为这次协作起个名字"
+              />
+            </label>
+          )}
           <div className="form-footer">
             <button
               className="button"
@@ -476,13 +498,14 @@ export function Create() {
               {busy ? (
                 <>
                   <span className="spinner" />
-                  {shareTransport === "tailcat"
+                  {!spaceId && shareTransport === "tailcat"
                     ? "正在建立跨网络邀请…"
                     : "正在创建协作…"}
                 </>
               ) : (
                 <>
-                  创建并邀请 <Icon name="arrow" size={17} />
+                  {spaceId ? "启用共同执行" : "创建并邀请"}{" "}
+                  <Icon name="arrow" size={17} />
                 </>
               )}
             </button>

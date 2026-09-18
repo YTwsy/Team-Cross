@@ -16,6 +16,7 @@ export function Clients({
   initial?: "direct" | "assist";
 }) {
   const [mode, setMode] = useState<"direct" | "assist">(() =>
+    collaboration.hasExecution === false ||
     initial === "assist" ||
     localStorage.getItem("teamcross.clientMode") === "assist"
       ? "assist"
@@ -48,7 +49,8 @@ export function Clients({
   const directClients = claude
     ? (["tui"] as const)
     : (["tui", "desktop"] as const);
-  const mine = collaboration.writer === collaboration.role;
+  const mine =
+    collaboration.writer === (collaboration.selfId || collaboration.role);
   async function open(client: string, launch: boolean) {
     setBusy(client);
     setError("");
@@ -78,7 +80,9 @@ export function Clients({
       <div className="segmented full" aria-label="参与方式">
         <button
           aria-pressed={mode === "direct"}
-          disabled={!!busy || connecting}
+          disabled={
+            !!busy || connecting || collaboration.hasExecution === false
+          }
           onClick={() => {
             setMode("direct");
             setPlan(undefined);

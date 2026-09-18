@@ -174,6 +174,8 @@ func ReadFile(path string) (History, error) {
 			for _, b := range blocks {
 				if b.Type == "text" {
 					text += b.Text
+				} else {
+					text += "\n[附件未导出]"
 				}
 			}
 			if strings.TrimSpace(text) == "" {
@@ -187,6 +189,21 @@ func ReadFile(path string) (History, error) {
 			continue
 		}
 		t := &h.Turns[len(h.Turns)-1]
+		if toolResult {
+			for _, b := range blocks {
+				if b.Type == "tool_result" {
+					text := ""
+					for _, part := range content(b.Content) {
+						if part.Type == "text" {
+							text += part.Text
+						} else {
+							text += "\n[工具输出附件未导出]"
+						}
+					}
+					t.Items = append(t.Items, Item{ID: e.UUID + ":" + b.ToolUseID, Type: "toolResult", Text: text})
+				}
+			}
+		}
 		if e.Type == "assistant" {
 			if e.Message.Model != "" && e.Message.Model != "<synthetic>" {
 				h.Model = e.Message.Model
@@ -205,7 +222,7 @@ func ReadFile(path string) (History, error) {
 			}
 		}
 	}
-	if h.Cwd == "" || len(h.Turns) == 0 {
+	if len(h.Turns) == 0 {
 		return h, fmt.Errorf("Claude 会话尚无可共享的对话")
 	}
 	if malformed {

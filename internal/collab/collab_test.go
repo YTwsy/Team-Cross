@@ -21,6 +21,7 @@ import (
 )
 
 type fakeRuntime struct {
+	history          []MaterialTurn
 	mu               sync.Mutex
 	source           Source
 	calls            []string
@@ -96,6 +97,9 @@ func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error 
 			status = "completed"
 		}
 		result = map[string]any{"data": []any{map[string]any{"id": turn, "status": status}}}
+		if f.history != nil {
+			result = map[string]any{"data": f.history}
+		}
 	case "thread/fork":
 		f.forks++
 		thread.ID = uuid.NewString()
@@ -215,7 +219,7 @@ func TestInputOwnershipDedupAndApproval(t *testing.T) {
 	s := createFixture(t, a, f, "existing")
 	ctx := context.Background()
 	params := map[string]any{"input": []any{}, "cwd": "/wrong", "model": "fixture-client-model", "effort": "medium"}
-	if _, e := s.RPC(ctx, "remote", "turn/start", params, "blocked"); e == nil {
+	if _, e := s.RPC(ctx, firstRemote(s), "turn/start", params, "blocked"); e == nil {
 		t.Fatal("remote writes without share")
 	}
 	one, e := s.RPC(ctx, "owner", "turn/start", params, "request1")
@@ -250,10 +254,10 @@ func TestInputOwnershipDedupAndApproval(t *testing.T) {
 	if e = s.Respond(ctx, "owner", id, map[string]any{}); e == nil {
 		t.Fatal("nonwriter approval")
 	}
-	if e = s.Respond(ctx, "remote", id, map[string]any{"decision": "decline"}); e != nil {
+	if e = s.Respond(ctx, firstRemote(s), id, map[string]any{"decision": "decline"}); e != nil {
 		t.Fatal(e)
 	}
-	if e = s.Respond(ctx, "remote", id, map[string]any{}); e == nil {
+	if e = s.Respond(ctx, firstRemote(s), id, map[string]any{}); e == nil {
 		t.Fatal("approval replied twice")
 	}
 	if e = s.Action(ctx, "end"); e != nil {
@@ -262,7 +266,7 @@ func TestInputOwnershipDedupAndApproval(t *testing.T) {
 	if s.record.State != "ready" || s.record.SessionID == "" {
 		t.Fatal("end destroyed session")
 	}
-	if _, e = s.RPC(ctx, "remote", "thread/read", nil, ""); e == nil {
+	if _, e = s.RPC(ctx, firstRemote(s), "thread/read", nil, ""); e == nil {
 		t.Fatal("ended share still readable")
 	}
 }
@@ -469,11 +473,11 @@ func TestParticipantLoginStaysLocal(t *testing.T) {
 		}
 	}
 	af.mu.Unlock()
-	raw, e := s.RPC(ctx, "remote", "getAuthStatus", map[string]any{"includeToken": true}, "")
+	raw, e := s.RPC(ctx, firstRemote(s), "getAuthStatus", map[string]any{"includeToken": true}, "")
 	if e != nil || bytes.Contains(raw, []byte("token")) {
 		t.Fatal("share exported host token", e)
 	}
-	config, e := s.RPC(ctx, "remote", "config/read", nil, "")
+	config, e := s.RPC(ctx, firstRemote(s), "config/read", nil, "")
 	if e != nil || bytes.Contains(config, []byte("secret")) {
 		t.Fatal("share exported private config", e)
 	}

@@ -142,3 +142,14 @@ func TestInputToolsRejectMissingOrInvalidEpoch(t *testing.T) {
 		t.Fatal(string(result), err)
 	}
 }
+
+func firstRemote(s *Session) string {
+	if s.share != nil {
+		for _, m := range s.share.Members() {
+			if m.Active {
+				return m.ID
+			}
+		}
+	}
+	return "unjoined"
+}

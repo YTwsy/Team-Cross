@@ -77,13 +77,27 @@ func (s *Session) annotate(in Annotation, author string, contexts ...context.Con
 	in.Replies = nil // Client-supplied replies and author identities are never imported.
 	in.Text = text
 	in.Author = author
+	in.AuthorID = "owner"
+	if len(contexts) > 0 {
+		in.AuthorID = sharing.MemberID(contexts[0])
+	}
 	in.CreatedAt = time.Now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(contexts) > 0 && !s.callerValidLocked(contexts[0]) {
 		return Annotation{}, fmt.Errorf("共享已结束")
 	}
-	if in.Target != nil {
+	if err := s.validateReferencesLocked(in.Materials); err != nil {
+		return Annotation{}, err
+	}
+	if in.Target != nil && in.Target.Kind == "material" {
+		if err := s.validateMaterialTargetLocked(in.Target); err != nil {
+			return Annotation{}, err
+		}
+	} else if in.Target != nil {
+		if s.record.ExecutionRecord == nil || (len(contexts) > 0 && !sharing.ExecutionAuthorized(contexts[0], s.share)) {
+			return Annotation{}, fmt.Errorf("只读空间不能引用原生会话或目录")
+		}
 		if in.Target.SessionID != "" && in.Target.SessionID != s.record.SessionID {
 			return Annotation{}, fmt.Errorf("批注不属于当前协作会话")
 		}
@@ -114,6 +128,9 @@ func (a *App) target(ctx context.Context, id, method, path string, input any) (a
 	if strings.HasPrefix(path, "context") {
 		u, _ := url.Parse(path)
 		return s.Context(ctx, u.Query().Get("kind"), u.Query().Get("path"), number(u.Query().Get("after")), u.Query().Get("cursor"))
+	}
+	if path == "materials" || path == "read-material" || path == "withdraw-material" || path == "publication-status" {
+		return s.materialOperation(ctx, path, input)
 	}
 	switch path {
 	case "rpc":
@@ -167,6 +184,9 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 	if a.currentShareHTTP(w, r, path) {
 		return
 	}
+	if a.publicationHTTP(w, r, path) {
+		return
+	}
 	switch path {
 	case "info":
 		respond(w, a.Info(ctx), nil)
@@ -215,6 +235,22 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		}
 		out, e := a.Preview(ctx, in)
 		respond(w, out, e)
+		return
+	case "spaces":
+		if r.Method != "POST" {
+			http.NotFound(w, r)
+			return
+		}
+		var in SpaceInput
+		if !decode(w, r, &in) {
+			return
+		}
+		s, err := a.CreateSpace(ctx, in)
+		if err != nil {
+			respond(w, nil, err)
+			return
+		}
+		respond(w, s.view(), nil)
 		return
 	case "collaborations":
 		if r.Method == "GET" {
@@ -277,6 +313,14 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	action := parts[2]
+	if materialHTTP(w, r, action, false, func(action string, input any) (any, error) {
+		if action == "materials" && input != nil {
+			return a.Publish(ctx, id, input.(PublishInput))
+		}
+		return a.target(ctx, id, r.Method, action, input)
+	}) {
+		return
+	}
 	if action == "context" && r.Method == "GET" {
 		out, e := a.target(ctx, id, "GET", "context?"+r.URL.RawQuery, nil)
 		respond(w, out, e)
@@ -292,6 +336,7 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 			Action    string `json:"action"`
 			Transport string `json:"transport"`
 			Epoch     uint64 `json:"epoch"`
+			MemberID  string `json:"memberId"`
 		}
 		if !decode(w, r, &in) {
 			return
@@ -335,9 +380,62 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 			}
 			e = s.Share(ctx, in.Transport)
 		} else {
-			e = s.Action(ctx, in.Action, in.Epoch)
+			e = s.ActionFor(ctx, in.Action, in.MemberID, in.Epoch)
 		}
 		respond(w, s.view(), e)
+	case "invitations", "revoke-invitation", "remove-member", "execution-access":
+		var in struct {
+			Transport    string `json:"transport"`
+			RequestID    string `json:"requestId"`
+			MemberID     string `json:"memberId"`
+			InvitationID string `json:"invitationId"`
+			Reset        bool   `json:"reset"`
+			Allowed      *bool  `json:"allowed"`
+		}
+		if !decode(w, r, &in) {
+			return
+		}
+		s, e := a.owned(id)
+		if e != nil {
+			respond(w, nil, e)
+			return
+		}
+		if action == "invitations" {
+			if in.InvitationID != "" && (in.Reset || in.RequestID != "") {
+				respond(w, nil, fmt.Errorf("取回指定邀请不能同时重置或创建"))
+				return
+			}
+			var invite sharing.IssuedInvitation
+			if in.InvitationID != "" {
+				invite, e = s.Invitation(in.InvitationID)
+			} else {
+				invite, e = s.Invite(ctx, in.Transport, in.RequestID, in.Reset)
+			}
+			out := s.view()
+			delete(out, "invitation")
+			delete(out, "expiresAt")
+			out["invitationId"], out["invitationState"], out["requestId"] = invite.ID, invite.State, in.RequestID
+			if invite.Token != "" {
+				out["invitation"] = invite.Token
+				if !invite.ExpiresAt.IsZero() {
+					out["expiresAt"] = invite.ExpiresAt
+				}
+			}
+			respond(w, out, e)
+		} else {
+			if action == "execution-access" {
+				if in.Allowed == nil {
+					e = fmt.Errorf("请明确是否开放执行访问")
+				} else {
+					e = s.SetExecutionAccess(in.MemberID, *in.Allowed)
+				}
+			} else if action == "remove-member" {
+				e = s.RevokeMember(in.MemberID)
+			} else {
+				e = s.RevokeInvitation(in.InvitationID)
+			}
+			respond(w, s.view(), e)
+		}
 	case "personal-desktop":
 		var in struct {
 			Launch bool `json:"launch"`

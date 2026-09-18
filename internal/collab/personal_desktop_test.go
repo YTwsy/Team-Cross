@@ -61,7 +61,7 @@ func TestPersonalDesktopOpensPersistedForkWithoutRuntimeChanges(t *testing.T) {
 		}
 	}
 	view := s.view()
-	if view["writer"] != "remote" || view["epoch"] != epoch || view["connected"] != false {
+	if view["writer"] != firstRemote(s) || view["epoch"] != epoch || view["connected"] != false {
 		t.Fatal("opening changed input or direct connection", view)
 	}
 	if err := s.Action(ctx, "end"); err != nil {
