@@ -404,7 +404,7 @@ describe("产品路径", () => {
     expect(
       screen.getByText("同事已加入，访问持续有效，直到主动离开或结束共享。"),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "邀请同事" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "邀请成员" })).toBeEnabled();
     expect(screen.queryByText(/邀请有效至/)).not.toBeInTheDocument();
   });
   it("未使用的过期邀请可重新生成，不结束本地会话", async () => {
@@ -424,9 +424,11 @@ describe("产品路径", () => {
     expect(
       await screen.findByText("邀请尚未使用且已到期，可以重新邀请同事。"),
     ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "邀请同事" }));
-    expect(screen.getByRole("radio", { name: /局域网.*默认/ })).toBeChecked();
-    await user.click(screen.getByRole("button", { name: "生成新邀请" }));
+    await user.click(screen.getByRole("button", { name: "邀请成员" }));
+    expect(screen.getByRole("combobox", { name: "连接方式" })).toHaveValue(
+      "lan",
+    );
+    await user.click(screen.getByRole("button", { name: "重新开放链接" }));
     expect(
       calls.some(
         (c) =>
@@ -945,8 +947,8 @@ describe("多人成员与邀请", () => {
       ),
     ).toBe(true);
     expect(screen.getByText("Bob")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "邀请同事" }));
-    await user.click(screen.getByRole("button", { name: "生成邀请" }));
+    await user.click(screen.getByRole("button", { name: "邀请成员" }));
+    await user.click(screen.getByRole("button", { name: "重新开放链接" }));
     expect(
       calls.some(
         (call) => call.path.endsWith("/invitations") && !!call.body.requestId,

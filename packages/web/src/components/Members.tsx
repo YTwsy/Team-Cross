@@ -8,6 +8,7 @@ export function Members({
   onAction,
   onRemove,
   onAssist,
+  onExecutionAccess,
 }: {
   collaboration: Collaboration;
   busy: boolean;
@@ -15,6 +16,7 @@ export function Members({
   onAction: (action: string, memberId?: string) => void;
   onRemove: (memberId: string) => void;
   onAssist: () => void;
+  onExecutionAccess?: (memberId: string, allowed: boolean) => void;
 }) {
   const owner = c.role === "owner";
   const selfId = c.selfId || c.role;
@@ -25,7 +27,7 @@ export function Members({
   return (
     <section className="panel participants-panel">
       <div className="panel-heading">
-        <h2>参与者与邀请</h2>
+        <h2>参与成员</h2>
         <span className="participants-caption">{active.length + 1} 人</span>
       </div>
       <div className="aside-participant-list">
@@ -60,12 +62,25 @@ export function Members({
                         : "暂时离线"}
                   {member.active && member.inputRequested && " · 正在申请输入"}
                 </span>
-                <small className="muted">成员 {member.id.slice(0, 8)}</small>
+                <small className="muted">
+                  {member.executionAccess ? "可参与共同执行" : "阅读与讨论"}
+                </small>
               </div>
             </div>
             {owner && member.active && c.sharing && (
               <div className="member-actions">
-                {mine && (
+                {execution && onExecutionAccess && (
+                  <button
+                    className="text-link"
+                    disabled={busy || c.state !== "ready"}
+                    onClick={() =>
+                      onExecutionAccess(member.id, !member.executionAccess)
+                    }
+                  >
+                    {member.executionAccess ? "收回执行访问" : "开放执行访问"}
+                  </button>
+                )}
+                {mine && member.executionAccess !== false && (
                   <button
                     className="button small"
                     disabled={busy || c.busy || !c.online}
@@ -87,9 +102,16 @@ export function Members({
           </div>
         ))}
         {!active.length && (
-          <p className="small-text muted">等待同事通过各自的邀请加入。</p>
+          <p className="small-text muted">
+            复制空间邀请链接，同事可使用同一链接分别加入。
+          </p>
         )}
       </div>
+      {owner && execution && active.some((m) => !m.executionAccess) && (
+        <p className="small-text muted">
+          开放执行访问会共享这个协作会话的完整原生历史和工作目录；实际输入仍需单独交接。
+        </p>
+      )}
       <div className="participants-actions">
         {execution && owner && c.sharing && !mine && (
           <button

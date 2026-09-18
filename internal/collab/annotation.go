@@ -14,6 +14,22 @@ import (
 	"teamcross/internal/sharing"
 )
 
+func annotationVisible(a Annotation, execution bool) bool {
+	return execution || a.Target == nil || a.Target.Kind == "material"
+}
+func visibleAnnotations(annotations []Annotation, execution bool) []Annotation {
+	if execution {
+		return annotations
+	}
+	out := []Annotation{}
+	for _, a := range annotations {
+		if annotationVisible(a, false) {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, author string) (Annotation, error) {
 	in.Text = strings.TrimSpace(in.Text)
 	if !utf8.ValidString(in.Text) || in.Text == "" || utf8.RuneCountInString(in.Text) > 4000 {
@@ -30,6 +46,9 @@ func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, 
 	authorID := sharing.MemberID(ctx)
 	index := -1
 	for i, annotation := range s.record.Annotations {
+		if !annotationVisible(annotation, sharing.ExecutionAuthorized(ctx, s.share)) {
+			continue
+		}
 		if annotation.ID == in.AnnotationID {
 			index = i
 		}

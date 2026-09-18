@@ -372,17 +372,14 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 			s.mu.Unlock()
 			return nil, fmt.Errorf("空间已变化，请刷新")
 		}
-		// Enabling execution broadens access to the native history and directory.
-		// Existing invitations/credentials only authorized material reading, so
-		// close that admission generation and explicitly invite again.
+		// Keep the space and its members connected. Their original material-only
+		// grants remain unchanged until the owner explicitly opens execution access.
 		previous := s.record
 		s.record.ExecutionRecord, s.record.State, s.record.Error = r.ExecutionRecord, "preparing", ""
 		s.record.UpdatedAt = now
 		e = s.saveLocked()
 		if e != nil {
 			s.record = previous
-		} else {
-			s.endShareLocked()
 		}
 		title = s.record.Title
 		s.mu.Unlock()
@@ -690,9 +687,24 @@ func (a *App) owned(id string) (*Session, error) {
 	return s, nil
 }
 func (s *Session) view() map[string]any {
+	return s.viewFor(context.Background())
+}
+func (s *Session) viewFor(ctx context.Context) map[string]any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !s.callerValidLocked(ctx) {
+		return map[string]any{"state": "ended", "hasExecution": false}
+	}
 	r := s.snapshotLocked()
+	hasExecution := r.ExecutionRecord != nil
+	executionAccess := sharing.ExecutionAuthorized(ctx, s.share)
+	if !executionAccess {
+		r.ExecutionRecord = nil
+		r.Annotations = visibleAnnotations(r.Annotations, false)
+		if hasExecution {
+			r.State, r.Error = "ready", ""
+		}
+	}
 	out := map[string]any{"id": r.ID, "title": r.Title, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "sharing": s.share != nil, "sharingPreparing": s.sharePreparing, "annotations": r.Annotations, "hasExecution": r.ExecutionRecord != nil, "reachable": true}
 	if r.ExecutionRecord != nil {
 		execution := map[string]any{"id": r.ID, "title": r.Title, "sourceId": r.SourceID, "sourceTurnId": r.SourceTurnID, "sessionId": r.SessionID, "workspaceMode": r.WorkspaceMode, "executionCwd": r.ExecutionCwd, "repo": r.Repo, "head": r.Head, "branch": r.Branch, "workspaceOwned": r.WorkspaceOwned, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "writer": s.writer, "busy": s.busy, "online": s.online, "epoch": s.epoch, "sharing": s.share != nil, "sharingPreparing": s.sharePreparing, "connected": s.direct != nil, "sequence": s.sequence, "approvals": len(s.approvals), "annotations": r.Annotations, "model": r.Model, "modelProvider": r.ModelProvider, "reasoningEffort": r.ReasoningEffort}
@@ -710,6 +722,7 @@ func (s *Session) view() map[string]any {
 		}
 	}
 	out["materials"] = s.materialDirectoryLocked()
+	out["executionAvailable"] = hasExecution
 	out["selfId"] = "owner"
 	out["members"] = s.membersLocked()
 	out["participantOnline"], out["participantJoined"], out["inputRequested"] = false, false, false
@@ -725,7 +738,7 @@ func (s *Session) view() map[string]any {
 		}
 	}
 	out["clientState"] = "disconnected"
-	if s.direct != nil {
+	if s.direct != nil && executionAccess {
 		out["clientState"] = "connected"
 		if s.direct.ready {
 			out["clientState"] = "session_ready"
@@ -736,11 +749,15 @@ func (s *Session) view() map[string]any {
 		out["transport"] = string(s.share.Transport())
 		state := s.share.InvitationState()
 		out["invitationState"] = state
+		invite, _ := s.share.IssueInvitation("")
+		out["invitationId"] = invite.ID
+		out["invitationReadOnly"] = s.share.Invitation.ReadOnly
 		out["invitations"] = s.share.Invitations()
-		if state == "pending" {
+		if state == "active" {
 			out["invitation"] = s.share.Token()
-			invite, _ := s.share.IssueInvitation("")
-			out["expiresAt"] = invite.ExpiresAt
+			if !invite.ExpiresAt.IsZero() {
+				out["expiresAt"] = invite.ExpiresAt
+			}
 		}
 	} else if s.sharePreparing {
 		out["transport"] = string(s.shareTransport)

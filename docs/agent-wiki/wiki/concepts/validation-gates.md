@@ -15,6 +15,8 @@ GitHub `CI` workflow 自动执行 Go/Web 与 Homebrew 定义工程门槛；unsig
 
 ## 已记录的验收
 
+[2026-09-19 空间邀请与关闭](../../sources/validation/space-invitations-2026-09-19.md) 记录多人复用同一链接、原空间启用执行、逐成员执行访问、空空间关闭与重新开放，以及三 Core 浏览器和同机 Tailcat 验证。它更新邀请语义，不扩大旧记录的原生客户端或跨设备网络结论。
+
 [2026-09-18 只读空间与材料](../../sources/validation/materials-2026-09-18.md) 记录范围冻结、固定版本、三 Core 发布与撤销隔离、MCP/CLI、WebGUI 浏览器流程及可选执行。来源为合成历史，运行时为测试替身；未扩大为真实模型、原生客户端或跨设备网络结论。
 
 [2026-09-18 多成员基础](../../sources/validation/multi-member-2026-09-18.md) 记录独立邀请、具体成员输入归属、逐人撤销、跨成员去重及同机三个 Core 的浏览器检查。

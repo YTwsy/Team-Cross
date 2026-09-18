@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -17,6 +18,117 @@ func membershipRequest(h http.Handler, method, path, credential string, body any
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	return w
+}
+
+func TestConcurrentJoinResetAndCloseLinkPreserveMembers(t *testing.T) {
+	r := &Runtime{Invitation: Invitation{Secret: NewCredential(), ReadOnly: true}}
+	defer r.Close()
+	h := r.authorize(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) { w.WriteHeader(200) }))
+	link, err := r.IssueInvitation("initial")
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := r.Invitation.Secret
+	credentials := []string{NewCredential(), NewCredential(), NewCredential()}
+	var wg sync.WaitGroup
+	for _, credential := range credentials {
+		wg.Add(1)
+		go func(credential string) {
+			defer wg.Done()
+			for range 2 {
+				w := membershipRequest(h, "POST", "/v2/join", secret, map[string]string{"credential": credential, "name": "同名成员"})
+				if w.Code != 200 {
+					t.Errorf("join/retry: %d %s", w.Code, w.Body.String())
+				}
+			}
+		}(credential)
+	}
+	wg.Wait()
+	if len(r.Members()) != 3 {
+		t.Fatal("retries duplicated or concurrent joins collapsed members")
+	}
+	for _, m := range r.Members() {
+		if m.ExecutionAccess {
+			t.Fatal("read-only link granted execution")
+		}
+	}
+	reset, err := r.ResetInvitation("reset")
+	if err != nil || reset.ID == link.ID || reset.Token == link.Token {
+		t.Fatal("reset failed", err)
+	}
+	retry, err := r.ResetInvitation("reset")
+	if err != nil || retry.Token != reset.Token {
+		t.Fatal("reset retry rotated twice", err)
+	}
+	if w := membershipRequest(h, "POST", "/v2/join", secret, map[string]string{"credential": NewCredential()}); w.Code != 410 {
+		t.Fatal("old link still accepts joins")
+	}
+	if !r.RevokeInvitation(reset.ID) {
+		t.Fatal("close failed")
+	}
+	for _, credential := range credentials {
+		if w := membershipRequest(h, "GET", "/v2/status", credential, nil); w.Code != 200 {
+			t.Fatal("link reset/close revoked member")
+		}
+	}
+	current, _ := r.IssueInvitation("")
+	if current.Token != "" || current.State != "revoked" {
+		t.Fatal("closed link exposed token")
+	}
+}
+
+func TestExecutionGrantRevocationCancelsOnlyExecution(t *testing.T) {
+	r := &Runtime{Invitation: Invitation{Secret: NewCredential(), ReadOnly: true}}
+	defer r.Close()
+	credential := NewCredential()
+	started, stopped := make(chan struct{}), make(chan struct{})
+	captured := make(chan context.Context, 1)
+	h := r.authorize(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/execution" {
+			ctx, cancel, allowed := ExecutionContext(req.Context(), r)
+			defer cancel()
+			if !allowed {
+				t.Error("grant not applied")
+				return
+			}
+			captured <- ctx
+			close(started)
+			<-ctx.Done()
+			if ExecutionAuthorized(ctx, r) {
+				t.Error("revoked execution still authorized")
+			}
+			close(stopped)
+		}
+	}))
+	membershipRequest(h, "POST", "/v2/join", r.Invitation.Secret, map[string]string{"credential": credential})
+	id := r.Members()[0].ID
+	if !r.SetExecutionAccess(id, true) {
+		t.Fatal("grant failed")
+	}
+	go membershipRequest(h, "GET", "/execution", credential, nil)
+	<-started
+	r.SetExecutionAccess(id, false)
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("native request survived revocation")
+	}
+	if !r.HasMember(id) || r.HasExecutionAccess(id) {
+		t.Fatal("grant and membership conflated")
+	}
+	if w := membershipRequest(h, "GET", "/v2/status", credential, nil); w.Code != 200 {
+		t.Fatal("space access lost")
+	}
+	r.SetExecutionAccess(id, true)
+	old := context.WithoutCancel(<-captured)
+	if ExecutionAuthorized(old, r) {
+		t.Fatal("regrant revived the old request grant")
+	}
+	fresh, cancel, allowed := ExecutionContext(old, r)
+	defer cancel()
+	if !allowed || !ExecutionAuthorized(fresh, r) {
+		t.Fatal("new request did not receive the current grant")
+	}
 }
 
 func TestInvitationOnlyLimitsFirstAdmission(t *testing.T) {
@@ -42,8 +154,8 @@ func TestInvitationOnlyLimitsFirstAdmission(t *testing.T) {
 	r.mu.Lock()
 	r.Invitation.ExpiresAt = time.Now().Add(-time.Hour)
 	r.mu.Unlock()
-	if r.InvitationState() != "joined" {
-		t.Fatal("joined member expired")
+	if r.InvitationState() != "expired" {
+		t.Fatal("expired link remained open")
 	}
 	if w := membershipRequest(h, "GET", "/v2/status", credential, nil); w.Code != 200 {
 		t.Fatal("member lost access after TTL", w.Code)
@@ -52,7 +164,7 @@ func TestInvitationOnlyLimitsFirstAdmission(t *testing.T) {
 		t.Fatal("lost join response not recoverable", w.Code)
 	}
 	if w := membershipRequest(h, "POST", "/v2/join", r.Invitation.Secret, map[string]string{"credential": NewCredential()}); w.Code != 410 {
-		t.Fatal("invite admitted a second member", w.Code)
+		t.Fatal("expired invite admitted a new member", w.Code)
 	}
 	if w := membershipRequest(h, "GET", "/v2/status", r.Invitation.Secret, nil); w.Code != 401 {
 		t.Fatal("used invite accessed data", w.Code)
@@ -75,7 +187,7 @@ func TestUnusedExpiredInvitationCannotJoin(t *testing.T) {
 	}
 }
 
-func TestLeaveInvalidatesOpenRequestsAndOriginalInvitation(t *testing.T) {
+func TestLeaveInvalidatesMemberWithoutClosingLink(t *testing.T) {
 	r := &Runtime{Invitation: Invitation{Secret: NewCredential(), ExpiresAt: time.Now().Add(time.Hour)}}
 	defer r.Close()
 	var saved context.Context
@@ -91,7 +203,7 @@ func TestLeaveInvalidatesOpenRequestsAndOriginalInvitation(t *testing.T) {
 	if w := membershipRequest(h, "POST", "/v2/leave", credential, nil); w.Code != 200 {
 		t.Fatal(w.Code)
 	}
-	if Authorized(saved, r) || r.InvitationState() != "left" {
+	if Authorized(saved, r) || r.InvitationState() != "active" {
 		t.Fatal("stale authorized request survived leave")
 	}
 	if w := membershipRequest(h, "GET", "/v2/status", credential, nil); w.Code != 410 {
@@ -102,7 +214,7 @@ func TestLeaveInvalidatesOpenRequestsAndOriginalInvitation(t *testing.T) {
 	}
 }
 
-func TestIndependentAdmissionsAndStaleRequestCancellation(t *testing.T) {
+func TestReusableInvitationAndStaleRequestCancellation(t *testing.T) {
 	r := &Runtime{Invitation: Invitation{Secret: NewCredential(), ExpiresAt: time.Now().Add(time.Hour)}}
 	defer r.Close()
 	started, revoked := make(chan struct{}), make(chan struct{})
@@ -118,8 +230,8 @@ func TestIndependentAdmissionsAndStaleRequestCancellation(t *testing.T) {
 	}))
 	first, _ := r.IssueInvitation("B")
 	second, _ := r.IssueInvitation("C")
-	if first.ID == second.ID || first.Token == second.Token {
-		t.Fatal("invitations reused")
+	if first.ID != second.ID || first.Token != second.Token {
+		t.Fatal("link changed for another participant")
 	}
 	// Test admission directly; the transport-independent envelope isn't complete here.
 	r.mu.Lock()

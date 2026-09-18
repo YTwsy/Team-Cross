@@ -92,14 +92,14 @@ func TestJoinedAccessSurvivesDeadlineAndParticipantCoreRestart(t *testing.T) {
 		t.Fatal("B restart lost member access")
 	}
 	c, _, _ := fixture(t)
-	if _, e = c.Join(ctx, token); e == nil {
-		t.Fatal("copied invitation admitted another participant")
+	if _, e = c.Join(ctx, token); e != nil {
+		t.Fatal("shared link rejected another participant", e)
 	}
 	if e = restored.leave(ctx); e != nil {
 		t.Fatal(e)
 	}
-	if state := s.view()["invitationState"]; state != "left" {
-		t.Fatal("explicit leave not revoked", state)
+	if state := s.view()["invitationState"]; state != "active" {
+		t.Fatal("leave closed reusable link", state)
 	}
 	if _, e = s.Invite(ctx, "lan", "after-leave"); e != nil {
 		t.Fatal(e)

@@ -22,7 +22,7 @@ import (
 
 func collaborationCommand(command string) bool {
 	switch command {
-	case "space", "freeze", "publication-preview", "publish", "publication-status", "materials", "read-material", "withdraw-material", "remove-member", "revoke-invitation", "collaborations", "input", "sources", "preview", "create", "share", "invite", "inspect-invitation", "open", "end", "leave", "resume", "share-status", "cancel-share":
+	case "execution-access", "space", "freeze", "publication-preview", "publish", "publication-status", "materials", "read-material", "withdraw-material", "remove-member", "revoke-invitation", "collaborations", "input", "sources", "preview", "create", "share", "invite", "inspect-invitation", "open", "end", "leave", "resume", "share-status", "cancel-share":
 		return true
 	}
 	return false
@@ -44,7 +44,7 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 	f := flag.NewFlagSet(command, flag.ContinueOnError)
 	f.SetOutput(diagnostic)
 	data := f.String("data-dir", collab.DefaultDataDir(), "本机数据目录")
-	spaceID := f.String("space", "", "为已有只读空间启用执行；会关闭旧共享并要求重新邀请")
+	spaceID := f.String("space", "", "为已有空间启用执行；保留邀请和成员，另行开放执行访问")
 	draftID := f.String("draft", "", "本机冻结草稿 ID")
 	previewID := f.String("preview-id", "", "确认的材料预览 ID")
 	startTurn := f.String("start-turn", "", "公开首轮 ID")
@@ -55,7 +55,9 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 	baseVersion := f.Int("base-version", 0, "更新前的材料版本")
 	id := f.String("id", "", "协作 ID；省略时列出协作")
 	memberID := f.String("member", "", "输入接收者或要移除的具体成员 ID")
-	invitationID := f.String("invitation-id", "", "要撤销的待用邀请 ID")
+	resetInvite := f.Bool("reset", false, "重置邀请链接；旧链接失效，保留已有成员，需要 request-id")
+	allowExecution := f.Bool("allow", false, "向指定成员开放执行访问；false 收回")
+	invitationID := f.String("invitation-id", "", "要关闭的邀请链接 ID")
 	epoch := f.Uint64("epoch", 0, "查看协作后得到的输入状态版本")
 	jsonOut := f.Bool("json", false, "输出 JSON")
 	provider := f.String("provider", "", "来源会话的 codex 或 claude")
@@ -130,8 +132,13 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 		if command == "share" && *transport != "lan" && *transport != "tailcat" {
 			err = fmt.Errorf("share 必须明确指定 --transport lan 或 tailcat")
 		}
+	case "execution-access":
+		tool, params = "set_execution_access", map[string]any{"id": *id, "memberId": *memberID, "allowed": *allowExecution}
 	case "invite":
 		tool, params = "create_invitation", map[string]any{"id": *id, "transport": *transport}
+		if *resetInvite {
+			params["reset"] = true
+		}
 		if *requestID != "" {
 			params["requestId"] = *requestID
 		}

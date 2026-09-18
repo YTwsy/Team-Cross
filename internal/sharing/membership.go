@@ -28,26 +28,29 @@ func equal(a, b string) bool { return subtle.ConstantTimeCompare([]byte(a), []by
 type admission struct {
 	id         string
 	invitation *Invitation
-	memberID   string
 	revoked    bool
 }
 type member struct {
 	Member
-	credential string
-	ctx        context.Context
-	cancel     context.CancelFunc
+	credential      string
+	invitationID    string
+	executionCtx    context.Context
+	executionCancel context.CancelFunc
+	ctx             context.Context
+	cancel          context.CancelFunc
 }
 type Member struct {
-	ID       string    `json:"id"`
-	Name     string    `json:"name"`
-	JoinedAt time.Time `json:"joinedAt"`
-	Active   bool      `json:"active"`
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	JoinedAt        time.Time `json:"joinedAt"`
+	Active          bool      `json:"active"`
+	ExecutionAccess bool      `json:"executionAccess"`
 }
 type InvitationInfo struct {
-	ID        string    `json:"id"`
-	State     string    `json:"state"`
-	ExpiresAt time.Time `json:"expiresAt"`
-	MemberID  string    `json:"memberId,omitempty"`
+	ID          string    `json:"id"`
+	State       string    `json:"state"`
+	ExpiresAt   time.Time `json:"expiresAt,omitzero"`
+	JoinedCount int       `json:"joinedCount"`
 }
 type IssuedInvitation struct {
 	InvitationInfo
@@ -78,25 +81,33 @@ func (r *Runtime) stateLocked(a *admission) string {
 	if r.revoked || a.revoked {
 		return "revoked"
 	}
-	if a.memberID != "" {
-		if m := r.members[a.memberID]; m != nil && m.ctx.Err() == nil {
-			return "joined"
-		}
-		return "left"
-	}
-	if !time.Now().Before(a.invitation.ExpiresAt) {
+	if !a.invitation.ExpiresAt.IsZero() && !time.Now().Before(a.invitation.ExpiresAt) {
 		return "expired"
 	}
-	return "pending"
+	return "active"
 }
 func (r *Runtime) infoLocked(a *admission) InvitationInfo {
-	return InvitationInfo{ID: a.id, State: r.stateLocked(a), ExpiresAt: a.invitation.ExpiresAt, MemberID: a.memberID}
+	out := InvitationInfo{ID: a.id, State: r.stateLocked(a), ExpiresAt: a.invitation.ExpiresAt}
+	for _, m := range r.members {
+		if m.invitationID == a.id {
+			out.JoinedCount++
+		}
+	}
+	return out
 }
 
-// IssueInvitation creates a separate one-person invitation. Retrying an explicit
-// request ID returns its original admission, even after use, expiry or revocation.
-// An omitted ID only retrieves the latest admission; it never admits another user.
+// IssueInvitation retrieves the reusable space link. Only ResetInvitation rotates
+// it; neither another caller nor another member consumes or replaces the link.
 func (r *Runtime) IssueInvitation(requestID string) (IssuedInvitation, error) {
+	return r.issueInvitation(requestID, false)
+}
+func (r *Runtime) ResetInvitation(requestID string) (IssuedInvitation, error) {
+	if strings.TrimSpace(requestID) == "" {
+		return IssuedInvitation{}, fmt.Errorf("重置链接需要 requestId")
+	}
+	return r.issueInvitation(requestID, true)
+}
+func (r *Runtime) issueInvitation(requestID string, reset bool) (IssuedInvitation, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.initializeLocked()
@@ -107,23 +118,24 @@ func (r *Runtime) IssueInvitation(requestID string) (IssuedInvitation, error) {
 		return IssuedInvitation{}, fmt.Errorf("邀请请求标识过长")
 	}
 	id := r.latestInvite
+	key := fmt.Sprintf("%t:%s", reset, requestID)
 	if requestID != "" {
-		if old, ok := r.inviteRequests[requestID]; ok {
+		if old, ok := r.inviteRequests[key]; ok {
 			id = old
 		} else {
-			// Claim the unassigned initial invitation, then mint distinct invitations.
-			if len(r.inviteRequests) != 0 || r.initialExposed || r.stateLocked(r.invitations[id]) != "pending" {
+			if reset {
+				r.invitations[id].revoked = true
 				inv := r.Invitation
-				inv.Secret, inv.ExpiresAt = NewCredential(), time.Now().Add(time.Hour).Round(0)
+				inv.Secret, inv.ExpiresAt = NewCredential(), time.Time{}
 				id = uuid.NewString()
 				r.invitations[id] = &admission{id: id, invitation: &inv}
 			}
-			r.inviteRequests[requestID], r.latestInvite = id, id
+			r.inviteRequests[key], r.latestInvite = id, id
 		}
 	}
 	a := r.invitations[id]
 	out := IssuedInvitation{InvitationInfo: r.infoLocked(a)}
-	if out.State == "pending" {
+	if out.State == "active" {
 		r.initialExposed = true
 		out.Token = encodeInvitation(*a.invitation)
 	}
@@ -144,7 +156,7 @@ func (r *Runtime) RevokeInvitation(id string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	a := r.invitations[id]
-	if a == nil || a.memberID != "" {
+	if a == nil {
 		return false
 	}
 	a.revoked = true
@@ -173,6 +185,67 @@ func (r *Runtime) HasMember(id string) bool {
 	defer r.mu.Unlock()
 	m := r.members[id]
 	return !r.revoked && m != nil && m.ctx.Err() == nil
+}
+
+func (r *Runtime) HasExecutionAccess(id string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	m := r.members[id]
+	return !r.revoked && m != nil && m.ctx.Err() == nil && m.ExecutionAccess
+}
+
+func (r *Runtime) SetExecutionAccess(id string, allowed bool) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	m := r.members[id]
+	if r.revoked || m == nil || m.ctx.Err() != nil {
+		return false
+	}
+	if m.ExecutionAccess != allowed {
+		m.ExecutionAccess = allowed
+		if allowed {
+			m.executionCtx, m.executionCancel = context.WithCancel(m.ctx)
+		} else if m.executionCancel != nil {
+			m.executionCancel()
+		}
+	}
+	return true
+}
+
+// Bind native reads and writes to the current execution grant. Revoking and
+// granting again cannot revive an in-flight request from an older grant.
+func ExecutionContext(ctx context.Context, current *Runtime) (context.Context, context.CancelFunc, bool) {
+	a, remote := ctx.Value(authorizationKey{}).(authorization)
+	if !remote {
+		return ctx, func() {}, true
+	}
+	if current == nil || current != a.runtime {
+		return ctx, func() {}, false
+	}
+	current.mu.Lock()
+	defer current.mu.Unlock()
+	if current.revoked || !a.member.ExecutionAccess || a.member.ctx.Err() != nil || a.member.executionCtx == nil || a.member.executionCtx.Err() != nil {
+		return ctx, func() {}, false
+	}
+	bound, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(a.member.executionCtx, cancel)
+	return context.WithValue(bound, executionGrantKey{}, a.member.executionCtx), func() { stop(); cancel() }, true
+}
+
+type executionGrantKey struct{}
+
+func ExecutionAuthorized(ctx context.Context, current *Runtime) bool {
+	a, remote := ctx.Value(authorizationKey{}).(authorization)
+	if !remote {
+		return true
+	}
+	if current == nil || current != a.runtime || ctx.Err() != nil {
+		return false
+	}
+	current.mu.Lock()
+	defer current.mu.Unlock()
+	grant, bound := ctx.Value(executionGrantKey{}).(context.Context)
+	return !current.revoked && a.member.ctx.Err() == nil && a.member.ExecutionAccess && (!bound || (grant == a.member.executionCtx && grant.Err() == nil))
 }
 func (r *Runtime) RevokeMember(id string) bool {
 	r.mu.Lock()
@@ -263,14 +336,22 @@ func (r *Runtime) authorize(next http.Handler) http.Handler {
 				rejection(w, 410, "invitation_revoked", "邀请已撤销，请获取新邀请")
 				return
 			}
-			m := r.members[a.memberID]
-			retry := joining && m != nil && m.ctx.Err() == nil && equal(in.Credential, m.credential)
-			if a.memberID != "" && !retry {
+			var m *member
+			if joining {
+				for _, candidate := range r.members {
+					if equal(in.Credential, candidate.credential) {
+						m = candidate
+						break
+					}
+				}
+			}
+			if m != nil && (m.ctx.Err() != nil || m.invitationID != a.id) {
 				r.mu.Unlock()
-				rejection(w, 410, "invitation_used", "邀请已使用，请获取另一份邀请")
+				rejection(w, 410, "membership_invalid", "该成员资格已结束或属于另一份链接")
 				return
 			}
-			if !retry && !time.Now().Before(a.invitation.ExpiresAt) {
+			retry := m != nil
+			if !retry && !a.invitation.ExpiresAt.IsZero() && !time.Now().Before(a.invitation.ExpiresAt) {
 				r.mu.Unlock()
 				rejection(w, 410, "invitation_expired", "邀请已到期，请获取新邀请")
 				return
@@ -295,10 +376,16 @@ func (r *Runtime) authorize(next http.Handler) http.Handler {
 					name = "协作者 " + id[:8]
 				}
 				ctx, cancel := context.WithCancel(context.Background())
-				m = &member{Member: Member{ID: id, Name: name, JoinedAt: time.Now(), Active: true}, credential: in.Credential, ctx: ctx, cancel: cancel}
-				r.members[id], a.memberID = m, id
+				m = &member{Member: Member{ID: id, Name: name, JoinedAt: time.Now(), Active: true, ExecutionAccess: !a.invitation.ReadOnly}, credential: in.Credential, invitationID: a.id, ctx: ctx, cancel: cancel}
+				if m.ExecutionAccess {
+					m.executionCtx, m.executionCancel = context.WithCancel(ctx)
+				}
+				r.members[id] = m
 			}
-			memberID := a.memberID
+			memberID := ""
+			if m != nil {
+				memberID = m.ID
+			}
 			r.mu.Unlock()
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "memberId": memberID})
@@ -338,7 +425,7 @@ func (r *Runtime) GetInvitation(id string) (IssuedInvitation, error) {
 		return IssuedInvitation{}, fmt.Errorf("邀请不存在或共享已结束")
 	}
 	out := IssuedInvitation{InvitationInfo: r.infoLocked(a)}
-	if out.State == "pending" {
+	if out.State == "active" {
 		out.Token = encodeInvitation(*a.invitation)
 		r.initialExposed = true
 	}

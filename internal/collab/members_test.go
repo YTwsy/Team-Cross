@@ -8,7 +8,7 @@ import (
 	"teamcross/internal/nativecodex"
 )
 
-func TestThreeMembersSeparateInvitationsInputAndRevocation(t *testing.T) {
+func TestThreeMembersOneLinkInputAndRevocation(t *testing.T) {
 	a, f, _ := fixture(t)
 	s := createFixture(t, a, f, "existing")
 	ctx := context.Background()
@@ -19,8 +19,8 @@ func TestThreeMembersSeparateInvitationsInputAndRevocation(t *testing.T) {
 	b := joinFixture(t, s)
 	bid := b.view(ctx)["selfId"].(string)
 	next, err := s.Invite(ctx, "lan", "invite-c")
-	if err != nil || first.Token == next.Token {
-		t.Fatal("separate admission missing", err)
+	if err != nil || first.Token != next.Token {
+		t.Fatal("space link was replaced", err)
 	}
 	c := joinFixture(t, s)
 	cid := c.view(ctx)["selfId"].(string)
@@ -28,7 +28,7 @@ func TestThreeMembersSeparateInvitationsInputAndRevocation(t *testing.T) {
 		t.Fatal("members share identity")
 	}
 	retry, err := s.Invite(ctx, "lan", "invite-b")
-	if err != nil || retry.ID != first.ID || retry.State != "joined" || retry.Token != "" {
+	if err != nil || retry.ID != first.ID || retry.State != "active" || retry.Token != first.Token {
 		t.Fatal("invite retry minted another admission", retry, err)
 	}
 	if err = s.Action(ctx, "handoff"); err == nil {
@@ -111,6 +111,20 @@ func TestThreeMembersSeparateInvitationsInputAndRevocation(t *testing.T) {
 	raw, _ := json.Marshal(status)
 	if status["invitation"] != nil || status["invitations"] != nil {
 		t.Fatal("member received admission secrets", string(raw))
+	}
+	// Removal ends the old credential, not possession of an open space link.
+	// An explicit rejoin must create a new identity instead of reusing the ended
+	// local record, including when the admission secret has not changed.
+	rejoined, err := b.app.Join(ctx, first.Token)
+	if err != nil {
+		t.Fatal("explicit rejoin with active link failed", err)
+	}
+	newID := rejoined.view(ctx)["selfId"]
+	if newID == bid || newID == nil || rejoined.ID == b.ID {
+		t.Fatal("rejoin reused revoked identity", newID)
+	}
+	if err = b.request(ctx, "GET", "/v2/status", nil, nil); err == nil {
+		t.Fatal("rejoin revived the removed credential")
 	}
 }
 

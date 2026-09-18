@@ -1,4 +1,4 @@
-// Package sharing supplies single-use invitations and pinned-TLS membership
+// Package sharing supplies reusable space links and pinned-TLS membership
 // over explicitly selected LAN or Tailcat transports.
 package sharing
 
@@ -29,7 +29,7 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
-const Capability = "collaboration-spaces-v2-materials"
+const Capability = "collaboration-spaces-v3-links"
 
 type Transport string
 
@@ -67,7 +67,7 @@ type Invitation struct {
 	Tailcat     *TailcatCandidate  `json:"tailcat,omitempty"`
 	Pin         string             `json:"pin"`
 	Secret      string             `json:"secret"`
-	ExpiresAt   time.Time          `json:"expiresAt"`
+	ExpiresAt   time.Time          `json:"expiresAt,omitzero"`
 	Capability  string             `json:"capability"`
 }
 type Runtime struct {
@@ -146,8 +146,6 @@ func StartSpace(ctx context.Context, transport Transport, id, title, host string
 		return nil, err
 	}
 	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
-	// Admission uses wall time on both Macs, including time spent asleep.
-	expiry := time.Now().Add(time.Hour).Round(0)
 	tmpl := &x509.Certificate{SerialNumber: serial, Subject: pkix.Name{CommonName: "Team Cross " + id}, NotBefore: time.Now().Add(-time.Minute), NotAfter: time.Now().AddDate(1, 0, 0), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
 	if err != nil {
@@ -160,7 +158,7 @@ func StartSpace(ctx context.Context, transport Transport, id, title, host string
 		Invitation: Invitation{
 			RuntimeMode: mode, ReadOnly: readOnly,
 			Version: 3, ID: id, Title: title, Host: host, Transport: transport,
-			Pin: hex.EncodeToString(pin[:]), Secret: NewCredential(), ExpiresAt: expiry, Capability: Capability,
+			Pin: hex.EncodeToString(pin[:]), Secret: NewCredential(), Capability: Capability,
 		},
 	}
 	r.server = &http.Server{ReadHeaderTimeout: 10 * time.Second, Handler: r.authorize(handler)}
@@ -257,7 +255,7 @@ func Decode(token string) (Invitation, error) {
 	if err = validateInvitation(i); err != nil {
 		return i, problem.New("version_incompatible", "邀请版本或内容不受支持", "请确认双方使用兼容的 Team Cross 版本")
 	}
-	if time.Now().After(i.ExpiresAt) {
+	if !i.ExpiresAt.IsZero() && time.Now().After(i.ExpiresAt) {
 		return i, problem.New("invitation_expired", "邀请已到期", "请让发起者重新分享")
 	}
 	return i, nil

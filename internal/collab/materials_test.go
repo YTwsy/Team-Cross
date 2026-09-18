@@ -3,6 +3,7 @@ package collab
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -273,7 +274,7 @@ func TestThreeMembersPublishVersionsAndPinnedReferences(t *testing.T) {
 	}
 }
 
-func TestEnableExecutionRequiresNewInvitations(t *testing.T) {
+func TestEnableExecutionPreservesMembersLinkAndAccessScopes(t *testing.T) {
 	ctx := context.Background()
 	a, f, _ := fixture(t)
 	s, err := a.CreateSpace(ctx, SpaceInput{RequestID: uuid.NewString(), Title: "调查后执行"})
@@ -283,18 +284,22 @@ func TestEnableExecutionRequiresNewInvitations(t *testing.T) {
 	if _, err = s.annotate(Annotation{Text: "讨论保留"}, "发起者"); err != nil {
 		t.Fatal(err)
 	}
-	if err = s.Share(ctx, "lan"); err != nil {
-		t.Fatal(err)
-	}
-	old := s.share.Token()
-	b, _, _ := fixture(t)
-	j, err := b.Join(ctx, old)
+	link, err := s.Invite(ctx, "lan", "space-link")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view := j.cachedView(); view["hasExecution"] != false || view["runtimeState"] != nil {
-		t.Fatal("first view invented execution for read-only invitation", view)
+	b, bf, _ := fixture(t)
+	j, err := b.Join(ctx, link.Token)
+	if err != nil {
+		t.Fatal(err)
 	}
+	bid := j.view(ctx)["selfId"].(string)
+	draft := materialDraft(t, b, bf)
+	published, err := b.Publish(ctx, j.ID, PublishInput{PreviewID: draft.ID, PreviewHash: draft.Hash, RequestID: uuid.NewString()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mid := published.(map[string]any)["materialId"].(string)
 	in := CreateInput{SpaceID: s.record.ID, RequestID: uuid.NewString(), SourceID: f.source.ID, WorkspaceMode: "existing"}
 	p, err := a.Preview(ctx, in)
 	if err != nil {
@@ -305,17 +310,126 @@ func TestEnableExecutionRequiresNewInvitations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if created != s || s.record.ExecutionRecord == nil || len(s.record.Annotations) != 1 || f.forks != 1 || s.share != nil {
-		t.Fatal("execution detached from space or old sharing survived")
+	if created != s || s.record.ExecutionRecord == nil || len(s.record.Annotations) != 1 || f.forks != 1 || s.share == nil || s.share.Token() != link.Token {
+		t.Fatal("enabling execution changed space, link or membership")
 	}
 	if _, err = a.Create(ctx, in); err != nil || f.forks != 1 {
 		t.Fatal("execution retry forked twice", err)
 	}
-	if err = j.request(ctx, "GET", "/v2/context?kind=history", nil, nil); err == nil {
-		t.Fatal("readonly credential obtained full native history")
+	private, err := s.annotate(Annotation{Text: "原生范围批注", Target: &AnnotationTarget{Kind: "history", TurnID: "native", ItemID: "item", Quote: "未公开", EndOffset: 3}}, "发起者")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if view := j.view(ctx); view["hasExecution"] != false || view["runtimeState"] != nil || view["writer"] != nil {
-		t.Fatal("revoked read-only invitation invented execution", view)
+	for _, kind := range []string{"history", "file", "changes", "events"} {
+		if err = j.request(ctx, "GET", "/v2/context?kind="+kind+"&path=file.txt", nil, nil); err == nil {
+			t.Fatal("readonly obtained native context", kind)
+		}
+	}
+	if view := j.view(ctx); view["selfId"] != bid || view["hasExecution"] != false || view["executionAvailable"] != true || view["runtimeState"] != nil || view["writer"] != nil || view["executionCwd"] != nil || view["state"] != "ready" {
+		t.Fatal("readonly member lost identity or received native state", view)
+	}
+	var annotations map[string]any
+	if err = j.request(ctx, "GET", "/v2/context?kind=annotations", nil, &annotations); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(annotations)
+	if strings.Contains(string(raw), "原生范围批注") || annotations["sessionId"] != nil {
+		t.Fatal("native annotation leaked", string(raw))
+	}
+	if err = j.request(ctx, "POST", "/v2/annotation-replies", AnnotationReplyInput{AnnotationID: private.ID, Text: "越界", RequestID: uuid.NewString()}, nil); err == nil {
+		t.Fatal("readonly replied to hidden native annotation")
+	}
+	if err = j.request(ctx, "POST", "/v2/rpc", RPCInput{Method: "thread/read", Params: map[string]any{}}, nil); err == nil {
+		t.Fatal("readonly accessed native RPC")
+	}
+	if err = s.ActionFor(ctx, "handoff", bid); err == nil {
+		t.Fatal("handoff implicitly granted execution")
+	}
+	if _, err = b.Publish(ctx, j.ID, PublishInput{PreviewID: draft.ID, PreviewHash: draft.Hash, RequestID: uuid.NewString(), MaterialID: mid, BaseVersion: 1}); err != nil {
+		t.Fatal("member can no longer update their publication", err)
+	}
+	c, _, _ := fixture(t)
+	jc, err := c.Join(ctx, link.Token)
+	if err != nil || jc.view(ctx)["hasExecution"] != false {
+		t.Fatal("old link stopped working or broadened access", err)
+	}
+	owner := managementBackend(t, a)
+	guest := managementBackend(t, b)
+	if _, err = guest.Invoke(ctx, "set_execution_access", map[string]any{"id": j.ID, "memberId": bid, "allowed": true}); err == nil {
+		t.Fatal("guest granted their own execution access")
+	}
+	invokeObject(t, owner, "set_execution_access", map[string]any{"id": s.record.ID, "memberId": bid, "allowed": true})
+	if view := j.view(ctx); view["selfId"] != bid || view["hasExecution"] != true || view["sessionId"] != s.record.SessionID {
+		t.Fatal("grant required rejoining", view)
+	}
+	if err = j.request(ctx, "GET", "/v2/context?kind=history", nil, nil); err != nil {
+		t.Fatal("granted native read rejected", err)
+	}
+	if err = s.ActionFor(ctx, "handoff", bid); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.SetExecutionAccess(bid, false); err != nil {
+		t.Fatal(err)
+	}
+	if s.view()["writer"] != "owner" || !s.share.HasMember(bid) {
+		t.Fatal("revocation failed to preserve membership and reclaim input")
+	}
+	if err = j.request(ctx, "GET", "/v2/context?kind=history", nil, nil); err == nil {
+		t.Fatal("revoked execution access survived")
+	}
+	if err = j.request(ctx, "POST", "/v2/read-material", MaterialRead{MaterialID: mid, Version: 1}, nil); err != nil {
+		t.Fatal("execution revocation ended material access", err)
+	}
+	reset, err := s.Invite(ctx, "lan", "rotated", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = b.Join(ctx, reset.Token); err != nil || len(b.joined) != 1 {
+		t.Fatal("reopening link duplicated membership", err)
+	}
+}
+
+func TestReadOnlySpaceCanCloseBeforeAnyoneJoinsAndReopen(t *testing.T) {
+	ctx := context.Background()
+	for _, shared := range []bool{false, true} {
+		t.Run(fmt.Sprint(shared), func(t *testing.T) {
+			a, _, _ := fixture(t)
+			s, err := a.CreateSpace(ctx, SpaceInput{RequestID: uuid.NewString(), Title: "未加入的空间"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = s.annotate(Annotation{Text: "保留讨论"}, "发起者"); err != nil {
+				t.Fatal(err)
+			}
+			old := ""
+			if shared {
+				if err = s.Share(ctx, "lan"); err != nil {
+					t.Fatal(err)
+				}
+				old = s.share.Token()
+			}
+			if err = s.Action(ctx, "end"); err != nil {
+				t.Fatal(err)
+			}
+			if s.view()["state"] != "ended" || s.share != nil {
+				t.Fatal("close only hid invitation")
+			}
+			id, dir := s.record.ID, a.Config.DataDir
+			a.Close()
+			reopened, err := Open(Config{DataDir: dir, Loopback: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reopened.Close()
+			restored, err := reopened.owned(id)
+			if err != nil || restored.view()["state"] != "ended" || len(restored.record.Annotations) != 1 {
+				t.Fatal("closed state/materials did not persist", err)
+			}
+			link, err := restored.Invite(ctx, "lan", "reopen")
+			if err != nil || restored.view()["state"] != "ready" || link.Token == "" || link.Token == old {
+				t.Fatal("reopen failed", err)
+			}
+		})
 	}
 }
 

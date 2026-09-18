@@ -191,7 +191,7 @@ describe("原处批注", () => {
     ).toBeInTheDocument();
     expect(aside).toContainElement(participants);
     expect(
-      within(participants).getByRole("heading", { name: "参与者与邀请" }),
+      within(participants).getByRole("heading", { name: "参与成员" }),
     ).toBeVisible();
     expect(
       participants.compareDocumentPosition(annotations) &

@@ -101,7 +101,7 @@ it("an ended read-only membership offers a new invitation without execution cont
   );
   render(<Detail id="space" />);
   expect(
-    await screen.findByRole("link", { name: "使用新邀请加入" }),
+    await screen.findByRole("link", { name: "使用邀请链接加入" }),
   ).toBeVisible();
   expect(
     screen.queryByRole("heading", { name: "协作上下文" }),

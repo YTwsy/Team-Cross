@@ -1,5 +1,4 @@
 import {
-  invitationText,
   transportName,
   runtimeModeName,
   runtimeModeDescription,
@@ -14,13 +13,13 @@ import {
 } from "../types";
 import { Clients } from "./Clients";
 import { Materials } from "./Materials";
+import { InvitationPanel } from "./InvitationPanel";
 import { ReadOnlySpace } from "./ReadOnlySpace";
 import { Members } from "./Members";
 import { Context } from "./Context";
 import { Annotations, type AnnotationRequest } from "./Annotations";
 import {
   Badge,
-  Copy,
   Empty,
   ErrorBox,
   Icon,
@@ -109,7 +108,6 @@ export function Detail({ id }: { id: string }) {
     () => sessionStorage.getItem(`teamcross.create.${id}`) || "",
   );
   const actionSerial = useRef(0);
-  const invitationRequest = useRef(crypto.randomUUID());
   useEffect(() => {
     sessionStorage.removeItem(`teamcross.create.${id}`);
     sessionStorage.removeItem(`teamcross.invite.${id}`);
@@ -167,46 +165,6 @@ export function Detail({ id }: { id: string }) {
       setBusy("");
     }
   }
-  async function inviteAnother() {
-    setBusy("share");
-    setError("");
-    try {
-      const result = await api<Collaboration>(
-        `collaborations/${id}/invitations`,
-        {
-          transport: c?.transport || shareTransport,
-          requestId: invitationRequest.current,
-        },
-      );
-      resource.setData(result);
-      invitationRequest.current = crypto.randomUUID();
-      setModal("invite");
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy("");
-    }
-  }
-  async function copyInvitation(invitationId: string) {
-    setBusy("copy-invitation");
-    setError("");
-    try {
-      const invite = await api<Collaboration>(
-        `collaborations/${id}/invitations`,
-        { invitationId },
-      );
-      if (!invite.invitation)
-        throw new Error("这份邀请已使用或失效，请刷新查看。");
-      await navigator.clipboard.writeText(
-        invitationText(invite.invitation, c?.transport),
-      );
-      setPersonalOpenNote("已复制所选邀请。");
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy("");
-    }
-  }
   async function openPersonalCodex() {
     setBusy("personal-desktop");
     setError("");
@@ -239,6 +197,7 @@ export function Detail({ id }: { id: string }) {
       <ReadOnlySpace
         collaboration={c}
         reload={resource.reload}
+        update={resource.setData}
         showInvite={modal === "invite"}
       />
     );
@@ -475,8 +434,8 @@ export function Detail({ id }: { id: string }) {
               {busy === "share"
                 ? "正在生成…"
                 : c.invitation
-                  ? "查看邀请"
-                  : "邀请同事"}
+                  ? "邀请成员"
+                  : "邀请成员"}
             </button>
           )}
         </div>
@@ -532,6 +491,9 @@ export function Detail({ id }: { id: string }) {
               void action(value, undefined, memberId)
             }
             onRemove={(memberId) => void manage("remove-member", { memberId })}
+            onExecutionAccess={(memberId, allowed) =>
+              void manage("execution-access", { memberId, allowed })
+            }
             onAssist={() => setModal("assist")}
           />
           <Annotations
@@ -583,7 +545,7 @@ export function Detail({ id }: { id: string }) {
         <Modal
           title={
             modal === "invite"
-              ? "邀请同事加入"
+              ? "邀请成员"
               : modal === "end"
                 ? c.sharingPreparing
                   ? "取消生成邀请？"
@@ -595,166 +557,14 @@ export function Detail({ id }: { id: string }) {
           onClose={() => setModal(null)}
         >
           {modal === "invite" ? (
-            <>
-              <p className="muted">
-                让同事在自己的 Mac 上打开 Team
-                Cross，选择「加入协作」并粘贴邀请。
-              </p>
-              <div className="invite-card">
-                <Icon
-                  name={
-                    (c.transport || shareTransport) === "tailcat"
-                      ? "globe"
-                      : "link"
-                  }
-                  size={24}
-                />
-                <strong>{c.title}</strong>
-                <span className="muted">
-                  {c.host} · {transportName(c.transport || shareTransport)}
-                </span>
-              </div>
-              {c.invitation ? (
-                <>
-                  <Copy
-                    text={invitationText(c.invitation, c.transport)}
-                    label="复制邀请"
-                    className="primary full-width"
-                  />
-                  <details className="technical">
-                    <summary>查看邀请内容</summary>
-                    <textarea
-                      readOnly
-                      aria-label="邀请内容"
-                      value={c.invitation}
-                      rows={4}
-                    />
-                  </details>
-                </>
-              ) : c.sharingPreparing || busy === "share" ? (
-                <>
-                  <Loading
-                    text={
-                      shareTransport === "tailcat"
-                        ? "正在建立 Tailcat 跨网络通道…"
-                        : "正在生成局域网邀请…"
-                    }
-                  />
-                  {c.sharingPreparing && (
-                    <button
-                      className="button full-width"
-                      onClick={() => void action("end")}
-                    >
-                      取消生成邀请
-                    </button>
-                  )}
-                </>
-              ) : (
-                <>
-                  <fieldset className="workspace-field invite-transport-field">
-                    <legend>连接方式</legend>
-                    <div className="workspace-grid">
-                      {(["lan", "tailcat"] as ShareTransport[]).map((value) => (
-                        <label
-                          className={`workspace-card ${shareTransport === value ? "selected" : ""}`}
-                          key={value}
-                        >
-                          <input
-                            type="radio"
-                            name="inviteTransport"
-                            disabled={c.sharing}
-                            value={value}
-                            checked={shareTransport === value}
-                            onChange={() => setShareTransport(value)}
-                          />
-                          <div className="workspace-top">
-                            <span className="entry-icon">
-                              <Icon
-                                name={value === "lan" ? "link" : "globe"}
-                                size={21}
-                              />
-                            </span>
-                            <span className="radio-dot" />
-                          </div>
-                          <h3>{value === "lan" ? "局域网" : "Tailcat"}</h3>
-                          <strong>
-                            {value === "lan" ? "默认" : "跨网络 · 实验性"}
-                          </strong>
-                          <p>
-                            {value === "lan"
-                              ? "两台 Mac 位于同一局域网。"
-                              : "无需 Tailscale 账号，必要时经 DERP 中继。"}
-                          </p>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                  <button
-                    className="button primary full-width"
-                    disabled={!!busy}
-                    onClick={() => void inviteAnother()}
-                  >
-                    {c.invitationState === "expired" ||
-                    c.invitationState === "left"
-                      ? "生成新邀请"
-                      : "生成邀请"}
-                  </button>
-                </>
-              )}
-              {c.sharing && !c.sharingPreparing && (
-                <div className="invitation-management">
-                  {c.invitation && (
-                    <button
-                      className="button full-width"
-                      disabled={!!busy}
-                      onClick={() => void inviteAnother()}
-                    >
-                      为另一位同事生成邀请
-                    </button>
-                  )}
-                  {c.invitations
-                    ?.filter((invite) => invite.state === "pending")
-                    .map((invite) => (
-                      <div className="invitation-row" key={invite.id}>
-                        <span>
-                          待用邀请 · {invite.id.slice(0, 8)}
-                          <small>
-                            {new Date(invite.expiresAt).toLocaleTimeString(
-                              "zh-CN",
-                            )}{" "}
-                            前可加入
-                          </small>
-                        </span>
-                        <button
-                          className="text-link"
-                          disabled={!!busy}
-                          onClick={() => void copyInvitation(invite.id)}
-                          aria-label={`复制邀请 ${invite.id.slice(0, 8)}`}
-                        >
-                          复制
-                        </button>
-                        <button
-                          className="text-link danger"
-                          disabled={!!busy}
-                          onClick={() =>
-                            void manage("revoke-invitation", {
-                              invitationId: invite.id,
-                            })
-                          }
-                        >
-                          撤销邀请
-                        </button>
-                      </div>
-                    ))}
-                </div>
-              )}
-              <p className="small-text muted">
-                每份邀请仅限一人首次加入，有效期一小时。加入后持续有效；你决定何时交出输入。发起者退出
-                Team Cross 时会结束本次共享。
-                {(c.transport || shareTransport) === "tailcat" &&
-                  " Tailcat 为实验性连接，无法直连时可能使用第三方 DERP 中继。"}
-              </p>
-            </>
+            <InvitationPanel
+              collaboration={c}
+              initialTransport={shareTransport}
+              onUpdated={(value) => {
+                resource.setData(value);
+                resource.reload();
+              }}
+            />
           ) : modal === "end" ? (
             <>
               {c.sharingPreparing ? (

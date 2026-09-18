@@ -18,6 +18,7 @@
 
 ## 完整事实来源
 
+- [2026-09-19 空间邀请与关闭](../sources/validation/space-invitations-2026-09-19.md)：一个链接多人加入、原空间启用执行、成员访问与无成员关闭。
 - [2026-09-18 只读空间与会话材料](../sources/validation/materials-2026-09-18.md)：公开范围、固定版本、按需阅读、三 Core 浏览器流程与能力边界。
 
 - [2026-09-18 多成员基础](../sources/validation/multi-member-2026-09-18.md)：多邀请、三成员隔离、输入交接、WebGUI 与同机验证边界。

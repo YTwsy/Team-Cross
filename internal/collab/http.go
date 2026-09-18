@@ -95,7 +95,7 @@ func (s *Session) annotate(in Annotation, author string, contexts ...context.Con
 			return Annotation{}, err
 		}
 	} else if in.Target != nil {
-		if s.record.ExecutionRecord == nil {
+		if s.record.ExecutionRecord == nil || (len(contexts) > 0 && !sharing.ExecutionAuthorized(contexts[0], s.share)) {
 			return Annotation{}, fmt.Errorf("只读空间不能引用原生会话或目录")
 		}
 		if in.Target.SessionID != "" && in.Target.SessionID != s.record.SessionID {
@@ -383,12 +383,14 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 			e = s.ActionFor(ctx, in.Action, in.MemberID, in.Epoch)
 		}
 		respond(w, s.view(), e)
-	case "invitations", "revoke-invitation", "remove-member":
+	case "invitations", "revoke-invitation", "remove-member", "execution-access":
 		var in struct {
 			Transport    string `json:"transport"`
 			RequestID    string `json:"requestId"`
 			MemberID     string `json:"memberId"`
 			InvitationID string `json:"invitationId"`
+			Reset        bool   `json:"reset"`
+			Allowed      *bool  `json:"allowed"`
 		}
 		if !decode(w, r, &in) {
 			return
@@ -399,11 +401,15 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if action == "invitations" {
+			if in.InvitationID != "" && (in.Reset || in.RequestID != "") {
+				respond(w, nil, fmt.Errorf("取回指定邀请不能同时重置或创建"))
+				return
+			}
 			var invite sharing.IssuedInvitation
 			if in.InvitationID != "" {
 				invite, e = s.Invitation(in.InvitationID)
 			} else {
-				invite, e = s.Invite(ctx, in.Transport, in.RequestID)
+				invite, e = s.Invite(ctx, in.Transport, in.RequestID, in.Reset)
 			}
 			out := s.view()
 			delete(out, "invitation")
@@ -411,11 +417,19 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 			out["invitationId"], out["invitationState"], out["requestId"] = invite.ID, invite.State, in.RequestID
 			if invite.Token != "" {
 				out["invitation"] = invite.Token
-				out["expiresAt"] = invite.ExpiresAt
+				if !invite.ExpiresAt.IsZero() {
+					out["expiresAt"] = invite.ExpiresAt
+				}
 			}
 			respond(w, out, e)
 		} else {
-			if action == "remove-member" {
+			if action == "execution-access" {
+				if in.Allowed == nil {
+					e = fmt.Errorf("请明确是否开放执行访问")
+				} else {
+					e = s.SetExecutionAccess(in.MemberID, *in.Allowed)
+				}
+			} else if action == "remove-member" {
 				e = s.RevokeMember(in.MemberID)
 			} else {
 				e = s.RevokeInvitation(in.InvitationID)

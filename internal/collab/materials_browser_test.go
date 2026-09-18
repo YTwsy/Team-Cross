@@ -62,6 +62,18 @@ func TestMaterialsBrowserFixture(t *testing.T) {
 	server := httptest.NewServer(a.Handler(http.FileServer(http.FS(assets))))
 	defer server.Close()
 	manifest["owner"], manifest["ownerApi"], manifest["id"] = server.URL+"/#/collaborations/"+s.record.ID, server.URL, s.record.ID
+	for _, name := range []string{"unshared", "unjoined"} {
+		empty, err := a.CreateSpace(ctx, SpaceInput{RequestID: uuid.NewString(), Title: "尚无成员 · " + name})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if name == "unjoined" {
+			if err = empty.Share(ctx, "lan"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		manifest[name] = server.URL + "/#/collaborations/" + empty.record.ID
+	}
 	for _, name := range []string{"Bob", "Carol"} {
 		inv, err := s.Invite(ctx, "lan", uuid.NewString())
 		if err != nil {

@@ -36,8 +36,9 @@
 | `GET /collaborations/:id` | 状态、目录、输入者、批注 |
 | `GET /collaborations/:id/context?kind=&path=&after=&cursor=` | `history/changes/file/annotations/events` |
 | `POST /collaborations/:id/action` | `{action,transport?,epoch,memberId?}`；`share` 使用 `lan|tailcat`，省略仅为兼容本机调用并默认 `lan` |
-| `POST /collaborations/:id/invitations` | `{transport,requestId?}` 生成独立邀请或取回最近邀请；也可只传 `{invitationId}` 取回指定邀请 |
-| `POST /collaborations/:id/revoke-invitation` | `{invitationId}`，只撤销该未使用邀请，不影响其他邀请或已加入成员 |
+| `POST /collaborations/:id/invitations` | `{transport,requestId?,reset?}` 生成或取回可复用链接；`reset:true` 配合 requestId 重置链接；也可只传 `{invitationId}` 取回指定链接 |
+| `POST /collaborations/:id/execution-access` | `{memberId,allowed}`，主机开放或收回该成员的执行访问，保留材料与讨论资格 |
+| `POST /collaborations/:id/revoke-invitation` | `{invitationId}`，关闭该链接加入，保留已加入成员 |
 | `POST /collaborations/:id/remove-member` | `{memberId}`，撤销该成员及旧请求；当前输入者被移除时输入归还发起者 |
 | `POST /collaborations/:id/open` | `{client:tui|desktop,launch:boolean}` 直接客户端 |
 | `POST /collaborations/:id/personal-desktop` | `{launch:boolean}`，仅本机发起的 Codex 协作；在个人 Desktop 定位已保存的 fork |
@@ -79,7 +80,7 @@
 
 ## 共享邀请与传输
 
-原始邀请格式 `tcx3.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `3`，能力 `collaboration-spaces-v2-materials`。公共字段含空间 ID、显示名称、主机、`readOnly`、`runtimeMode`、`transport`、SHA-256 SPKI 指纹、随机 secret 和到期时间。只读邀请 `readOnly=true` 且不携带 `runtimeMode`；执行邀请 `readOnly=false`，模式省略为受限、未知值拒绝。连接后的能力以 A 的记录为准。`expiresAt` 只约束首次加入，以墙钟比较；`tcx2`、v1 多成员能力及其他旧能力明确拒绝，双方需使用兼容版本。
+原始邀请格式 `tcx3.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `3`，能力 `collaboration-spaces-v3-links`。公共字段含空间 ID、显示名称、主机、`readOnly`、`runtimeMode`、`transport`、SHA-256 SPKI 指纹、随机 secret 和到期时间。只读邀请 `readOnly=true` 且不携带 `runtimeMode`；执行邀请 `readOnly=false`，模式省略为受限、未知值拒绝。连接后的能力以 A 的记录为准。`expiresAt` 为可选墙钟期限，省略或零值表示本次共享内无固定到期时间；`tcx2`、v1/v2 空间能力及其他旧能力明确拒绝，双方需使用兼容版本。
 
 候选字段按传输互斥：
 
@@ -92,12 +93,12 @@ Tailcat 地址包含 WireGuard 节点材料和默认预共享密钥，整个邀�
 
 两种传输在其连接之上使用相同的 TLS 1.3 临时证书。客户端以邀请中的 SPKI 指纹验证主机，不使用系统 CA，也不把证书日期作为成员到期时间。
 
-`GET /v2/invitation` 与 `POST /v2/join` 使用 `Authorization: Bearer <invite.secret>`。B 在加入前生成并持久化 32 字节随机 `credential`，A 首次接受后绑定该凭据并消费邀请码；相同凭据显式重试加入幂等。其他 `/v2/*` 路由均使用 `Bearer <credential>`，不接受邀请码或依据邀请码时限失效。TLS 验证以 SPKI pin 为准，不把证书日期作为成员到期时间。
+`GET /v2/invitation` 与 `POST /v2/join` 使用 `Authorization: Bearer <invite.secret>`。B 在加入前生成并持久化 32 字节随机 `credential`，A 接受后为每份独立凭据建立成员，链接继续接纳其他人；相同凭据显式重试加入幂等。其他 `/v2/*` 路由均使用 `Bearer <credential>`，不接受邀请码或依据邀请码时限失效。TLS 验证以 SPKI pin 为准，不把证书日期作为成员到期时间。
 
 | 路径 | 功能 |
 | --- | --- |
-| `GET /v2/invitation` | 验证未使用邀请并发现地址，不读取协作上下文、不加入 |
-| `POST /v2/join` | `{credential,name?}`，一次性确认加入；不同凭据不能重复使用同一邀请 |
+| `GET /v2/invitation` | 验证开放中的链接并发现地址，不读取协作上下文、不加入 |
+| `POST /v2/join` | `{credential,name?}`，确认加入；同一链接接纳多个独立凭据，相同凭据的重试复用成员 |
 | `POST /v2/leave` | 主动离开，只撤销本人凭据；若为当前输入者，关闭其直接连接并将输入归还 A |
 | `GET /v2/status` | 此协作状态，不返回邀请 secret |
 | `GET /v2/context` | 此协作上下文 |
@@ -116,24 +117,24 @@ Tailcat 地址包含 WireGuard 节点材料和默认预共享密钥，整个邀�
 | `POST /v2/cancel_input` | `{epoch}`，取消输入申请 |
 | `GET /v2/connect` | 原生 WebSocket upgrade |
 
-TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS/Tailcat 路径和凭据由本机 Core 管理。LAN 只读请求失败可依次查询邀请候选，Tailcat 只按邀请地址重建客户端；写入失败都不自动重放。未使用邀请到期、成员主动离开或共享结束后需新邀请；B 的 Core 重启从持久化凭据和原传输重连，不重新加入、不改选传输。
+TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS/Tailcat 路径和凭据由本机 Core 管理。LAN 只读请求失败可依次查询邀请候选，Tailcat 只按邀请地址重建客户端；写入失败都不自动重放。成员主动离开后可通过仍有效的链接重新加入；链接关闭、到期或整个共享结束后需有效链接；B 的 Core 重启从持久化凭据和原传输重连，不重新加入、不改选传输。
 
 ## 状态与事件
 
 `hasExecution` 区分独立只读空间与带可操作会话的空间；`reachable` 表示本次空间探测是否成功，不能用运行时的 `online` 代替。只读空间没有 `sessionId/executionCwd/runtimeMode/writer/epoch` 等执行字段，`context` 仅接受 `kind=annotations`，原生 RPC、连接、恢复及输入申请拒绝。发布材料与批注不需要输入权。带执行的空间即使运行时离线，也可分享已保存材料和讨论。
 
-持久化记录采用 `schema:2`，顶层为身份、批注和材料，原生字段收纳为可选 `execution`。旧扁平记录保留在磁盘但不加载或迁移。详情为 UI 投影，在有执行时仍提供原生字段。为已有空间创建执行，预览及创建必须绑定 `spaceId`；成功保存执行准备状态后关闭原只读共享及成员凭据，再按新能力邀请，避免旧邀请自动获得原生完整历史和工作区访问。每个空间最多一个执行，沿用固定模式及恢复规则。
+持久化记录采用 `schema:2`，顶层为身份、批注和材料，原生字段收纳为可选 `execution`。旧扁平记录保留在磁盘但不加载或迁移。为已有空间创建执行，预览及创建绑定 `spaceId`，保留原链接与成员。只读成员保持原范围；主机通过 `execution-access` 明确授权原生历史与目录。每个空间最多一个执行，沿用固定模式及恢复规则。只读空间的 `action:end` 将 `state:ended` 持久化，即使尚未开放共享也有效；再次生成链接恢复为 ready。
 
-`role` 仅区分本机发起者 `owner` 与加入者 `remote`；授权不使用共同的 `remote` 身份。`selfId` 为本机成员身份（发起者为 `owner`），`writer` 为 `owner` 或具体成员 ID。直接客户端和辅助工具比较 `selfId` 与 `writer`。`members` 返回 `{id,name,joinedAt,active,online,inputRequested}` 数组；每人凭据独立，显示名称允许重复，不用于授权或去重。`invitations` 仅向发起者返回各邀请的 `{id,state,expiresAt,memberId?}`，不含凭据。
+`role` 仅区分本机发起者 `owner` 与加入者 `remote`；授权不使用共同的 `remote` 身份。`selfId` 为本机成员身份（发起者为 `owner`），`writer` 为 `owner` 或具体成员 ID。直接客户端和辅助工具比较 `selfId` 与 `writer`。`members` 返回 `{id,name,joinedAt,active,online,inputRequested,executionAccess}` 数组；每人凭据独立，显示名称允许重复，不用于授权或去重。`invitations` 仅向发起者返回各邀请的 `{id,state,expiresAt?,joinedCount}`，不含凭据。
 
-`handoff` 的 `memberId` 指向已加入成员；多于一位成员时省略会拒绝，只有一位时可明确推导。所有成员都能申请输入，其他成员持有输入时也能排队；不会自动交接，交给 C 不清除 B 的申请。离线只改变在线状态，主动离开或移除才撤销资格。
+`handoff` 的 `memberId` 指向已加入成员；多于一位成员时省略会拒绝，只有一位时可明确推导。已获执行访问的成员都能申请输入，其他成员持有输入时也能排队；不会自动交接，交给 C 不清除 B 的申请。离线只改变在线状态，主动离开或移除才撤销资格。
 
-邀请的 `requestId` 用于独立创建和重试：相同 ID 取回原邀请状态，新 ID 生成另一份单人邀请；省略只取回最近邀请。邀请重试不会重新接纳已退出成员。`invitationId` 只用于取回指定邀请，不能与新建的 `requestId` 混用。使用相同网络通道邀请多人，不因单个邀请使用、撤回或到期关闭其他成员连接；更换传输前必须显式结束共享。
+邀请 `requestId` 用于操作去重；普通调用始终取回当前链接，新 requestId 不新增单人邀请。`reset:true` 必须携带 requestId，重试返回同一次重置结果，旧链接立即停止新加入，已有成员保持有效。`invitationId` 只取回指定链接，不能与 requestId 或 reset 混用。参与端在同一空间和 TLS 指纹下复用已有身份，即使打开的是重置后的链接。更换传输前必须结束整个共享。
 
 
 协作状态 `preparing/ready/error`，接收者还可为 `joining/left/ended`。`online` 表示运行时是否连接，`busy` 表示轮次是否运行，`approvals` 表示待回应数量，`sharing` 表示共享是否开启，`sharingPreparing` 表示所选传输仍在建立，`transport` 为当前或正在准备的 `lan|tailcat`，`connected` 表示是否已有直接客户端。`participantOnline` 表示至少一位成员 Core 的有效心跳；发起者的 `inputRequested` 表示任一成员申请，加入者的该字段只表示本人申请；两者与直接客户端连接独立。`clientState` 为 `disconnected/connected/session_ready`，最后一种必须由该直接连接成功读取或恢复绑定的 thread 确认。
 
-`participantJoined` 独立于在线心跳；`invitationState` 为 `pending/joined/expired/left/revoked`，只有 `pending` 状态向 A 返回邀请码和 `expiresAt`，B 状态不带加入期限。`runtimeState` 为 `running/starting/releasing/released/offline`，`releasePending` 表示共享关闭后仍在等待工作或客户端结束。退出过程完成后才显示 `released`；恢复等待旧进程完全退出。
+`participantJoined` 独立于在线心跳；`invitationState` 为 `active/expired/revoked`，active 才返回当前链接。`invitationId` 标识当前链接，`invitationReadOnly` 表示链接授予的原始范围；`invitations` 中记录 `joinedCount`，不绑定单个 memberId。默认链接无固定时限，存在期限时才返回 expiresAt。`runtimeState` 为 `running/starting/releasing/released/offline`，`releasePending` 表示共享关闭后仍在等待工作或客户端结束。
 
 `context?kind=history` 返回 `{thread,nextCursor}`；`thread.turns` 是最近一页的至多 8 轮，页内按时间正序排列。传回非空 `nextCursor` 到 `cursor` 可读取更早的一页；`null` 表示没有更多历史。元数据和分页读取均不创建或执行轮次；会话释放后通过只读控制进程读取，不 `thread/resume`、不重新占用原生写入锁。
 
@@ -160,7 +161,8 @@ CLI `collaborations [--id <id>] [--json]` 查询列表或详情；`input request
 | `preview_current_share` | `{workspaceMode,transport,runtimeMode?,title?,requestId?}` → `POST /share-requests/preview`，返回 requestId 与 previewHash |
 | `share_current_session` | 同上，加必填 `requestId/previewHash` → `POST /share-requests`；不接受 provider/sourceId/caller 工具参数 |
 | `get_share_request` / `cancel_share_request` | `{id}` → `GET /share-requests/:id` / `POST /share-requests/:id/cancel` |
-| `create_invitation` | `{id,transport}` → `action:share`；传输必须显式指定；待用邀请增加 `invitationUrl` |
+| `create_invitation` | `{id,transport,requestId?,reset?,invitationId?}` → `POST /collaborations/:id/invitations`；传输必须显式指定；开放链接增加 `invitationUrl` |
+| `set_execution_access` | `{id,memberId,allowed}` → `POST /collaborations/:id/execution-access`；只允许发起者操作 |
 | `preview_invitation` / `join_collaboration` | `{invitation}` → 预览 / 加入；不自动打开浏览器或原生客户端 |
 | `open_client` | `{id,client,launch?}` → `/open`，默认 launch=true；TUI 使用新终端窗口 |
 | `end_sharing` / `leave_collaboration` / `resume_collaboration` | `{id}` → `action:end/leave/start`，Core 检查本机角色 |
@@ -173,7 +175,7 @@ CLI `collaborations [--id <id>] [--json]` 查询列表或详情；`input request
 | `read_material` | `{id,materialId,version,turnId?,cursor?}` → `POST /collaborations/:id/read-material` |
 | `withdraw_material` | `{id,materialId}` → `POST /collaborations/:id/withdraw-material` |
 
-来源 Provider 与个人辅助客户端独立。创建输入要求明确 Provider、来源和目录；预览与创建继续绑定固定模式和 Git 起点。工具校验参数类型、枚举和未知字段；共享运行时的内置批注 MCP 不增加这些管理工具。除明确邀请生成外，结果移除 `invitation`。已加入的邀请不会再次返回可加入凭据。
+来源 Provider 与个人辅助客户端独立。创建输入要求明确 Provider、来源和目录；预览与创建继续绑定固定模式和 Git 起点。工具校验参数类型、枚举和未知字段；共享运行时的内置批注 MCP 不增加这些管理工具。除明确邀请生成外，结果移除 `invitation`。当前开放链接在有人加入后仍可再次取回。
 
 CLI `sources/preview/create/share/invite/inspect-invitation/open/end/leave/resume` 复用同一 MCP 工具适配；参数见根 README。`share` 要求已有确认的 previewHash 和 requestId，不暗中更新起点；先创建再邀请。邀请失败时输出 `{stage:"created",collaboration,invitationError,recovery}` 并以非零状态退出，继续用 `invite`。`open --print-command` 仅返回启动计划，不接管当前终端。`join --no-open --json` 在原有 URL 和服务输出之外返回本机协作 `id`。
 
@@ -190,6 +192,8 @@ MCP 根据 `initialize.clientInfo.name` 识别个人客户端。Codex 从 `tools
 状态和错误原子写入 `share-requests/<id>.json`，不保存邀请 secret。Core 关闭会取消并等待工作线程；重启把未完成记录改为 interrupted，不自动重放。ready 表示该请求已完成创建和邀请，不承诺之后共享一直有效；Core 重启后仍按普通协作规则恢复、重新邀请。CLI `share-status/cancel-share --id <请求ID> [--json]` 使用同一查询/取消工具，不从 shell 环境猜当前来源。
 
 Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客户端连接返回。A 的共享网关不支持远端修改主机账户，也不返回主机认证 token；`threadId/cwd/permissionProfile` 等共享执行参数由协作绑定。其他未开放的原生方法返回可读的“不支持”错误，不默认穿透。
+
+成员执行访问与空间成员资格独立。`executionAvailable` 表示空间已配置执行；远端 `hasExecution` 只在该成员获准时为 true。未获准的状态投影不含原生 ID、目录、模型、输入和运行时信息；历史、文件、改动、事件、RPC 与直接客户端均校验执行授权。带原生定位的批注及回复也只对获准成员可见，材料与普通讨论保持开放。收回执行访问取消该授权下的在途原生请求、关闭直接连接并接回输入；不移除成员或自动中断模型。
 
 ## 模型设置
 
@@ -262,7 +266,7 @@ Codex 信任模式支持原生 hook 确认：只含 `hooks.state` 或其子项�
 
 控制协议版本为 1，与共享邀请 v3 独立。`connection.json` 包含 `url/pid/instance/token/version/commit/protocol/dataDir`，0600 原子写入；公开状态省略 token。控制接口拒绝 Origin 并校验本机 Bearer token。普通页面继续通过现有同源检查访问管理接口。
 
-主要错误类型包括 `transport_invalid`、`sharing_preparing`、`sharing_cancelled`、`sharing_active`、`invitation_invalid`、`invitation_used`、`membership_invalid`、`invitation_expired`、`invitation_pending_expired`、`sharing_ended`、`host_unreachable`、`version_incompatible`、`instance_mismatch`、`client_missing`、`mcp_not_configured`、`input_changed`、`active_collaborations`。未分类错误为 `operation_failed`。远端错误保留 code/recovery，写入失败不自动重试。
+主要错误类型包括 `transport_invalid`、`sharing_preparing`、`sharing_cancelled`、`sharing_active`、`invitation_invalid`、`invitation_revoked`、`execution_access_required`、`membership_invalid`、`invitation_expired`、`invitation_pending_expired`、`sharing_ended`、`host_unreachable`、`version_incompatible`、`instance_mismatch`、`client_missing`、`mcp_not_configured`、`input_changed`、`active_collaborations`。未分类错误为 `operation_failed`。远端错误保留 code/recovery，写入失败不自动重试。
 
 首次体验与生命周期详见 [分发与首次体验](distribution-and-onboarding.md)。
 
@@ -286,4 +290,4 @@ Claude 控制 RPC 支持绑定会话的 `thread/read`、`thread/turns/list`、`t
 
 Claude 事件使用 `teamcross/claudeState`、`teamcross/claudeHistory` 与已确认的 `thread/settings/updated`；状态轮询不是 Codex 的 `turn/completed` 流。控制端需要同时读状态和历史确认结果。原生 TUI 原始输入没有请求 ID 或逐包执行确认，连接层不会缓存或重放；它不提供 RPC 的幂等接收承诺。
 
-多人成员的个人 MCP 入口包括 `create_invitation`（新增 `requestId` 与指定取回的 `invitationId`）、`remove_member` 和 `revoke_invitation`。CLI 对应 `invite --request-id <新ID>`、`remove-member --id <协作> --member <成员ID>`、`revoke-invitation --id <协作> --invitation-id <邀请ID>`；多人交接使用 `input handoff --id <协作> --member <成员ID> --epoch <版本>`。批注及回复由主机绑定 `authorId` 和显示名称，不采信请求提供的作者。
+多人成员的个人 MCP 入口包括 `create_invitation`（支持 `requestId`、`reset` 与指定取回的 `invitationId`）、`remove_member`、`revoke_invitation` 和 `set_execution_access`。CLI 对应 `invite`，重置使用 `invite --reset --request-id <新ID>`，执行授权使用 `execution-access --id <空间> --member <成员> --allow=true|false`，以及 `remove-member --id <协作> --member <成员ID>`、`revoke-invitation --id <协作> --invitation-id <邀请ID>`；多人交接使用 `input handoff --id <协作> --member <成员ID> --epoch <版本>`。批注及回复由主机绑定 `authorId` 和显示名称，不采信请求提供的作者。

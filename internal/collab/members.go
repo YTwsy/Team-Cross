@@ -49,7 +49,10 @@ func (s *Session) RevokeMember(id string) error {
 	s.removeMemberLocked(id)
 	return nil
 }
-func (s *Session) Invite(ctx context.Context, transport, requestID string) (sharing.IssuedInvitation, error) {
+func (s *Session) Invite(ctx context.Context, transport, requestID string, reset ...bool) (sharing.IssuedInvitation, error) {
+	if len(reset) > 0 && reset[0] && requestID == "" {
+		return sharing.IssuedInvitation{}, fmt.Errorf("重置链接需要 requestId")
+	}
 	if err := s.Share(ctx, transport); err != nil {
 		return sharing.IssuedInvitation{}, err
 	}
@@ -58,13 +61,41 @@ func (s *Session) Invite(ctx context.Context, transport, requestID string) (shar
 	if s.share == nil {
 		return sharing.IssuedInvitation{}, fmt.Errorf("共享已结束")
 	}
+	if len(reset) > 0 && reset[0] {
+		return s.share.ResetInvitation(requestID)
+	}
 	return s.share.IssueInvitation(requestID)
 }
 func (s *Session) RevokeInvitation(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.share == nil || !s.share.RevokeInvitation(id) {
-		return fmt.Errorf("邀请不存在或已被使用；已加入成员需要单独移除")
+		return fmt.Errorf("邀请链接不存在")
+	}
+	return nil
+}
+
+func (s *Session) SetExecutionAccess(id string, allowed bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.record.ExecutionRecord == nil || s.record.State != "ready" {
+		return fmt.Errorf("请先完成共同执行设置")
+	}
+	if s.share == nil || !s.share.SetExecutionAccess(id, allowed) {
+		return fmt.Errorf("成员尚未加入或已离开")
+	}
+	if !allowed {
+		if s.direct != nil && s.direct.role == id {
+			s.direct.close()
+			s.direct = nil
+		}
+		if s.writer == id {
+			s.writer = "owner"
+			s.epoch++
+		}
+		p := s.presence[id]
+		p.Requested = false
+		s.presence[id] = p
 	}
 	return nil
 }

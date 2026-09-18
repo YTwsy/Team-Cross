@@ -491,13 +491,13 @@ export function StartSpace() {
           aria-pressed={mode === "readonly"}
           onClick={() => setMode("readonly")}
         >
-          分享与审阅
+          先分享讨论
         </button>
         <button
           aria-pressed={mode === "execution"}
           onClick={() => setMode("execution")}
         >
-          共同继续执行
+          直接一起执行
         </button>
       </div>
       {mode === "execution" ? (
@@ -505,7 +505,7 @@ export function StartSpace() {
       ) : (
         <>
           <PageHeading
-            title="分享一次调查"
+            title="发起协作"
             subtitle="从一份会话材料开始，邀请同事阅读、批注和带回他们的分析。"
           />
           <div className="panel publication-start">

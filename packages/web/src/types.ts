@@ -47,6 +47,9 @@ export type AnnotationReply = {
 };
 export type Collaboration = {
   hasExecution?: boolean;
+  executionAvailable?: boolean;
+  invitationId?: string;
+  invitationReadOnly?: boolean;
   reachable?: boolean;
   materials?: Material[];
   runtimeMode?: RuntimeMode;
@@ -80,12 +83,13 @@ export type Collaboration = {
     online: boolean;
     inputRequested: boolean;
     joinedAt: string;
+    executionAccess?: boolean;
   }[];
   invitations?: {
     id: string;
     state: string;
-    expiresAt: string;
-    memberId?: string;
+    expiresAt?: string;
+    joinedCount: number;
   }[];
   state: string;
   error?: string;
@@ -99,7 +103,7 @@ export type Collaboration = {
   connected: boolean;
   participantOnline?: boolean;
   participantJoined?: boolean;
-  invitationState?: "pending" | "joined" | "expired" | "left" | "revoked";
+  invitationState?: "active" | "expired" | "revoked";
   runtimeState?: "running" | "starting" | "releasing" | "released" | "offline";
   releasePending?: boolean;
   inputRequested?: boolean;
@@ -248,7 +252,7 @@ export function invitationText(
     transport === "tailcat"
       ? "本邀请使用 Tailcat 跨网络连接（实验性），可能经第三方 DERP 中继。"
       : "双方需在同一局域网。";
-  return `邀请你加入 Team Cross 协作。${connection}邀请仅限一人首次加入，加入后持续有效，直到主动离开或发起者结束共享。\n\n已安装 App：teamcross://join?invite=${encodeURIComponent(token)}\n\n安装说明：https://github.com/YTwsy/Team-Cross#安装\n安装后再次打开上方链接，或在“加入协作”中粘贴以下邀请码：\n${token}`;
+  return `邀请你加入 Team Cross 协作。${connection}同一链接可供多人加入，有效至关闭、重置或本次共享结束。每位成员加入后独立参与。\n\n已安装 App：teamcross://join?invite=${encodeURIComponent(token)}\n\n安装说明：https://github.com/YTwsy/Team-Cross#安装\n安装后再次打开上方链接，或在“加入协作”中粘贴以下邀请码：\n${token}`;
 }
 
 export type MaterialReference = {

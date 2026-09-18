@@ -21,6 +21,7 @@ import (
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/problem"
 	"teamcross/internal/runtimeconfig"
+	"teamcross/internal/sharing"
 	"teamcross/internal/workspace"
 )
 
@@ -118,11 +119,15 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	s.mu.Lock()
 	p := s.process
 	r := s.snapshotLocked()
+	if !sharing.ExecutionAuthorized(ctx, s.share) {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("尚未获得执行访问")
+	}
 	if r.ExecutionRecord == nil || p == nil || !s.online {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("协作运行时未连接，请让发起者恢复运行时")
 	}
-	if role != "owner" && (s.share == nil || !s.share.HasMember(role)) {
+	if role != "owner" && (s.share == nil || !s.share.HasExecutionAccess(role)) {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("共享已结束")
 	}
@@ -393,7 +398,7 @@ func (s *Session) Respond(ctx context.Context, role string, id json.RawMessage, 
 		s.mu.Unlock()
 		return fmt.Errorf("空间尚未启用共同执行")
 	}
-	if !s.callerValidLocked(ctx) || role != s.writer || (role != "owner" && (s.share == nil || !s.share.HasMember(role))) {
+	if !s.callerValidLocked(ctx) || !sharing.ExecutionAuthorized(ctx, s.share) || role != s.writer || (role != "owner" && (s.share == nil || !s.share.HasExecutionAccess(role))) {
 		s.mu.Unlock()
 		return fmt.Errorf("请先取得输入权")
 	}
@@ -434,6 +439,12 @@ func (s *Session) Context(ctx context.Context, kind, path string, after uint64, 
 	}
 	p := s.process
 	r := s.snapshotLocked()
+	executionAccess := sharing.ExecutionAuthorized(ctx, s.share)
+	r.Annotations = visibleAnnotations(r.Annotations, executionAccess)
+	if !executionAccess {
+		r.ExecutionRecord = nil
+		p = nil
+	}
 	if p != nil {
 		s.activeCalls++
 		defer s.finishCall()
@@ -514,7 +525,7 @@ func (s *Session) Context(ctx context.Context, kind, path string, after uint64, 
 }
 func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
 	s.mu.Lock()
-	if s.record.ExecutionRecord == nil {
+	if s.record.ExecutionRecord == nil || !sharing.ExecutionAuthorized(r.Context(), s.share) || (role != "owner" && (s.share == nil || !s.share.HasExecutionAccess(role))) {
 		s.mu.Unlock()
 		http.Error(w, "空间尚未启用共同执行", 403)
 		return
@@ -530,7 +541,7 @@ func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
 		return
 	}
 	s.mu.Lock()
-	if !s.callerValidLocked(r.Context()) || s.writer != role || !s.online || s.starting || s.record.State != "ready" || (role != "owner" && (s.share == nil || !s.share.HasMember(role))) {
+	if !s.callerValidLocked(r.Context()) || !sharing.ExecutionAuthorized(r.Context(), s.share) || s.writer != role || !s.online || s.starting || s.record.State != "ready" || (role != "owner" && (s.share == nil || !s.share.HasExecutionAccess(role))) {
 		s.mu.Unlock()
 		http.Error(w, "等待输入交接或恢复运行时", 403)
 		return

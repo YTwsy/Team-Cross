@@ -17,7 +17,7 @@
 | 目录模式 | `workspaceMode: existing | worktree`，分别使用原目录或新建干净 worktree |
 | 协作模式 | `runtimeMode: restricted | trusted`，创建时选择、恢复沿用且首版不可切换；默认受限，信任模式继承邀请者原生配置与权限 |
 | 目录归属 | `workspaceOwned` 表示目录是否由 Team Cross 创建，不表示结束共享时可以删除它 |
-| 邀请 | 绑定单一协作和显式 `lan|tailcat` 传输、仅用于首次加入的临时秘密；一小时内限一人使用 |
+| 邀请 | 绑定单一协作和显式 `lan|tailcat` 传输、用于加入空间的临时秘密；同一链接供多人使用，关闭或重置不影响已有成员 |
 | 加入资格 | 主机接受加入后确认的独立访问凭据；持续到主动离开或本次共享结束，和在线状态、输入归属独立 |
 | 输入者 | `writer: owner | 成员 ID`，决定当前谁能通过协作入口写入；不自动写入 Provider prompt |
 | 输入交接版本 | `epoch`，用于拒绝已经过时的输入交接操作 |
@@ -44,7 +44,7 @@
 
 ## 状态应分别理解
 
-`hasExecution` 表示是否存在可操作会话；`reachable` 表示当前 Core 是否能联系托管主机，不能用运行时 `online` 代替。只读空间不返回伪造的 Provider、目录、运行模式、输入者或原生会话 ID。`state` 描述协作准备、就绪或失败，加入记录还可表示等待确认加入、已离开和结束；`online` 描述运行时连接；`busy` 描述轮次运行；`sharing` 描述远端访问是否开放；`sharingPreparing` 描述所选传输是否仍在建立；`transport` 描述当前或正在准备的 `lan|tailcat`；`connected` 描述直接客户端是否连接。`invitationState` 只描述首次加入；`runtimeState` 区分运行、释放和待恢复。不能用其中一个字段代替其他状态。
+`executionAvailable` 表示空间是否已配置执行；`hasExecution` 表示当前访问者可见的可操作会话，未获执行访问的成员为 false；`reachable` 表示当前 Core 是否能联系托管主机，不能用运行时 `online` 代替。只读空间不返回伪造的 Provider、目录、运行模式、输入者或原生会话 ID。`state` 描述协作准备、就绪或失败，加入记录还可表示等待确认加入、已离开和结束；`online` 描述运行时连接；`busy` 描述轮次运行；`sharing` 描述远端访问是否开放；`sharingPreparing` 描述所选传输是否仍在建立；`transport` 描述当前或正在准备的 `lan|tailcat`；`connected` 描述直接客户端是否连接。`invitationState` 描述链接是否接纳新成员（active/expired/revoked）；`runtimeState` 区分运行、释放和待恢复。不能用其中一个字段代替其他状态。
 
 “创建协作”“恢复运行时”“开始一轮”“交出输入”“结束共享”是不同动作。读取和预览不发送业务指令；恢复不再 fork；结束共享不要求提交代码，也不删除目录。
 
