@@ -13,6 +13,8 @@ import {
   projectName,
 } from "../types";
 import { Clients } from "./Clients";
+import { Materials } from "./Materials";
+import { ReadOnlySpace } from "./ReadOnlySpace";
 import { Members } from "./Members";
 import { Context } from "./Context";
 import { Annotations, type AnnotationRequest } from "./Annotations";
@@ -231,6 +233,14 @@ export function Detail({ id }: { id: string }) {
         <ErrorBox message={resource.error} retry={resource.reload} />
         {resource.loading && <Loading />}
       </>
+    );
+  if (c.hasExecution === false)
+    return (
+      <ReadOnlySpace
+        collaboration={c}
+        reload={resource.reload}
+        showInvite={modal === "invite"}
+      />
     );
   const agentName = c.provider === "claude" ? "Claude Code" : "Codex";
   const waiting = c.approvals > 0 || !!c.nativeWaiting;
@@ -455,7 +465,7 @@ export function Detail({ id }: { id: string }) {
                   : "在个人 Codex 中打开"}
             </button>
           )}
-          {owner && c.online && (
+          {owner && c.state !== "preparing" && (
             <button
               className="button"
               disabled={!!busy || c.sharingPreparing}
@@ -478,6 +488,14 @@ export function Detail({ id }: { id: string }) {
       )}
       <div className="detail-grid">
         <div className="detail-main">
+          <Materials
+            collaboration={c}
+            reload={resource.reload}
+            onAnnotate={(target) =>
+              setAnnotationRequest({ target, serial: Date.now() })
+            }
+            location={annotationLocation}
+          />
           <Context
             id={id}
             sessionId={c.sessionId}
@@ -489,7 +507,11 @@ export function Detail({ id }: { id: string }) {
             onAnnotate={(target) =>
               setAnnotationRequest({ target, serial: Date.now() })
             }
-            location={annotationLocation}
+            location={
+              annotationLocation?.target?.kind === "material"
+                ? undefined
+                : annotationLocation
+            }
             online={
               c.online ||
               (owner &&
@@ -516,8 +538,21 @@ export function Detail({ id }: { id: string }) {
             key={id}
             id={id}
             annotations={c.annotations || []}
+            materials={c.materials}
+            onLocateMaterial={(ref) =>
+              setAnnotationLocation({
+                target: {
+                  kind: "material",
+                  materialId: ref.materialId,
+                  version: ref.version,
+                  turnId: ref.turnId,
+                  quote: "",
+                },
+                serial: Date.now(),
+              })
+            }
             request={annotationRequest}
-            disabled={!owner && (!c.online || closed)}
+            disabled={!owner && (c.reachable === false || closed)}
             onSaved={(annotation) => {
               resource.setData((current) =>
                 current

@@ -22,6 +22,14 @@ flowchart LR
   AS --> FS[原目录 / 新 worktree]
 ```
 
+## 空间、材料与执行
+
+`Record` 使用 `schema:2`，保存空间 ID、标题、讨论和材料列表；可空的嵌套 `execution` 保存原生 fork、目录、模式、模型与写入命令。纯只读空间不创建 Provider 执行进程或工作目录；分享通道也不要求执行运行时在线。已有原生协作仍通过状态投影使用原有界面字段。
+
+本机 `publication-drafts/<UUID>.json` 保存已冻结内容和选择预览，只能由本机发布入口读取。成员上传选定 `MaterialContent`，托管主机在空间记录中原子持久化材料版本。远端只访问目录和分页读取接口；共享运行时只具有当前空间的材料与批注工具，不能枚举个人来源。完整字段、限额与生命周期见 [材料协议](protocol.md#已发布会话材料)。
+
+此原型不读取旧平铺 Record 作为新空间，原文件和原生会话保留。启用执行属于新的访问授权：关闭旧共享代次，成员凭据和邀请失效，保留材料/讨论后重新邀请；不会在读片段授权下直接开放完整原生历史。
+
 ## 模块
 
 - `internal/workspace`：Git 预览、干净 worktree、子目录映射、文件读取。
@@ -33,7 +41,7 @@ flowchart LR
 
 ## 原生运行时
 
-浏览来源时按需创建只读用途的 app-server 控制连接；不会自动发送 prompt。每次协作有单独的 app-server 进程，以 A 的原生会话库读取来源并执行 fork。受限模式通过命令行参数覆盖原生配置；信任模式加载 A 的原生配置与权限，仅追加当前协作批注 MCP。两种模式启动时都不由 Team Cross 重写 A 的个人配置；信任模式中，当前输入者的原生 hook 确认由 Codex 写回 A 的配置。具体继承与生命周期见 [协作模式](decisions/runtime-modes.md)。
+浏览来源时按需创建只读用途的 app-server 控制连接；不会自动发送 prompt。每个可操作协作会话有单独的 app-server 进程，以 A 的原生会话库读取来源并执行 fork。受限模式通过命令行参数覆盖原生配置；信任模式加载 A 的原生配置与权限，仅追加当前协作批注 MCP。两种模式启动时都不由 Team Cross 重写 A 的个人配置；信任模式中，当前输入者的原生 hook 确认由 Codex 写回 A 的配置。具体继承与生命周期见 [协作模式](decisions/runtime-modes.md)。
 
 仅复制 rollout 文件无法替代原生历史数据库。协作记录保存 `sourceId`、已确认的 `sourceTurnId` 和新 `sessionId`。创建调用 `thread/fork`，使用 `lastTurnId` 保留确认过的已完成起点。恢复调用 `thread/resume`，继续同一 ID。
 

@@ -2,10 +2,16 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { api, errorText } from "../api";
 import { targetLabel } from "../annotations";
 import { relativeTime, type Annotation, type AnnotationTarget } from "../types";
+import { MaterialReferenceLinks, MaterialReferencePicker } from "./Materials";
+import type { Material, MaterialReference } from "../types";
 import { Copy, ErrorBox, Icon } from "./ui";
 
 export type AnnotationRequest = { target?: AnnotationTarget; serial: number };
-type Draft = { target?: AnnotationTarget; text: string };
+type Draft = {
+  target?: AnnotationTarget;
+  text: string;
+  materials?: MaterialReference[];
+};
 const general = "general";
 
 function saveShortcut(
@@ -38,23 +44,29 @@ function Discussion({
   disabled,
   onSaved,
   onLocate,
+  materials = [],
+  onLocateMaterial = () => {},
 }: {
   id: string;
   annotation: Annotation;
   disabled: boolean;
   onSaved: (annotation: Annotation) => void;
   onLocate: (annotation: Annotation) => void;
+  materials?: Material[];
+  onLocateMaterial?: (ref: MaterialReference) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  const [refs, setRefs] = useState<MaterialReference[]>([]);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [saved, setSaved] = useState(false);
   const editor = useRef<HTMLTextAreaElement>(null);
   const submitting = useRef(false);
-  const attempt = useRef<{ text: string; requestId: string } | undefined>(
-    undefined,
-  );
+  const attempt = useRef<
+    | { text: string; requestId: string; materials?: MaterialReference[] }
+    | undefined
+  >(undefined);
   useEffect(() => {
     if (open) editor.current?.focus();
   }, [open]);
@@ -64,8 +76,15 @@ function Discussion({
     submitting.current = true;
     setPending(true);
     setError("");
-    if (attempt.current?.text !== text)
-      attempt.current = { text, requestId: crypto.randomUUID() };
+    if (
+      attempt.current?.text !== text ||
+      JSON.stringify(attempt.current?.materials || []) !== JSON.stringify(refs)
+    )
+      attempt.current = {
+        text,
+        requestId: crypto.randomUUID(),
+        ...(refs.length ? { materials: refs } : {}),
+      };
     try {
       const updated = await api<Annotation>(
         `collaborations/${id}/annotation-replies`,
@@ -76,6 +95,7 @@ function Discussion({
       );
       onSaved(updated);
       setText("");
+      setRefs([]);
       attempt.current = undefined;
       setOpen(false);
       setSaved(true);
@@ -130,6 +150,11 @@ function Discussion({
         </span>
         <p className="annotation-body">{annotation.text}</p>
       </div>
+      <MaterialReferenceLinks
+        references={annotation.materials}
+        materials={materials}
+        onLocate={onLocateMaterial}
+      />
       {!!annotation.replies?.length && (
         <div
           className="annotation-replies"
@@ -143,6 +168,11 @@ function Discussion({
             <div className="annotation-reply" key={reply.id}>
               <Author author={reply.author} createdAt={reply.createdAt} />
               <p>{reply.text}</p>
+              <MaterialReferenceLinks
+                references={reply.materials}
+                materials={materials}
+                onLocate={onLocateMaterial}
+              />
             </div>
           ))}
         </div>
@@ -192,6 +222,12 @@ function Discussion({
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => saveShortcut(event, () => void save())}
           />
+          <MaterialReferencePicker
+            materials={materials}
+            value={refs}
+            disabled={pending || disabled}
+            onChange={setRefs}
+          />
           <ErrorBox message={error} />
           {disabled && (
             <p className="muted small-text" role="status">
@@ -220,6 +256,8 @@ export function Annotations({
   disabled,
   onSaved,
   onLocate,
+  materials = [],
+  onLocateMaterial = () => {},
 }: {
   id: string;
   annotations: Annotation[];
@@ -227,6 +265,8 @@ export function Annotations({
   disabled: boolean;
   onSaved: (annotation: Annotation) => void;
   onLocate: (annotation: Annotation) => void;
+  materials?: Material[];
+  onLocateMaterial?: (ref: MaterialReference) => void;
 }) {
   const [active, setActive] = useState(general);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -299,7 +339,7 @@ export function Annotations({
           批注 <span className="count">{annotations.length}</span>
         </h2>
         <p className="annotation-hint">
-          选中对话文字或代码行，引用原文后在这里填写。
+          从材料或协作上下文引用原文后，在这里填写。
         </p>
       </div>
       <form
@@ -353,6 +393,17 @@ export function Annotations({
           }}
           onKeyDown={(event) => saveShortcut(event, () => void save())}
         />
+        <MaterialReferencePicker
+          materials={materials}
+          value={draft.materials || []}
+          disabled={pending || disabled}
+          onChange={(refs) =>
+            setDrafts((current) => ({
+              ...current,
+              [active]: { ...draft, materials: refs },
+            }))
+          }
+        />
         <ErrorBox message={error} />
         {disabled && (
           <p role="status" className="muted small-text">
@@ -404,6 +455,8 @@ export function Annotations({
                 disabled={disabled}
                 onSaved={onSaved}
                 onLocate={onLocate}
+                materials={materials}
+                onLocateMaterial={onLocateMaterial}
               />
             ))}
         </div>
@@ -415,7 +468,7 @@ export function Annotations({
         </div>
       )}
       <p className="annotation-hint annotation-boundary">
-        在共享客户端里告诉 Agent“读取 Team Cross
+        在个人或共享客户端里告诉 Agent“读取 Team Cross
         批注”，即可查看意见与回复。保存不会自动开始执行。
       </p>
     </section>

@@ -1,6 +1,6 @@
 # 运行时架构
 
-Go Core 负责协作与本机管理；A 的专属 Codex app-server 持有共享原生会话。B 的本机 Core 连接 A，并为本机直接客户端和 MCP 提供入口。完整数据流见 [架构](../../sources/architecture.md)，字段和方法见 [协议](../../sources/protocol.md)。
+Go Core 负责空间、已发布材料与本机管理；启用执行时，A 的专属原生运行时持有共享 fork。参与者的本机 Core 连接 A，提供个人来源导出、材料发布、直接客户端和 MCP 入口。独立只读空间没有运行时。完整数据流见 [架构](../../sources/architecture.md)，字段和方法见 [协议](../../sources/protocol.md)。
 
 ## 从哪里进入代码
 
@@ -8,6 +8,7 @@ Go Core 负责协作与本机管理；A 的专属 Codex app-server 持有共享�
 | --- | --- |
 | 命令、监听、Web 嵌入与关闭 | [cmd/teamcross/main.go](../../../../cmd/teamcross/main.go) |
 | 创建、记录持久化、恢复与进程管理 | [collab/app.go](../../../../internal/collab/app.go) |
+| 独立空间、冻结来源与材料版本 | [spaces.go](../../../../internal/collab/spaces.go)、[publication.go](../../../../internal/collab/publication.go)、[materials.go](../../../../internal/collab/materials.go) |
 | 当前会话身份与本轮结束后分享 | [mcp/current.go](../../../../internal/mcp/current.go)、[collab/current_share.go](../../../../internal/collab/current_share.go)、[nativecodex/source_turn.go](../../../../internal/nativecodex/source_turn.go) |
 | 原生 WebSocket RPC 和请求分发 | [nativecodex/process.go](../../../../internal/nativecodex/process.go) |
 | 本机管理、共享与接收端代理 | [http.go](../../../../internal/collab/http.go)、[network.go](../../../../internal/collab/network.go) |
@@ -15,7 +16,7 @@ Go Core 负责协作与本机管理；A 的专属 Codex app-server 持有共享�
 
 ## 修改时守住的边界
 
-读取来源可以按需启动控制进程，但不得发送业务 prompt。创建使用原生 fork；恢复使用已保存会话 ID。共享开放时客户端断开保留运行时；共享结束且执行、审批、请求和直接连接清空后，关闭此协作的 app-server 释放原生锁。只读历史不恢复该会话，显式恢复继续同一 ID。两者都不删除会话或目录。
+读取来源可以按需启动控制进程，但不得发送业务 prompt。创建执行使用原生 fork，恢复使用已保存会话 ID；创建只读空间仅保存空间记录。共享开放时客户端断开保留已有运行时；共享结束且执行、审批、请求和直接连接清空后，关闭此协作的 app-server 释放原生锁。只读历史不恢复该会话，显式恢复继续同一 ID。两者都不删除会话或目录。
 
 数据目录沿用 `Team Cross Next`，与旧产品分开；变更默认路径要考虑已有协作可见性。协作记录使用 JSON，不能重新接回旧 SQLite/CAS、Node Bridge 或附加 `--native` 启动模式。
 

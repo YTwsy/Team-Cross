@@ -15,6 +15,10 @@ GitHub `CI` workflow 自动执行 Go/Web 与 Homebrew 定义工程门槛；unsig
 
 ## 已记录的验收
 
+[2026-09-18 只读空间与材料](../../sources/validation/materials-2026-09-18.md) 记录范围冻结、固定版本、三 Core 发布与撤销隔离、MCP/CLI、WebGUI 浏览器流程及可选执行。来源为合成历史，运行时为测试替身；未扩大为真实模型、原生客户端或跨设备网络结论。
+
+[2026-09-18 多成员基础](../../sources/validation/multi-member-2026-09-18.md) 记录独立邀请、具体成员输入归属、逐人撤销、跨成员去重及同机三个 Core 的浏览器检查。
+
 [2026-09-16 个人 Agent 与 CLI](../../sources/validation/agent-cli-collaboration-2026-09-16.md) 记录输入管理入口、Core 统一检查、模拟 Provider 的双 Core/TLS 接力与工程回归；真实客户端与网络范围以记录内的实际覆盖为准。
 
 [2026-09-16 v0.1.7-rc.1 发布](../../sources/validation/release-v0.1.7-rc.1-2026-09-16.md) 记录信任模式的 PR/main CI、干净候选安装、公开 arm64 CLI/DMG、tag provenance、受保护 Homebrew RC，以及 tap 检查登记竞态的恢复与回归。二进制来源固定为 `face795e`，不因后续自动化修正改变。

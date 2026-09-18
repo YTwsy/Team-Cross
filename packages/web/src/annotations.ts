@@ -2,6 +2,7 @@ import type { AnnotationTarget } from "./types";
 
 export function targetLabel(target?: AnnotationTarget) {
   if (!target) return "整体意见";
+  if (target.kind === "material") return `会话材料 · 版本 ${target.version}`;
   if (target.kind === "history") return "对话片段";
   const lines =
     target.startLine === target.endLine
@@ -66,16 +67,14 @@ function gitPath(value: string) {
 }
 
 export function codeLines(text: string, path: string): CodeLine[] {
-  return text
-    .split("\n")
-    .map((text, index) => ({
-      text,
-      raw: text,
-      path,
-      number: index + 1,
-      newNumber: index + 1,
-      block: 0,
-    }));
+  return text.split("\n").map((text, index) => ({
+    text,
+    raw: text,
+    path,
+    number: index + 1,
+    newNumber: index + 1,
+    block: 0,
+  }));
 }
 
 export function diffLines(diff: string): CodeLine[] {

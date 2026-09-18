@@ -124,11 +124,13 @@ svg {
   outline-offset: 3px;
 }
 input:focus-visible,
+select:focus-visible,
 textarea:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 1px;
 }
 input,
+select,
 textarea {
   width: 100%;
   background: var(--panel);
@@ -2711,4 +2713,180 @@ mark[data-annotation-highlight] {
 .invitation-row small {
   display: block;
   color: var(--muted);
+}
+
+/* Space publications stay separate from executable context. */
+.space-mode {
+  margin-bottom: 24px;
+}
+.publication-start {
+  padding: 28px;
+  max-width: 920px;
+}
+.publication-composer {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.publication-composer fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.publication-range {
+  display: grid;
+  gap: 18px;
+}
+.publication-range-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.publication-composer select,
+.material-reader select,
+.material-reference-picker select {
+  max-width: 100%;
+  width: 100%;
+}
+.publication-sources {
+  max-height: 320px;
+  overflow: auto;
+}
+.publication-review {
+  border: 1px solid var(--line);
+  padding: 18px;
+  border-radius: 12px;
+}
+.publication-transcript {
+  max-height: 450px;
+  overflow: auto;
+  margin: 16px 0;
+}
+.publication-transcript details {
+  border-bottom: 1px solid var(--line);
+  padding: 12px 0;
+}
+.publication-transcript summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.materials-panel {
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.material-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+.material-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.material-card strong,
+.material-card p {
+  overflow-wrap: anywhere;
+}
+.material-card p {
+  margin: 6px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.material-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.material-actions .field {
+  flex: 1;
+  min-width: 160px;
+}
+.material-empty {
+  padding: 24px 0;
+  color: var(--muted);
+}
+.material-reading {
+  border-top: 1px solid var(--line);
+  margin-top: 22px;
+  padding-top: 22px;
+}
+.material-reader {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.material-body {
+  max-height: 640px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.material-message {
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0;
+  min-width: 0;
+}
+.material-message > strong {
+  color: var(--muted);
+  font-size: 12px;
+}
+.material-message pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font: inherit;
+  line-height: 1.7;
+  margin: 10px 0;
+}
+.material-reference-picker {
+  margin: 12px 0;
+}
+.material-reference-picker .field {
+  font-size: 12px;
+}
+.material-attached {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 12px;
+}
+.material-attached span {
+  overflow-wrap: anywhere;
+}
+.material-reference-links {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+}
+.material-reference-links button {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.readonly-intro {
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.optional-execution {
+  padding: 24px;
+}
+.optional-execution p {
+  line-height: 1.7;
+}
+@media (max-width: 800px) {
+  .publication-range-grid {
+    grid-template-columns: 1fr;
+  }
+  .materials-panel {
+    padding: 18px;
+  }
 }

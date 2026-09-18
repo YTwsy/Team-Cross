@@ -65,15 +65,15 @@ func Open(cfg Config) (*App, error) {
 			continue
 		}
 		var r Record
-		if readJSON(filepath.Join(cfg.DataDir, "collaborations", entry.Name(), "collaboration.json"), &r) == nil && r.ID == entry.Name() {
+		if readJSON(filepath.Join(cfg.DataDir, "collaborations", entry.Name(), "collaboration.json"), &r) == nil && r.ID == entry.Name() && r.Schema == 2 {
 			if r.State == "preparing" {
 				r.State = "error"
 				r.Error = "上次创建被中断。已保留会话和目录，请先核实创建结果。"
 			}
-			if r.Commands == nil {
+			if r.ExecutionRecord != nil && r.Commands == nil {
 				r.Commands = map[string]Command{}
 			}
-			for id, c := range r.Commands {
+			for id, c := range executionCommands(r) {
 				if c.State == "pending" {
 					c.State = "unknown"
 					c.Error = "服务曾重启，请先查看会话结果"
@@ -276,11 +276,15 @@ func (a *App) preview(ctx context.Context, in CreateInput, allowActive bool) (Pr
 	p.TargetDirectory = w.SourceCwd
 	if in.WorkspaceMode == "worktree" {
 		if _, e := uuid.Parse(in.RequestID); e == nil {
-			p.TargetDirectory = filepath.Join(a.Config.DataDir, "collaborations", in.RequestID, "worktree", w.RelativeCwd)
+			targetID := in.RequestID
+			if in.SpaceID != "" {
+				targetID = in.SpaceID
+			}
+			p.TargetDirectory = filepath.Join(a.Config.DataDir, "collaborations", targetID, "worktree", w.RelativeCwd)
 		}
 	}
 	// Dirty contents are informational and never captured or copied.
-	b, _ := json.Marshal([]any{provider, mode, in.SourceID, p.SourceTurnID, p.SourceFingerprint, w.Mode, w.Repo, w.SourceCwd, w.Head, w.Branch})
+	b, _ := json.Marshal([]any{provider, mode, in.SpaceID, in.SourceID, p.SourceTurnID, p.SourceFingerprint, w.Mode, w.Repo, w.SourceCwd, w.Head, w.Branch})
 	sum := sha256.Sum256(b)
 	p.Hash = hex.EncodeToString(sum[:])
 	return p, nil
@@ -303,18 +307,31 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 		a.mu.Unlock()
 		return nil, fmt.Errorf("Core 已退出")
 	}
-	old := a.sessions[in.RequestID]
+	targetID := in.RequestID
+	if in.SpaceID != "" {
+		targetID = in.SpaceID
+	}
+	old := a.sessions[targetID]
 	a.mu.Unlock()
+	if in.SpaceID != "" && old == nil {
+		return nil, fmt.Errorf("请选择本机托管的空间")
+	}
 	if old != nil {
 		old.mu.Lock()
-		oldProvider, _ := providerName(old.record.Provider)
-		oldMode, _ := runtimeconfig.Parse(old.record.RuntimeMode)
-		matches := oldProvider == provider && oldMode == mode && old.record.SourceID == in.SourceID && old.record.PreviewHash == in.PreviewHash
-		old.mu.Unlock()
-		if !matches {
-			return nil, fmt.Errorf("该创建请求已用于不同起点")
+		execution := old.record.ExecutionRecord
+		if execution == nil {
+			old.mu.Unlock()
+			if in.SpaceID == "" {
+				return nil, fmt.Errorf("该标识已属于只读空间")
+			}
+		} else {
+			matches := execution.RequestID == in.RequestID && execution.Provider == provider && execution.RuntimeMode == mode && execution.SourceID == in.SourceID && execution.PreviewHash == in.PreviewHash
+			old.mu.Unlock()
+			if !matches {
+				return nil, fmt.Errorf("空间已有关联执行，或 requestId 已用于其他起点")
+			}
+			return old, nil
 		}
-		return old, nil
 	}
 	p, e := a.Preview(ctx, in)
 	if e != nil {
@@ -338,7 +355,7 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 		title = "新的协作"
 	}
 	now := time.Now()
-	r := Record{Provider: provider, ID: in.RequestID, Title: title, SourceID: in.SourceID, SourceTurnID: p.SourceTurnID, WorkspaceMode: in.WorkspaceMode, Repo: p.Workspace.Repo, ExecutionCwd: p.Workspace.SourceCwd, WorkspaceRoot: p.Workspace.Repo, WorkspaceOwned: in.WorkspaceMode == "worktree", Head: p.Workspace.Head, Branch: p.Workspace.Branch, ProviderHome: home, State: "preparing", CreatedAt: now, UpdatedAt: now, PreviewHash: p.Hash, Annotations: []Annotation{}, Commands: map[string]Command{}}
+	r := Record{Schema: 2, ID: targetID, Title: title, State: "preparing", CreatedAt: now, UpdatedAt: now, Annotations: []Annotation{}, ExecutionRecord: &ExecutionRecord{RequestID: in.RequestID, Provider: provider, SourceID: in.SourceID, SourceTurnID: p.SourceTurnID, WorkspaceMode: in.WorkspaceMode, Repo: p.Workspace.Repo, ExecutionCwd: p.Workspace.SourceCwd, WorkspaceRoot: p.Workspace.Repo, WorkspaceOwned: in.WorkspaceMode == "worktree", Head: p.Workspace.Head, Branch: p.Workspace.Branch, ProviderHome: home, PreviewHash: p.Hash, Commands: map[string]Command{}}}
 	r.RuntimeMode = mode
 	if provider == "claude" && mode == runtimeconfig.Trusted {
 		r.ProviderDefaultHome = a.Config.ClaudeHome == "" && os.Getenv("CLAUDE_CONFIG_DIR") == ""
@@ -347,21 +364,45 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 	if e = os.MkdirAll(dir, 0700); e != nil {
 		return nil, e
 	}
-	s := a.newSession(r)
-	a.mu.Lock()
-	if a.closed {
+	var s *Session
+	if in.SpaceID != "" {
+		s = old
+		s.mu.Lock()
+		if s.closed || s.record.ExecutionRecord != nil {
+			s.mu.Unlock()
+			return nil, fmt.Errorf("空间已变化，请刷新")
+		}
+		// Enabling execution broadens access to the native history and directory.
+		// Existing invitations/credentials only authorized material reading, so
+		// close that admission generation and explicitly invite again.
+		previous := s.record
+		s.record.ExecutionRecord, s.record.State, s.record.Error = r.ExecutionRecord, "preparing", ""
+		s.record.UpdatedAt = now
+		e = s.saveLocked()
+		if e != nil {
+			s.record = previous
+		} else {
+			s.endShareLocked()
+		}
+		title = s.record.Title
+		s.mu.Unlock()
+	} else {
+		s = a.newSession(r)
+		a.mu.Lock()
+		if a.closed {
+			a.mu.Unlock()
+			return nil, fmt.Errorf("Core 已退出")
+		}
+		if a.sessions[r.ID] != nil {
+			a.mu.Unlock()
+			return a.Create(ctx, in)
+		}
+		a.sessions[r.ID] = s
 		a.mu.Unlock()
-		return nil, fmt.Errorf("Core 已退出")
+		s.mu.Lock()
+		e = s.saveLocked()
+		s.mu.Unlock()
 	}
-	if old = a.sessions[r.ID]; old != nil {
-		a.mu.Unlock()
-		return a.Create(ctx, in)
-	}
-	a.sessions[r.ID] = s
-	a.mu.Unlock()
-	s.mu.Lock()
-	e = s.saveLocked()
-	s.mu.Unlock()
 	if e != nil {
 		return nil, e
 	}
@@ -449,6 +490,10 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 }
 func (s *Session) start(ctx context.Context, resume bool) error {
 	s.mu.Lock()
+	if s.record.ExecutionRecord == nil {
+		s.mu.Unlock()
+		return fmt.Errorf("空间尚未启用共同执行")
+	}
 	for s.stopping != nil {
 		done := s.stopping
 		s.mu.Unlock()
@@ -473,7 +518,7 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 		return fmt.Errorf("正在启动，请稍后刷新")
 	}
 	s.starting = true
-	r := s.record
+	r := s.snapshotLocked()
 	if _, err := runtimeconfig.Parse(r.RuntimeMode); err != nil {
 		s.starting = false
 		s.mu.Unlock()
@@ -647,17 +692,24 @@ func (a *App) owned(id string) (*Session, error) {
 func (s *Session) view() map[string]any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	r := s.record
-	out := map[string]any{"id": r.ID, "title": r.Title, "sourceId": r.SourceID, "sourceTurnId": r.SourceTurnID, "sessionId": r.SessionID, "workspaceMode": r.WorkspaceMode, "executionCwd": r.ExecutionCwd, "repo": r.Repo, "head": r.Head, "branch": r.Branch, "workspaceOwned": r.WorkspaceOwned, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "writer": s.writer, "busy": s.busy, "online": s.online, "epoch": s.epoch, "sharing": s.share != nil, "sharingPreparing": s.sharePreparing, "connected": s.direct != nil, "sequence": s.sequence, "approvals": len(s.approvals), "annotations": r.Annotations, "model": r.Model, "modelProvider": r.ModelProvider, "reasoningEffort": r.ReasoningEffort}
-	provider, _ := providerName(r.Provider)
-	out["provider"] = provider
-	mode, _ := runtimeconfig.Parse(r.RuntimeMode)
-	out["runtimeMode"] = mode
-	if provider == "claude" {
-		out["nativeJobId"] = r.NativeJobID
-		out["nativeWaiting"] = s.nativeWaiting
-		out["capabilities"] = map[string]bool{"nativeTui": true, "nativeDesktop": false, "sendInput": true, "steerInput": false, "interruptTurn": false, "respondToRequest": false}
+	r := s.snapshotLocked()
+	out := map[string]any{"id": r.ID, "title": r.Title, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "sharing": s.share != nil, "sharingPreparing": s.sharePreparing, "annotations": r.Annotations, "hasExecution": r.ExecutionRecord != nil, "reachable": true}
+	if r.ExecutionRecord != nil {
+		execution := map[string]any{"id": r.ID, "title": r.Title, "sourceId": r.SourceID, "sourceTurnId": r.SourceTurnID, "sessionId": r.SessionID, "workspaceMode": r.WorkspaceMode, "executionCwd": r.ExecutionCwd, "repo": r.Repo, "head": r.Head, "branch": r.Branch, "workspaceOwned": r.WorkspaceOwned, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "writer": s.writer, "busy": s.busy, "online": s.online, "epoch": s.epoch, "sharing": s.share != nil, "sharingPreparing": s.sharePreparing, "connected": s.direct != nil, "sequence": s.sequence, "approvals": len(s.approvals), "annotations": r.Annotations, "model": r.Model, "modelProvider": r.ModelProvider, "reasoningEffort": r.ReasoningEffort}
+		for key, value := range execution {
+			out[key] = value
+		}
+		provider, _ := providerName(r.Provider)
+		out["provider"] = provider
+		mode, _ := runtimeconfig.Parse(r.RuntimeMode)
+		out["runtimeMode"] = mode
+		if provider == "claude" {
+			out["nativeJobId"] = r.NativeJobID
+			out["nativeWaiting"] = s.nativeWaiting
+			out["capabilities"] = map[string]bool{"nativeTui": true, "nativeDesktop": false, "sendInput": true, "steerInput": false, "interruptTurn": false, "respondToRequest": false}
+		}
 	}
+	out["materials"] = s.materialDirectoryLocked()
 	out["selfId"] = "owner"
 	out["members"] = s.membersLocked()
 	out["participantOnline"], out["participantJoined"], out["inputRequested"] = false, false, false
@@ -692,6 +744,9 @@ func (s *Session) view() map[string]any {
 		}
 	} else if s.sharePreparing {
 		out["transport"] = string(s.shareTransport)
+	}
+	if r.ExecutionRecord == nil {
+		return out
 	}
 	out["runtimeState"] = "offline"
 	out["releasePending"] = s.releaseWhenIdle && s.share == nil && s.online

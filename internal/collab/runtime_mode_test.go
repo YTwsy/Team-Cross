@@ -183,8 +183,8 @@ func TestTrustedClientDoesNotSendRestrictedDefaults(t *testing.T) {
 	var record map[string]any
 	b, _ = os.ReadFile(filepath.Join(a.Config.DataDir, "collaborations", s.record.ID, "collaboration.json"))
 	_ = json.Unmarshal(b, &record)
-	if record["runtimeMode"] != "trusted" {
-		t.Fatal(record["runtimeMode"])
+	if record["execution"].(map[string]any)["runtimeMode"] != "trusted" {
+		t.Fatal(record["execution"])
 	}
 }
 

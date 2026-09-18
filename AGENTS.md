@@ -24,7 +24,7 @@
 
 ## 产品与工程边界
 
-- 可执行协作始终创建所选 Provider 的新原生 fork。原目录模式保留当前 Git 状态；新 worktree 从选定 HEAD 检出，不恢复未提交内容。下一阶段允许独立只读分享不创建 fork，且首版必须支持三人及以上；按 [协作空间契约](docs/agent-wiki/sources/decisions/collaboration-spaces.md) 实现，不把尚未完成的目标说成当前能力。
+- 空间托管参与者、已发布材料和讨论，可独立只读分享且支持三人及以上。只有启用共同执行才创建新的原生 fork；原目录保留 Git 现场，新 worktree 从选定 HEAD 检出。结构与范围遵守 [协作空间契约](docs/agent-wiki/sources/decisions/collaboration-spaces.md)。
 - 原目录由用户拥有，不能在协作结束、创建失败或清理时删除。新 worktree 同样在结束共享后保留。
 - 会话和执行留在 A；本机原生 TUI 与 Codex 专用 Desktop 直接接入，个人 Codex TUI/Desktop 或 Claude Code TUI 通过 MCP 辅助，辅助客户端与目标协作的 Provider 独立。
 - 协作模式在创建时固定：默认受限，信任模式沿用邀请者的原生配置与权限；Codex 与实验性 Claude 均支持。恢复沿用模式，不提供切换；细则见 [协作模式](docs/agent-wiki/sources/decisions/runtime-modes.md)。

@@ -49,7 +49,7 @@ func TestRuntimeStdioHasOnlyScopedToolsAndUsesCurrentCore(t *testing.T) {
 		responses = append(responses, value)
 	}
 	list := responses[1]["result"].(map[string]any)["tools"].([]any)
-	if len(list) != 2 || list[0].(map[string]any)["name"] != "read_annotations" || list[1].(map[string]any)["name"] != "reply_to_annotation" {
+	if len(list) != 4 || list[0].(map[string]any)["name"] != "read_annotations" || list[1].(map[string]any)["name"] != "reply_to_annotation" {
 		t.Fatal(list)
 	}
 	for _, i := range []int{2, 3} {

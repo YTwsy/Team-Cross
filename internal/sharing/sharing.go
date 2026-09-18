@@ -29,7 +29,7 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
-const Capability = "collaboration-spaces-v1-multi-member"
+const Capability = "collaboration-spaces-v2-materials"
 
 type Transport string
 
@@ -56,6 +56,7 @@ type TailcatCandidate struct {
 }
 
 type Invitation struct {
+	ReadOnly    bool               `json:"readOnly"`
 	RuntimeMode runtimeconfig.Mode `json:"runtimeMode,omitempty"`
 	Version     int                `json:"version"`
 	ID          string             `json:"id"`
@@ -124,6 +125,18 @@ func Start(ctx context.Context, transport Transport, id, title, host string, han
 			return nil, err
 		}
 	}
+	return StartSpace(ctx, transport, id, title, host, handler, loopback, false, mode)
+}
+func StartSpace(ctx context.Context, transport Transport, id, title, host string, handler http.Handler, loopback, readOnly bool, mode runtimeconfig.Mode) (*Runtime, error) {
+	if readOnly {
+		mode = ""
+	} else {
+		var err error
+		mode, err = runtimeconfig.Parse(mode)
+		if err != nil {
+			return nil, err
+		}
+	}
 	transport, err := ParseTransport(string(transport))
 	if err != nil {
 		return nil, err
@@ -145,8 +158,8 @@ func Start(ctx context.Context, transport Transport, id, title, host string, han
 	r := &Runtime{
 		transport: transport,
 		Invitation: Invitation{
-			RuntimeMode: mode,
-			Version:     3, ID: id, Title: title, Host: host, Transport: transport,
+			RuntimeMode: mode, ReadOnly: readOnly,
+			Version: 3, ID: id, Title: title, Host: host, Transport: transport,
 			Pin: hex.EncodeToString(pin[:]), Secret: NewCredential(), ExpiresAt: expiry, Capability: Capability,
 		},
 	}
@@ -231,7 +244,13 @@ func Decode(token string) (Invitation, error) {
 	if err = json.Unmarshal(b, &i); err != nil {
 		return i, problem.New("version_incompatible", "邀请版本或内容不受支持", "请确认双方使用兼容的 Team Cross 版本")
 	}
-	i.RuntimeMode, err = runtimeconfig.Parse(i.RuntimeMode)
+	if i.ReadOnly {
+		if i.RuntimeMode != "" {
+			return i, fmt.Errorf("只读邀请不能含执行权限")
+		}
+	} else {
+		i.RuntimeMode, err = runtimeconfig.Parse(i.RuntimeMode)
+	}
 	if err != nil {
 		return i, problem.New("version_incompatible", "邀请的协作模式不受支持", "请确认双方使用兼容的 Team Cross 版本")
 	}

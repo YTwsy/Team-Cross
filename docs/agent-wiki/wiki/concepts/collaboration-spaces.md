@@ -1,6 +1,6 @@
 # 只读分享与多人协作空间
 
-状态：下一阶段已确认范围，首版尚未完成。完整设计和实施门槛见 [协作空间契约](../../sources/decisions/collaboration-spaces.md)，对象语义见 [核心词汇](../../sources/product-core-and-glossary.md#下一阶段的对象边界)。
+状态：本地原型主要闭环已实现，实网与原生客户端的证据边界单独记录。完整设计和实施门槛见 [协作空间契约](../../sources/decisions/collaboration-spaces.md)，对象语义见 [核心词汇](../../sources/product-core-and-glossary.md#协作空间的对象边界)。
 
 ## 已确认的首版目标
 
@@ -18,8 +18,8 @@
 
 ## 代码与检查
 
-现有入口：[types.go](../../../../internal/collab/types.go)、[sharing.go](../../../../internal/sharing/sharing.go)、[network.go](../../../../internal/collab/network.go)、[MCP](../../../../internal/mcp/server.go)、[WebGUI](../../../../packages/web/src/components/)。当前仍是 `Record` 与单 fork 绑定；多邀请、逐人成员身份、撤销和输入交接已实现，空间与材料继续按契约拆分。实际边界见 [多成员基础验证](../../sources/validation/multi-member-2026-09-18.md)。
+现有入口：[types.go](../../../../internal/collab/types.go)、[sharing.go](../../../../internal/sharing/sharing.go)、[network.go](../../../../internal/collab/network.go)、[MCP](../../../../internal/mcp/server.go)、[WebGUI](../../../../packages/web/src/components/)。`Record` 的 `execution` 可空；范围冻结、固定版本、多份材料、原文批注和回复附件均独立于执行。启用执行关闭旧只读邀请与成员资格，保留内容后重新邀请。实际边界见 [材料验证](../../sources/validation/materials-2026-09-18.md) 与 [多成员基础验证](../../sources/validation/multi-member-2026-09-18.md)。
 
-按来源契约中的顺序实现空间/成员、材料、讨论引用、多人接力和完整入口；这些是同一首版的内部批次。按 [验证门槛](validation-gates.md) 补范围隔离、多成员撤销和交接竞态；同机三 Core 与三台 Mac 分别报告，旧双人结果不能替代。
+材料读取使用 `list_materials/read_material`，不得沿 sourceId 读取未公开的原生历史。源导出与预览只在发布者本机；上传后由托管主机持久保存。限制和后续项目见完整契约。按 [验证门槛](validation-gates.md) 补范围隔离、多成员撤销和交接竞态；同机三 Core 与三台 Mac 分别报告，旧双人结果不能替代。
 
 相关任务：[产品模型](product-model-and-glossary.md) · [输入与共享](input-and-sharing.md) · [WebGUI 与 MCP](webgui-and-mcp.md)

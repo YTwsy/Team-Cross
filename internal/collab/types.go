@@ -46,6 +46,7 @@ type Source struct {
 	} `json:"status"`
 }
 type CreateInput struct {
+	SpaceID       string             `json:"spaceId,omitempty"`
 	RuntimeMode   runtimeconfig.Mode `json:"runtimeMode"`
 	Provider      string             `json:"provider,omitempty"`
 	SourceID      string             `json:"sourceId"`
@@ -65,35 +66,40 @@ type Preview struct {
 	Hash              string             `json:"previewHash"`
 }
 type Annotation struct {
-	ID        string            `json:"id"`
-	Text      string            `json:"text"`
-	Reference string            `json:"reference,omitempty"`
-	Target    *AnnotationTarget `json:"target,omitempty"`
-	Author    string            `json:"author"`
-	AuthorID  string            `json:"authorId"`
-	CreatedAt time.Time         `json:"createdAt"`
-	Replies   []AnnotationReply `json:"replies,omitempty"`
+	Materials []MaterialReference `json:"materials,omitempty"`
+	ID        string              `json:"id"`
+	Text      string              `json:"text"`
+	Reference string              `json:"reference,omitempty"`
+	Target    *AnnotationTarget   `json:"target,omitempty"`
+	Author    string              `json:"author"`
+	AuthorID  string              `json:"authorId"`
+	CreatedAt time.Time           `json:"createdAt"`
+	Replies   []AnnotationReply   `json:"replies,omitempty"`
 }
 
 // Replies belong to a root annotation, never to another reply or source range.
 type AnnotationReply struct {
-	ID        string    `json:"id"`
-	RequestID string    `json:"requestId"`
-	Text      string    `json:"text"`
-	Author    string    `json:"author"`
-	AuthorID  string    `json:"authorId"`
-	CreatedAt time.Time `json:"createdAt"`
+	Materials []MaterialReference `json:"materials,omitempty"`
+	ID        string              `json:"id"`
+	RequestID string              `json:"requestId"`
+	Text      string              `json:"text"`
+	Author    string              `json:"author"`
+	AuthorID  string              `json:"authorId"`
+	CreatedAt time.Time           `json:"createdAt"`
 }
 
 type AnnotationReplyInput struct {
-	AnnotationID string `json:"annotationId"`
-	Text         string `json:"text"`
-	RequestID    string `json:"requestId"`
+	Materials    []MaterialReference `json:"materials,omitempty"`
+	AnnotationID string              `json:"annotationId"`
+	Text         string              `json:"text"`
+	RequestID    string              `json:"requestId"`
 }
 
 // AnnotationTarget describes the content as it was displayed when selected.
 // ContentHash is a SHA-256 of the complete file or displayed diff, not Git HEAD.
 type AnnotationTarget struct {
+	MaterialID   string `json:"materialId,omitempty"`
+	Version      int    `json:"version,omitempty"`
 	Kind         string `json:"kind"`
 	SessionID    string `json:"sessionId,omitempty"`
 	Path         string `json:"path,omitempty"`
@@ -127,7 +133,8 @@ type Command struct {
 	Result json.RawMessage `json:"result,omitempty"`
 	Error  string          `json:"error,omitempty"`
 }
-type Record struct {
+type ExecutionRecord struct {
+	RequestID           string             `json:"requestId"`
 	RuntimeMode         runtimeconfig.Mode `json:"runtimeMode"`
 	ProviderDefaultHome bool               `json:"providerDefaultHome,omitempty"`
 	AnnotationToken     string             `json:"annotationToken,omitempty"`
@@ -136,8 +143,6 @@ type Record struct {
 	Model               string             `json:"model,omitempty"`
 	ModelProvider       string             `json:"modelProvider,omitempty"`
 	ReasoningEffort     *string            `json:"reasoningEffort,omitempty"`
-	ID                  string             `json:"id"`
-	Title               string             `json:"title"`
 	SourceID            string             `json:"sourceId"`
 	SourceTurnID        string             `json:"sourceTurnId"`
 	SessionID           string             `json:"sessionId"`
@@ -149,14 +154,22 @@ type Record struct {
 	Head                string             `json:"head"`
 	Branch              string             `json:"branch"`
 	ProviderHome        string             `json:"providerHome"`
-	State               string             `json:"state"`
-	Error               string             `json:"error,omitempty"`
-	CreatedAt           time.Time          `json:"createdAt"`
-	UpdatedAt           time.Time          `json:"updatedAt"`
 	PreviewHash         string             `json:"previewHash"`
-	Annotations         []Annotation       `json:"annotations"`
 	Commands            map[string]Command `json:"commands,omitempty"`
 }
+type Record struct {
+	Materials        []Material `json:"materials"`
+	Schema           int        `json:"schema"`
+	*ExecutionRecord `json:"execution,omitempty"`
+	ID               string       `json:"id"`
+	Title            string       `json:"title"`
+	State            string       `json:"state"`
+	Error            string       `json:"error,omitempty"`
+	CreatedAt        time.Time    `json:"createdAt"`
+	UpdatedAt        time.Time    `json:"updatedAt"`
+	Annotations      []Annotation `json:"annotations"`
+}
+
 type direct struct {
 	subscribed    bool
 	ready         bool
@@ -232,6 +245,7 @@ type Settings struct {
 	DesktopApp   string `json:"desktopApp"`
 }
 type App struct {
+	spaceCreateMu sync.Mutex
 	shareRequests map[string]*shareRequest
 	shareWorkers  sync.WaitGroup
 	joinMu        sync.Mutex

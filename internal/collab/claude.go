@@ -140,7 +140,7 @@ func (a *App) SourcesFor(ctx context.Context, provider, search, cursor string) (
 }
 func (s *Session) createClaude(ctx context.Context, preview Preview, title string) error {
 	s.mu.Lock()
-	r := s.record
+	r := s.snapshotLocked()
 	s.mu.Unlock()
 	source, err := s.app.claudeSource(r.SourceID)
 	if err != nil {

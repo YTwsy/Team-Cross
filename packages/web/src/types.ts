@@ -8,7 +8,9 @@ export const runtimeModeDescription = (mode?: RuntimeMode) =>
     : "使用 Team Cross 的受限运行配置，关闭个人 MCP、插件、hooks 等扩展，按协作权限处理代码操作。";
 export type ShareTransport = "lan" | "tailcat";
 export type AnnotationTarget = {
-  kind: "history" | "file" | "changes";
+  kind: "history" | "file" | "changes" | "material";
+  materialId?: string;
+  version?: number;
   sessionId?: string;
   path?: string;
   startLine?: number;
@@ -24,6 +26,8 @@ export type AnnotationTarget = {
   baseRevision?: string;
 };
 export type Annotation = {
+  materials?: MaterialReference[];
+  authorId?: string;
   id: string;
   text: string;
   reference?: string;
@@ -33,6 +37,8 @@ export type Annotation = {
   replies?: AnnotationReply[];
 };
 export type AnnotationReply = {
+  materials?: MaterialReference[];
+  authorId?: string;
   id: string;
   requestId: string;
   text: string;
@@ -40,6 +46,9 @@ export type AnnotationReply = {
   createdAt: string;
 };
 export type Collaboration = {
+  hasExecution?: boolean;
+  reachable?: boolean;
+  materials?: Material[];
   runtimeMode?: RuntimeMode;
   provider?: Provider;
   nativeWaiting?: string;
@@ -211,6 +220,11 @@ export function status(c: Collaboration) {
   if (c.state === "error") return { text: "需要处理", tone: "warning" };
   if (c.state === "preparing") return { text: "创建中", tone: "blue" };
   if (c.state === "joining") return { text: "等待确认加入", tone: "warning" };
+  if (c.hasExecution === false)
+    return {
+      text: c.reachable === false ? "暂时断线" : "只读分享与讨论",
+      tone: c.reachable === false ? "muted" : "green",
+    };
   if (c.runtimeState === "releasing")
     return { text: "正在释放会话", tone: "muted" };
   if (c.runtimeState === "released")
@@ -236,3 +250,75 @@ export function invitationText(
       : "双方需在同一局域网。";
   return `邀请你加入 Team Cross 协作。${connection}邀请仅限一人首次加入，加入后持续有效，直到主动离开或发起者结束共享。\n\n已安装 App：teamcross://join?invite=${encodeURIComponent(token)}\n\n安装说明：https://github.com/YTwsy/Team-Cross#安装\n安装后再次打开上方链接，或在“加入协作”中粘贴以下邀请码：\n${token}`;
 }
+
+export type MaterialReference = {
+  materialId: string;
+  version: number;
+  turnId?: string;
+};
+export type MaterialItem = {
+  id: string;
+  type: string;
+  text: string;
+  notice?: string;
+};
+export type MaterialTurn = {
+  id: string;
+  status: string;
+  items: MaterialItem[];
+};
+export type PublicationDraft = {
+  id: string;
+  hash: string;
+  title: string;
+  provider: Provider;
+  sourceId: string;
+  frozenAt: string;
+  startTurnId: string;
+  endTurnId: string;
+  readingStartId?: string;
+  turns: MaterialTurn[];
+};
+export type MaterialVersion = {
+  version: number;
+  title: string;
+  provider: Provider;
+  sourceId: string;
+  startTurnId: string;
+  endTurnId: string;
+  readingStartId?: string;
+  turnCount: number;
+  hash: string;
+  createdAt: string;
+  noticeCount: number;
+  changes?: { added: number; changed: number; removed: number };
+};
+export type Material = {
+  id: string;
+  authorId: string;
+  author: string;
+  withdrawnAt?: string;
+  versions: MaterialVersion[];
+};
+export type MaterialPage = {
+  materialId: string;
+  version: MaterialVersion;
+  turns: { id: string; label: string }[];
+  segments: {
+    turnId: string;
+    itemId: string;
+    type: string;
+    text: string;
+    notice?: string;
+    startOffset: number;
+    endOffset: number;
+  }[];
+  nextCursor: string;
+};
+export type PublicationResult = {
+  materialId: string;
+  version: number;
+  requestId: string;
+  state: string;
+  withdrawnAt?: string;
+};

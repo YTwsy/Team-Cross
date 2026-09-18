@@ -20,6 +20,10 @@
 | `POST /invitations/pending` | 本机凭据保护，`{invitation}` 暂存并返回不含 secret 的随机 ID |
 | `POST /invitations/preview` | `{invitation}` 或 `{pendingId}`，只解析显示信息，不连接远端 |
 | `GET /sources?provider=codex|claude&search=&cursor=` | 分页搜索原生来源会话 |
+| `POST /spaces` | `{title,requestId}`，幂等创建独立只读空间，不创建运行时 |
+| `POST /publications/source` | `{provider,sourceId}`，只在本机冻结来源已结束历史 |
+| `POST /publications/preview` | `{draftId,title,startTurnId,endTurnId,readingStartId?}`，生成所选范围的固定预览 |
+| `POST /publications/draft` | `{draftId}`，读取本机冻结草稿；无共享端对应路由 |
 | `POST /sources/current` | 核对个人 MCP 的原生调用身份，返回来源与当前轮次 |
 | `POST /share-requests/preview` | 预览当前 Session 的本轮完成后分享 |
 | `POST /share-requests` | 幂等登记分享请求，立即返回，不等待本轮结束 |
@@ -27,7 +31,7 @@
 | `POST /share-requests/:id/cancel` | 只取消仍在 waiting 的请求，保留已创建资源 |
 | `POST /preview` | 检查来源的最新完成轮与 Git 起点 |
 | `GET /collaborations` | 本机发起与加入的协作 |
-| `POST /collaborations` | 创建新的协作 fork |
+| `POST /collaborations` | 创建新的协作 fork；可用 `spaceId` 附到已有只读空间 |
 | `POST /join` | `{invitation}` 或 `{pendingId}`，连接邀请并幂等返回本机加入记录 |
 | `GET /collaborations/:id` | 状态、目录、输入者、批注 |
 | `GET /collaborations/:id/context?kind=&path=&after=&cursor=` | `history/changes/file/annotations/events` |
@@ -40,9 +44,14 @@
 | `POST /collaborations/:id/assist` | `{provider:codex|claude,client:tui|desktop,launch:boolean}`，Provider 选择个人客户端，省略默认 Codex；Claude 仅 TUI |
 | `POST /collaborations/:id/rpc` | `{method,params,requestId}` 协作原生调用 |
 | `POST /collaborations/:id/respond` | `{id,result}` 原生请求回应 |
-| `POST /collaborations/:id/annotations` | `{text,target?,reference?}` |
-| `POST /collaborations/:id/annotation-replies` | `{annotationId,text,requestId}`，返回更新后的原批注 |
-| `POST /runtime-annotations/:id` | 仅 A loopback，独立协作凭据，`{name,arguments}`，只读取或回复该协作批注 |
+| `GET /collaborations/:id/materials` | 材料与版本目录，不含正文 |
+| `POST /collaborations/:id/materials` | `{previewId,previewHash,requestId,materialId?,baseVersion?}`，发布本机已确认预览 |
+| `POST /collaborations/:id/read-material` | `{materialId,version,turnId?,cursor?}`，分页读取固定版本 |
+| `POST /collaborations/:id/publication-status` | `{requestId}`，查询自己的发布结果 |
+| `POST /collaborations/:id/withdraw-material` | `{materialId}`，撤回自己材料的所有版本 |
+| `POST /collaborations/:id/annotations` | `{text,target?,reference?,materials?}` |
+| `POST /collaborations/:id/annotation-replies` | `{annotationId,text,requestId,materials?}`，返回更新后的原批注 |
+| `POST /runtime-annotations/:id` | 仅 A loopback，独立协作凭据，`{name,arguments}`，读取或回复本空间批注，按需读已发布材料 |
 
 创建及预览输入：
 
@@ -70,7 +79,7 @@
 
 ## 共享邀请与传输
 
-原始邀请格式 `tcx3.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `3`，能力 `collaboration-spaces-v1-multi-member`。公共字段含协作 ID、显示名称、主机、`runtimeMode`、`transport`、SHA-256 SPKI 指纹、随机 secret 和到期时间。`runtimeMode` 供加入前展示，省略为受限、未知值拒绝；连接后的模式以 A 的记录为准。`expiresAt` 只约束首次加入，以墙钟比较；`tcx2` 及其他旧能力明确拒绝，双方需使用兼容版本。
+原始邀请格式 `tcx3.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `3`，能力 `collaboration-spaces-v2-materials`。公共字段含空间 ID、显示名称、主机、`readOnly`、`runtimeMode`、`transport`、SHA-256 SPKI 指纹、随机 secret 和到期时间。只读邀请 `readOnly=true` 且不携带 `runtimeMode`；执行邀请 `readOnly=false`，模式省略为受限、未知值拒绝。连接后的能力以 A 的记录为准。`expiresAt` 只约束首次加入，以墙钟比较；`tcx2`、v1 多成员能力及其他旧能力明确拒绝，双方需使用兼容版本。
 
 候选字段按传输互斥：
 
@@ -96,6 +105,11 @@ Tailcat 地址包含 WireGuard 节点材料和默认预共享密钥，整个邀�
 | `POST /v2/respond` | 原生审批/输入回应 |
 | `POST /v2/annotations` | 添加批注 |
 | `POST /v2/annotation-replies` | 回复已有原批注 |
+| `GET /v2/materials` | 此空间的材料目录 |
+| `POST /v2/materials` | `{content,requestId,materialId?,baseVersion?}`；只接收发布者本机选定后的内容，不读取其来源 |
+| `POST /v2/read-material` | 按固定版本和公开范围读取 |
+| `POST /v2/publication-status` | 查询当前成员自己的发布请求 |
+| `POST /v2/withdraw-material` | 撤回当前成员自己的材料 |
 | `POST /v2/return` | 接收者交还输入 |
 | `POST /v2/presence` | `{online}`，Core 心跳或本机退出；10 秒发送 / 30 秒在线窗口，不决定成员资格 |
 | `POST /v2/request_input` | `{epoch}`，申请输入 |
@@ -105,6 +119,10 @@ Tailcat 地址包含 WireGuard 节点材料和默认预共享密钥，整个邀�
 TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS/Tailcat 路径和凭据由本机 Core 管理。LAN 只读请求失败可依次查询邀请候选，Tailcat 只按邀请地址重建客户端；写入失败都不自动重放。未使用邀请到期、成员主动离开或共享结束后需新邀请；B 的 Core 重启从持久化凭据和原传输重连，不重新加入、不改选传输。
 
 ## 状态与事件
+
+`hasExecution` 区分独立只读空间与带可操作会话的空间；`reachable` 表示本次空间探测是否成功，不能用运行时的 `online` 代替。只读空间没有 `sessionId/executionCwd/runtimeMode/writer/epoch` 等执行字段，`context` 仅接受 `kind=annotations`，原生 RPC、连接、恢复及输入申请拒绝。发布材料与批注不需要输入权。带执行的空间即使运行时离线，也可分享已保存材料和讨论。
+
+持久化记录采用 `schema:2`，顶层为身份、批注和材料，原生字段收纳为可选 `execution`。旧扁平记录保留在磁盘但不加载或迁移。详情为 UI 投影，在有执行时仍提供原生字段。为已有空间创建执行，预览及创建必须绑定 `spaceId`；成功保存执行准备状态后关闭原只读共享及成员凭据，再按新能力邀请，避免旧邀请自动获得原生完整历史和工作区访问。每个空间最多一个执行，沿用固定模式及恢复规则。
 
 `role` 仅区分本机发起者 `owner` 与加入者 `remote`；授权不使用共同的 `remote` 身份。`selfId` 为本机成员身份（发起者为 `owner`），`writer` 为 `owner` 或具体成员 ID。直接客户端和辅助工具比较 `selfId` 与 `writer`。`members` 返回 `{id,name,joinedAt,active,online,inputRequested}` 数组；每人凭据独立，显示名称允许重复，不用于授权或去重。`invitations` 仅向发起者返回各邀请的 `{id,state,expiresAt,memberId?}`，不含凭据。
 
@@ -136,7 +154,7 @@ CLI `collaborations [--id <id>] [--json]` 查询列表或详情；`input request
 | 工具 | 参数与映射 |
 | --- | --- |
 | `list_source_sessions` | `{provider,search?,cursor?}` → `GET /sources`；只读取本机来源 |
-| `preview_collaboration` | `{provider,sourceId,workspaceMode,runtimeMode?,title?,requestId?}` → `POST /preview`；省略 requestId 时生成 UUID，并在结果附带 `requestId/workspaceMode` |
+| `preview_collaboration` | `{provider,sourceId,workspaceMode,runtimeMode?,title?,requestId?,spaceId?}` → `POST /preview`；省略 requestId 时生成 UUID，并在结果附带 `requestId/workspaceMode` |
 | `create_collaboration` | 同预览，加必填 `requestId/previewHash` → `POST /collaborations` |
 | `get_current_source` | 无参数；用原生调用身份 → `POST /sources/current` |
 | `preview_current_share` | `{workspaceMode,transport,runtimeMode?,title?,requestId?}` → `POST /share-requests/preview`，返回 requestId 与 previewHash |
@@ -146,6 +164,14 @@ CLI `collaborations [--id <id>] [--json]` 查询列表或详情；`input request
 | `preview_invitation` / `join_collaboration` | `{invitation}` → 预览 / 加入；不自动打开浏览器或原生客户端 |
 | `open_client` | `{id,client,launch?}` → `/open`，默认 launch=true；TUI 使用新终端窗口 |
 | `end_sharing` / `leave_collaboration` / `resume_collaboration` | `{id}` → `action:end/leave/start`，Core 检查本机角色 |
+| `create_readonly_space` | `{title,requestId}` → `POST /spaces` |
+| `freeze_source_session` | `{provider,sourceId}` → `POST /publications/source` |
+| `preview_publication` | `{draftId,title,startTurnId,endTurnId,readingStartId?}` → `POST /publications/preview` |
+| `publish_material` | `{id,previewId,previewHash,requestId,materialId?,baseVersion?}` → `POST /collaborations/:id/materials` |
+| `get_publication_status` | `{id,requestId}` → `POST /collaborations/:id/publication-status` |
+| `list_materials` | `{id}` → `GET /collaborations/:id/materials` |
+| `read_material` | `{id,materialId,version,turnId?,cursor?}` → `POST /collaborations/:id/read-material` |
+| `withdraw_material` | `{id,materialId}` → `POST /collaborations/:id/withdraw-material` |
 
 来源 Provider 与个人辅助客户端独立。创建输入要求明确 Provider、来源和目录；预览与创建继续绑定固定模式和 Git 起点。工具校验参数类型、枚举和未知字段；共享运行时的内置批注 MCP 不增加这些管理工具。除明确邀请生成外，结果移除 `invitation`。已加入的邀请不会再次返回可加入凭据。
 
@@ -171,21 +197,40 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 
 原生网关支持 `thread/settings/update` 的模型与推理设置。它和带配置覆盖的 `thread/resume` 属于写入，需要当前输入者及 `requestId`；只读恢复查询不能绕过输入归属修改模型。`turn/start` 保留 `model/effort`，不指定时沿用当前会话。`thread/resume.config` 仅保留模型与推理相关配置。
 
+## 已发布会话材料
+
+冻结来源必须提供准确的 `provider/sourceId`；可使用来源列表，或先由个人 MCP `get_current_source` 核对当前原生身份，不能根据更新时间或目录猜测。冻结只读取已结束的连续历史前缀，不 resume、fork 或读取来源目录；正在运行的一轮留在本机。Codex 还以持久化轮次事件核对结束边界。草稿保存在本机 `publication-drafts/`，新对话不会追加进去。
+
+预览在固定草稿中选择连续的 `startTurnId..endTurnId`，每轮包含可导出的用户提问、可见回复和已保存工具过程。`readingStartId` 仅为导航，必须在范围内。返回 `{id,hash,frozenAt,title,provider,sourceId,startTurnId,endTurnId,readingStartId?,turns}`；`turns` 为 `{id,status,items:[{id,type,text,notice?}]}`。隐藏推理不导出；未知内容、未导出的图片/附件与过长项目有明确说明，不凭路径或 URL 额外拉取内容。完整预览展示实际将上传的内容；折叠不等于隐藏。
+
+本机发布端只接受预览 ID 和匹配的哈希，向托管端发送已选择的 `content`。主机以当前成员身份生成作者和版本，来源字段是材料的来源声明，不是跨主机的密码学真实性证明。同一作者的 `requestId` 与同一请求内容返回相同结果，参数变化拒绝；先保存再返回 `state:published/materialId/version/hash`。结果不明用 `publication-status` 查询，`not_found` 不能证明网络中原请求已失败。显式重试必须保持同一请求 ID、预览和基准版本。
+
+更新只允许原作者及同一 Provider/来源，`baseVersion` 必须匹配当前版本。新版本保留旧版，不改变已有引用；目录的 `changes` 统计相对上一版新增、变化、移出的轮次。撤回停止空间提供该材料所有版本，不删除原生 Session，无法召回已读取的副本和历史引用。成员被移除后旧材料仍属于空间，但该成员凭据无法继续读写。成员 ID 在同次共享内稳定；结束共享后重新加入是新身份，当前不能用新身份修改旧成员的材料。
+
+目录返回材料作者、标题、版本、哈希、轮数、公开起止、建议阅读起点及导出说明数量，不返回正文。`read-material` 必须指定正整数版本；返回轮次目录 `turns`、正文 `segments` 和 `nextCursor`。每段带 `turnId/itemId/type/status/text/notice/startOffset/endOffset`，偏移为原项目 UTF-16 位置。每页最多 16000 Unicode 字符、64 段；游标绑定材料、版本和内容哈希，服务端先检查它们属于当前空间，不允许跨对象使用。读取到公开末尾就结束，没有“继续读取私人历史”的路径。
+
+当前原型读取来源上限为 2048 轮 / 16 MiB 原生结果，单个导出项目超过 256 KiB 时截成 64000 字符并注明；单次材料内容最多 4 MiB，每空间全部版本最多 64 MiB。保存失败回滚内存。JSON 记录以 `schema:2` 保存，不兼容旧扁平记录。
+
+CLI 复用个人 MCP 适配：`space`、`freeze`、`publication-preview`、`publish`、`publication-status`、`materials`、`read-material`、`withdraw-material`。更新用 `publish --material <ID> --base-version <旧版本>`，分页用 `read-material --cursor <nextCursor>`；原生 `preview/create/share --space <空间ID>` 可为只读空间启用执行。完整发布示例见根 README。
+
 ## 批注引用
 
-`Annotation` 包含 `id/text/author/createdAt`，可带 `target` 和按保存顺序排列的 `replies`。`reference` 只是人工参考说明，不参与自动定位。正文最多 4000 字；整体意见不传 `target`。主机生成作者、ID、时间并绑定所属协作的 `sessionId`，拒绝其他会话的定位。
+批注与回复均可附 `materials:[{materialId,version,turnId?}]`，最多 16 项，必须指向本空间未撤回的已发布固定版本。引用不会跟随最新版改变。材料撤回后保留历史讨论和当时引用，但不能继续通过空间读取正文。
 
-`target` 的公共字段为 `kind`、`sessionId`、`quote`。`quote` 保存批注时所选原文，最多 8000 字。不同目标使用以下字段：
+`Annotation` 包含 `id/text/author/authorId/createdAt`，可带 `target` 和按保存顺序排列的 `replies`。`reference` 只是人工参考说明，不参与自动定位。正文最多 4000 字；整体意见不传 `target`。主机生成作者、ID、时间；原生上下文绑定所属执行的 `sessionId`，材料上下文绑定本空间的 `materialId/version`。
+
+`target` 的公共字段为 `kind` 和 `quote`；原生类型另含 `sessionId`，材料类型禁止携带原生 `sessionId/cursor`。`quote` 保存批注时所选原文，最多 8000 字。不同目标使用以下字段：
 
 | kind | 定位字段 | 原文与版本含义 |
 | --- | --- | --- |
 | `history` | `turnId/itemId/startOffset/endOffset/cursor?` | 消息正文的 UTF-16 偏移，左闭右开；`cursor` 为读取该页时使用的游标，最近页省略 |
+| `material` | `materialId/version/turnId/itemId/startOffset/endOffset` | 固定发布版本的 UTF-16 偏移；服务端核对已保存正文和精确片段，不能回溯未公开内容 |
 | `file` | `path/startLine/endLine/contentHash` | `path` 相对 A 的 `executionCwd`；行号从 1 开始且含首尾；`quote` 为完整行，不带结尾分隔换行；`contentHash` 是读取到的整个文件的 SHA-256 |
 | `changes` | 同 file，另有 `side/baseRevision` | `side=old` 指向 `baseRevision` 的旧行，`side=new` 指向该次 diff 的新行；`contentHash` 是整个返回 diff 的 SHA-256，`quote` 不含 diff 的增删前缀 |
 
 `context?kind=file` 返回 `{path,text,contentHash}`。`kind=changes` 返回 `{stat,status,diff,contentHash,baseRevision,truncated}`；diff 路径相对执行目录，限制 256 KiB 并在完整行截断，`truncated` 表示只返回部分内容。`baseRevision` 为该次 diff 使用的具体 HEAD，不使用协作创建时的 HEAD 代替。
 
-`context?kind=annotations` 返回 `{annotations,sessionId,executionCwd}`，本机、LAN 和 Tailcat 路由相同，MCP `read_context` 支持该 kind；`get_collaboration` 同样返回批注。`add_annotation` 支持完整的 `target` 对象。工具描述说明如何用 path、消息 ID 和历史游标读取原文，并提醒旧行属于基准提交。
+`context?kind=annotations` 返回 `{annotations,sessionId?,executionCwd?}`，只读空间省略执行字段；本机、LAN 和 Tailcat 路由相同，MCP `read_context` 支持该 kind；`get_collaboration` 同样返回批注。`add_annotation` 支持完整的 `target` 对象。工具描述说明如何用 path、消息 ID 和历史游标读取原文，并提醒旧行属于基准提交。
 
 位置和 `contentHash` 是客户端提供的阅读快照，主机检查字段格式、相对路径、范围与片段长度，不将其作为已验证的当前代码事实，也不会保存时改写成新文件的指纹。文件可在编辑批注期间变化；处理前通过 Team Cross 读取 A 上的实际上下文，再核对片段与版本，不能把 A 上路径当成 B 本机同名文件。指纹不同不代表该片段一定变化，但不能据此直接高亮旧位置。消息按稳定 ID 和精确片段判断；未定位时继续保留引用。
 
@@ -193,11 +238,11 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 
 ### 批注回复
 
-`AnnotationReply` 为 `{id,requestId,text,author,createdAt}`，没有 `target`、`parentReplyId` 或子回复。`annotation-replies` 只接受当前协作的原批注 ID、1–4000 字正文和至多 200 字节的非空 `requestId`，拒绝其他字段。主机生成作者、ID 和时间；同一作者的同一请求 ID 返回已保存结果，若原批注或正文不同则拒绝。保存失败回滚内存，读取快照不会被并发回复原地修改。普通成员无需获得模型输入权即可讨论；结束共享后拒绝远端读写。完整个人 MCP 增加 `reply_to_annotation(id,annotationId,text,requestId)`。
+`AnnotationReply` 为 `{id,requestId,text,author,authorId,createdAt,materials?}`，没有 `target`、`parentReplyId` 或子回复。`annotation-replies` 接受当前空间的原批注 ID、1–4000 字正文、至多 200 字节的非空 `requestId` 和可选材料引用，拒绝其他字段。主机生成作者、ID 和时间；同一作者的同一请求 ID 返回已保存结果，若原批注、正文或材料引用不同则拒绝。保存失败回滚内存，读取快照不会被并发回复原地修改。普通成员无需获得模型输入权即可讨论；结束共享后拒绝远端读写。完整个人 MCP 使用 `reply_to_annotation(id,annotationId,text,requestId,materials?)`。
 
 ### 共享运行时的批注工具
 
-A 的 Codex app-server / Claude worker 通过 `teamcross mcp --data-dir … --runtime-id …` 启动 `teamcross_annotations`。只枚举 `read_annotations(annotationId?)` 和 `reply_to_annotation(annotationId,text,requestId)`，不允许选择协作、读取任意路径或发送模型输入。参数校验在 STDIO 和 Core 两端执行。读取返回原批注、原文引用和全部回复；回复作者由运行时 Provider 决定，为 `Codex` 或 `Claude Code`。
+A 的 Codex app-server / Claude worker 通过 `teamcross mcp --data-dir … --runtime-id …` 启动 `teamcross_annotations`。枚举 `read_annotations(annotationId?)`、`reply_to_annotation(annotationId,text,requestId,materials?)`、`list_materials()` 和 `read_material(materialId,version,turnId?,cursor?)`。它们只访问绑定空间，不允许选择其他空间、枚举私人来源、发布材料、读取任意路径或发送模型输入。参数校验在 STDIO 和 Core 两端执行。读取批注返回原文引用和全部回复；回复作者由运行时 Provider 决定，为 `Codex` 或 `Claude Code`。
 
 每个协作保存独立 `annotationToken`，仅通过 A 上的 MCP 环境变量传递；普通状态、远端响应和原生 `config/read` 不暴露凭据。STDIO 每次调用重新读取本机连接地址，只使用协作凭据，不启动 Core、不使用管理 token。创建、明确恢复或重新开启共享时开启批注工具访问，结束共享关闭访问；发起者恢复后即使尚未重新邀请，也可读取。运行时未连接、已释放或 Core 关闭时拒绝访问。成员访问撤销仍由原生入口和共享路由处理。
 

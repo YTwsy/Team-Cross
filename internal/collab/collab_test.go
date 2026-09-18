@@ -21,6 +21,7 @@ import (
 )
 
 type fakeRuntime struct {
+	history          []MaterialTurn
 	mu               sync.Mutex
 	source           Source
 	calls            []string
@@ -96,6 +97,9 @@ func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error 
 			status = "completed"
 		}
 		result = map[string]any{"data": []any{map[string]any{"id": turn, "status": status}}}
+		if f.history != nil {
+			result = map[string]any{"data": f.history}
+		}
 	case "thread/fork":
 		f.forks++
 		thread.ID = uuid.NewString()

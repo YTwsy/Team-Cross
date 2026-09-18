@@ -117,8 +117,8 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	}
 	s.mu.Lock()
 	p := s.process
-	r := s.record
-	if p == nil || !s.online {
+	r := s.snapshotLocked()
+	if r.ExecutionRecord == nil || p == nil || !s.online {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("协作运行时未连接，请让发起者恢复运行时")
 	}
@@ -389,6 +389,10 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 }
 func (s *Session) Respond(ctx context.Context, role string, id json.RawMessage, result any) error {
 	s.mu.Lock()
+	if s.record.ExecutionRecord == nil {
+		s.mu.Unlock()
+		return fmt.Errorf("空间尚未启用共同执行")
+	}
 	if !s.callerValidLocked(ctx) || role != s.writer || (role != "owner" && (s.share == nil || !s.share.HasMember(role))) {
 		s.mu.Unlock()
 		return fmt.Errorf("请先取得输入权")
@@ -429,12 +433,22 @@ func (s *Session) Context(ctx context.Context, kind, path string, after uint64, 
 		return nil, fmt.Errorf("共享已结束")
 	}
 	p := s.process
-	r := s.record
+	r := s.snapshotLocked()
 	if p != nil {
 		s.activeCalls++
 		defer s.finishCall()
 	}
 	s.mu.Unlock()
+	if kind == "annotations" {
+		out := map[string]any{"annotations": r.Annotations, "spaceId": r.ID}
+		if r.ExecutionRecord != nil {
+			out["sessionId"], out["executionCwd"] = r.SessionID, r.ExecutionCwd
+		}
+		return out, nil
+	}
+	if r.ExecutionRecord == nil {
+		return nil, fmt.Errorf("只读空间仅提供已发布材料和讨论")
+	}
 	if r.Provider == "claude" && (kind == "" || kind == "history") {
 		return claudeContext(r, s.app.Config.DataDir, cursors)
 	}
@@ -500,6 +514,11 @@ func (s *Session) Context(ctx context.Context, kind, path string, after uint64, 
 }
 func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
 	s.mu.Lock()
+	if s.record.ExecutionRecord == nil {
+		s.mu.Unlock()
+		http.Error(w, "空间尚未启用共同执行", 403)
+		return
+	}
 	claude := s.record.Provider == "claude"
 	s.mu.Unlock()
 	if claude {

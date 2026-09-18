@@ -89,7 +89,7 @@ export function Context({
   }, [tab, file, cursor]);
   useEffect(() => {
     const target = location?.target;
-    if (!target) return;
+    if (!target || target.kind === "material") return;
     setActiveTarget(target);
     setTab(target.kind);
     setCursor(target.cursor || "");

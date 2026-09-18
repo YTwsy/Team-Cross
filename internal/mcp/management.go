@@ -13,6 +13,7 @@ import (
 )
 
 type creationInput struct {
+	SpaceID       string             `json:"spaceId,omitempty"`
 	Provider      string             `json:"provider"`
 	SourceID      string             `json:"sourceId"`
 	WorkspaceMode string             `json:"workspaceMode"`
@@ -26,7 +27,7 @@ func choice(values ...string) map[string]any { return map[string]any{"type": "st
 
 func creationProperties() map[string]any {
 	return map[string]any{
-		"provider": choice("codex", "claude"), "sourceId": str("明确选择的本机来源会话 UUID；不能用协作 ID 代替"),
+		"spaceId": str("可选：本机已有只读空间 ID；启用执行会关闭旧共享，须用新邀请重新授权完整历史与目录"), "provider": choice("codex", "claude"), "sourceId": str("明确选择的本机来源会话 UUID；不能用协作 ID 代替"),
 		"workspaceMode": choice("existing", "worktree"), "runtimeMode": choice("restricted", "trusted"),
 		"title": str("可选的协作名称"), "requestId": str("创建 UUID；预览可省略，由工具生成；创建和重试保持相同"),
 	}

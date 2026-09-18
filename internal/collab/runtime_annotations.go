@@ -35,6 +35,9 @@ func (s *Session) annotationLaunch() (annotationLaunch, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.record.ExecutionRecord == nil {
+		return annotationLaunch{}, fmt.Errorf("空间没有运行时")
+	}
 	if s.record.AnnotationToken == "" {
 		s.record.AnnotationToken = uuid.NewString()
 		if err := s.saveLocked(); err != nil {
@@ -89,6 +92,11 @@ func (a *App) runtimeAnnotationsHTTP(w http.ResponseWriter, r *http.Request, id 
 		return
 	}
 	s.mu.Lock()
+	if s.record.ExecutionRecord == nil {
+		s.mu.Unlock()
+		http.Error(w, "空间没有运行时", 403)
+		return
+	}
 	token := s.record.AnnotationToken
 	valid := token != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+token)) == 1
 	s.mu.Unlock()
@@ -108,6 +116,22 @@ func (a *App) runtimeAnnotationsHTTP(w http.ResponseWriter, r *http.Request, id 
 		return
 	}
 	ctx := context.WithValue(r.Context(), runtimeAnnotationKey{}, token)
+	if input.Name == "list_materials" {
+		out, err := s.materialOperation(ctx, "materials", nil)
+		respond(w, out, err)
+		return
+	}
+	if input.Name == "read_material" {
+		data, _ := json.Marshal(input.Arguments)
+		var in MaterialRead
+		if err := json.Unmarshal(data, &in); err != nil {
+			respond(w, nil, err)
+			return
+		}
+		out, err := s.readMaterial(ctx, in)
+		respond(w, out, err)
+		return
+	}
 	if input.Name == "read_annotations" {
 		out, err := s.Context(ctx, "annotations", "", 0)
 		if err == nil {

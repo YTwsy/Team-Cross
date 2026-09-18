@@ -15,7 +15,7 @@ import {
   runtimeModeDescription,
 } from "../types";
 import { Empty, ErrorBox, Icon, Loading, PageHeading } from "./ui";
-export function Create() {
+export function Create({ spaceId }: { spaceId?: string } = {}) {
   const [provider, setProvider] = useState<Provider>("codex");
   const [step, setStep] = useState(1);
   const [search, setSearch] = useState("");
@@ -62,6 +62,7 @@ export function Create() {
       {
         provider,
         sourceId: source.id,
+        ...(spaceId ? { spaceId } : {}),
         workspaceMode: mode,
         runtimeMode,
         requestId: requestId.current,
@@ -73,7 +74,7 @@ export function Create() {
         if (!abort.signal.aborted) setError(errorText(e));
       });
     return () => abort.abort();
-  }, [source, step, mode, runtimeMode, previewVersion, provider]);
+  }, [source, step, mode, runtimeMode, previewVersion, provider, spaceId]);
   useEffect(() => {
     if (error) errorRef.current?.focus();
   }, [error]);
@@ -85,6 +86,7 @@ export function Create() {
       const c = await api<Collaboration>("collaborations", {
         provider,
         sourceId: source.id,
+        ...(spaceId ? { spaceId } : {}),
         workspaceMode: mode,
         runtimeMode,
         title,
@@ -117,9 +119,19 @@ export function Create() {
         协作空间
       </a>
       <PageHeading
-        title="发起协作"
+        title={spaceId ? "启用共同执行" : "发起协作"}
         subtitle="保留已有上下文，开启一个新的协作会话。"
       />
+      {spaceId && (
+        <div className="notice">
+          <strong>确认新增的共享范围</strong>
+          <p>
+            将创建新的原生
+            fork，开放其历史、执行目录、文件与改动读取，并按所选权限执行。原来发布的片段范围不会限制这个
+            fork。创建后关闭旧只读分享与成员资格，保留材料和讨论，再生成新邀请。
+          </p>
+        </div>
+      )}
       <ol className="steps">
         <li className={step === 1 ? "active" : "done"}>
           <span>{step === 2 ? <Icon name="check" size={15} /> : "1"}</span>

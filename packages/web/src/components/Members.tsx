@@ -18,7 +18,8 @@ export function Members({
 }) {
   const owner = c.role === "owner";
   const selfId = c.selfId || c.role;
-  const mine = c.writer === selfId;
+  const execution = c.hasExecution !== false;
+  const mine = execution && c.writer === selfId;
   const members = c.members || [];
   const active = members.filter((m) => m.active);
   return (
@@ -33,7 +34,8 @@ export function Members({
           <div>
             <strong>{owner ? "我" : "发起者"}</strong>
             <span>
-              执行主机 · {c.writer === "owner" ? "正在输入" : "可查看"}
+              {execution ? "执行主机" : "托管主机"} ·{" "}
+              {execution && c.writer === "owner" ? "正在输入" : "可查看"}
             </span>
           </div>
         </div>
@@ -89,7 +91,7 @@ export function Members({
         )}
       </div>
       <div className="participants-actions">
-        {owner && c.sharing && !mine && (
+        {execution && owner && c.sharing && !mine && (
           <button
             className="button small"
             disabled={busy}
@@ -99,7 +101,7 @@ export function Members({
             接回输入
           </button>
         )}
-        {!owner && c.sharing && !mine && (
+        {execution && !owner && c.sharing && !mine && (
           <button
             className="button small"
             disabled={busy || !c.online || closed}
