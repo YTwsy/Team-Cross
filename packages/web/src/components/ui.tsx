@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { errorText } from "../api";
-import { status, type Collaboration } from "../types";
+import { status, type Collaboration, type Provider } from "../types";
 export type IconName =
   | "plus"
   | "join"
@@ -312,5 +312,34 @@ export function PageHeading({
       </div>
       {children && <div className="heading-actions">{children}</div>}
     </header>
+  );
+}
+export function ProviderFilter({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: Provider;
+  disabled?: boolean;
+  onChange: (provider: Provider) => void;
+}) {
+  return (
+    <div
+      className="segmented provider-filter"
+      role="group"
+      aria-label="来源客户端"
+    >
+      {(["codex", "claude"] as const).map((provider) => (
+        <button
+          key={provider}
+          type="button"
+          aria-pressed={value === provider}
+          disabled={disabled}
+          onClick={() => onChange(provider)}
+        >
+          {provider === "codex" ? "Codex" : "Claude Code · 实验性"}
+        </button>
+      ))}
+    </div>
   );
 }

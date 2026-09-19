@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Create } from "../components/Create";
+import { StartSpace } from "../components/Publisher";
 import { Home } from "../components/Home";
 import { Join } from "../components/Join";
 import { Clients } from "../components/Clients";
@@ -484,6 +485,41 @@ describe("产品路径", () => {
       "#/join",
     );
     expect(await screen.findByText("下一次协作，从这里开始")).toBeVisible();
+  });
+  it("发起页用卡片区分形态，来源客户端作为会话列表筛选", async () => {
+    mockFetch((path) =>
+      path.startsWith("sources")
+        ? {
+            data: path.includes("provider=claude")
+              ? [{ ...source, id: "claude", name: "Claude 来源" }]
+              : [source],
+          }
+        : {},
+    );
+    const user = userEvent.setup();
+    render(<StartSpace />);
+    expect(screen.getByRole("radio", { name: /先分享讨论/ })).toBeChecked();
+    expect(screen.getByRole("group", { name: "这次要做什么" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "来源客户端" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "选择公开范围" })).toBeDisabled();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Claude Code · 实验性" }),
+    );
+    expect(
+      await screen.findByRole("radio", { name: /Claude 来源/ }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("radio", { name: /讨论协作入口/ }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: /直接一起执行/ }));
+    expect(screen.getAllByRole("heading", { name: "发起协作" })).toHaveLength(
+      1,
+    );
+    expect(screen.getAllByRole("link", { name: /协作空间/ })).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "从哪里继续？" })).toBeVisible();
+    expect(screen.getByRole("button", { name: /下一步/ })).toBeDisabled();
+    expect(screen.getByRole("group", { name: "来源客户端" })).toBeVisible();
   });
   it("创建通过确认起点传递模式，且没有未跟踪文件选择", async () => {
     mockFetch((path, body) =>

@@ -14,8 +14,18 @@ import {
   runtimeModeName,
   runtimeModeDescription,
 } from "../types";
-import { Empty, ErrorBox, Icon, Loading, PageHeading } from "./ui";
-export function Create({ spaceId }: { spaceId?: string } = {}) {
+import {
+  Empty,
+  ErrorBox,
+  Icon,
+  Loading,
+  PageHeading,
+  ProviderFilter,
+} from "./ui";
+export function Create({
+  spaceId,
+  embedded,
+}: { spaceId?: string; embedded?: boolean } = {}) {
   const [provider, setProvider] = useState<Provider>("codex");
   const [step, setStep] = useState(1);
   const [search, setSearch] = useState("");
@@ -116,18 +126,22 @@ export function Create({ spaceId }: { spaceId?: string } = {}) {
   const nextCursor = data && (cursor === undefined ? data.nextCursor : cursor);
   return (
     <>
-      <a href="#/" className="back-link">
-        <Icon name="back" size={16} />
-        协作空间
-      </a>
-      <PageHeading
-        title={spaceId ? "启用共同执行" : "发起协作"}
-        subtitle={
-          spaceId
-            ? "在当前空间开始共同执行，保留已有成员、材料和讨论。"
-            : "创建协作空间，并直接开始共同执行。"
-        }
-      />
+      {!embedded && (
+        <>
+          <a href="#/" className="back-link">
+            <Icon name="back" size={16} />
+            协作空间
+          </a>
+          <PageHeading
+            title={spaceId ? "启用共同执行" : "发起协作"}
+            subtitle={
+              spaceId
+                ? "在当前空间开始共同执行，保留已有成员、材料和讨论。"
+                : "创建协作空间，并直接开始共同执行。"
+            }
+          />
+        </>
+      )}
       {spaceId && (
         <div className="notice">
           <strong>确认新增的共享范围</strong>
@@ -149,33 +163,25 @@ export function Create({ spaceId }: { spaceId?: string } = {}) {
       </ol>
       {step === 1 ? (
         <section className="panel source-panel">
-          <div className="panel-heading">
-            <h2>从哪里继续？</h2>
-            <span className="muted small-text">
-              本机 {provider === "claude" ? "Claude Code" : "Codex"} 历史
-            </span>
-          </div>
-          <div
-            className="segmented full provider-picker"
-            aria-label="来源客户端"
-          >
-            {(["codex", "claude"] as const).map((value) => (
-              <button
-                key={value}
-                aria-pressed={provider === value}
-                onClick={() => {
-                  setProvider(value);
-                  setSource(undefined);
-                  setPreview(undefined);
-                  setMore([]);
-                  setCursor(undefined);
-                  setError("");
-                  requestId.current = crypto.randomUUID();
-                }}
-              >
-                {value === "codex" ? "Codex" : "Claude Code · 实验性"}
-              </button>
-            ))}
+          <div className="panel-heading source-heading">
+            <div>
+              <h2>从哪里继续？</h2>
+              <span className="muted small-text">
+                本机 {provider === "claude" ? "Claude Code" : "Codex"} 历史
+              </span>
+            </div>
+            <ProviderFilter
+              value={provider}
+              onChange={(value) => {
+                setProvider(value);
+                setSource(undefined);
+                setPreview(undefined);
+                setMore([]);
+                setCursor(undefined);
+                setError("");
+                requestId.current = crypto.randomUUID();
+              }}
+            />
           </div>
           {provider === "claude" && (
             <p className="inline-note">

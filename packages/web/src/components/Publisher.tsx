@@ -10,7 +10,7 @@ import {
   type PublicationResult,
   type Source,
 } from "../types";
-import { ErrorBox, Loading, PageHeading } from "./ui";
+import { ErrorBox, Icon, Loading, PageHeading, ProviderFilter } from "./ui";
 import { Create } from "./Create";
 
 const turnLabel = (t: MaterialTurn, index: number) =>
@@ -217,27 +217,35 @@ export function Publisher({
             </p>
           ) : (
             <>
-              <label className="field">
-                来源客户端
-                <select
+              <div className="panel-heading source-heading">
+                <div>
+                  <h2>选择本机会话</h2>
+                  <span className="muted small-text">
+                    本机 {provider === "claude" ? "Claude Code" : "Codex"} 历史
+                  </span>
+                </div>
+                <ProviderFilter
                   value={provider}
                   disabled={busy}
-                  onChange={(e) => {
-                    setProvider(e.target.value as Provider);
+                  onChange={(value) => {
+                    setProvider(value);
                     setSourceId("");
                     setCursor("");
                   }}
-                >
-                  <option value="codex">Codex</option>
-                  <option value="claude">Claude Code · 实验性</option>
-                </select>
-              </label>
-              <label className="field">
-                搜索本机会话
+                />
+              </div>
+              {provider === "claude" && (
+                <p className="small-text muted">
+                  Claude Code 历史接入仍是实验性能力。只读取已保存的会话。
+                </p>
+              )}
+              <label className="search">
+                <Icon name="search" size={18} />
                 <input
+                  aria-label="搜索本机会话"
+                  placeholder="搜索会话名称或内容…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="名称或内容"
                 />
               </label>
               <ErrorBox message={sources.error} retry={sources.reload} />
@@ -485,39 +493,77 @@ export function Publisher({
 export function StartSpace() {
   const [mode, setMode] = useState<"readonly" | "execution">("readonly");
   return (
-    <>
-      <div className="segmented full space-mode" aria-label="协作形态">
-        <button
-          aria-pressed={mode === "readonly"}
-          onClick={() => setMode("readonly")}
-        >
-          先分享讨论
-        </button>
-        <button
-          aria-pressed={mode === "execution"}
-          onClick={() => setMode("execution")}
-        >
-          直接一起执行
-        </button>
-      </div>
-      {mode === "execution" ? (
-        <Create />
-      ) : (
-        <>
-          <PageHeading
-            title="发起协作"
-            subtitle="从一份会话材料开始，邀请同事阅读、批注和带回他们的分析。"
-          />
-          <div className="panel publication-start">
-            <Publisher
-              onPublished={(_, id) => {
-                sessionStorage.setItem(`teamcross.invite.${id}`, "1");
-                location.hash = `/collaborations/${id}`;
-              }}
+    <div className="start-space">
+      <a href="#/" className="back-link">
+        <Icon name="back" size={16} />
+        协作空间
+      </a>
+      <PageHeading
+        title="发起协作"
+        subtitle="从一份本机会话开始。分享讨论只发布选定历史；一起执行会立刻创建原生 fork。"
+      />
+      <fieldset className="workspace-field start-intent">
+        <legend>这次要做什么</legend>
+        <div className="workspace-grid">
+          <label
+            className={`workspace-card ${mode === "readonly" ? "selected" : ""}`}
+          >
+            <input
+              type="radio"
+              name="spaceMode"
+              value="readonly"
+              checked={mode === "readonly"}
+              onChange={() => setMode("readonly")}
             />
-          </div>
-        </>
+            <div className="workspace-top">
+              <span className="entry-icon">
+                <Icon name="comment" size={23} />
+              </span>
+              <span className="radio-dot" />
+            </div>
+            <h3>先分享讨论</h3>
+            <strong>默认 · 不创建 fork</strong>
+            <p>
+              发布选定历史，邀请阅读和批注。不要求 Git
+              工作区，也不开放执行目录。
+            </p>
+          </label>
+          <label
+            className={`workspace-card ${mode === "execution" ? "selected" : ""}`}
+          >
+            <input
+              type="radio"
+              name="spaceMode"
+              value="execution"
+              checked={mode === "execution"}
+              onChange={() => setMode("execution")}
+            />
+            <div className="workspace-top">
+              <span className="entry-icon">
+                <Icon name="terminal" size={23} />
+              </span>
+              <span className="radio-dot" />
+            </div>
+            <h3>直接一起执行</h3>
+            <strong>立刻创建原生会话</strong>
+            <p>
+              在本机 fork 来源会话，选择目录与权限后共同继续。空间仍可发布材料。
+            </p>
+          </label>
+        </div>
+      </fieldset>
+      {mode === "execution" ? (
+        <Create embedded />
+      ) : (
+        <div className="panel publication-start">
+          <Publisher
+            onPublished={(_, id) => {
+              sessionStorage.setItem(`teamcross.invite.${id}`, "1");
+              location.hash = `/collaborations/${id}`;
+            }}
+          />
+        </div>
       )}
-    </>
+    </div>
   );
 }
