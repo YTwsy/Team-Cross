@@ -503,6 +503,18 @@ describe("产品路径", () => {
     expect(screen.getByRole("group", { name: "来源客户端" })).toBeVisible();
     expect(screen.getByRole("button", { name: "选择公开范围" })).toBeDisabled();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("radio", { name: /讨论协作入口/ }));
+    expect(screen.getByRole("radio", { name: /讨论协作入口/ })).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: /直接一起执行/ }));
+    expect(screen.getAllByRole("heading", { name: "发起协作" })).toHaveLength(
+      1,
+    );
+    expect(screen.getAllByRole("link", { name: /协作空间/ })).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "从哪里继续？" })).toBeVisible();
+    expect(screen.getByRole("button", { name: /下一步/ })).toBeDisabled();
+    expect(screen.getByRole("group", { name: "来源客户端" })).toBeVisible();
+    await user.click(screen.getByRole("radio", { name: /先分享讨论/ }));
+    expect(screen.getByRole("radio", { name: /讨论协作入口/ })).toBeChecked();
     await user.click(
       screen.getByRole("button", { name: "Claude Code · 实验性" }),
     );
@@ -512,14 +524,6 @@ describe("产品路径", () => {
     expect(
       screen.queryByRole("radio", { name: /讨论协作入口/ }),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByRole("radio", { name: /直接一起执行/ }));
-    expect(screen.getAllByRole("heading", { name: "发起协作" })).toHaveLength(
-      1,
-    );
-    expect(screen.getAllByRole("link", { name: /协作空间/ })).toHaveLength(1);
-    expect(screen.getByRole("heading", { name: "从哪里继续？" })).toBeVisible();
-    expect(screen.getByRole("button", { name: /下一步/ })).toBeDisabled();
-    expect(screen.getByRole("group", { name: "来源客户端" })).toBeVisible();
   });
   it("创建通过确认起点传递模式，且没有未跟踪文件选择", async () => {
     mockFetch((path, body) =>

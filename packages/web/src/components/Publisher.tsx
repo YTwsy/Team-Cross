@@ -29,10 +29,12 @@ export const itemLabel = (type: string) =>
 export function Publisher({
   spaceId,
   material,
+  embedded,
   onPublished,
 }: {
   spaceId?: string;
   material?: Material;
+  embedded?: boolean;
   onPublished: (result: PublicationResult, id: string) => void;
 }) {
   const latest = material?.versions.at(-1);
@@ -75,6 +77,7 @@ export function Publisher({
     latest ? null : path,
   );
   const rows = sources.dataPath === path ? sources.data : undefined;
+  const pending = sources.loading || (!latest && sources.dataPath !== path);
   async function freeze() {
     setBusy(true);
     setError("");
@@ -205,9 +208,11 @@ export function Publisher({
   const endIndex = draft?.turns.findIndex((t) => t.id === end) ?? 0;
   return (
     <section className="publication-composer" aria-label="发布会话材料">
-      <p className="muted">
-        选择你本机的一份调查。只有确认的历史范围会发布到空间，供现在和以后获准加入的成员阅读。
-      </p>
+      {!embedded && (
+        <p className="muted">
+          选择你本机的一份调查。只有确认的历史范围会发布到空间，供现在和以后获准加入的成员阅读。
+        </p>
+      )}
       {!draft ? (
         <>
           {latest ? (
@@ -234,11 +239,11 @@ export function Publisher({
                   }}
                 />
               </div>
-              {provider === "claude" && (
-                <p className="small-text muted">
-                  Claude Code 历史接入仍是实验性能力。只读取已保存的会话。
-                </p>
-              )}
+              <p className="source-provider-note">
+                {provider === "claude"
+                  ? "Claude Code 历史接入仍是实验性能力。只读取已保存的会话。"
+                  : null}
+              </p>
               <label className="search">
                 <Icon name="search" size={18} />
                 <input
@@ -249,35 +254,37 @@ export function Publisher({
                 />
               </label>
               <ErrorBox message={sources.error} retry={sources.reload} />
-              {sources.loading ? (
-                <Loading text="正在读取本机历史…" />
-              ) : (
-                <div
-                  className="publication-sources"
-                  role="radiogroup"
-                  aria-label="要发布的会话"
-                >
-                  {rows?.data.map((s) => (
-                    <button
-                      className={`source-row ${sourceId === s.id ? "selected" : ""}`}
-                      key={s.id}
-                      role="radio"
-                      aria-checked={sourceId === s.id}
-                      disabled={busy}
-                      onClick={() => setSourceId(s.id)}
-                    >
-                      <span className="radio-dot" />
-                      <div>
-                        <strong>{sourceName(s)}</strong>
-                        <span className="source-description">{s.preview}</span>
-                      </div>
-                    </button>
-                  ))}
-                  {!rows?.data.length && (
-                    <p className="muted">没有找到来源会话。</p>
-                  )}
-                </div>
-              )}
+              <div
+                className="publication-sources"
+                role="radiogroup"
+                aria-label="要发布的会话"
+              >
+                {pending ? (
+                  <Loading text="正在读取本机历史…" />
+                ) : (
+                  <>
+                    {rows?.data.map((s) => (
+                      <button
+                        className={`source-row ${sourceId === s.id ? "selected" : ""}`}
+                        key={s.id}
+                        role="radio"
+                        aria-checked={sourceId === s.id}
+                        disabled={busy}
+                        onClick={() => setSourceId(s.id)}
+                      >
+                        <span className="radio-dot" />
+                        <div>
+                          <strong>{sourceName(s)}</strong>
+                          <span className="source-description">{s.preview}</span>
+                        </div>
+                      </button>
+                    ))}
+                    {!rows?.data.length && (
+                      <p className="muted">没有找到来源会话。</p>
+                    )}
+                  </>
+                )}
+              </div>
               <div className="material-actions">
                 {cursor && (
                   <button
@@ -490,6 +497,10 @@ export function Publisher({
   );
 }
 
+function keepIntentScroll(e: { preventDefault: () => void }) {
+  e.preventDefault();
+}
+
 export function StartSpace() {
   const [mode, setMode] = useState<"readonly" | "execution">("readonly");
   return (
@@ -507,6 +518,7 @@ export function StartSpace() {
         <div className="workspace-grid">
           <label
             className={`workspace-card ${mode === "readonly" ? "selected" : ""}`}
+            onMouseDown={keepIntentScroll}
           >
             <input
               type="radio"
@@ -530,6 +542,7 @@ export function StartSpace() {
           </label>
           <label
             className={`workspace-card ${mode === "execution" ? "selected" : ""}`}
+            onMouseDown={keepIntentScroll}
           >
             <input
               type="radio"
@@ -552,18 +565,30 @@ export function StartSpace() {
           </label>
         </div>
       </fieldset>
-      {mode === "execution" ? (
-        <Create embedded />
-      ) : (
-        <div className="panel publication-start">
-          <Publisher
-            onPublished={(_, id) => {
-              sessionStorage.setItem(`teamcross.invite.${id}`, "1");
-              location.hash = `/collaborations/${id}`;
-            }}
-          />
+      <div className="start-body">
+        <div
+          className={`start-pane ${mode === "readonly" ? "is-active" : ""}`}
+          aria-hidden={mode !== "readonly"}
+          inert={mode !== "readonly"}
+        >
+          <div className="panel publication-start">
+            <Publisher
+              embedded
+              onPublished={(_, id) => {
+                sessionStorage.setItem(`teamcross.invite.${id}`, "1");
+                location.hash = `/collaborations/${id}`;
+              }}
+            />
+          </div>
         </div>
-      )}
+        <div
+          className={`start-pane ${mode === "execution" ? "is-active" : ""}`}
+          aria-hidden={mode !== "execution"}
+          inert={mode !== "execution"}
+        >
+          <Create embedded />
+        </div>
+      </div>
     </div>
   );
 }

@@ -50,6 +50,7 @@ export function Create({
     sourcesPath,
   );
   const data = sources.dataPath === sourcesPath ? sources.data : undefined;
+  const pending = sources.loading || sources.dataPath !== sourcesPath;
   useEffect(() => {
     setLoadingMore(false);
     return () => moreAbort.current?.abort();
@@ -152,15 +153,17 @@ export function Create({
           </p>
         </div>
       )}
-      <ol className="steps">
-        <li className={step === 1 ? "active" : "done"}>
-          <span>{step === 2 ? <Icon name="check" size={15} /> : "1"}</span>
-          选择来源会话
-        </li>
-        <li className={step === 2 ? "active" : ""}>
-          <span>2</span>确认工作现场
-        </li>
-      </ol>
+      {!(embedded && step === 1) && (
+        <ol className="steps">
+          <li className={step === 1 ? "active" : "done"}>
+            <span>{step === 2 ? <Icon name="check" size={15} /> : "1"}</span>
+            选择来源会话
+          </li>
+          <li className={step === 2 ? "active" : ""}>
+            <span>2</span>确认工作现场
+          </li>
+        </ol>
+      )}
       {step === 1 ? (
         <section className="panel source-panel">
           <div className="panel-heading source-heading">
@@ -183,12 +186,11 @@ export function Create({
               }}
             />
           </div>
-          {provider === "claude" && (
-            <p className="inline-note">
-              使用 Claude 原生 TUI 继续会话，审批与中断在 TUI 中处理。当前支持
-              Claude Code 2.1.268。
-            </p>
-          )}
+          <p className="source-provider-note">
+            {provider === "claude"
+              ? "使用 Claude 原生 TUI 继续会话，审批与中断在 TUI 中处理。当前支持 Claude Code 2.1.268。"
+              : null}
+          </p>
           <label className="search">
             <Icon name="search" size={18} />
             <input
@@ -200,22 +202,22 @@ export function Create({
             <kbd>⌕</kbd>
           </label>
           <ErrorBox message={sources.error} retry={sources.reload} />
-          {sources.loading && !data ? (
-            <Loading text="正在读取本机会话…" />
-          ) : !data?.data.length ? (
-            <Empty icon="comment" title="没有找到来源会话">
-              <p>
-                请先在 {provider === "claude" ? "Claude Code" : "Codex"}{" "}
-                中完成一轮对话，或尝试其他搜索词。
-              </p>
-            </Empty>
-          ) : (
-            <div
-              className="source-list"
-              role="radiogroup"
-              aria-label="来源会话"
-            >
-              {[...data.data, ...more].map((s) => (
+          <div
+            className="source-list"
+            role="radiogroup"
+            aria-label="来源会话"
+          >
+            {pending && !data ? (
+              <Loading text="正在读取本机会话…" />
+            ) : !data?.data.length ? (
+              <Empty icon="comment" title="没有找到来源会话">
+                <p>
+                  请先在 {provider === "claude" ? "Claude Code" : "Codex"}{" "}
+                  中完成一轮对话，或尝试其他搜索词。
+                </p>
+              </Empty>
+            ) : (
+              [...data.data, ...more].map((s) => (
                 <button
                   role="radio"
                   aria-checked={source?.id === s.id}
@@ -239,40 +241,42 @@ export function Create({
                     </span>
                   </div>
                 </button>
-              ))}
-            </div>
-          )}
-          {nextCursor && (
-            <button
-              className="button small"
-              disabled={loadingMore}
-              onClick={async () => {
-                const abort = new AbortController();
-                moreAbort.current?.abort();
-                moreAbort.current = abort;
-                setLoadingMore(true);
-                try {
-                  const page = await api<{
-                    data: Source[];
-                    nextCursor?: string;
-                  }>(
-                    `sources?provider=${provider}&search=${encodeURIComponent(query)}&cursor=${encodeURIComponent(nextCursor)}`,
-                    undefined,
-                    abort.signal,
-                  );
-                  if (abort.signal.aborted) return;
-                  setMore((s) => [...s, ...page.data]);
-                  setCursor(page.nextCursor || null);
-                } catch (e) {
-                  if (!abort.signal.aborted) setError(errorText(e));
-                } finally {
-                  if (!abort.signal.aborted) setLoadingMore(false);
-                }
-              }}
-            >
-              加载更多
-            </button>
-          )}
+              ))
+            )}
+          </div>
+          <div className="source-pager">
+            {nextCursor && (
+              <button
+                className="button small"
+                disabled={loadingMore}
+                onClick={async () => {
+                  const abort = new AbortController();
+                  moreAbort.current?.abort();
+                  moreAbort.current = abort;
+                  setLoadingMore(true);
+                  try {
+                    const page = await api<{
+                      data: Source[];
+                      nextCursor?: string;
+                    }>(
+                      `sources?provider=${provider}&search=${encodeURIComponent(query)}&cursor=${encodeURIComponent(nextCursor)}`,
+                      undefined,
+                      abort.signal,
+                    );
+                    if (abort.signal.aborted) return;
+                    setMore((s) => [...s, ...page.data]);
+                    setCursor(page.nextCursor || null);
+                  } catch (e) {
+                    if (!abort.signal.aborted) setError(errorText(e));
+                  } finally {
+                    if (!abort.signal.aborted) setLoadingMore(false);
+                  }
+                }}
+              >
+                加载更多
+              </button>
+            )}
+          </div>
           <div className="form-footer">
             <span className="muted">只读取历史，选择来源不会发送指令。</span>
             <button

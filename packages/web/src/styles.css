@@ -807,13 +807,31 @@ details[open] summary {
   padding: 0 6px;
   color: var(--muted);
 }
-.source-list {
-  max-height: 440px;
+.source-list,
+.publication-sources {
+  min-height: 360px;
+  max-height: 360px;
   overflow: auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   gap: 6px;
   padding: 3px;
+}
+.source-list:has(> .loading),
+.source-list:has(> .empty),
+.publication-sources:has(> .loading),
+.publication-sources:has(> .empty),
+.publication-sources:has(> .muted:only-child) {
+  align-content: center;
+  justify-items: center;
+}
+.source-provider-note {
+  min-height: 2.6em;
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
 }
 .source-row {
   display: flex;
@@ -2737,15 +2755,43 @@ mark[data-annotation-highlight] {
 }
 
 /* Space publications stay separate from executable context. */
+.start-space {
+  overflow-anchor: none;
+}
 .start-space .source-panel,
-.start-space .create-step {
+.start-space .create-step,
+.start-space .publication-start {
   max-width: none;
 }
 .start-intent {
   margin: 0 0 28px;
 }
+.start-body {
+  display: grid;
+  grid-template-areas: "pane";
+}
+.start-pane {
+  grid-area: pane;
+  visibility: hidden;
+  pointer-events: none;
+}
+.start-pane.is-active {
+  visibility: visible;
+  pointer-events: auto;
+  z-index: 1;
+}
 .publication-start {
   padding: 28px;
+}
+.start-space .source-panel {
+  padding: 28px;
+}
+.publication-composer .source-provider-note {
+  margin-bottom: 0;
+}
+.source-pager,
+.start-space .material-actions {
+  min-height: 31px;
 }
 .publication-composer .search {
   margin-bottom: 0;
@@ -2778,10 +2824,6 @@ mark[data-annotation-highlight] {
 .material-reference-picker select {
   max-width: 100%;
   width: 100%;
-}
-.publication-sources {
-  max-height: 320px;
-  overflow: auto;
 }
 .publication-review {
   border: 1px solid var(--line);
