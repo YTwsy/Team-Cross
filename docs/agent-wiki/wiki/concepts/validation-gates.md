@@ -15,6 +15,8 @@ GitHub `CI` workflow 自动执行 Go/Web 与 Homebrew 定义工程门槛；unsig
 
 ## 已记录的验收
 
+[2026-09-20 内容寻址材料与按条读取](../../sources/validation/content-addressed-materials-2026-09-20.md) 记录 schema 3 清单/blob、三段式上传与范围隔离、材料和活上下文共用的折叠/按条读取、83 项 Web 回归，以及三 Core 真实浏览器闭环；来源仍为合成历史，不扩大为真实模型或跨设备验收。
+
 [2026-09-19 材料阅读与原文旁批注](../../sources/validation/reading-and-annotations-2026-09-19.md) 记录共用 Markdown 阅读器、UTF-16 选区映射、响应式就地批注、固定版本引用选择、79 项 Web 回归及三 Core 浏览器闭环；不扩大为真实模型或跨设备验收。
 
 [2026-09-19 空间邀请与关闭](../../sources/validation/space-invitations-2026-09-19.md) 记录多人复用同一链接、原空间启用执行、逐成员执行访问、空空间关闭与重新开放，以及三 Core 浏览器和同机 Tailcat 验证。它更新邀请语义，不扩大旧记录的原生客户端或跨设备网络结论。

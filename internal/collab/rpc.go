@@ -11,7 +11,6 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -432,6 +431,18 @@ func (s *Session) Respond(ctx context.Context, role string, id json.RawMessage, 
 	return nil
 }
 func (s *Session) Context(ctx context.Context, kind, path string, after uint64, cursors ...string) (any, error) {
+	history := HistoryRead{}
+	if len(cursors) > 0 {
+		history.Cursor = cursors[0]
+	}
+	return s.contextWithHistory(ctx, kind, path, after, history)
+}
+
+func (s *Session) ContextHistory(ctx context.Context, kind, path string, after uint64, history HistoryRead) (any, error) {
+	return s.contextWithHistory(ctx, kind, path, after, history)
+}
+
+func (s *Session) contextWithHistory(ctx context.Context, kind, path string, after uint64, history HistoryRead) (any, error) {
 	s.mu.Lock()
 	if !s.callerValidLocked(ctx) {
 		s.mu.Unlock()
@@ -459,9 +470,6 @@ func (s *Session) Context(ctx context.Context, kind, path string, after uint64, 
 	}
 	if r.ExecutionRecord == nil {
 		return nil, fmt.Errorf("只读空间仅提供已发布材料和讨论")
-	}
-	if r.Provider == "claude" && (kind == "" || kind == "history") {
-		return claudeContext(r, s.app.Config.DataDir, cursors)
 	}
 	switch kind {
 	case "events":
@@ -497,30 +505,7 @@ func (s *Session) Context(ctx context.Context, kind, path string, after uint64, 
 		hash := sha256.Sum256(diff)
 		return map[string]any{"stat": string(out), "diff": string(diff), "status": string(status), "contentHash": hex.EncodeToString(hash[:]), "baseRevision": base, "truncated": truncated}, e
 	default:
-		call := s.app.readerCall
-		if p != nil {
-			call = p.Call
-		}
-		var read struct {
-			Thread map[string]any `json:"thread"`
-		}
-		if e := call(ctx, "thread/read", map[string]any{"threadId": r.SessionID, "includeTurns": false}, &read); e != nil {
-			return nil, e
-		}
-		params := map[string]any{"threadId": r.SessionID, "limit": 8, "itemsView": "full", "sortDirection": "desc"}
-		if len(cursors) > 0 && cursors[0] != "" {
-			params["cursor"] = cursors[0]
-		}
-		var page struct {
-			Data       []json.RawMessage `json:"data"`
-			NextCursor *string           `json:"nextCursor"`
-		}
-		if e := call(ctx, "thread/turns/list", params, &page); e != nil {
-			return nil, e
-		}
-		slices.Reverse(page.Data)
-		read.Thread["turns"] = page.Data
-		return map[string]any{"thread": read.Thread, "nextCursor": page.NextCursor}, nil
+		return s.readHistory(ctx, r, p, history)
 	}
 }
 func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {

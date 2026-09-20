@@ -20,6 +20,8 @@
 
 现有入口：[types.go](../../../../internal/collab/types.go)、[sharing.go](../../../../internal/sharing/sharing.go)、[network.go](../../../../internal/collab/network.go)、[MCP](../../../../internal/mcp/server.go)、[WebGUI](../../../../packages/web/src/components/)。`Record` 的 `execution` 可空；范围冻结、固定版本、多份材料、原文批注和回复附件均独立于执行。启用执行保留链接、成员及内容；主机按成员开放新增执行访问，输入另行交接。只读空间无邀请或无人加入也可关闭，持久化关闭状态后可重新开放。实际边界见 [材料验证](../../sources/validation/materials-2026-09-18.md) 与 [多成员基础验证](../../sources/validation/multi-member-2026-09-18.md)。
 
-材料读取使用 `list_materials/read_material`，不得沿 sourceId 读取未公开的原生历史。源导出与预览只在发布者本机；上传后由托管主机持久保存。限制和后续项目见完整契约。按 [验证门槛](validation-gates.md) 补范围隔离、多成员撤销和交接竞态；同机三 Core 与三台 Mac 分别报告，旧双人结果不能替代。
+材料读取使用 `list_materials/read_material`，不得沿 sourceId 读取未公开的原生历史。正文以不可变清单和空间内内容寻址 blob 保存，空间记录只留版本元数据；远端发布先协商清单，再逐个上传缺失 blob，最后幂等提交。协商只复用当前作者从自己未撤回版本可证明拥有的正文，不能探测其他作者或撤回内容。
+
+默认正文流完整返回用户/助手消息，长工具输出返回带总长度的折叠前缀；需要时用 `turnId + itemId + startOffset` 分页读这一条，游标不跨 item。个人 MCP 可用 `read_publication_draft` 以同样方式读取本机私有草稿，共享运行时仍只有当前空间的四个工具。旧 `schema:2` 原样留盘但不加载。详细限额和后续项目见完整契约。按 [验证门槛](validation-gates.md) 补范围隔离、多成员撤销和交接竞态；同机三 Core 与三台 Mac 分别报告，旧双人结果不能替代。
 
 相关任务：[产品模型](product-model-and-glossary.md) · [输入与共享](input-and-sharing.md) · [WebGUI 与 MCP](webgui-and-mcp.md)

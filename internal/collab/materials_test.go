@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"teamcross/internal/materialstore"
 	"teamcross/internal/sharing"
 )
 
@@ -214,8 +217,8 @@ func TestThreeMembersPublishVersionsAndPinnedReferences(t *testing.T) {
 	db.Turns = append(db.Turns, fixtureMaterialTurn("verification", "新增验证"))
 	db.EndTurnID = "verification"
 	db.ID = uuid.NewString()
-	db.Hash = contentHash(db.MaterialContent)
-	if err = b.saveDraft(db); err != nil {
+	db, err = b.saveDraft(db)
+	if err != nil {
 		t.Fatal(err)
 	}
 	update := PublishInput{PreviewID: db.ID, PreviewHash: db.Hash, RequestID: uuid.NewString(), MaterialID: bid, BaseVersion: 1}
@@ -447,27 +450,317 @@ func TestMaterialCursorAndExport(t *testing.T) {
 	if !strings.Contains(string(b), "saved-output") || turn.Items[0].Notice == "" || turn.Items[2].Notice == "" {
 		t.Fatal("missing saved tool output / limitations")
 	}
+	if command, output := strings.Index(turn.Items[1].Text, `"command"`), strings.Index(turn.Items[1].Text, `"aggregatedOutput"`); command < 0 || output < 0 || command >= output {
+		t.Fatal("tool preview did not preserve command before output", turn.Items[1].Text)
+	}
 	a, _, _ := fixture(t)
 	s, _ := a.CreateSpace(context.Background(), SpaceInput{RequestID: uuid.NewString(), Title: "分页"})
 	content := MaterialContent{Title: "大工具输出", Provider: "codex", SourceID: uuid.NewString(), StartTurnID: "t", EndTurnID: "t", Turns: []MaterialTurn{{ID: "t", Status: "completed", Items: []MaterialItem{{ID: "i", Type: "toolResult", Text: strings.Repeat("🙂", 32010)}}}}}
-	out, err := s.publish(context.Background(), publicationUpload{Content: content, RequestID: uuid.NewString()})
+	bundle, _, _, err := buildMaterialBundle(content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := s.publish(context.Background(), publicationUpload{Bundle: bundle, RequestID: uuid.NewString()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	mid := out.(map[string]any)["materialId"].(string)
-	page, err := s.readMaterial(context.Background(), MaterialRead{MaterialID: mid, Version: 1})
+	page, err := s.readMaterial(context.Background(), MaterialRead{MaterialID: mid, Version: 1, IncludeOutline: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	cursor := page.(map[string]any)["nextCursor"].(string)
-	if cursor == "" {
-		t.Fatal("unbounded tool output")
+	stream := page.(materialReadResponse)
+	if stream.NextCursor != "" || len(stream.Segments) != 1 || !stream.Segments[0].Collapsed || stream.Segments[0].Length != 64020 || len(stream.Turns) != 1 {
+		t.Fatal("long tool output was not represented as one folded preview", stream)
 	}
+	page, err = s.readMaterial(context.Background(), MaterialRead{MaterialID: mid, Version: 1, TurnID: "t", ItemID: "i"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := page.(materialReadResponse)
+	if item.NextCursor == "" || item.Segments[0].Collapsed || item.Segments[0].EndOffset != materialItemPageLimit {
+		t.Fatal("item reader did not page the full body", item)
+	}
+	cursor := item.NextCursor
 	if _, err = s.readMaterial(context.Background(), MaterialRead{MaterialID: mid, Version: 1, Cursor: cursor}); err != nil {
 		t.Fatal(err)
 	}
 	other, _ := a.CreateSpace(context.Background(), SpaceInput{RequestID: uuid.NewString(), Title: "另一个空间"})
 	if _, err = other.readMaterial(context.Background(), MaterialRead{MaterialID: mid, Version: 1, Cursor: cursor}); err == nil {
 		t.Fatal("cross-space cursor read")
+	}
+}
+
+func TestMaterialStreamAlignsRoundsAndOnlyReturnsOutlineOnce(t *testing.T) {
+	a, _, _ := fixture(t)
+	s, err := a.CreateSpace(context.Background(), SpaceInput{RequestID: uuid.NewString(), Title: "轮对齐"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := MaterialContent{Title: "三轮长对话", Provider: "codex", SourceID: uuid.NewString(), StartTurnID: "t1", EndTurnID: "t3"}
+	for index := 1; index <= 3; index++ {
+		id := fmt.Sprintf("t%d", index)
+		content.Turns = append(content.Turns, MaterialTurn{ID: id, Status: "completed", Items: []MaterialItem{{ID: "user", Type: "userMessage", Text: strings.Repeat(fmt.Sprint(index), 9000)}}})
+	}
+	bundle, _, _, err := buildMaterialBundle(content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	published, err := s.publish(context.Background(), publicationUpload{Bundle: bundle, RequestID: uuid.NewString()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	materialID := published.(map[string]any)["materialId"].(string)
+	value, err := s.readMaterial(context.Background(), MaterialRead{MaterialID: materialID, Version: 1, IncludeOutline: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := value.(materialReadResponse)
+	if len(first.Segments) != 2 || first.Segments[0].TurnID != "t1" || first.Segments[1].TurnID != "t2" || first.NextCursor == "" || !first.PageEndsAtTurnBoundary || len(first.Turns) != 3 {
+		t.Fatal("stream page was not aligned after the second complete turn", first)
+	}
+	value, err = s.readMaterial(context.Background(), MaterialRead{MaterialID: materialID, Version: 1, Cursor: first.NextCursor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := value.(materialReadResponse)
+	if len(second.Segments) != 1 || second.Segments[0].TurnID != "t3" || second.NextCursor != "" || !second.PageEndsAtTurnBoundary || len(second.Turns) != 0 {
+		t.Fatal("stream continuation repeated the outline or lost the final turn", second)
+	}
+}
+
+func TestOversizedConversationSplitsAtHardLimitAndItemCursorNeverCrosses(t *testing.T) {
+	a, _, _ := fixture(t)
+	s, err := a.CreateSpace(context.Background(), SpaceInput{RequestID: uuid.NewString(), Title: "硬上限"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := MaterialContent{
+		Title: "单轮分页", Provider: "codex", SourceID: uuid.NewString(), StartTurnID: "t", EndTurnID: "t",
+		Turns: []MaterialTurn{{ID: "t", Status: "completed", Items: []MaterialItem{
+			{ID: "assistant", Type: "agentMessage", Text: strings.Repeat("a", materialStreamHardLimit+1000)},
+			{ID: "tool", Type: "toolResult", Text: strings.Repeat("b", materialItemPageLimit+100)},
+			{ID: "after", Type: "toolResult", Text: "must-not-leak-into-item-page"},
+		}}},
+	}
+	bundle, _, _, err := buildMaterialBundle(content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	published, err := s.publish(context.Background(), publicationUpload{Bundle: bundle, RequestID: uuid.NewString()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	materialID := published.(map[string]any)["materialId"].(string)
+	value, err := s.readMaterial(context.Background(), MaterialRead{MaterialID: materialID, Version: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream := value.(materialReadResponse)
+	if len(stream.Segments) != 1 || stream.Segments[0].EndOffset != materialStreamHardLimit || stream.PageEndsAtTurnBoundary || stream.NextCursor == "" {
+		t.Fatal("oversized conversation did not split at the hard limit", stream)
+	}
+	value, err = s.readMaterial(context.Background(), MaterialRead{MaterialID: materialID, Version: 1, TurnID: "t", ItemID: "tool"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := value.(materialReadResponse)
+	if len(item.Segments) != 1 || item.Segments[0].ItemID != "tool" || item.NextCursor == "" {
+		t.Fatal("first item page was invalid", item)
+	}
+	value, err = s.readMaterial(context.Background(), MaterialRead{MaterialID: materialID, Version: 1, Cursor: item.NextCursor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item = value.(materialReadResponse)
+	if len(item.Segments) != 1 || item.Segments[0].ItemID != "tool" || strings.Contains(item.Segments[0].Text, "must-not-leak") || item.NextCursor != "" || !item.ItemComplete {
+		t.Fatal("item cursor crossed into the next item", item)
+	}
+}
+
+func TestOversizedItemKeepsHeadTailAndExplicitOmission(t *testing.T) {
+	source := "HEAD" + strings.Repeat("x", materialstore.MaxBlobBytes) + "TAIL"
+	stored, sourceLength, omitted := truncateMaterialText(source)
+	if len([]byte(stored)) > materialstore.MaxBlobBytes || sourceLength != len(source) || omitted <= 0 || !strings.HasPrefix(stored, "HEAD") || !strings.HasSuffix(stored, "TAIL") || !strings.Contains(stored, "发布时省略") {
+		t.Fatal("oversized item was not represented by a bounded head/tail body", len(stored), sourceLength, omitted)
+	}
+}
+
+func TestMaterialNegotiationDoesNotExposeCrossAuthorOrWithdrawnBlobPresence(t *testing.T) {
+	ctx := context.Background()
+	a, _, _ := fixture(t)
+	s, err := a.CreateSpace(ctx, SpaceInput{RequestID: uuid.NewString(), Title: "协商隔离"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _, _ := fixture(t)
+	c, _, _ := fixture(t)
+	inviteB, err := s.Invite(ctx, "lan", uuid.NewString())
+	if err != nil {
+		t.Fatal(err)
+	}
+	jb, err := b.Join(ctx, inviteB.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inviteC, err := s.Invite(ctx, "lan", uuid.NewString())
+	if err != nil {
+		t.Fatal(err)
+	}
+	jc, err := c.Join(ctx, inviteC.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := MaterialContent{Title: "共享 blob", Provider: "codex", SourceID: uuid.NewString(), StartTurnID: "t", EndTurnID: "t", Turns: []MaterialTurn{{ID: "t", Status: "completed", Items: []MaterialItem{{ID: "tool", Type: "toolResult", Text: strings.Repeat("same-output\n", 600)}}}}}
+	bundle, _, _, err := buildMaterialBundle(content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := bundle.Manifest.Turns[0].Items[0].Body.Hash
+	if hash == "" {
+		t.Fatal("test body was unexpectedly inlined")
+	}
+	draft, err := b.saveDraft(PublicationDraft{ID: uuid.NewString(), FrozenAt: time.Now(), MaterialContent: content})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = b.Publish(ctx, jb.ID, PublishInput{PreviewID: draft.ID, PreviewHash: draft.Hash, RequestID: uuid.NewString()}); err != nil {
+		t.Fatal(err)
+	}
+	requestID := uuid.NewString()
+	var negotiation publicationNegotiation
+	if err = jc.request(ctx, "POST", "/v2/material-negotiate", publicationNegotiate{Manifest: bundle.Manifest, RequestID: requestID}, &negotiation); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(negotiation.Missing, hash) {
+		t.Fatal("another author's on-disk blob was exposed as reusable", negotiation)
+	}
+	if err = jc.requestBlob(ctx, fmt.Sprintf("/v2/material-uploads/%s/blobs/%s", negotiation.UploadID, hash), bundle.Blobs[hash]); err != nil {
+		t.Fatal(err)
+	}
+	var resumed publicationNegotiation
+	if err = jc.request(ctx, "POST", "/v2/material-negotiate", publicationNegotiate{Manifest: bundle.Manifest, RequestID: requestID}, &resumed); err != nil || len(resumed.Missing) != 0 || resumed.UploadID != negotiation.UploadID {
+		t.Fatal("uploaded blob was not resumable", resumed, err)
+	}
+	var committed map[string]any
+	if err = jc.request(ctx, "POST", fmt.Sprintf("/v2/material-uploads/%s/commit", negotiation.UploadID), nil, &committed); err != nil {
+		t.Fatal(err)
+	}
+	materialID := committed["materialId"].(string)
+	var ownReuse publicationNegotiation
+	if err = jc.request(ctx, "POST", "/v2/material-negotiate", publicationNegotiate{Manifest: bundle.Manifest, RequestID: uuid.NewString(), MaterialID: materialID, BaseVersion: 1}, &ownReuse); err != nil || len(ownReuse.Missing) != 0 {
+		t.Fatal("active author-owned blob was not reusable", ownReuse, err)
+	}
+	reuseRequest := uuid.NewString()
+	var newMaterialReuse publicationNegotiation
+	if err = jc.request(ctx, "POST", "/v2/material-negotiate", publicationNegotiate{Manifest: bundle.Manifest, RequestID: reuseRequest}, &newMaterialReuse); err != nil || len(newMaterialReuse.Missing) != 0 {
+		t.Fatal("author-owned blob was not reusable for a new material", newMaterialReuse, err)
+	}
+	if err = jc.request(ctx, "POST", "/v2/withdraw-material", materialIDInput{MaterialID: materialID}, nil); err != nil {
+		t.Fatal(err)
+	}
+	var resumedAfterWithdraw publicationNegotiation
+	if err = jc.request(ctx, "POST", "/v2/material-negotiate", publicationNegotiate{Manifest: bundle.Manifest, RequestID: reuseRequest}, &resumedAfterWithdraw); err != nil || !slices.Contains(resumedAfterWithdraw.Missing, hash) {
+		t.Fatal("resumed upload retained authorization from a withdrawn version", resumedAfterWithdraw, err)
+	}
+	var afterWithdraw publicationNegotiation
+	if err = jc.request(ctx, "POST", "/v2/material-negotiate", publicationNegotiate{Manifest: bundle.Manifest, RequestID: uuid.NewString()}, &afterWithdraw); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(afterWithdraw.Missing, hash) {
+		t.Fatal("withdrawn or cross-author blob was exposed as reusable", afterWithdraw)
+	}
+}
+
+func TestPublicationUploadStagesBlobsUntilCommit(t *testing.T) {
+	a, _, _ := fixture(t)
+	s, err := a.CreateSpace(context.Background(), SpaceInput{RequestID: uuid.NewString(), Title: "暂存发布"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := MaterialContent{Title: "待提交", Provider: "codex", SourceID: uuid.NewString(), StartTurnID: "t", EndTurnID: "t", Turns: []MaterialTurn{{ID: "t", Status: "completed", Items: []MaterialItem{{ID: "tool", Type: "toolResult", Text: strings.Repeat("staged-output\n", 600)}}}}}
+	bundle, _, _, err := buildMaterialBundle(content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := bundle.Manifest.Turns[0].Items[0].Body.Hash
+	requestID := uuid.NewString()
+	negotiation, err := s.negotiatePublication(context.Background(), publicationNegotiate{Manifest: bundle.Manifest, RequestID: requestID})
+	if err != nil || !slices.Contains(negotiation.Missing, hash) {
+		t.Fatal(negotiation, err)
+	}
+	if err = s.uploadPublicationBlob(context.Background(), negotiation.UploadID, hash, bundle.Blobs[hash]); err != nil {
+		t.Fatal(err)
+	}
+	if s.materialStore.HasBlob(hash) {
+		t.Fatal("uncommitted upload reached the permanent blob store")
+	}
+	payload, err := s.uploadPayloadStore(negotiation.UploadID)
+	if err != nil || !payload.HasBlob(hash) {
+		t.Fatal("uploaded blob was not kept in resumable staging", err)
+	}
+	if _, err = s.commitPublicationUpload(context.Background(), negotiation.UploadID); err != nil {
+		t.Fatal(err)
+	}
+	if !s.materialStore.HasBlob(hash) {
+		t.Fatal("committed upload was not promoted to the permanent blob store")
+	}
+	if payload.HasBlob(hash) {
+		t.Fatal("committed upload payload was not cleaned up")
+	}
+}
+
+func TestPublicationDraftReadUsesSameFoldedAndItemScopes(t *testing.T) {
+	a, _, _ := fixture(t)
+	draft, err := a.saveDraft(PublicationDraft{
+		ID: uuid.NewString(), FrozenAt: time.Now(),
+		MaterialContent: MaterialContent{
+			Title: "私有草稿", Provider: "codex", SourceID: uuid.NewString(), StartTurnID: "t", EndTurnID: "t",
+			Turns: []MaterialTurn{{ID: "t", Status: "completed", Items: []MaterialItem{{ID: "u", Type: "userMessage", Text: "检查输出"}, {ID: "tool", Type: "toolResult", Text: strings.Repeat("x", 20000)}}}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream, err := a.ReadPublicationDraft(PublicationDraftRead{DraftID: draft.ID, IncludeOutline: true})
+	if err != nil || len(stream.Turns) != 1 || len(stream.Segments) != 2 || !stream.Segments[1].Collapsed {
+		t.Fatal(stream, err)
+	}
+	item, err := a.ReadPublicationDraft(PublicationDraftRead{DraftID: draft.ID, TurnID: "t", ItemID: "tool", StartOffset: 1500})
+	if err != nil || item.Scope != "item" || item.Segments[0].StartOffset != 1500 || item.NextCursor == "" {
+		t.Fatal(item, err)
+	}
+	other, err := a.saveDraft(PublicationDraft{
+		ID: uuid.NewString(), FrozenAt: time.Now(),
+		MaterialContent: MaterialContent{Title: "另一个草稿", Provider: "codex", SourceID: uuid.NewString(), StartTurnID: "o", EndTurnID: "o", Turns: []MaterialTurn{{ID: "o", Status: "completed", Items: []MaterialItem{{ID: "u", Type: "userMessage", Text: "不同"}}}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = a.ReadPublicationDraft(PublicationDraftRead{DraftID: other.ID, Cursor: item.NextCursor}); err == nil {
+		t.Fatal("draft cursor crossed into another private draft")
+	}
+}
+
+func TestSchemaTwoSpaceRemainsOnDiskButIsNotLoaded(t *testing.T) {
+	data := t.TempDir()
+	id := uuid.NewString()
+	path := filepath.Join(data, "collaborations", id, "collaboration.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSONFile(path, Record{Schema: 2, ID: id, Title: "旧空间", State: "ready"}); err != nil {
+		t.Fatal(err)
+	}
+	a, err := Open(Config{DataDir: data})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	if _, err = a.owned(id); err == nil {
+		t.Fatal("schema 2 space was loaded")
+	}
+	if _, err = os.Stat(path); err != nil {
+		t.Fatal("schema 2 data was removed", err)
 	}
 }

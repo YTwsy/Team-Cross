@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"teamcross/internal/materialstore"
 	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/problem"
@@ -65,7 +66,7 @@ func Open(cfg Config) (*App, error) {
 			continue
 		}
 		var r Record
-		if readJSON(filepath.Join(cfg.DataDir, "collaborations", entry.Name(), "collaboration.json"), &r) == nil && r.ID == entry.Name() && r.Schema == 2 {
+		if readJSON(filepath.Join(cfg.DataDir, "collaborations", entry.Name(), "collaboration.json"), &r) == nil && r.ID == entry.Name() && r.Schema == 3 {
 			if r.State == "preparing" {
 				r.State = "error"
 				r.Error = "上次创建被中断。已保留会话和目录，请先核实创建结果。"
@@ -124,14 +125,47 @@ func writeJSONFile(path string, value any) error {
 	if e != nil {
 		return e
 	}
-	tmp := path + ".tmp"
-	if e = os.WriteFile(tmp, b, 0600); e != nil {
+	directory := filepath.Dir(path)
+	temporary, e := os.CreateTemp(directory, ".teamcross-json-*")
+	if e != nil {
 		return e
 	}
-	return os.Rename(tmp, path)
+	temporaryPath := temporary.Name()
+	committed := false
+	defer func() {
+		_ = temporary.Close()
+		if !committed {
+			_ = os.Remove(temporaryPath)
+		}
+	}()
+	if e = temporary.Chmod(0600); e == nil {
+		_, e = temporary.Write(b)
+	}
+	if e == nil {
+		e = temporary.Sync()
+	}
+	if closeErr := temporary.Close(); e == nil {
+		e = closeErr
+	}
+	if e != nil {
+		return e
+	}
+	if e = os.Rename(temporaryPath, path); e != nil {
+		return e
+	}
+	committed = true
+	dir, e := os.Open(directory)
+	if e != nil {
+		return e
+	}
+	defer dir.Close()
+	return dir.Sync()
 }
 func (a *App) newSession(r Record) *Session {
-	return &Session{app: a, record: r, writer: "owner", epoch: 1, presence: map[string]memberPresence{}, approvals: map[string]Approval{}}
+	root := filepath.Join(a.Config.DataDir, "collaborations", r.ID, "materials")
+	session := &Session{app: a, record: r, materialStore: materialstore.New(root), writer: "owner", epoch: 1, presence: map[string]memberPresence{}, approvals: map[string]Approval{}}
+	_, _, _ = session.cleanupAndMeasureUploads(time.Now(), "")
+	return session
 }
 func (s *Session) saveLocked() error {
 	return writeJSONFile(filepath.Join(s.app.Config.DataDir, "collaborations", s.record.ID, "collaboration.json"), s.record)
@@ -355,7 +389,7 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 		title = "新的协作"
 	}
 	now := time.Now()
-	r := Record{Schema: 2, ID: targetID, Title: title, State: "preparing", CreatedAt: now, UpdatedAt: now, Annotations: []Annotation{}, ExecutionRecord: &ExecutionRecord{RequestID: in.RequestID, Provider: provider, SourceID: in.SourceID, SourceTurnID: p.SourceTurnID, WorkspaceMode: in.WorkspaceMode, Repo: p.Workspace.Repo, ExecutionCwd: p.Workspace.SourceCwd, WorkspaceRoot: p.Workspace.Repo, WorkspaceOwned: in.WorkspaceMode == "worktree", Head: p.Workspace.Head, Branch: p.Workspace.Branch, ProviderHome: home, PreviewHash: p.Hash, Commands: map[string]Command{}}}
+	r := Record{Schema: 3, ID: targetID, Title: title, State: "preparing", CreatedAt: now, UpdatedAt: now, Annotations: []Annotation{}, ExecutionRecord: &ExecutionRecord{RequestID: in.RequestID, Provider: provider, SourceID: in.SourceID, SourceTurnID: p.SourceTurnID, WorkspaceMode: in.WorkspaceMode, Repo: p.Workspace.Repo, ExecutionCwd: p.Workspace.SourceCwd, WorkspaceRoot: p.Workspace.Repo, WorkspaceOwned: in.WorkspaceMode == "worktree", Head: p.Workspace.Head, Branch: p.Workspace.Branch, ProviderHome: home, PreviewHash: p.Hash, Commands: map[string]Command{}}}
 	r.RuntimeMode = mode
 	if provider == "claude" && mode == runtimeconfig.Trusted {
 		r.ProviderDefaultHome = a.Config.ClaudeHome == "" && os.Getenv("CLAUDE_CONFIG_DIR") == ""

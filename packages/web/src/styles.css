@@ -2901,6 +2901,19 @@ mark[data-annotation-highlight] {
 .material-body {
   min-width: 0;
 }
+.material-expand-item {
+  justify-self: start;
+  margin: 0 0 14px;
+}
+.material-fold-gap {
+  margin: 12px 0;
+  padding: 8px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
 .material-message {
   border-bottom: 1px solid var(--line);
   padding: 14px 0;

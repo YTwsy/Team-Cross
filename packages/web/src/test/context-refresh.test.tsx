@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Detail } from "../components/Detail";
@@ -41,9 +42,25 @@ function response(value: unknown, status = 200) {
 
 function history(text = "已加载的对话") {
   return response({
-    thread: {
-      turns: [{ id: "turn-1", items: [{ type: "agentMessage", text }] }],
-    },
+    thread: {},
+    contentHash: text,
+    pageCursor: "page",
+    nextCursor: "",
+    scope: "stream",
+    sourcePageComplete: true,
+    pageEndsAtTurnBoundary: true,
+    turns: [{ id: "turn-1", label: text }],
+    segments: [
+      {
+        turnId: "turn-1",
+        itemId: "answer",
+        type: "agentMessage",
+        text,
+        startOffset: 0,
+        endOffset: text.length,
+        length: text.length,
+      },
+    ],
   });
 }
 
@@ -236,5 +253,72 @@ describe("协作上下文刷新", () => {
     expect(
       screen.queryByText("过期对话", { selector: "[data-source-start]" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("长工具输出可按 pageCursor 和 item 坐标继续读取", async () => {
+    readContext = (url) => {
+      if (url.searchParams.get("itemId") === "tool")
+        return response({
+          thread: {},
+          contentHash: "stable-page",
+          pageCursor: "page-fixed",
+          nextCursor: "",
+          scope: "item",
+          itemComplete: true,
+          pageEndsAtTurnBoundary: true,
+          segments: [
+            {
+              turnId: "turn-1",
+              itemId: "tool",
+              type: "commandExecution",
+              text: "后半段与测试汇总。",
+              startOffset: 4,
+              endOffset: 13,
+              length: 13,
+            },
+          ],
+        });
+      return response({
+        thread: {},
+        contentHash: "stable-page",
+        pageCursor: "page-fixed",
+        nextCursor: "",
+        scope: "stream",
+        sourcePageComplete: true,
+        pageEndsAtTurnBoundary: true,
+        turns: [{ id: "turn-1", label: "工具调用" }],
+        segments: [
+          {
+            turnId: "turn-1",
+            itemId: "tool",
+            type: "commandExecution",
+            text: "开头日志",
+            startOffset: 0,
+            endOffset: 4,
+            length: 13,
+            collapsed: true,
+          },
+        ],
+      });
+    };
+    await openDetail();
+    expect(screen.getAllByText(/命令与结果 · 共 13 字/).length).toBeGreaterThan(
+      0,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "读取完整输出" }));
+    });
+
+    const request = new URL(contextRequests.at(-1)!, "http://localhost");
+    expect(request.searchParams.get("cursor")).toBe("page-fixed");
+    expect(request.searchParams.get("turnId")).toBe("turn-1");
+    expect(request.searchParams.get("itemId")).toBe("tool");
+    expect(request.searchParams.get("startOffset")).toBe("4");
+    expect(
+      screen.getByText("开头日志后半段与测试汇总。", {
+        selector: "[data-source-start]",
+      }),
+    ).toBeInTheDocument();
   });
 });

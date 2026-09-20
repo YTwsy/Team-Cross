@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -203,25 +202,6 @@ func (a *App) restoreClaude(ctx context.Context, r Record) (*claudeRuntime, erro
 		return nil, err
 	}
 	return newClaudeRuntime(p), nil
-}
-func claudeContext(r Record, dataDir string, cursors []string) (any, error) {
-	runtimeDir := filepath.Join(dataDir, "collaborations", r.ID, "claude-runtime")
-	h, err := nativeclaude.SavedHistory(r.ProviderHome, runtimeDir, r.SessionID, r.ExecutionCwd)
-	if err != nil {
-		return nil, err
-	}
-	cursor := ""
-	if len(cursors) > 0 {
-		cursor = cursors[0]
-	}
-	page, next, err := h.Page(cursor, 8)
-	if err != nil {
-		return nil, err
-	}
-	slices.Reverse(page)
-	h.Turns = page
-	h.Path = ""
-	return map[string]any{"thread": h, "nextCursor": emptyCursor(next)}, nil
 }
 func claudeMethod(method string, params map[string]any) error {
 	switch method {

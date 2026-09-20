@@ -24,17 +24,18 @@ flowchart LR
 
 ## 空间、材料与执行
 
-`Record` 使用 `schema:2`，保存空间 ID、标题、讨论和材料列表；可空的嵌套 `execution` 保存原生 fork、目录、模式、模型与写入命令。纯只读空间不创建 Provider 执行进程或工作目录；分享通道也不要求执行运行时在线。已有原生协作仍通过状态投影使用原有界面字段。
+`Record` 使用 `schema:3`，保存空间 ID、标题、成员、讨论和材料版本元数据；材料正文不再嵌入该记录。可空的嵌套 `execution` 保存原生 fork、目录、模式、模型与写入命令。纯只读空间不创建 Provider 执行进程或工作目录；分享通道也不要求执行运行时在线。已有原生协作仍通过状态投影使用原有界面字段。
 
-本机 `publication-drafts/<UUID>.json` 保存已冻结内容和选择预览，只能由本机发布入口读取。成员上传选定 `MaterialContent`，托管主机在空间记录中原子持久化材料版本。远端只访问目录和分页读取接口；共享运行时只具有当前空间的材料与批注工具，不能枚举个人来源。完整字段、限额与生命周期见 [材料协议](protocol.md#已发布会话材料)。
+本机 `publication-drafts/records/<UUID>.json` 保存草稿元数据，正文进入私有的内容寻址 `materials/`；只有本机发布入口和个人 MCP 的 `read_publication_draft` 能读取。托管主机同样把每个版本保存为不可变清单和按内容寻址 blob，`collaboration.json` 只追加小型版本引用。远端发布先协商清单、逐个上传缺失 blob，再幂等提交版本；协商只复用当前作者可从自己未撤回版本证明已经拥有的 blob。远端读者只访问目录、折叠正文流和按条范围读取；共享运行时保持当前空间的四个材料/批注工具，不能枚举个人来源。完整字段、限额与生命周期见 [材料协议](protocol.md#已发布会话材料)。
 
-此原型不读取旧平铺 Record 作为新空间，原文件和原生会话保留。启用执行保留原共享代次和成员；成员的 executionAccess 独立控制原生历史、目录、RPC、直接客户端与执行批注。材料与讨论访问持续有效，新增执行范围由主机明确开放。
+此原型只加载 `schema:3`；旧 `schema:2` 和更早的 Record 原样留在磁盘但不作为新空间加载，原生会话也不删除。启用执行保留原共享代次和成员；成员的 executionAccess 独立控制原生历史、目录、RPC、直接客户端与执行批注。材料与讨论访问持续有效，新增执行范围由主机明确开放。
 
 ## 模块
 
 - `internal/workspace`：Git 预览、干净 worktree、子目录映射、文件读取。
 - `internal/nativecodex`：启动和初始化独立 app-server，通过一个长期 WebSocket 进行 RPC、事件及 server request 分发。
 - `internal/collab`：协作记录、原生协议网关、输入协调、邀请与加入、TUI/Desktop 启动、HTTP 管理接口。
+- `internal/materialstore`：确定性清单、SHA-256 blob、不可变原子写入及内容校验；授权仍由 `internal/collab` 的空间或私有草稿引用决定。
 - `internal/sharing`：`tcx3` 邀请、临时 TLS listener、指纹绑定，以及 LAN / Tailcat 服务端与客户端连接适配。Tailcat 只把虚拟 TCP 443 交给同一 TLS/HTTP 网关。
 - `internal/mcp`：个人辅助 STDIO 与共享运行时批注 STDIO。后者只有当前协作的读取/回复工具和独立凭据，每次调用重新读取 Core 地址，不启动 Core 或复用管理凭据。
 - `packages/web`：新 React/Vite 界面，生产资源编译到 `internal/webassets/dist` 后嵌入 Go 二进制。
@@ -55,7 +56,7 @@ Desktop 使用本机安装版本的指定 WebSocket 入口，配合单独的 `CO
 
 共享运行时自动接入当前协作的批注工具，因此直接 Codex TUI/Desktop 与 Claude TUI 的 Agent 能读取和回复批注。工具不创建轮次、不切换输入者；回复作为原批注下的单层列表保存，作者明确区分人工和 Provider。凭据及生命周期见 [协议](protocol.md#共享运行时的批注工具)。
 
-轻量历史使用 `thread/read` 的元数据与 `thread/turns/list` 分页组合，不反复要求上游加载完整历史。每页 8 轮，按时间正序返回，MCP 可用 `nextCursor` 继续读取。
+轻量历史使用 `thread/read` 的白名单元数据与 `thread/turns/list` 分页组合，不反复要求上游加载完整历史。每个 Provider 页至多 8 轮，先投影成与材料相同的 segments：对话完整返回，长工具输出折叠，正文按轮对齐；WebGUI 和 MCP 可用 `nextCursor` 继续本页或读取更早内容，用 `pageCursor + turnId + itemId + startOffset` 只展开一条。投影是活数据且不写入材料 CAS，页哈希与游标阻止把不同快照拼接。
 
 ## 模型设置
 
@@ -76,8 +77,17 @@ Team Cross Next/
   core.lock
   joined.json
   share-requests/<id>.json # 当前轮完成后的分享请求，重启不自动重放
+  publication-drafts/
+    records/<draft-id>.json
+    materials/
+      manifests/<前两位>/<manifest-hash>.json
+      blobs/<前两位>/<sha256>
   collaborations/<id>/
     collaboration.json
+    materials/
+      manifests/<前两位>/<manifest-hash>.json
+      blobs/<前两位>/<sha256>
+      staging/<upload-id>/upload.json
     runtime.log
     worktree/             # 仅 worktree 模式
   clients/<id>/
@@ -86,7 +96,7 @@ Team Cross Next/
     desktop/app-data/
 ```
 
-协作 JSON 原子替换写入。`workspaceOwned` 说明目录由谁创建，`executionCwd` 统一表示实际执行子目录。原目录和新 worktree 均不在结束共享时清理。创建中断会留下错误记录与已创建资源，防止自动重试重复创建。
+可变 JSON 通过独立临时文件、`fsync` 和原子替换写入；blob 和清单先完成不可变写入，材料版本引用最后提交，因此 `saveLocked()` 不再反复改写历史正文。`workspaceOwned` 说明目录由谁创建，`executionCwd` 统一表示实际执行子目录。原目录和新 worktree 均不在结束共享时清理。创建中断会留下错误记录与已创建资源，防止自动重试重复创建。
 
 接收端在首次加入前生成并以 0600 原子保存独立随机凭据，再由 A 绑定到独立成员；链接继续供其他人加入。成功加入后，所有共享访问改用该凭据，不检查邀请码期限。加入响应丢失时用已存凭据只读查询状态，显式重试相同加入保持幂等；业务写入仍不自动重放。B 退出只断开，重启后按邀请中固定的传输和候选信息重建连接并保留资格；B 主动离开才撤销凭据。A 的监听、Tailcat Server 和加入资格都不持久化，退出或重启后需重新分享。
 
@@ -110,7 +120,7 @@ Tailcat 建立时允许网络等待，Session 锁在启动期间释放；详情�
 
 ## 范围
 
-当前聚焦 macOS、普通 Git 仓库和两位参与者；Codex 为主线，Claude 原生 TUI 与 Tailcat 跨网络传输均为实验性。无强制 Round、独立 Evidence、离线包、Tailnet 控制平面集成或 patch/PR 发布流程。WebGUI 显示轻量上下文，完整 Agent 对话交给原生客户端。
+当前聚焦 macOS、普通 Git 仓库和三人以上空间；Codex 为主线，Claude 原生 TUI 与 Tailcat 跨网络传输均为实验性。无强制 Round、独立 Evidence、离线包、Tailnet 控制平面集成或 patch/PR 发布流程。WebGUI 显示轻量上下文，完整 Agent 对话交给原生客户端。
 
 ## 维护入口
 

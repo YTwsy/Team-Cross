@@ -67,15 +67,25 @@ beforeEach(() => {
     contentHash: hash,
   };
   history = () => ({
-    thread: {
-      turns: [
-        {
-          id: "turn",
-          items: [{ id: "item", type: "agentMessage", text: original }],
-        },
-      ],
-    },
-    nextCursor: null,
+    thread: {},
+    contentHash: "original",
+    pageCursor: "original-page",
+    nextCursor: "",
+    scope: "stream",
+    sourcePageComplete: true,
+    pageEndsAtTurnBoundary: true,
+    turns: [{ id: "turn", label: original }],
+    segments: [
+      {
+        turnId: "turn",
+        itemId: "item",
+        type: "agentMessage",
+        text: original,
+        startOffset: 0,
+        endOffset: original.length,
+        length: original.length,
+      },
+    ],
   });
   vi.stubGlobal(
     "fetch",
@@ -247,6 +257,7 @@ describe("原处批注", () => {
     expect(writes[0]!.body.target).toEqual({
       kind: "history",
       sessionId: "fork",
+      cursor: "original-page",
       turnId: "turn",
       itemId: "item",
       startOffset: start,
@@ -394,21 +405,25 @@ describe("原处批注", () => {
       return cursor === "older-page"
         ? oldPage
         : {
-            thread: {
-              turns: [
-                {
-                  id: "recent",
-                  items: [
-                    {
-                      id: "recent-item",
-                      type: "agentMessage",
-                      text: "较新的消息",
-                    },
-                  ],
-                },
-              ],
-            },
+            thread: {},
+            contentHash: "recent",
+            pageCursor: "recent-page",
             nextCursor: "older-page",
+            scope: "stream",
+            sourcePageComplete: true,
+            pageEndsAtTurnBoundary: true,
+            turns: [{ id: "recent", label: "较新的消息" }],
+            segments: [
+              {
+                turnId: "recent",
+                itemId: "recent-item",
+                type: "agentMessage",
+                text: "较新的消息",
+                startOffset: 0,
+                endOffset: 6,
+                length: 6,
+              },
+            ],
           };
     };
     current.annotations = [

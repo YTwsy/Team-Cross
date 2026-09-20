@@ -128,6 +128,11 @@ func (a *App) runtimeAnnotationsHTTP(w http.ResponseWriter, r *http.Request, id 
 			respond(w, nil, err)
 			return
 		}
+		if in.Cursor == "" {
+			if _, specified := input.Arguments["includeOutline"]; !specified {
+				in.IncludeOutline = true
+			}
+		}
 		out, err := s.readMaterial(ctx, in)
 		respond(w, out, err)
 		return
