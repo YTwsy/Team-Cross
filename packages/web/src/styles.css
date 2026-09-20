@@ -831,7 +831,6 @@ details[open] summary {
   justify-items: center;
 }
 .source-provider-note {
-  min-height: 2.6em;
   margin: 0 0 16px;
   font-size: 12px;
   line-height: 1.6;
@@ -2850,7 +2849,6 @@ mark[data-annotation-highlight] {
 }
 .materials-panel {
   padding: 24px;
-  margin-bottom: 24px;
 }
 .material-list {
   display: grid;
@@ -2900,10 +2898,6 @@ mark[data-annotation-highlight] {
 }
 .material-body {
   min-width: 0;
-}
-.material-expand-item {
-  justify-self: start;
-  margin: 0 0 14px;
 }
 .material-fold-gap {
   margin: 12px 0;
@@ -3277,6 +3271,11 @@ mark[data-annotation-highlight] {
   padding: 12px 0;
 }
 .reader-tool summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
   cursor: pointer;
   color: var(--muted);
   font-size: 12px;
@@ -3284,10 +3283,18 @@ mark[data-annotation-highlight] {
   border-radius: 7px;
   background: var(--soft);
 }
-.reader-tool summary span {
+.reader-tool-summary-text {
+  min-width: 0;
+  flex: 1 1 12em;
+}
+.reader-tool-summary-text > span {
   font-size: 11px;
   opacity: 0.75;
   margin-left: 8px;
+}
+.reader-tool .reader-expand-item {
+  margin: 0;
+  flex-shrink: 0;
 }
 .reader-tool[open] > summary {
   margin-bottom: 16px;

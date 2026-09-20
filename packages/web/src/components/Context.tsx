@@ -502,28 +502,21 @@ export function Context({
                   onAnnotate={onAnnotate}
                   onDiscuss={onDiscuss}
                   disabled={!canAnnotate}
+                  onExpand={
+                    segment.collapsed && segment.endOffset < segment.length
+                      ? () =>
+                          void readHistoryItemAt(
+                            segment.turnId,
+                            segment.itemId,
+                            segment.endOffset,
+                          )
+                      : undefined
+                  }
+                  expanding={
+                    itemLoading === `${segment.turnId}:${segment.itemId}`
+                  }
+                  shownLength={segment.endOffset}
                 />
-                {segment.collapsed && segment.endOffset < segment.length && (
-                  <button
-                    className="button small material-expand-item"
-                    disabled={
-                      itemLoading === `${segment.turnId}:${segment.itemId}`
-                    }
-                    onClick={() =>
-                      void readHistoryItemAt(
-                        segment.turnId,
-                        segment.itemId,
-                        segment.endOffset,
-                      )
-                    }
-                  >
-                    {itemLoading === `${segment.turnId}:${segment.itemId}`
-                      ? "正在读取这条输出…"
-                      : segment.endOffset <= 1500
-                        ? "读取完整输出"
-                        : "继续读取这条输出"}
-                  </button>
-                )}
               </div>
             ))}
           </div>

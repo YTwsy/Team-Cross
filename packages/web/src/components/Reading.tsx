@@ -255,6 +255,21 @@ export function ReadingLayout({
   );
 }
 
+const DIALOGUE_ROLES = [
+  "用户",
+  "Codex",
+  "Claude Code",
+  "回复",
+  "提问",
+  "用户提问",
+  "助手回复",
+];
+
+export function itemExpandLabel(loading: boolean, shown: number) {
+  if (loading) return "正在读取这条输出…";
+  return shown <= 1500 ? "读取完整输出" : "继续读取这条输出";
+}
+
 export function ReaderMessage({
   source,
   target,
@@ -266,6 +281,9 @@ export function ReaderMessage({
   disabled,
   notice,
   actionLabel = "批注这条消息",
+  onExpand,
+  expanding,
+  shownLength = 0,
 }: {
   source: string;
   target: AnnotationTarget;
@@ -277,6 +295,9 @@ export function ReaderMessage({
   disabled?: boolean;
   notice?: string;
   actionLabel?: string;
+  onExpand?: () => void;
+  expanding?: boolean;
+  shownLength?: number;
 }) {
   const [raw, setRaw] = useState(false),
     [hint, setHint] = useState("");
@@ -286,7 +307,24 @@ export function ReaderMessage({
   }>();
   const content = useRef<HTMLDivElement>(null),
     message = useRef<HTMLDivElement>(null);
+  const details = useRef<HTMLDetailsElement>(null);
   const id = useId();
+  const tool = !DIALOGUE_ROLES.includes(label);
+  const expand = onExpand ? (
+    <button
+      type="button"
+      className="button small reader-expand-item"
+      disabled={expanding}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (details.current) details.current.open = true;
+        onExpand();
+      }}
+    >
+      {itemExpandLabel(!!expanding, shownLength)}
+    </button>
+  ) : null;
   const base = target.startOffset || 0;
   const targetKey = JSON.stringify([
     target.kind,
@@ -399,6 +437,7 @@ export function ReaderMessage({
               {actionLabel}
             </button>
           )}
+          {!tool && expand}
         </div>
       </div>
       {notice && <p className="inline-note">{notice}</p>}
@@ -413,18 +452,7 @@ export function ReaderMessage({
         <MarkdownText
           source={source}
           highlights={highlights}
-          raw={
-            raw ||
-            ![
-              "用户",
-              "Codex",
-              "Claude Code",
-              "回复",
-              "提问",
-              "用户提问",
-              "助手回复",
-            ].includes(label)
-          }
+          raw={raw || tool}
         />
       </div>
       {hint && (
@@ -460,15 +488,6 @@ export function ReaderMessage({
       />
     </>
   );
-  const tool = ![
-    "用户",
-    "Codex",
-    "Claude Code",
-    "回复",
-    "提问",
-    "用户提问",
-    "助手回复",
-  ].includes(label);
   return (
     <div
       ref={message}
@@ -477,11 +496,15 @@ export function ReaderMessage({
     >
       {tool ? (
         <details
+          ref={details}
           className="reader-tool"
           open={highlights.some((h) => h.active) || undefined}
         >
           <summary>
-            {label} <span>查看已保存的过程</span>
+            <span className="reader-tool-summary-text">
+              {label} <span>查看已保存的过程</span>
+            </span>
+            {expand}
           </summary>
           {contentBody}
         </details>

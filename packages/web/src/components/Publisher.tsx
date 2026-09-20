@@ -239,11 +239,11 @@ export function Publisher({
                   }}
                 />
               </div>
-              <p className="source-provider-note">
-                {provider === "claude"
-                  ? "Claude Code 历史接入仍是实验性能力。只读取已保存的会话。"
-                  : null}
-              </p>
+              {provider === "claude" ? (
+                <p className="source-provider-note">
+                  Claude Code 历史接入仍是实验性能力。只读取已保存的会话。
+                </p>
+              ) : null}
               <label className="search">
                 <Icon name="search" size={18} />
                 <input

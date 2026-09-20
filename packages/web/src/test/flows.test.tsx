@@ -539,9 +539,17 @@ describe("产品路径", () => {
     expect(screen.getByRole("group", { name: "来源客户端" })).toBeVisible();
     await user.click(screen.getByRole("radio", { name: /先分享讨论/ }));
     expect(screen.getByRole("radio", { name: /讨论协作入口/ })).toBeChecked();
+    expect(
+      screen.queryByText("Claude Code 历史接入仍是实验性能力。只读取已保存的会话。"),
+    ).not.toBeInTheDocument();
     await user.click(
       screen.getByRole("button", { name: "Claude Code · 实验性" }),
     );
+    expect(
+      await screen.findByText(
+        "Claude Code 历史接入仍是实验性能力。只读取已保存的会话。",
+      ),
+    ).toBeVisible();
     expect(
       await screen.findByRole("radio", { name: /Claude 来源/ }),
     ).toBeVisible();

@@ -449,3 +449,37 @@ it("keeps a paginated code block intact and reopens the same material from its i
   );
   expect(fetcher).toHaveBeenCalledTimes(2);
 });
+
+it("places tool expansion inside the fold summary and keeps the process open", async () => {
+  const user = userEvent.setup();
+  const onExpand = vi.fn();
+  render(
+    <ReaderMessage
+      label="命令与结果 · 共 10 字 · 已显示 5 字"
+      source="HEAD--"
+      target={{
+        kind: "history",
+        sessionId: "s",
+        turnId: "t",
+        itemId: "tool",
+        quote: "HEAD--",
+      }}
+      onAnnotate={() => {}}
+      onExpand={onExpand}
+      shownLength={5}
+    />,
+  );
+  const details = document.querySelector("details.reader-tool");
+  const summary = details?.querySelector("summary");
+  expect(details).toBeTruthy();
+  expect((details as HTMLDetailsElement).open).toBe(false);
+  expect(
+    within(summary!).getByRole("button", { name: "读取完整输出" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "读取完整输出" }));
+  expect(onExpand).toHaveBeenCalledTimes(1);
+  expect((details as HTMLDetailsElement).open).toBe(true);
+  await user.click(screen.getByRole("button", { name: "读取完整输出" }));
+  expect(onExpand).toHaveBeenCalledTimes(2);
+  expect((details as HTMLDetailsElement).open).toBe(true);
+});

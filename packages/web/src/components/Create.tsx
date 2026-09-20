@@ -186,11 +186,11 @@ export function Create({
               }}
             />
           </div>
-          <p className="source-provider-note">
-            {provider === "claude"
-              ? "使用 Claude 原生 TUI 继续会话，审批与中断在 TUI 中处理。当前支持 Claude Code 2.1.268。"
-              : null}
-          </p>
+          {provider === "claude" ? (
+            <p className="source-provider-note">
+              使用 Claude 原生 TUI 继续会话，审批与中断在 TUI 中处理。当前支持 Claude Code 2.1.268。
+            </p>
+          ) : null}
           <label className="search">
             <Icon name="search" size={18} />
             <input

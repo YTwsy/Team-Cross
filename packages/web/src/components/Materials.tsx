@@ -366,28 +366,21 @@ function MaterialReader({
                   onDiscuss={onDiscuss}
                   disabled={disabled}
                   actionLabel="引用这段文字"
+                  onExpand={
+                    segment.collapsed && segment.endOffset < segment.length
+                      ? () =>
+                          void readItemAt(
+                            segment.turnId,
+                            segment.itemId,
+                            segment.endOffset,
+                          )
+                      : undefined
+                  }
+                  expanding={
+                    itemLoading === `${segment.turnId}:${segment.itemId}`
+                  }
+                  shownLength={segment.endOffset}
                 />
-                {segment.collapsed && segment.endOffset < segment.length && (
-                  <button
-                    className="button small material-expand-item"
-                    disabled={
-                      itemLoading === `${segment.turnId}:${segment.itemId}`
-                    }
-                    onClick={() =>
-                      void readItemAt(
-                        segment.turnId,
-                        segment.itemId,
-                        segment.endOffset,
-                      )
-                    }
-                  >
-                    {itemLoading === `${segment.turnId}:${segment.itemId}`
-                      ? "正在读取这条输出…"
-                      : segment.endOffset <= 1500
-                        ? "读取完整输出"
-                        : "继续读取这条输出"}
-                  </button>
-                )}
               </div>
             ))}
           </div>
