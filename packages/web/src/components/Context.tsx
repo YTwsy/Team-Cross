@@ -67,6 +67,8 @@ export function Context({
   const [path, setPath] = useState("");
   const [file, setFile] = useState("");
   const [cursor, setCursor] = useState("");
+  const [historyTurn, setHistoryTurn] = useState("");
+  const [readingFocus, setReadingFocus] = useState(false);
   const [selection, setSelection] = useState<AnnotationTarget>();
   const [selectionHint, setSelectionHint] = useState("");
   const [activeTarget, setActiveTarget] = useState<AnnotationTarget>();
@@ -74,11 +76,12 @@ export function Context({
   const [historyItemError, setHistoryItemError] = useState("");
   const [itemLoading, setItemLoading] = useState("");
   const panel = useRef<HTMLElement>(null);
+  const pendingHistoryTurn = useRef("");
   const searched = useRef(new Set<string>());
   const finishedLocation = useRef(false);
   const contextPath =
     online && tab !== "technical" && (tab !== "file" || file)
-      ? `collaborations/${id}/context?kind=${tab}&path=${encodeURIComponent(file)}&cursor=${encodeURIComponent(cursor)}`
+      ? `collaborations/${id}/context?kind=${tab}&path=${encodeURIComponent(file)}&cursor=${encodeURIComponent(cursor)}${tab === "history" && historyTurn ? `&turnId=${encodeURIComponent(historyTurn)}` : ""}`
       : null;
   const context = useResource<History | Changes | FileContext>(
     contextPath,
@@ -124,6 +127,35 @@ export function Context({
     "thread" in latest &&
     historyView?.path === contextPath &&
     historyView.signature !== historySignature;
+  function scrollToHistoryTurn(turnId: string) {
+    const element = Array.from(
+      panel.current?.querySelectorAll<HTMLElement>("[data-reader-turn]") || [],
+    ).find((el) => el.dataset.readerTurn === turnId);
+    element?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    return !!element;
+  }
+  function selectHistoryTurn(turnId: string) {
+    setActiveTarget(undefined);
+    setLocationStatus("");
+    pendingHistoryTurn.current = "";
+    if (scrollToHistoryTurn(turnId)) return;
+    if (!data || !("thread" in data) || !data.pageCursor) return;
+    pendingHistoryTurn.current = turnId;
+    setCursor(data.pageCursor);
+    setHistoryTurn(turnId);
+  }
+  useEffect(() => {
+    if (
+      tab === "history" &&
+      data &&
+      "thread" in data &&
+      !context.loading &&
+      pendingHistoryTurn.current &&
+      scrollToHistoryTurn(pendingHistoryTurn.current)
+    ) {
+      pendingHistoryTurn.current = "";
+    }
+  }, [tab, data, context.loading]);
   function refresh() {
     acceptNextHistory.current = true;
     context.reload();
@@ -198,6 +230,8 @@ export function Context({
     if (!target || target.kind === "material") return;
     setActiveTarget(target);
     setTab(target.kind);
+    setHistoryTurn("");
+    pendingHistoryTurn.current = "";
     setCursor(target.cursor || "");
     if (target.kind === "file") {
       setPath(target.path || "");
@@ -307,6 +341,7 @@ export function Context({
   function changeTab(next: ContextTab) {
     setActiveTarget(undefined);
     setLocationStatus("");
+    pendingHistoryTurn.current = "";
     setTab(next);
   }
   function captureSelection() {
@@ -401,6 +436,8 @@ export function Context({
       const segments = joinMaterialSegments(data.segments || []);
       body = turns.length ? (
         <ReadingLayout
+          focus={readingFocus}
+          onFocusChange={setReadingFocus}
           outline={turns.map((turn, i) => ({
             id: turn.id,
             label: readingTitle(
@@ -412,14 +449,7 @@ export function Context({
                 turn.label ||
                 `第 ${i + 1} 轮`,
             ),
-            onSelect: () =>
-              Array.from(
-                panel.current?.querySelectorAll<HTMLElement>(
-                  "[data-reader-turn]",
-                ) || [],
-              )
-                .find((el) => el.dataset.readerTurn === turn.id)
-                ?.scrollIntoView({ block: "start", behavior: "smooth" }),
+            onSelect: () => selectHistoryTurn(turn.id),
           }))}
         >
           <div className="history">
@@ -691,6 +721,8 @@ export function Context({
                     className="button small"
                     disabled={context.loading}
                     onClick={() => {
+                      setHistoryTurn("");
+                      pendingHistoryTurn.current = "";
                       setCursor(data.nextCursor!);
                       finishedLocation.current = false;
                     }}
@@ -709,6 +741,8 @@ export function Context({
                     onClick={() => {
                       setActiveTarget(undefined);
                       setLocationStatus("");
+                      setHistoryTurn("");
+                      pendingHistoryTurn.current = "";
                       setCursor("");
                     }}
                   >

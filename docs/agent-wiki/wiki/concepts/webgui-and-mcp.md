@@ -38,6 +38,8 @@ WebGUI 提供协作管理、材料阅读与原文讨论；执行交互在对应�
 
 共用阅读实现见 [Reading.tsx](../../../../packages/web/src/components/Reading.tsx)、[MarkdownText.tsx](../../../../packages/web/src/components/MarkdownText.tsx) 与 [原文位置映射](../../../../packages/web/src/reading.ts)。改动排版时必须保留 UTF-16 原文定位；引用材料选择器默认只列元数据，预览按需读取。回归见 [阅读与引用测试](../../../../packages/web/src/test/reading.test.tsx)。
 
+协作对话目录跳转时，已加载轮次直接滚动，尚未加载的轮次按当前 `pageCursor + turnId` 读取后定位；保留专注阅读选择，支持读取失败重试。分页、返回最近对话和批注定位不能沿用旧轮次参数。行为见 [上下文阅读](../../sources/product-flows.md#上下文阅读)，回归见 [上下文刷新测试](../../../../packages/web/src/test/context-refresh.test.tsx)。
+
 首页最近协作先显示本机快照，不因已加入的旧协作失联而串行等待；远端状态在后台刷新并由下一次轮询更新。进入详情仍实时探测单个协作，MCP 需要确认当前状态时使用 `get_collaboration`。
 
 个人 Codex / Claude Code 的 MCP 一次性配置连接本机 Core，后续通过工具定位协作。工具写入走现有 RPC 与输入协调，不另建绕过控制的发送通道；stdout 只输出协议消息。

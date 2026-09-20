@@ -207,19 +207,27 @@ export function ReadingLayout({
   outline,
   children,
   label = "本篇目录",
+  focus: controlledFocus,
+  onFocusChange,
 }: {
   outline: { id: string; label: string; onSelect: () => void }[];
   children: ReactNode;
   label?: string;
+  focus?: boolean;
+  onFocusChange?: (focus: boolean) => void;
 }) {
-  const [focus, setFocus] = useState(false);
+  const [localFocus, setLocalFocus] = useState(false);
+  const focus = controlledFocus ?? localFocus;
   return (
     <div className={`reading-surface ${focus ? "reader-focus" : ""}`}>
       <div className="reader-toolbar">
         <span>选中文字可批注</span>
         <button
           className="text-button"
-          onClick={() => setFocus(!focus)}
+          onClick={() => {
+            setLocalFocus(!focus);
+            onFocusChange?.(!focus);
+          }}
           aria-pressed={focus}
         >
           {focus ? "退出专注阅读" : "专注阅读"}

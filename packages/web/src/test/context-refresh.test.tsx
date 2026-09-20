@@ -64,6 +64,31 @@ function history(text = "已加载的对话") {
   });
 }
 
+function outlinedHistory(turn: number, nextCursor = "remaining") {
+  const text = `第 ${turn} 轮正文`;
+  return response({
+    thread: {},
+    contentHash: "outlined-page",
+    pageCursor: "page-fixed",
+    nextCursor,
+    scope: "stream",
+    sourcePageComplete: !nextCursor,
+    pageEndsAtTurnBoundary: true,
+    turns: [1, 2, 3].map((i) => ({ id: `turn-${i}`, label: `第 ${i} 轮目录` })),
+    segments: [
+      {
+        turnId: `turn-${turn}`,
+        itemId: `question-${turn}`,
+        type: "userMessage",
+        text,
+        startOffset: 0,
+        endOffset: text.length,
+        length: text.length,
+      },
+    ],
+  });
+}
+
 function deferred() {
   let resolve!: (value: Response) => void;
   const promise = new Promise<Response>((done) => {
@@ -320,5 +345,119 @@ describe("协作上下文刷新", () => {
         selector: "[data-source-start]",
       }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("协作对话目录导航", () => {
+  let scrolledTurns: (string | undefined)[];
+  beforeEach(() => {
+    scrolledTurns = [];
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: function (this: HTMLElement) {
+        scrolledTurns.push(this.dataset.readerTurn);
+      },
+    });
+    readContext = () => outlinedHistory(1);
+  });
+  afterEach(() => {
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+  });
+
+  it("读取未加载的轮次后定位，已加载轮次直接跳转，继续分页和返回最近对话清除定位参数", async () => {
+    await openDetail();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "专注阅读" }));
+    });
+    const next = deferred();
+    readContext = () => next.promise;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /02 第 2 轮目录/ }));
+    });
+    const request = new URL(contextRequests.at(-1)!, "http://localhost");
+    expect(request.searchParams.get("cursor")).toBe("page-fixed");
+    expect(request.searchParams.get("turnId")).toBe("turn-2");
+    expect(request.searchParams.has("itemId")).toBe(false);
+    expect(screen.getByText("正在加载…")).toBeVisible();
+    expect(scrolledTurns).toEqual([]);
+    await act(async () => next.resolve(outlinedHistory(2, "after-turn-2")));
+    expect(
+      screen.getByText("第 2 轮正文", { selector: "[data-source-start]" }),
+    ).toBeVisible();
+    expect(scrolledTurns).toEqual(["turn-2"]);
+    expect(
+      screen.getByRole("button", { name: "退出专注阅读" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    const requestCount = contextRequests.length;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /02 第 2 轮正文/ }));
+    });
+    expect(contextRequests).toHaveLength(requestCount);
+    expect(scrolledTurns).toEqual(["turn-2", "turn-2"]);
+
+    readContext = () => outlinedHistory(3, "");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "继续读取本页" }));
+    });
+    const continuation = new URL(contextRequests.at(-1)!, "http://localhost");
+    expect(continuation.searchParams.get("cursor")).toBe("after-turn-2");
+    expect(continuation.searchParams.has("turnId")).toBe(false);
+    expect(
+      screen.getByText("第 3 轮正文", { selector: "[data-source-start]" }),
+    ).toBeVisible();
+
+    readContext = () => outlinedHistory(1);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "回到最近对话" }));
+    });
+    const recent = new URL(contextRequests.at(-1)!, "http://localhost");
+    expect(recent.searchParams.get("cursor")).toBe("");
+    expect(recent.searchParams.has("turnId")).toBe(false);
+    expect(
+      screen.getByText("第 1 轮正文", { selector: "[data-source-start]" }),
+    ).toBeVisible();
+    expect(scrolledTurns).toEqual(["turn-2", "turn-2"]);
+  });
+
+  it("目标轮次读取失败可以重试，完成后仍定位到所选轮次", async () => {
+    await openDetail();
+    readContext = () => response({ error: "目标轮次读取失败" }, 503);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /03 第 3 轮目录/ }));
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("目标轮次读取失败");
+    expect(scrolledTurns).toEqual([]);
+
+    readContext = () => outlinedHistory(3, "");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    });
+    expect(
+      new URL(contextRequests.at(-1)!, "http://localhost").searchParams.get(
+        "turnId",
+      ),
+    ).toBe("turn-3");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(scrolledTurns).toEqual(["turn-3"]);
+  });
+
+  it("定位尚未完成时切换标签，不让迟到响应滚动页面或覆盖当前内容", async () => {
+    await openDetail();
+    const next = deferred();
+    readContext = () => next.promise;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /02 第 2 轮目录/ }));
+    });
+    readContext = () =>
+      response({ diff: "+当前代码改动", status: "M src/a.ts", stat: "" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("tab", { name: "代码改动" }));
+    });
+    await act(async () => next.resolve(outlinedHistory(2)));
+    expect(screen.getByText("+当前代码改动")).toBeVisible();
+    expect(
+      screen.queryByText("第 2 轮正文", { selector: "[data-source-start]" }),
+    ).not.toBeInTheDocument();
+    expect(scrolledTurns).toEqual([]);
   });
 });

@@ -3535,6 +3535,10 @@ mark[data-annotation-highlight] {
   }
 }
 @media (max-width: 600px) {
+  [data-reader-turn],
+  .reader-message {
+    scroll-margin-top: 85px;
+  }
   .reader-markdown {
     font-size: 14px;
   }
