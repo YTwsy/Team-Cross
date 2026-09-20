@@ -16,11 +16,11 @@ Agent Session 入手，为具体的一次工作增加共同视图、可定位批
 
 > 它是否从一个具体 Session 出发，并帮助另一个人理解、审阅、控制或继续这次工作？
 
-当前源码原型支持三人及以上、独立只读分享、多份会话材料及固定版本引用。空间包含参与者与邀请、已发布材料、批注与回复，以及零个或一个可操作会话；同一邀请链接可供多位同事加入，每位成员身份独立，执行时向指定成员交接输入。产品边界见 [协作空间设计契约](docs/agent-wiki/sources/decisions/collaboration-spaces.md)，基础流程见 [只读空间与材料验收](docs/agent-wiki/sources/validation/materials-2026-09-18.md)，当前内容寻址存储、折叠和按条读取范围见 [2026-09-20 验收](docs/agent-wiki/sources/validation/content-addressed-materials-2026-09-20.md)。这些源码能力尚未发布到安装渠道。
+当前源码原型支持三人及以上、独立只读分享、多份会话材料及固定版本引用。空间包含参与者与邀请、已发布材料、批注与回复，以及零个或一个可操作会话；同一邀请链接可供多位同事加入，每位成员身份独立，执行时向指定成员交接输入。产品边界见 [协作空间设计契约](docs/agent-wiki/sources/decisions/collaboration-spaces.md)，基础流程见 [只读空间与材料验收](docs/agent-wiki/sources/validation/materials-2026-09-18.md)，当前内容寻址存储、折叠和按条读取范围见 [2026-09-20 验收](docs/agent-wiki/sources/validation/content-addressed-materials-2026-09-20.md)。这些能力包含在当前预发布安装渠道中。
 
 ## 安装
 
-面向 Apple Silicon、macOS 14 及以上。首个公开版本为 `v0.1.1`，当前预发布版本为 `v0.1.7-rc.1`；CLI、App 和 Homebrew 产物使用相同版本。GitHub Release 成功后，受保护的后续流程才会通过独立 tap PR 发布 Homebrew 定义。发布入口为 [GitHub Releases](https://github.com/YTwsy/Team-Cross/releases)，对应渠道的 Release 与公共 tap 验证完成后可使用以下方式。
+面向 Apple Silicon、macOS 14 及以上。首个公开版本为 `v0.1.1`，当前预发布版本为 `v0.2.1-rc.1`；CLI、App 和 Homebrew 产物使用相同版本。GitHub Release 成功后，受保护的后续流程才会通过独立 tap PR 发布 Homebrew 定义。发布入口为 [GitHub Releases](https://github.com/YTwsy/Team-Cross/releases)，对应渠道的 Release 与公共 tap 验证完成后可使用以下方式。
 
 | 方式 | 安装与打开 |
 | --- | --- |
@@ -255,7 +255,7 @@ make verify-release
 make verify-homebrew
 ```
 
-本地开发构建默认 `0.1.7-dev`，输出位于 `dist/release/0.1.7-dev/`。版本构建使用 `make release VERSION=0.1.7-rc.1`，要求干净 checkout，并在重建 Web 资源后再次核对。使用相同 `VERSION` 运行两个安装验证目标。构建不上传产物。
+本地开发构建默认 `0.2.1-dev`，输出位于 `dist/release/0.2.1-dev/`。版本构建使用 `make release VERSION=0.2.1-rc.1`，要求干净 checkout，并在重建 Web 资源后再次核对。使用相同 `VERSION` 运行两个安装验证目标。构建不上传产物。
 
 GitHub 对指向 `main` 的 PR 和 `main` push 运行 Go、race、Web 与 Homebrew 定义工程门槛。`Unsigned macOS release` workflow 可以手动构建、验证和保存一个不发布的 `X.Y.Z` 或 `X.Y.Z-rc.N` arm64 产物；推送可从 `origin/main` 到达的同版本 annotated tag 时，它才会生成 provenance 并创建 GitHub Release。RC 标记为 Pre-release，正式版本标记为 Latest；在取得 Developer ID 前，两者都明确使用 ad-hoc 签名且未经 Apple 公证。Release 创建后，独立 Homebrew workflow 重新下载公开资产、验证 checksum 与 attestation、隔离安装对应定义，再使用只覆盖 tap 仓库的短期 GitHub App token 创建 PR；tap CI 通过、自动合并及公共安装 smoke 完成后才更新 Release 中的 Homebrew 状态。Tailcat 公网 smoke 和两台 Mac 验收仍不在托管发布流水线中自动运行。完整参数、证据边界和发布顺序见 [分发与首次体验](docs/agent-wiki/sources/distribution-and-onboarding.md)。
 
