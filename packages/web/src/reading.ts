@@ -164,10 +164,84 @@ export function joinMaterialSegments(segments: MaterialPage["segments"]) {
       previous.itemId === segment.itemId &&
       previous.endOffset === segment.startOffset
     ) {
+      const wasCollapsed = !!previous.collapsed;
       previous.text += segment.text;
       previous.endOffset = segment.endOffset;
-      previous.notice ||= segment.notice;
+      // An item-range response carries the item's original notice, while the
+      // stream preview also appends a temporary "collapsed" explanation. Once
+      // more of that item is loaded, replace the preview notice so the expanded
+      // UI does not keep claiming the visible body is only the folded prefix.
+      if (wasCollapsed) {
+        previous.notice = segment.notice;
+        previous.readHint = segment.readHint;
+      } else previous.notice ||= segment.notice;
+      previous.length = Math.max(previous.length, segment.length);
+      previous.collapsed = previous.endOffset < previous.length;
+      previous.sourceLength ||= segment.sourceLength;
+      previous.omittedLength ||= segment.omittedLength;
     } else result.push({ ...segment });
   }
   return result;
+}
+
+export function mergeMaterialSegments(
+  existing: MaterialPage["segments"],
+  incoming: MaterialPage["segments"],
+) {
+  const result = [...existing];
+  for (const segment of incoming) {
+    let insertAt = result.findIndex(
+      (current) =>
+        current.turnId === segment.turnId &&
+        current.itemId === segment.itemId &&
+        current.startOffset > segment.startOffset,
+    );
+    if (insertAt < 0) {
+      const last = result.findLastIndex(
+        (current) =>
+          current.turnId === segment.turnId &&
+          current.itemId === segment.itemId,
+      );
+      insertAt = last < 0 ? result.length : last + 1;
+    }
+    if (
+      !result.some(
+        (current) =>
+          current.turnId === segment.turnId &&
+          current.itemId === segment.itemId &&
+          current.startOffset === segment.startOffset &&
+          current.endOffset === segment.endOffset,
+      )
+    )
+      result.splice(insertAt, 0, segment);
+  }
+  return coalesceAdjacentSegments(result);
+}
+
+function coalesceAdjacentSegments(segments: MaterialPage["segments"]) {
+  const out: MaterialPage["segments"] = [];
+  for (const segment of segments) {
+    const prev = out[out.length - 1];
+    if (
+      prev &&
+      prev.turnId === segment.turnId &&
+      prev.itemId === segment.itemId &&
+      prev.endOffset === segment.startOffset
+    ) {
+      const wasCollapsed = !!prev.collapsed;
+      prev.text += segment.text;
+      prev.endOffset = segment.endOffset;
+      if (wasCollapsed) {
+        prev.notice = segment.notice;
+        prev.readHint = segment.readHint;
+      } else prev.notice ||= segment.notice;
+      prev.length = Math.max(prev.length, segment.length);
+      prev.collapsed = prev.endOffset < prev.length;
+      prev.sourceLength ||= segment.sourceLength;
+      prev.omittedLength ||= segment.omittedLength;
+    } else {
+      out.push({ ...segment });
+    }
+  }
+  return out;
 }

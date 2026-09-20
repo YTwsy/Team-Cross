@@ -177,19 +177,20 @@ export type Info = {
 };
 export type ClientPlan = { command: string; launched: boolean; note?: string };
 export type History = {
-  nextCursor?: string | null;
+  contentHash: string;
+  pageCursor: string;
+  nextCursor: string;
+  scope: "stream" | "item";
+  itemComplete?: boolean;
+  sourcePageComplete?: boolean;
+  pageEndsAtTurnBoundary: boolean;
   thread: {
-    turns?: {
-      id: string;
-      status: string;
-      items?: {
-        id?: string;
-        type: string;
-        text?: string;
-        content?: { type: string; text?: string }[];
-      }[];
-    }[];
+    id?: string;
+    name?: string;
+    model?: string;
   };
+  turns?: { id: string; label: string }[];
+  segments: MaterialPage["segments"];
 };
 export type Changes = {
   stat: string;
@@ -265,6 +266,8 @@ export type MaterialItem = {
   type: string;
   text: string;
   notice?: string;
+  sourceUtf16Length?: number;
+  omittedUtf16Length?: number;
 };
 export type MaterialTurn = {
   id: string;
@@ -307,7 +310,10 @@ export type Material = {
 export type MaterialPage = {
   materialId: string;
   version: MaterialVersion;
-  turns: { id: string; label: string }[];
+  scope: "stream" | "item";
+  itemComplete?: boolean;
+  pageEndsAtTurnBoundary: boolean;
+  turns?: { id: string; label: string }[];
   segments: {
     turnId: string;
     itemId: string;
@@ -316,6 +322,11 @@ export type MaterialPage = {
     notice?: string;
     startOffset: number;
     endOffset: number;
+    length: number;
+    sourceLength?: number;
+    omittedLength?: number;
+    collapsed?: boolean;
+    readHint?: string;
   }[];
   nextCursor: string;
 };

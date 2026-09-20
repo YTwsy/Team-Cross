@@ -196,10 +196,10 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "共享已结束", http.StatusGone)
 		return
 	}
+	if s.materialUploadHTTP(w, r) {
+		return
+	}
 	if materialHTTP(w, r, strings.TrimPrefix(r.URL.Path, "/v2/"), true, func(action string, in any) (any, error) {
-		if action == "materials" && in != nil {
-			return s.publish(r.Context(), in.(publicationUpload))
-		}
 		return s.materialOperation(r.Context(), action, in)
 	}) {
 		return
@@ -309,7 +309,7 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL.Path == "/v2/context" {
 		after := number(r.URL.Query().Get("after"))
-		out, e := s.Context(r.Context(), r.URL.Query().Get("kind"), r.URL.Query().Get("path"), after, r.URL.Query().Get("cursor"))
+		out, e := s.ContextHistory(r.Context(), r.URL.Query().Get("kind"), r.URL.Query().Get("path"), after, historyReadFromURL(r.URL))
 		respond(w, out, e)
 		return
 	}
@@ -524,6 +524,58 @@ func (j *Joined) request(ctx context.Context, method, path string, in, out any) 
 	}
 	return nil
 }
+
+func (j *Joined) requestBlob(ctx context.Context, path, text string) error {
+	j.mu.Lock()
+	if j.left || j.ended || j.closed {
+		ended := j.ended
+		j.mu.Unlock()
+		if ended {
+			return fmt.Errorf("共享已结束，请向发起者获取新邀请")
+		}
+		return fmt.Errorf("已离开协作")
+	}
+	url, client, credential := j.URL, j.Client, j.Credential
+	j.mu.Unlock()
+	if url == "" || client == nil {
+		return problem.New("host_unreachable", "协作连接尚未准备", "请重新连接")
+	}
+	req, err := http.NewRequestWithContext(ctx, "PUT", url+path, strings.NewReader(text))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+credential)
+	req.Header.Set("Content-Type", "application/octet-stream")
+	res, err := client.Do(req)
+	if err != nil {
+		return problem.New("host_unreachable", "协作主机连接中断", "blob 写入状态不明；使用同一 requestId 重新发布会先协商缺失内容")
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+	if res.StatusCode < 400 {
+		return nil
+	}
+	if res.StatusCode == http.StatusGone {
+		j.markEnded()
+	}
+	var result struct {
+		Error    string `json:"error"`
+		Code     string `json:"code"`
+		Recovery string `json:"recovery"`
+	}
+	_ = json.Unmarshal(body, &result)
+	if result.Error == "" {
+		result.Error = strings.TrimSpace(string(body))
+	}
+	if result.Code == "" {
+		result.Code = "remote_error"
+	}
+	return problem.New(result.Code, result.Error, result.Recovery)
+}
+
 func (j *Joined) view(ctx context.Context) map[string]any {
 	timeout := 4 * time.Second
 	if j.Invitation.Transport == sharing.TransportTailcat {

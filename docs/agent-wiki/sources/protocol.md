@@ -21,9 +21,10 @@
 | `POST /invitations/preview` | `{invitation}` 或 `{pendingId}`，只解析显示信息，不连接远端 |
 | `GET /sources?provider=codex|claude&search=&cursor=` | 分页搜索原生来源会话 |
 | `POST /spaces` | `{title,requestId}`，幂等创建独立只读空间，不创建运行时 |
-| `POST /publications/source` | `{provider,sourceId}`，只在本机冻结来源已结束历史 |
-| `POST /publications/preview` | `{draftId,title,startTurnId,endTurnId,readingStartId?}`，生成所选范围的固定预览 |
+| `POST /publications/source` | `{provider,sourceId,compact?}`，只在本机冻结来源已结束历史；`compact` 只返回目录和读取提示 |
+| `POST /publications/preview` | `{draftId,title,startTurnId,endTurnId,readingStartId?,compact?}`，生成所选范围的固定预览 |
 | `POST /publications/draft` | `{draftId}`，读取本机冻结草稿；无共享端对应路由 |
+| `POST /publications/read-draft` | `{draftId,turnId?,itemId?,startOffset?,cursor?,includeOutline?}`，按与材料相同的折叠/按条语义读取私有草稿 |
 | `POST /sources/current` | 核对个人 MCP 的原生调用身份，返回来源与当前轮次 |
 | `POST /share-requests/preview` | 预览当前 Session 的本轮完成后分享 |
 | `POST /share-requests` | 幂等登记分享请求，立即返回，不等待本轮结束 |
@@ -34,7 +35,7 @@
 | `POST /collaborations` | 创建新的协作 fork；可用 `spaceId` 附到已有只读空间 |
 | `POST /join` | `{invitation}` 或 `{pendingId}`，连接邀请并幂等返回本机加入记录 |
 | `GET /collaborations/:id` | 状态、目录、输入者、批注 |
-| `GET /collaborations/:id/context?kind=&path=&after=&cursor=` | `history/changes/file/annotations/events` |
+| `GET /collaborations/:id/context?kind=&path=&after=&cursor=&turnId=&itemId=&startOffset=` | `history/changes/file/annotations/events`；history 可按 `pageCursor + turnId + itemId + startOffset` 读取单条 |
 | `POST /collaborations/:id/action` | `{action,transport?,epoch,memberId?}`；`share` 使用 `lan|tailcat`，省略仅为兼容本机调用并默认 `lan` |
 | `POST /collaborations/:id/invitations` | `{transport,requestId?,reset?}` 生成或取回可复用链接；`reset:true` 配合 requestId 重置链接；也可只传 `{invitationId}` 取回指定链接 |
 | `POST /collaborations/:id/execution-access` | `{memberId,allowed}`，主机开放或收回该成员的执行访问，保留材料与讨论资格 |
@@ -47,7 +48,7 @@
 | `POST /collaborations/:id/respond` | `{id,result}` 原生请求回应 |
 | `GET /collaborations/:id/materials` | 材料与版本目录，不含正文 |
 | `POST /collaborations/:id/materials` | `{previewId,previewHash,requestId,materialId?,baseVersion?}`，发布本机已确认预览 |
-| `POST /collaborations/:id/read-material` | `{materialId,version,turnId?,cursor?}`，分页读取固定版本 |
+| `POST /collaborations/:id/read-material` | `{materialId,version,turnId?,itemId?,startOffset?,cursor?,includeOutline?}`，按正文流或单条范围读取固定版本 |
 | `POST /collaborations/:id/publication-status` | `{requestId}`，查询自己的发布结果 |
 | `POST /collaborations/:id/withdraw-material` | `{materialId}`，撤回自己材料的所有版本 |
 | `POST /collaborations/:id/annotations` | `{text,target?,reference?,materials?}` |
@@ -123,7 +124,7 @@ TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS/Tailcat 路�
 
 `hasExecution` 区分独立只读空间与带可操作会话的空间；`reachable` 表示本次空间探测是否成功，不能用运行时的 `online` 代替。只读空间没有 `sessionId/executionCwd/runtimeMode/writer/epoch` 等执行字段，`context` 仅接受 `kind=annotations`，原生 RPC、连接、恢复及输入申请拒绝。发布材料与批注不需要输入权。带执行的空间即使运行时离线，也可分享已保存材料和讨论。
 
-持久化记录采用 `schema:2`，顶层为身份、批注和材料，原生字段收纳为可选 `execution`。旧扁平记录保留在磁盘但不加载或迁移。为已有空间创建执行，预览及创建绑定 `spaceId`，保留原链接与成员。只读成员保持原范围；主机通过 `execution-access` 明确授权原生历史与目录。每个空间最多一个执行，沿用固定模式及恢复规则。只读空间的 `action:end` 将 `state:ended` 持久化，即使尚未开放共享也有效；再次生成链接恢复为 ready。
+持久化记录采用 `schema:3`，顶层保存身份、批注和材料版本元数据，原生字段收纳为可选 `execution`；材料清单与正文按本页后述布局独立保存。旧 `schema:2` 及更早记录保留在磁盘但不加载或迁移。为已有空间创建执行，预览及创建绑定 `spaceId`，保留原链接与成员。只读成员保持原范围；主机通过 `execution-access` 明确授权原生历史与目录。每个空间最多一个执行，沿用固定模式及恢复规则。只读空间的 `action:end` 将 `state:ended` 持久化，即使尚未开放共享也有效；再次生成链接恢复为 ready。
 
 `role` 仅区分本机发起者 `owner` 与加入者 `remote`；授权不使用共同的 `remote` 身份。`selfId` 为本机成员身份（发起者为 `owner`），`writer` 为 `owner` 或具体成员 ID。直接客户端和辅助工具比较 `selfId` 与 `writer`。`members` 返回 `{id,name,joinedAt,active,online,inputRequested,executionAccess}` 数组；每人凭据独立，显示名称允许重复，不用于授权或去重。`invitations` 仅向发起者返回各邀请的 `{id,state,expiresAt?,joinedCount}`，不含凭据。
 
@@ -136,7 +137,9 @@ TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS/Tailcat 路�
 
 `participantJoined` 独立于在线心跳；`invitationState` 为 `active/expired/revoked`，active 才返回当前链接。`invitationId` 标识当前链接，`invitationReadOnly` 表示链接授予的原始范围；`invitations` 中记录 `joinedCount`，不绑定单个 memberId。默认链接无固定时限，存在期限时才返回 expiresAt。`runtimeState` 为 `running/starting/releasing/released/offline`，`releasePending` 表示共享关闭后仍在等待工作或客户端结束。
 
-`context?kind=history` 返回 `{thread,nextCursor}`；`thread.turns` 是最近一页的至多 8 轮，页内按时间正序排列。传回非空 `nextCursor` 到 `cursor` 可读取更早的一页；`null` 表示没有更多历史。元数据和分页读取均不创建或执行轮次；会话释放后通过只读控制进程读取，不 `thread/resume`、不重新占用原生写入锁。
+`context?kind=history` 从 Provider 每次取得至多 8 轮，再投影为与材料一致的 `{thread,contentHash,pageCursor,nextCursor,scope,sourcePageComplete,pageEndsAtTurnBoundary,turns,segments}`。`thread` 只保留会话 ID、名称、预览、目录、时间、模型与状态等白名单元数据；隐藏推理和未知原生字段不透出。页内按时间正序排列；用户/助手消息完整进入正文流，超过 1500 个 UTF-16 字符的工具输出默认折叠，16000/24000 字符预算、64 段上限和轮边界语义与材料相同。`contentHash` 绑定会话、Provider 页游标及该页完整投影源，可供客户端跳过未变化页面；`pageCursor` 固定该 Provider 页，供之后按条读取。
+
+传回 `nextCursor` 到 `cursor` 时，若 `sourcePageComplete:false` 则继续读取同一 Provider 页的剩余正文，否则进入更早的 8 轮。展开单条时传该响应的 `pageCursor + turnId + itemId + startOffset`；返回 `scope:item`，每页最多 16000 个 UTF-16 字符且不跨到下一条。Provider 页发生变化时旧游标明确拒绝，不把不同快照拼接。活跃上下文只复用清单投影、折叠和按条分页算法，不写入材料 CAS，也不把临时页声明为固定发布版本。元数据和分页读取均不创建或执行轮次；会话释放后通过只读控制进程读取，不 `thread/resume`、不重新占用原生写入锁。
 
 `context?kind=events&after=N` 返回 `{events,cursor,approvals,busy,online}`。每个事件有 `sequence/method/params/time`；保留最近 600 项。长期对话以原生历史为准，跨服务重启不要把旧事件 cursor 当作永久日志位置。`get_collaboration` 的 `sequence` 可判断当前游标是否重置。
 
@@ -205,17 +208,49 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 
 冻结来源必须提供准确的 `provider/sourceId`；可使用来源列表，或先由个人 MCP `get_current_source` 核对当前原生身份，不能根据更新时间或目录猜测。冻结只读取已结束的连续历史前缀，不 resume、fork 或读取来源目录；正在运行的一轮留在本机。Codex 还以持久化轮次事件核对结束边界。草稿保存在本机 `publication-drafts/`，新对话不会追加进去。
 
-预览在固定草稿中选择连续的 `startTurnId..endTurnId`，每轮包含可导出的用户提问、可见回复和已保存工具过程。`readingStartId` 仅为导航，必须在范围内。返回 `{id,hash,frozenAt,title,provider,sourceId,startTurnId,endTurnId,readingStartId?,turns}`；`turns` 为 `{id,status,items:[{id,type,text,notice?}]}`。隐藏推理不导出；未知内容、未导出的图片/附件与过长项目有明确说明，不凭路径或 URL 额外拉取内容。完整预览展示实际将上传的内容；折叠不等于隐藏。
+预览在固定草稿中选择连续的 `startTurnId..endTurnId`，每轮包含可导出的用户提问、可见回复和已保存工具过程。`readingStartId` 仅为导航，必须在范围内。WebGUI 可取得完整草稿；个人 MCP 的 `freeze_source_session` / `preview_publication` 默认只返回 `{id,hash,frozenAt,title,provider,sourceId,startTurnId,endTurnId,readingStartId?,turns}` 的小型目录，轮次含 `id/status/label/itemCount`，正文由新增的 `read_publication_draft` 按需读取。隐藏推理不导出；未知内容、未导出的图片/附件与过长项目有明确说明，不凭路径或 URL 额外拉取内容。折叠只是读取投影，完整已保存正文仍属于预览和授权范围。
 
-本机发布端只接受预览 ID 和匹配的哈希，向托管端发送已选择的 `content`。主机以当前成员身份生成作者和版本，来源字段是材料的来源声明，不是跨主机的密码学真实性证明。同一作者的 `requestId` 与同一请求内容返回相同结果，参数变化拒绝；先保存再返回 `state:published/materialId/version/hash`。结果不明用 `publication-status` 查询，`not_found` 不能证明网络中原请求已失败。显式重试必须保持同一请求 ID、预览和基准版本。
+本机草稿与托管材料都以不可变清单和内容寻址正文保存。清单描述 `turns → items → {id,type,notice,body}`；不超过 4 KiB 且清单累计内联不超过 256 KiB 的正文直接放在 `body.kind=inline`，其他正文使用 `body.kind=blob/hash/byteLength/utf16Length/lineCount`。blob 哈希是原始 UTF-8 字节的 SHA-256；轮次和清单使用带版本域的确定性哈希。材料版本哈希就是清单哈希，展示预览不会改变原文、偏移或哈希。
+
+远端发布使用三个幂等阶段，而不是把全部正文放进一次 JSON POST：
+
+1. `POST /v2/material-negotiate` 发送清单、`requestId/materialId?/baseVersion?`，返回 `uploadId/manifestHash/missing/expiresAt`；
+2. `PUT /v2/material-uploads/:uploadId/blobs/:sha256` 以 `application/octet-stream` 上传每个缺失 blob，主机逐个校验地址、UTF-8 与 8 MiB 上限；
+3. `POST /v2/material-uploads/:uploadId/commit` 在所有协商要求的 blob 已确认后原子追加版本引用。
+
+上传会话绑定空间、成员、请求哈希和 24 小时期限。协商只能省略当前成员自己尚未撤回的已发布版本已经引用、且仍在该空间存储中的 blob；即使相同内容已由其他作者上传或只被撤回材料引用，也仍返回为缺失，避免把哈希变成内容存在性探针。缺失 blob 先进入 `staging/<uploadId>/payload`，提交时重新校验复用授权，再提升到正式 CAS；失败或放弃的上传不会提前污染永久 blob 池。每个空间同时最多保留 32 个未完成上传，暂存正文合计最多 256 MiB；过期暂存会在启动或下一次协商时清理。正式 blob 与清单先落盘，`collaboration.json` 的版本引用最后提交；响应丢失后以同一 `requestId` 再协商或查询 `publication-status`，不自动重放未知写入。
+
+主机以当前成员身份生成作者和版本，来源字段是材料的来源声明，不是跨主机的密码学真实性证明。同一作者的 `requestId` 与同一请求内容返回相同结果，参数变化拒绝；先保存再返回 `state:published/materialId/version/hash`。`not_found` 不能证明网络中原请求已失败。显式重试必须保持同一请求 ID、预览和基准版本。
 
 更新只允许原作者及同一 Provider/来源，`baseVersion` 必须匹配当前版本。新版本保留旧版，不改变已有引用；目录的 `changes` 统计相对上一版新增、变化、移出的轮次。撤回停止空间提供该材料所有版本，不删除原生 Session，无法召回已读取的副本和历史引用。成员被移除后旧材料仍属于空间，但该成员凭据无法继续读写。成员 ID 在同次共享内稳定；结束共享后重新加入是新身份，当前不能用新身份修改旧成员的材料。
 
-目录返回材料作者、标题、版本、哈希、轮数、公开起止、建议阅读起点及导出说明数量，不返回正文。`read-material` 必须指定正整数版本；返回轮次目录 `turns`、正文 `segments` 和 `nextCursor`。每段带 `turnId/itemId/type/status/text/notice/startOffset/endOffset`，偏移为原项目 UTF-16 位置。每页最多 16000 Unicode 字符、64 段；游标绑定材料、版本和内容哈希，服务端先检查它们属于当前空间，不允许跨对象使用。读取到公开末尾就结束，没有“继续读取私人历史”的路径。
+目录返回材料作者、标题、版本、清单哈希、轮数、公开起止、建议阅读起点、导出说明数量和预先计算的轮次变化，不返回正文。`read-material` 必须指定正整数版本，并有两种互不串流的读取范围：
 
-当前原型读取来源上限为 2048 轮 / 16 MiB 原生结果，单个导出项目超过 256 KiB 时截成 64000 字符并注明；单次材料内容最多 4 MiB，每空间全部版本最多 64 MiB。保存失败回滚内存。JSON 记录以 `schema:2` 保存，不兼容旧扁平记录。
+- 正文流省略 `itemId`。用户/助手消息完整进入流；其他类型超过 1500 个 UTF-16 字符时只返回精确前缀，并带 `collapsed:true`、整条 `length`、文字 `notice/readHint`。页面以 16000 为软预算，允许走完当前轮到 24000 的硬上限；只有单轮自身仍超过硬上限或达到 64 段才在轮内续页。`pageEndsAtTurnBoundary` 明确说明页面是否停在轮边界。
+- 按条读取同时传 `turnId + itemId`，可用 `startOffset` 首次定位，此后使用按条 `nextCursor`。每页最多 16000 个 UTF-16 字符，只读取这一条，绝不会溢出到下一条；返回 `scope:item/itemComplete`。这也是展开折叠工具输出和直接定位深处批注的入口。
 
-CLI 复用个人 MCP 适配：`space`、`freeze`、`publication-preview`、`publish`、`publication-status`、`materials`、`read-material`、`withdraw-material`。更新用 `publish --material <ID> --base-version <旧版本>`，分页用 `read-material --cursor <nextCursor>`；原生 `preview/create/share --space <空间ID>` 可为只读空间启用执行。完整发布示例见根 README。
+每段带 `turnId/itemId/type/status/text/notice/startOffset/endOffset/length`；源头因 8 MiB 上限被省略时另有 `sourceLength/omittedLength`。偏移均为已保存正文的 UTF-16 位置。`includeOutline:true` 只在无游标首页返回轮次目录，WebGUI 和 MCP 首页会显式请求，后续页不重复传输。流游标与按条游标都绑定 scope、材料（或草稿）、固定版本和清单哈希，不能跨条、跨版本、跨草稿或跨空间使用。读取到公开末尾就结束，没有“继续读取私人历史”的路径。
+
+当前限制为：来源冻结最多 2048 轮 / 32 MiB 原生响应；清单最多 4 MiB、16384 条 item；单 blob 最多 8 MiB；一个版本引用的唯一 blob 最多 32 MiB；空间所有未撤回版本引用的唯一 blob 最多 256 MiB。超过 8 MiB 的单条在发布者 Core 保留头尾，在中间写入明确省略标记并记录原始/省略 UTF-16 长度；不做隐式分块。附件仍不复制。空间记录以 `schema:3` 保存，只含成员、执行、批注和材料版本元数据；旧 `schema:2` 目录原样留在磁盘但不加载。撤回当前只停止授权并从活动配额中移除引用，不承诺立即回收 blob；自动回收仍是后续工作。
+
+磁盘布局为：
+
+```text
+collaborations/<space>/
+  collaboration.json
+  materials/
+    manifests/<前两位>/<manifestHash>.json
+    blobs/<前两位>/<sha256>
+    staging/<uploadId>/upload.json
+publication-drafts/
+  records/<draftId>.json
+  materials/manifests/…
+  materials/blobs/…
+```
+
+不可变正文先写临时文件、`fsync` 后原子改名，清单最后写；可变 JSON 同样使用独立临时文件、`fsync` 和原子替换。`saveLocked()` 不再重写历史正文。清单和 blob 都按存储范围读取：知道哈希本身不构成授权，必须先从当前空间未撤回版本或本机草稿解析到该哈希。
+
+CLI 复用个人 MCP 适配：`space`、`freeze`、`publication-preview`、`publish`、`publication-status`、`materials`、`read-material`、`withdraw-material`。更新用 `publish --material <ID> --base-version <旧版本>`，普通分页用 `read-material --cursor <nextCursor>`；按条参数目前以 MCP / HTTP 为准。原生 `preview/create/share --space <空间ID>` 可为只读空间启用执行。完整发布示例见根 README。
 
 ## 批注引用
 
@@ -246,7 +281,7 @@ CLI 复用个人 MCP 适配：`space`、`freeze`、`publication-preview`、`publ
 
 ### 共享运行时的批注工具
 
-A 的 Codex app-server / Claude worker 通过 `teamcross mcp --data-dir … --runtime-id …` 启动 `teamcross_annotations`。枚举 `read_annotations(annotationId?)`、`reply_to_annotation(annotationId,text,requestId,materials?)`、`list_materials()` 和 `read_material(materialId,version,turnId?,cursor?)`。它们只访问绑定空间，不允许选择其他空间、枚举私人来源、发布材料、读取任意路径或发送模型输入。参数校验在 STDIO 和 Core 两端执行。读取批注返回原文引用和全部回复；回复作者由运行时 Provider 决定，为 `Codex` 或 `Claude Code`。
+A 的 Codex app-server / Claude worker 通过 `teamcross mcp --data-dir … --runtime-id …` 启动 `teamcross_annotations`。仍只枚举四个工具：`read_annotations`、`reply_to_annotation`、`list_materials` 和 `read_material`。`read_material` 支持流游标及 `turnId/itemId/startOffset` 按条读取；共享运行时不增加私有草稿工具。它们只访问绑定空间，不允许选择其他空间、枚举私人来源、发布材料、读取任意路径或发送模型输入。个人 MCP 另有 `read_publication_draft`。参数校验在 STDIO 和 Core 两端执行。读取批注返回原文引用和全部回复；回复作者由运行时 Provider 决定，为 `Codex` 或 `Claude Code`。
 
 每个协作保存独立 `annotationToken`，仅通过 A 上的 MCP 环境变量传递；普通状态、远端响应和原生 `config/read` 不暴露凭据。STDIO 每次调用重新读取本机连接地址，只使用协作凭据，不启动 Core、不使用管理 token。创建、明确恢复或重新开启共享时开启批注工具访问，结束共享关闭访问；发起者恢复后即使尚未重新邀请，也可读取。运行时未连接、已释放或 Core 关闭时拒绝访问。成员访问撤销仍由原生入口和共享路由处理。
 

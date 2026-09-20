@@ -6,12 +6,14 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
+
+	"teamcross/internal/materialstore"
 	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/runtimeconfig"
 	"teamcross/internal/sharing"
 	"teamcross/internal/workspace"
-	"time"
 )
 
 type Runtime interface {
@@ -185,8 +187,10 @@ func (d *direct) close() { d.once.Do(func() { close(d.done) }) }
 
 type Session struct {
 	mu               sync.Mutex
+	materialUploadMu sync.Mutex
 	record           Record
 	app              *App
+	materialStore    *materialstore.Store
 	process          Runtime
 	writer           string
 	busy             bool

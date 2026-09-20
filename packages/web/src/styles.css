@@ -45,6 +45,10 @@
 * {
   box-sizing: border-box;
 }
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
 body {
   margin: 0;
   min-width: 360px;
@@ -442,6 +446,21 @@ details[open] summary {
   gap: 12px;
   margin-bottom: 20px;
 }
+.source-heading {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 16px;
+}
+.source-heading > div:first-child {
+  min-width: 0;
+}
+.source-heading .small-text {
+  display: block;
+  margin-top: 4px;
+}
+.provider-filter {
+  flex-shrink: 0;
+}
 .section-heading h2 {
   font-size: 15px;
 }
@@ -792,13 +811,30 @@ details[open] summary {
   padding: 0 6px;
   color: var(--muted);
 }
-.source-list {
-  max-height: 440px;
+.source-list,
+.publication-sources {
+  min-height: 360px;
+  max-height: 360px;
   overflow: auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   gap: 6px;
   padding: 3px;
+}
+.source-list:has(> .loading),
+.source-list:has(> .empty),
+.publication-sources:has(> .loading),
+.publication-sources:has(> .empty),
+.publication-sources:has(> .muted:only-child) {
+  align-content: center;
+  justify-items: center;
+}
+.source-provider-note {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
 }
 .source-row {
   display: flex;
@@ -915,9 +951,11 @@ details[open] summary {
   left: 20px;
   top: 20px;
 }
-.workspace-card:focus-within {
-  outline: 3px solid var(--blue);
-  outline-offset: 3px;
+.workspace-card,
+.workspace-card:focus-within,
+.workspace-card > input:focus,
+.workspace-card > input:focus-visible {
+  outline: none;
 }
 .workspace-card.selected {
   border-color: var(--blue);
@@ -2570,6 +2608,16 @@ mark[data-annotation-highlight] {
   .workspace-grid {
     grid-template-columns: 1fr;
   }
+  .source-heading {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .source-heading .provider-filter {
+    width: 100%;
+  }
+  .source-heading .provider-filter button {
+    flex: 1;
+  }
   .workspace-card {
     padding: 18px;
   }
@@ -2670,10 +2718,6 @@ mark[data-annotation-highlight] {
   line-height: 1.65;
 }
 
-.provider-picker {
-  margin-bottom: 1rem;
-}
-
 .client-grid:has(> .client-card:only-child) {
   grid-template-columns: 1fr;
 }
@@ -2714,12 +2758,49 @@ mark[data-annotation-highlight] {
 }
 
 /* Space publications stay separate from executable context. */
-.space-mode {
-  margin-bottom: 24px;
+.start-space {
+  overflow-anchor: none;
+}
+.start-space .source-panel,
+.start-space .create-step,
+.start-space .publication-start {
+  max-width: none;
+}
+.start-intent {
+  margin: 0 0 28px;
+}
+.start-body {
+  display: grid;
+  grid-template-areas: "pane";
+}
+.start-pane {
+  grid-area: pane;
+  visibility: hidden;
+  pointer-events: none;
+}
+.start-pane.is-active {
+  visibility: visible;
+  pointer-events: auto;
+  z-index: 1;
 }
 .publication-start {
   padding: 28px;
-  max-width: 920px;
+}
+.start-space .source-panel {
+  padding: 28px;
+}
+.publication-composer .source-provider-note {
+  margin-bottom: 0;
+}
+.source-pager,
+.start-space .material-actions {
+  min-height: 31px;
+}
+.publication-composer .search {
+  margin-bottom: 0;
+}
+.publication-composer .panel-heading {
+  margin-bottom: 0;
 }
 .publication-composer {
   display: grid;
@@ -2747,10 +2828,6 @@ mark[data-annotation-highlight] {
   max-width: 100%;
   width: 100%;
 }
-.publication-sources {
-  max-height: 320px;
-  overflow: auto;
-}
 .publication-review {
   border: 1px solid var(--line);
   padding: 18px;
@@ -2772,7 +2849,6 @@ mark[data-annotation-highlight] {
 }
 .materials-panel {
   padding: 24px;
-  margin-bottom: 24px;
 }
 .material-list {
   display: grid;
@@ -2802,9 +2878,59 @@ mark[data-annotation-highlight] {
   align-items: center;
   gap: 12px;
 }
-.material-actions .field {
-  flex: 1;
-  min-width: 160px;
+.material-reader-toolbar {
+  display: grid;
+  grid-template-areas: "version provenance copy";
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  justify-items: start;
+  gap: 8px 12px;
+  min-width: 0;
+  max-width: 100%;
+}
+.material-version-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 31px;
+  flex: 0 1 auto;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.2;
+  color: var(--muted);
+  grid-area: version;
+}
+.material-version-field > span {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.material-reader .material-version-field select {
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: 22rem;
+  min-width: 0;
+  min-height: 31px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text);
+  border-radius: 8px;
+}
+.material-reader-toolbar .button {
+  flex-shrink: 0;
+}
+.material-reader-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  min-height: 31px;
+  grid-area: copy;
+  justify-self: end;
 }
 .material-empty {
   padding: 24px 0;
@@ -2819,9 +2945,20 @@ mark[data-annotation-highlight] {
   display: grid;
   gap: 14px;
   min-width: 0;
+  container-type: inline-size;
+  container-name: material-reader;
 }
 .material-body {
   min-width: 0;
+}
+.material-fold-gap {
+  margin: 12px 0;
+  padding: 8px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
 }
 .material-message {
   border-bottom: 1px solid var(--line);
@@ -2884,6 +3021,13 @@ mark[data-annotation-highlight] {
   }
   .materials-panel {
     padding: 18px;
+  }
+}
+@media (max-width: 600px) {
+  .material-reader .material-version-field select {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: none;
   }
 }
 
@@ -3186,6 +3330,11 @@ mark[data-annotation-highlight] {
   padding: 12px 0;
 }
 .reader-tool summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
   cursor: pointer;
   color: var(--muted);
   font-size: 12px;
@@ -3193,10 +3342,18 @@ mark[data-annotation-highlight] {
   border-radius: 7px;
   background: var(--soft);
 }
-.reader-tool summary span {
+.reader-tool-summary-text {
+  min-width: 0;
+  flex: 1 1 12em;
+}
+.reader-tool-summary-text > span {
   font-size: 11px;
   opacity: 0.75;
   margin-left: 8px;
+}
+.reader-tool .reader-expand-item {
+  margin: 0;
+  flex-shrink: 0;
 }
 .reader-tool[open] > summary {
   margin-bottom: 16px;
@@ -3205,9 +3362,84 @@ mark[data-annotation-highlight] {
   color: var(--muted);
   font-size: 12px;
   overflow-wrap: anywhere;
+  min-width: 0;
+  max-width: 100%;
+  width: auto;
+  margin: 0;
+  grid-area: provenance;
+  justify-self: stretch;
 }
-.reader-provenance summary {
+.reader-provenance > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 31px;
+  width: max-content;
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
   cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+  list-style: none;
+  white-space: nowrap;
+}
+.reader-provenance > summary::-webkit-details-marker {
+  display: none;
+}
+.reader-provenance > summary::marker {
+  content: none;
+}
+.reader-provenance > summary::before {
+  content: "";
+  width: 0.38em;
+  height: 0.38em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.reader-provenance[open] > summary {
+  margin-bottom: 2px;
+}
+.reader-provenance[open] > summary::before {
+  transform: rotate(45deg);
+}
+.reader-provenance > p {
+  margin: 0;
+  padding: 0 0 2px 1.1em;
+  line-height: 1.4;
+  white-space: normal;
+}
+@container material-reader (max-width: 620px) {
+  .material-reader-toolbar {
+    grid-template-areas:
+      "version copy"
+      "provenance provenance";
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .reader-provenance > summary {
+    min-height: 0;
+  }
+}
+@media (max-width: 600px) {
+  .material-reader-toolbar {
+    grid-template-areas:
+      "version"
+      "provenance"
+      "copy";
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .material-version-field {
+    width: 100%;
+  }
+  .material-reader-copy {
+    justify-self: start;
+  }
 }
 .reader-update {
   display: flex;
@@ -3444,6 +3676,10 @@ mark[data-annotation-highlight] {
   }
 }
 @media (max-width: 600px) {
+  [data-reader-turn],
+  .reader-message {
+    scroll-margin-top: 85px;
+  }
   .reader-markdown {
     font-size: 14px;
   }

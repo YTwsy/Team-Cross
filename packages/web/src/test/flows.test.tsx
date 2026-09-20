@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Create } from "../components/Create";
+import { StartSpace } from "../components/Publisher";
 import { Home } from "../components/Home";
 import { Join } from "../components/Join";
 import { Clients } from "../components/Clients";
@@ -43,6 +44,37 @@ const collaboration = {
   model: "gpt-5.6-luna",
 } satisfies Collaboration;
 const calls: { path: string; body: any }[] = [];
+function emptyHistory() {
+  return {
+    thread: {},
+    contentHash: "empty",
+    pageCursor: "page",
+    nextCursor: "",
+    scope: "stream",
+    sourcePageComplete: true,
+    pageEndsAtTurnBoundary: true,
+    turns: [],
+    segments: [],
+  };
+}
+function historyMessage(text: string, turnId = "turn") {
+  return {
+    ...emptyHistory(),
+    contentHash: text,
+    turns: [{ id: turnId, label: text }],
+    segments: [
+      {
+        turnId,
+        itemId: "answer",
+        type: "agentMessage",
+        text,
+        startOffset: 0,
+        endOffset: text.length,
+        length: text.length,
+      },
+    ],
+  };
+}
 function mockFetch(handler: (path: string, body: any) => unknown) {
   vi.stubGlobal(
     "fetch",
@@ -75,7 +107,7 @@ describe("邀请者在个人 Codex 中打开协作", () => {
           launched: true,
           note: "已请求个人 Codex 打开此协作会话，请在 Desktop 中查看。",
         };
-      if (path.includes("/context")) return { thread: { turns: [] } };
+      if (path.includes("/context")) return emptyHistory();
       return {
         ...collaboration,
         role: "owner",
@@ -109,7 +141,7 @@ describe("邀请者在个人 Codex 中打开协作", () => {
   ])("不显示不适用的个人 Codex 入口：%j", async (overrides) => {
     mockFetch((path) =>
       path.includes("/context")
-        ? { thread: { turns: [] } }
+        ? emptyHistory()
         : { ...collaboration, ...overrides },
     );
     render(<Detail id="c1" />);
@@ -130,7 +162,7 @@ describe("邀请者在个人 Codex 中打开协作", () => {
     async (runtimeState, sharing, label) => {
       mockFetch((path) =>
         path.includes("/context")
-          ? { thread: { turns: [] } }
+          ? emptyHistory()
           : {
               ...collaboration,
               role: "owner",
@@ -154,7 +186,7 @@ describe("邀请者在个人 Codex 中打开协作", () => {
           : { launched: true, note: "已请求个人 Codex 打开此协作会话。" };
       }
       return path.includes("/context")
-        ? { thread: { turns: [] } }
+        ? emptyHistory()
         : { ...collaboration, role: "owner", online: false };
     });
     const user = userEvent.setup();
@@ -337,7 +369,7 @@ describe("产品路径", () => {
   it("详情显示运行时确认的模型与推理强度", async () => {
     mockFetch((path) =>
       path.includes("/context")
-        ? { thread: { turns: [] } }
+        ? emptyHistory()
         : {
             ...collaboration,
             model: "fixture-selected-model",
@@ -379,7 +411,7 @@ describe("产品路径", () => {
   it("加入后不会显示邀请码期限，离线成员仍保留身份", async () => {
     mockFetch((path) =>
       path.includes("/context")
-        ? { thread: { turns: [] } }
+        ? emptyHistory()
         : {
             ...collaboration,
             role: "owner",
@@ -410,7 +442,7 @@ describe("产品路径", () => {
   it("未使用的过期邀请可重新生成，不结束本地会话", async () => {
     mockFetch((path) =>
       path.includes("/context")
-        ? { thread: { turns: [] } }
+        ? emptyHistory()
         : {
             ...collaboration,
             role: "owner",
@@ -442,16 +474,7 @@ describe("产品路径", () => {
   it("会话释放后读取上下文不恢复运行时，明确操作才恢复", async () => {
     mockFetch((path) =>
       path.includes("/context")
-        ? {
-            thread: {
-              turns: [
-                {
-                  id: "retained",
-                  items: [{ type: "agentMessage", text: "释放后保留的对话" }],
-                },
-              ],
-            },
-          }
+        ? historyMessage("释放后保留的对话", "retained")
         : {
             ...collaboration,
             role: "owner",
@@ -484,6 +507,55 @@ describe("产品路径", () => {
       "#/join",
     );
     expect(await screen.findByText("下一次协作，从这里开始")).toBeVisible();
+  });
+  it("发起页用卡片区分形态，来源客户端作为会话列表筛选", async () => {
+    mockFetch((path) =>
+      path.startsWith("sources")
+        ? {
+            data: path.includes("provider=claude")
+              ? [{ ...source, id: "claude", name: "Claude 来源" }]
+              : [source],
+          }
+        : {},
+    );
+    const user = userEvent.setup();
+    render(<StartSpace />);
+    expect(screen.getByRole("radio", { name: /先分享讨论/ })).toBeChecked();
+    expect(screen.getByRole("group", { name: "这次要做什么" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "来源客户端" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "选择公开范围" })).toBeDisabled();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    await user.click(
+      await screen.findByRole("radio", { name: /讨论协作入口/ }),
+    );
+    expect(screen.getByRole("radio", { name: /讨论协作入口/ })).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: /直接一起执行/ }));
+    expect(screen.getAllByRole("heading", { name: "发起协作" })).toHaveLength(
+      1,
+    );
+    expect(screen.getAllByRole("link", { name: /协作空间/ })).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "从哪里继续？" })).toBeVisible();
+    expect(screen.getByRole("button", { name: /下一步/ })).toBeDisabled();
+    expect(screen.getByRole("group", { name: "来源客户端" })).toBeVisible();
+    await user.click(screen.getByRole("radio", { name: /先分享讨论/ }));
+    expect(screen.getByRole("radio", { name: /讨论协作入口/ })).toBeChecked();
+    expect(
+      screen.queryByText("Claude Code 历史接入仍是实验性能力。只读取已保存的会话。"),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Claude Code · 实验性" }),
+    );
+    expect(
+      await screen.findByText(
+        "Claude Code 历史接入仍是实验性能力。只读取已保存的会话。",
+      ),
+    ).toBeVisible();
+    expect(
+      await screen.findByRole("radio", { name: /Claude 来源/ }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("radio", { name: /讨论协作入口/ }),
+    ).not.toBeInTheDocument();
   });
   it("创建通过确认起点传递模式，且没有未跟踪文件选择", async () => {
     mockFetch((path, body) =>
@@ -703,7 +775,7 @@ describe("首次使用连续路径", () => {
   it("Tailcat 邀请准备中可显式取消，不切换到局域网", async () => {
     mockFetch((path) =>
       path.includes("/context")
-        ? { thread: { turns: [] } }
+        ? emptyHistory()
         : {
             ...collaboration,
             role: "owner",
@@ -752,7 +824,7 @@ describe("首次使用连续路径", () => {
   });
   it("申请输入不发送模型指令，也不自动交接", async () => {
     mockFetch((path) =>
-      path.includes("/context") ? { thread: { turns: [] } } : collaboration,
+      path.includes("/context") ? emptyHistory() : collaboration,
     );
     const user = userEvent.setup();
     render(<Detail id="c1" />);
@@ -887,7 +959,7 @@ describe("Claude 原生协作", () => {
   it("Claude 等待审批时显示原生 TUI 回应提示", async () => {
     mockFetch((path) =>
       path.includes("/context")
-        ? { thread: { turns: [] } }
+        ? emptyHistory()
         : {
             ...collaboration,
             provider: "claude",
@@ -928,7 +1000,7 @@ describe("多人成员与邀请", () => {
   it("发起者明确交给 C，成员列表保留 B，已有人加入仍可继续邀请", async () => {
     mockFetch((path) =>
       path.includes("/context")
-        ? { thread: { turns: [] } }
+        ? emptyHistory()
         : {
             ...collaboration,
             role: "owner",
@@ -962,7 +1034,7 @@ describe("多人成员与邀请", () => {
   it("C 正在输入时 B 仍可申请输入，不能因同为受邀者而直接操作", async () => {
     mockFetch((path) =>
       path.includes("/context")
-        ? { thread: { turns: [] } }
+        ? emptyHistory()
         : { ...collaboration, selfId: "member-b", writer: "member-c", members },
     );
     const user = userEvent.setup();

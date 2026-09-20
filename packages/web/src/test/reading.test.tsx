@@ -17,6 +17,7 @@ import {
   codeOffsets,
   joinMaterialSegments,
   mappedSelection,
+  mergeMaterialSegments,
   textOffsets,
 } from "../reading";
 import type {
@@ -157,6 +158,9 @@ it("joins only contiguous segments of the same message without mutating the API 
       text: "```ts\n",
       startOffset: 0,
       endOffset: 6,
+      length: 11,
+      collapsed: true,
+      notice: "已折叠，共 11 字",
     },
     {
       turnId: "t",
@@ -165,6 +169,7 @@ it("joins only contiguous segments of the same message without mutating the API 
       text: "1\n```",
       startOffset: 6,
       endOffset: 11,
+      length: 11,
     },
     {
       turnId: "t",
@@ -173,6 +178,7 @@ it("joins only contiguous segments of the same message without mutating the API 
       text: "后续",
       startOffset: 0,
       endOffset: 2,
+      length: 2,
     },
   ];
   expect(joinMaterialSegments(segments)).toHaveLength(2);
@@ -180,8 +186,49 @@ it("joins only contiguous segments of the same message without mutating the API 
     text: "```ts\n1\n```",
     startOffset: 0,
     endOffset: 11,
+    collapsed: false,
   });
+  expect(joinMaterialSegments(segments)[0]?.notice).toBeUndefined();
   expect(segments[0]!.text).toBe("```ts\n");
+});
+
+it("clears the folded preview notice while retaining incomplete item pagination", () => {
+  const preview: MaterialPage["segments"] = [
+    {
+      turnId: "t",
+      itemId: "tool",
+      type: "toolResult",
+      text: "head",
+      startOffset: 0,
+      endOffset: 4,
+      length: 20000,
+      collapsed: true,
+      notice: "已折叠，共 20000 字",
+      readHint: "按条读取",
+    },
+  ];
+  const merged = mergeMaterialSegments(preview, [
+    {
+      turnId: "t",
+      itemId: "tool",
+      type: "toolResult",
+      text: " body",
+      startOffset: 4,
+      endOffset: 16000,
+      length: 20000,
+    },
+  ]);
+  expect(merged).toEqual([
+    expect.objectContaining({
+      text: "head body",
+      endOffset: 16000,
+      length: 20000,
+      collapsed: true,
+    }),
+  ]);
+  expect(merged[0]?.notice).toBeUndefined();
+  expect(merged[0]?.readHint).toBeUndefined();
+  expect(preview[0]?.notice).toBe("已折叠，共 20000 字");
 });
 
 function NotesHarness() {
@@ -401,4 +448,38 @@ it("keeps a paginated code block intact and reopens the same material from its i
     ),
   );
   expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
+it("places tool expansion inside the fold summary and keeps the process open", async () => {
+  const user = userEvent.setup();
+  const onExpand = vi.fn();
+  render(
+    <ReaderMessage
+      label="命令与结果 · 共 10 字 · 已显示 5 字"
+      source="HEAD--"
+      target={{
+        kind: "history",
+        sessionId: "s",
+        turnId: "t",
+        itemId: "tool",
+        quote: "HEAD--",
+      }}
+      onAnnotate={() => {}}
+      onExpand={onExpand}
+      shownLength={5}
+    />,
+  );
+  const details = document.querySelector("details.reader-tool");
+  const summary = details?.querySelector("summary");
+  expect(details).toBeTruthy();
+  expect((details as HTMLDetailsElement).open).toBe(false);
+  expect(
+    within(summary!).getByRole("button", { name: "读取完整输出" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "读取完整输出" }));
+  expect(onExpand).toHaveBeenCalledTimes(1);
+  expect((details as HTMLDetailsElement).open).toBe(true);
+  await user.click(screen.getByRole("button", { name: "读取完整输出" }));
+  expect(onExpand).toHaveBeenCalledTimes(2);
+  expect((details as HTMLDetailsElement).open).toBe(true);
 });

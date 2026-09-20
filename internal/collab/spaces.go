@@ -61,7 +61,7 @@ func (a *App) CreateSpace(ctx context.Context, in SpaceInput) (*Session, error) 
 		old.mu.Unlock()
 		return old, err
 	}
-	r := Record{Schema: 2, ID: in.RequestID, Title: in.Title, State: "ready", CreatedAt: time.Now(), UpdatedAt: time.Now(), Annotations: []Annotation{}}
+	r := Record{Schema: 3, ID: in.RequestID, Title: in.Title, State: "ready", CreatedAt: time.Now(), UpdatedAt: time.Now(), Annotations: []Annotation{}}
 	if err := os.MkdirAll(filepath.Join(a.Config.DataDir, "collaborations", r.ID), 0700); err != nil {
 		return nil, err
 	}

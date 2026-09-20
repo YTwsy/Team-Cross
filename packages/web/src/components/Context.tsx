@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useResource } from "../api";
-import { readingTitle } from "../reading";
+import { api, errorText, useResource } from "../api";
+import {
+  joinMaterialSegments,
+  mergeMaterialSegments,
+  readingTitle,
+} from "../reading";
 import {
   codeLines,
   codeTargetMatches,
@@ -24,6 +28,7 @@ import {
   type Discuss,
 } from "./Reading";
 import { Empty, ErrorBox, Icon, Loading } from "./ui";
+import { itemLabel } from "./Publisher";
 
 function parentElement(node: Node) {
   return node instanceof Element ? node : node.parentElement;
@@ -62,16 +67,21 @@ export function Context({
   const [path, setPath] = useState("");
   const [file, setFile] = useState("");
   const [cursor, setCursor] = useState("");
+  const [historyTurn, setHistoryTurn] = useState("");
+  const [readingFocus, setReadingFocus] = useState(false);
   const [selection, setSelection] = useState<AnnotationTarget>();
   const [selectionHint, setSelectionHint] = useState("");
   const [activeTarget, setActiveTarget] = useState<AnnotationTarget>();
   const [locationStatus, setLocationStatus] = useState("");
+  const [historyItemError, setHistoryItemError] = useState("");
+  const [itemLoading, setItemLoading] = useState("");
   const panel = useRef<HTMLElement>(null);
+  const pendingHistoryTurn = useRef("");
   const searched = useRef(new Set<string>());
   const finishedLocation = useRef(false);
   const contextPath =
     online && tab !== "technical" && (tab !== "file" || file)
-      ? `collaborations/${id}/context?kind=${tab}&path=${encodeURIComponent(file)}&cursor=${encodeURIComponent(cursor)}`
+      ? `collaborations/${id}/context?kind=${tab}&path=${encodeURIComponent(file)}&cursor=${encodeURIComponent(cursor)}${tab === "history" && historyTurn ? `&turnId=${encodeURIComponent(historyTurn)}` : ""}`
       : null;
   const context = useResource<History | Changes | FileContext>(
     contextPath,
@@ -86,7 +96,10 @@ export function Context({
   }>();
   const acceptNextHistory = useRef(false);
   const historySignature = useMemo(
-    () => (latest && "thread" in latest ? JSON.stringify(latest) : ""),
+    () =>
+      latest && "thread" in latest
+        ? latest.contentHash || JSON.stringify(latest)
+        : "",
     [latest],
   );
   useEffect(() => {
@@ -114,9 +127,78 @@ export function Context({
     "thread" in latest &&
     historyView?.path === contextPath &&
     historyView.signature !== historySignature;
+  function scrollToHistoryTurn(turnId: string) {
+    const element = Array.from(
+      panel.current?.querySelectorAll<HTMLElement>("[data-reader-turn]") || [],
+    ).find((el) => el.dataset.readerTurn === turnId);
+    element?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    return !!element;
+  }
+  function selectHistoryTurn(turnId: string) {
+    setActiveTarget(undefined);
+    setLocationStatus("");
+    pendingHistoryTurn.current = "";
+    if (scrollToHistoryTurn(turnId)) return;
+    if (!data || !("thread" in data) || !data.pageCursor) return;
+    pendingHistoryTurn.current = turnId;
+    setCursor(data.pageCursor);
+    setHistoryTurn(turnId);
+  }
+  useEffect(() => {
+    if (
+      tab === "history" &&
+      data &&
+      "thread" in data &&
+      !context.loading &&
+      pendingHistoryTurn.current &&
+      scrollToHistoryTurn(pendingHistoryTurn.current)
+    ) {
+      pendingHistoryTurn.current = "";
+    }
+  }, [tab, data, context.loading]);
   function refresh() {
     acceptNextHistory.current = true;
     context.reload();
+  }
+  async function readHistoryItemAt(
+    turnId: string,
+    itemId: string,
+    startOffset: number,
+  ) {
+    if (!data || !("thread" in data) || !data.pageCursor || !contextPath)
+      return;
+    const key = `${turnId}:${itemId}`;
+    setItemLoading(key);
+    setHistoryItemError("");
+    const query = new URLSearchParams({
+      kind: "history",
+      cursor: data.pageCursor,
+      turnId,
+      itemId,
+      startOffset: String(startOffset),
+    });
+    try {
+      const next = await api<History>(
+        `collaborations/${id}/context?${query.toString()}`,
+      );
+      setHistoryView((current) => {
+        if (!current || current.path !== contextPath) return current;
+        return {
+          ...current,
+          data: {
+            ...current.data,
+            segments: mergeMaterialSegments(
+              current.data.segments,
+              next.segments,
+            ),
+          },
+        };
+      });
+    } catch (error) {
+      setHistoryItemError(errorText(error));
+    } finally {
+      setItemLoading("");
+    }
   }
   const lines = useMemo(() => {
     if (tab === "file" && data && "text" in data)
@@ -141,18 +223,22 @@ export function Context({
   useEffect(() => {
     setSelection(undefined);
     setSelectionHint("");
+    setHistoryItemError("");
   }, [tab, file, cursor]);
   useEffect(() => {
     const target = location?.target;
     if (!target || target.kind === "material") return;
     setActiveTarget(target);
     setTab(target.kind);
+    setHistoryTurn("");
+    pendingHistoryTurn.current = "";
     setCursor(target.cursor || "");
     if (target.kind === "file") {
       setPath(target.path || "");
       setFile(target.path || "");
     }
     setSelection(undefined);
+    setHistoryItemError("");
     setLocationStatus("正在查找批注原文…");
     searched.current = new Set();
     finishedLocation.current = false;
@@ -167,12 +253,41 @@ export function Context({
     if (activeTarget.sessionId && activeTarget.sessionId !== sessionId) {
       setLocationStatus("这条批注属于其他会话，以下保留批注时的原文。");
     } else if (tab === "history" && "thread" in data) {
-      const turn = data.thread.turns?.find(
-        (turn) => turn.id === activeTarget.turnId,
+      const matching = joinMaterialSegments(data.segments).filter(
+        (segment) =>
+          segment.turnId === activeTarget.turnId &&
+          segment.itemId === activeTarget.itemId,
       );
-      const item = turn?.items?.find((item) => item.id === activeTarget.itemId);
+      const located = matching.some((segment) => {
+        const start = (activeTarget.startOffset || 0) - segment.startOffset;
+        const end = (activeTarget.endOffset || 0) - segment.startOffset;
+        return (
+          start >= 0 &&
+          end <= segment.text.length &&
+          segment.text.slice(start, end) === activeTarget.quote
+        );
+      });
+      const directKey = `${data.pageCursor}:${activeTarget.turnId}:${activeTarget.itemId}:${activeTarget.startOffset || 0}`;
       if (
-        !item &&
+        !located &&
+        activeTarget.turnId &&
+        activeTarget.itemId &&
+        data.turns?.some((turn) => turn.id === activeTarget.turnId) &&
+        !finishedLocation.current &&
+        !itemLoading &&
+        !searched.current.has(directKey)
+      ) {
+        searched.current.add(directKey);
+        void readHistoryItemAt(
+          activeTarget.turnId,
+          activeTarget.itemId,
+          activeTarget.startOffset || 0,
+        );
+        return;
+      }
+      if (
+        !located &&
+        !matching.length &&
         !finishedLocation.current &&
         data.nextCursor &&
         !searched.current.has(data.nextCursor) &&
@@ -182,16 +297,10 @@ export function Context({
         setCursor(data.nextCursor);
         return;
       }
-      const text =
-        item?.text ||
-        item?.content?.map((part) => part.text || "").join("\n") ||
-        "";
       setLocationStatus(
-        item &&
-          text.slice(activeTarget.startOffset || 0, activeTarget.endOffset) ===
-            activeTarget.quote
+        located
           ? "已定位到批注原文。"
-          : item
+          : matching.length
             ? "这条消息已变化，以下保留批注时的原文。"
             : "在已读取的历史中未找到原消息，以下保留批注时的原文。可以继续查看更早对话。",
       );
@@ -208,7 +317,15 @@ export function Context({
         ?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
     }
     finishedLocation.current = true;
-  }, [activeTarget, tab, data, context.loading, codeMatch, sessionId]);
+  }, [
+    activeTarget,
+    tab,
+    data,
+    context.loading,
+    codeMatch,
+    sessionId,
+    itemLoading,
+  ]);
 
   function start(target: AnnotationTarget, element?: HTMLElement) {
     const range = window.getSelection();
@@ -224,6 +341,7 @@ export function Context({
   function changeTab(next: ContextTab) {
     setActiveTarget(undefined);
     setLocationStatus("");
+    pendingHistoryTurn.current = "";
     setTab(next);
   }
   function captureSelection() {
@@ -314,77 +432,91 @@ export function Context({
   let body;
   if (data) {
     if (tab === "history" && "thread" in data) {
-      const turns = data.thread.turns || [];
+      const turns = data.turns || [];
+      const segments = joinMaterialSegments(data.segments || []);
       body = turns.length ? (
         <ReadingLayout
+          focus={readingFocus}
+          onFocusChange={setReadingFocus}
           outline={turns.map((turn, i) => ({
             id: turn.id,
             label: readingTitle(
-              turn.items?.find((item) => item.type === "userMessage")?.text ||
-                turn.items?.[0]?.text ||
+              segments.find(
+                (segment) =>
+                  segment.turnId === turn.id && segment.type === "userMessage",
+              )?.text ||
+                segments.find((segment) => segment.turnId === turn.id)?.text ||
+                turn.label ||
                 `第 ${i + 1} 轮`,
             ),
-            onSelect: () =>
-              Array.from(
-                panel.current?.querySelectorAll<HTMLElement>(
-                  "[data-reader-turn]",
-                ) || [],
-              )
-                .find((el) => el.dataset.readerTurn === turn.id)
-                ?.scrollIntoView({ block: "start", behavior: "smooth" }),
+            onSelect: () => selectHistoryTurn(turn.id),
           }))}
         >
           <div className="history">
-            {turns.map((turn, turnIndex) => (
+            {segments.map((segment, index, all) => (
               <div
-                key={turn.id}
+                key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
                 className="history-turn"
-                data-reader-turn={turn.id}
+                data-reader-turn={segment.turnId}
               >
-                <div className="reader-turn-heading">第 {turnIndex + 1} 轮</div>
-                {(turn.items || [])
-                  .filter((item) =>
-                    [
-                      "userMessage",
-                      "agentMessage",
-                      "toolCall",
-                      "toolResult",
-                      "commandExecution",
-                      "fileChange",
-                    ].includes(item.type),
-                  )
-                  .map((item, index) => {
-                    const text =
-                      item.text ||
-                      item.content?.map((part) => part.text || "").join("\n") ||
-                      "";
-                    return (
-                      <ReaderMessage
-                        key={item.id || index}
-                        source={text}
-                        label={
-                          item.type === "userMessage"
-                            ? "用户"
-                            : item.type === "agentMessage"
-                              ? agentName
-                              : "工具过程"
-                        }
-                        target={{
-                          kind: "history",
-                          sessionId,
-                          turnId: turn.id,
-                          itemId: item.id,
-                          cursor: cursor || undefined,
-                          quote: text,
-                        }}
-                        activeTarget={activeTarget}
-                        annotations={annotations}
-                        onAnnotate={onAnnotate}
-                        onDiscuss={onDiscuss}
-                        disabled={!canAnnotate}
-                      />
-                    );
-                  })}
+                {(!index || all[index - 1]?.turnId !== segment.turnId) && (
+                  <div className="reader-turn-heading">
+                    第{" "}
+                    {turns.findIndex((turn) => turn.id === segment.turnId) + 1}{" "}
+                    轮
+                  </div>
+                )}
+                {!!index &&
+                  all[index - 1]?.turnId === segment.turnId &&
+                  all[index - 1]?.itemId === segment.itemId &&
+                  all[index - 1]!.endOffset < segment.startOffset && (
+                    <p className="material-fold-gap">
+                      中间已折叠{" "}
+                      {segment.startOffset - all[index - 1]!.endOffset} 字
+                    </p>
+                  )}
+                <ReaderMessage
+                  source={segment.text}
+                  label={
+                    segment.type === "userMessage"
+                      ? "用户"
+                      : segment.type === "agentMessage"
+                        ? agentName
+                        : segment.collapsed
+                          ? `${itemLabel(segment.type)} · 共 ${segment.length} 字 · 已显示 ${segment.endOffset - segment.startOffset} 字`
+                          : itemLabel(segment.type)
+                  }
+                  notice={segment.notice}
+                  target={{
+                    kind: "history",
+                    sessionId,
+                    turnId: segment.turnId,
+                    itemId: segment.itemId,
+                    cursor: data.pageCursor,
+                    startOffset: segment.startOffset,
+                    endOffset: segment.endOffset,
+                    quote: segment.text,
+                  }}
+                  activeTarget={activeTarget}
+                  annotations={annotations}
+                  onAnnotate={onAnnotate}
+                  onDiscuss={onDiscuss}
+                  disabled={!canAnnotate}
+                  onExpand={
+                    segment.collapsed && segment.endOffset < segment.length
+                      ? () =>
+                          void readHistoryItemAt(
+                            segment.turnId,
+                            segment.itemId,
+                            segment.endOffset,
+                          )
+                      : undefined
+                  }
+                  expanding={
+                    itemLoading === `${segment.turnId}:${segment.itemId}`
+                  }
+                  shownLength={segment.endOffset}
+                />
               </div>
             ))}
           </div>
@@ -536,7 +668,10 @@ export function Context({
         technical
       ) : (
         <>
-          <ErrorBox message={context.error} retry={refresh} />
+          <ErrorBox
+            message={context.error || historyItemError}
+            retry={context.error ? refresh : undefined}
+          />
           {historyPending && (
             <div className="reader-update" role="status">
               <span>对话有新内容，当前阅读位置已保留。</span>
@@ -579,19 +714,28 @@ export function Context({
                     className="button small"
                     disabled={context.loading}
                     onClick={() => {
+                      setHistoryTurn("");
+                      pendingHistoryTurn.current = "";
                       setCursor(data.nextCursor!);
                       finishedLocation.current = false;
                     }}
                   >
-                    更早对话
+                    {data.sourcePageComplete ? "更早对话" : "继续读取本页"}
                   </button>
                 )}
+                {data.nextCursor &&
+                  !data.sourcePageComplete &&
+                  !data.pageEndsAtTurnBoundary && (
+                    <span className="muted small-text">本轮尚未读完</span>
+                  )}
                 {cursor && (
                   <button
                     className="text-link small-text"
                     onClick={() => {
                       setActiveTarget(undefined);
                       setLocationStatus("");
+                      setHistoryTurn("");
+                      pendingHistoryTurn.current = "";
                       setCursor("");
                     }}
                   >

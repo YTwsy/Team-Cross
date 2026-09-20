@@ -154,3 +154,58 @@ func TestAnnotationsCarryStructuredSourceThroughMCP(t *testing.T) {
 		t.Fatal(calls)
 	}
 }
+
+func TestPublicationDraftReaderKeepsLargeBodiesOutOfDefaultToolResults(t *testing.T) {
+	type call struct {
+		Path string
+		Body map[string]any
+	}
+	calls := []call{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		calls = append(calls, call{Path: r.URL.Path, Body: body})
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"draft","turns":[]}`))
+	}))
+	defer server.Close()
+	backend := Backend{URL: server.URL, Client: server.Client()}
+	if _, err := backend.Invoke(context.Background(), "freeze_source_session", map[string]any{"provider": "codex", "sourceId": "source"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := backend.Invoke(context.Background(), "read_publication_draft", map[string]any{"draftId": "draft"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 2 || calls[0].Path != "/api/publications/source" || calls[0].Body["compact"] != true {
+		t.Fatal(calls)
+	}
+	if calls[1].Path != "/api/publications/read-draft" || calls[1].Body["includeOutline"] != true || calls[1].Body["draftId"] != "draft" {
+		t.Fatal(calls[1])
+	}
+}
+
+func TestReadContextForwardsHistoryItemCoordinates(t *testing.T) {
+	var query map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = map[string]string{}
+		for key := range r.URL.Query() {
+			query[key] = r.URL.Query().Get(key)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"thread":{},"segments":[]}`))
+	}))
+	defer server.Close()
+	backend := Backend{URL: server.URL, Client: server.Client()}
+	_, err := backend.Invoke(context.Background(), "read_context", map[string]any{
+		"id": "collaboration", "kind": "history", "cursor": "page-cursor",
+		"turnId": "turn", "itemId": "tool", "startOffset": 16000,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{"kind": "history", "cursor": "page-cursor", "turnId": "turn", "itemId": "tool", "startOffset": "16000"} {
+		if query[key] != want {
+			t.Fatalf("%s = %q, want %q", key, query[key], want)
+		}
+	}
+}

@@ -16,11 +16,11 @@ Agent Session 入手，为具体的一次工作增加共同视图、可定位批
 
 > 它是否从一个具体 Session 出发，并帮助另一个人理解、审阅、控制或继续这次工作？
 
-当前源码原型支持三人及以上、独立只读分享、多份会话材料及固定版本引用。空间包含参与者与邀请、已发布材料、批注与回复，以及零个或一个可操作会话；同一邀请链接可供多位同事加入，每位成员身份独立，执行时向指定成员交接输入。产品边界见 [协作空间设计契约](docs/agent-wiki/sources/decisions/collaboration-spaces.md)，本次验证范围见 [只读空间与材料验收](docs/agent-wiki/sources/validation/materials-2026-09-18.md)。这些源码能力尚未发布到安装渠道。
+当前源码原型支持三人及以上、独立只读分享、多份会话材料及固定版本引用。空间包含参与者与邀请、已发布材料、批注与回复，以及零个或一个可操作会话；同一邀请链接可供多位同事加入，每位成员身份独立，执行时向指定成员交接输入。产品边界见 [协作空间设计契约](docs/agent-wiki/sources/decisions/collaboration-spaces.md)，基础流程见 [只读空间与材料验收](docs/agent-wiki/sources/validation/materials-2026-09-18.md)，当前内容寻址存储、折叠和按条读取范围见 [2026-09-20 验收](docs/agent-wiki/sources/validation/content-addressed-materials-2026-09-20.md)。这些能力包含在当前预发布安装渠道中。
 
 ## 安装
 
-面向 Apple Silicon、macOS 14 及以上。首个公开版本为 `v0.1.1`，当前预发布版本为 `v0.1.7-rc.1`；CLI、App 和 Homebrew 产物使用相同版本。GitHub Release 成功后，受保护的后续流程才会通过独立 tap PR 发布 Homebrew 定义。发布入口为 [GitHub Releases](https://github.com/YTwsy/Team-Cross/releases)，对应渠道的 Release 与公共 tap 验证完成后可使用以下方式。
+面向 Apple Silicon、macOS 14 及以上。首个公开版本为 `v0.1.1`，当前预发布版本为 `v0.2.1-rc.1`；CLI、App 和 Homebrew 产物使用相同版本。GitHub Release 成功后，受保护的后续流程才会通过独立 tap PR 发布 Homebrew 定义。发布入口为 [GitHub Releases](https://github.com/YTwsy/Team-Cross/releases)，对应渠道的 Release 与公共 tap 验证完成后可使用以下方式。
 
 | 方式 | 安装与打开 |
 | --- | --- |
@@ -71,7 +71,7 @@ teamcross stop --force
 2. 选择“从这次提问开始”和“公开到这里为止”，或明确选择全部已结束对话。每轮的提问、回复及已保存工具过程一起公开；“建议先读哪里”只是阅读导航。
 3. 点击“预览实际公开内容”，核对正文、工具内容和未导出说明，再“创建只读空间并发布”。正在进行的轮次和之后的新内容不会自动公开。
 4. 选择 LAN 或 Tailcat，生成一份可供多位同事使用的邀请链接。成员均可“发布会话材料”，发布自己的一份或多份 Session；批注与回复可以同时引用多份材料的固定版本。
-5. “阅读材料”才读取正文；个人 Agent 先 `list_materials`，再 `read_material`。作者“发布新版本”默认沿用上次公开范围，必须再次预览；旧批注仍指向旧版本。撤回停止继续读取，已读取副本和历史引用不能召回。
+5. “阅读材料”才读取正文；个人 Agent 先 `list_materials`，再 `read_material`。默认流完整返回对话、折叠长工具输出；需要全文时按返回的 `turnId + itemId` 单独分页读取。作者“发布新版本”默认沿用上次公开范围，必须再次预览；旧批注仍指向旧版本。撤回停止继续读取，已读取副本和历史引用不能召回。
 
 只读空间不开放原生操作或工作目录。需要执行时由发起者选择“启用共同执行”，再确定来源、目录与固定权限模式。空间保留原链接、成员、材料和讨论；在成员列表向需要参与执行的人“开放执行访问”，共享完整原生历史与工作目录，再单独交接输入。原只读链接继续只授予材料和讨论访问。
 
@@ -219,7 +219,7 @@ teamcross input handoff --id <协作ID> --member <成员ID> --epoch <最新epoch
 
 取得输入后，用 `teamcross open --id <协作ID> --client tui` 打开新终端窗口，或 `--client desktop` 打开 Codex 专用窗口；`--print-command` 只取得启动计划。Claude 仅支持 TUI。启动请求成功后仍需查看 `clientState`，不把它等同于会话已打开。`end --id` 由发起者结束共享，`leave --id` 由接收者离开，`resume --id` 恢复已有 fork；这些动作保留原生会话与工作目录。
 
-历史默认返回最近 8 轮；工具可将 `nextCursor` 传入 `read_context` 的 `cursor` 读取更早内容。WebGUI 可翻阅更早的对话，按轮次目录导航；已发布材料与协作上下文支持 Markdown 排版、代码高亮、工具过程折叠、专注阅读及原文切换。对话有新内容时先提示，点击后更新当前阅读内容。
+历史从最近 8 轮开始；正文按轮对齐，对话完整返回，长工具输出默认折叠。工具可将 `nextCursor` 传入 `read_context` 的 `cursor` 继续本页或读取更早内容，也可用响应中的 `pageCursor + turnId + itemId + startOffset` 单独读完一条输出。WebGUI 可翻阅更早的对话，按轮次目录导航；已发布材料与协作上下文支持 Markdown 排版、代码高亮、工具过程折叠、专注阅读及原文切换。对话有新内容时先提示，点击后更新当前阅读内容。
 
 WebGUI 的批注面板可以直接填写整体意见。选中对话文字、点击“批注这条消息”，或点击代码行旁的 `+`，会在原文旁的编辑卡中展示引用位置和原文；窄屏在消息下方展开。拖选同一文件、同一侧的连续代码行可添加多行批注。不同引用分别保留当前页草稿，关闭或按 Escape 收起后可以继续，支持 `⌘/Ctrl + Enter` 保存。已保存的原文批注会高亮，并提供就地阅读讨论的入口。
 
@@ -229,7 +229,7 @@ WebGUI 的批注面板可以直接填写整体意见。选中对话文字、点�
 
 点击已保存批注的“查看原位置”可以返回对应对话或代码。代码批注记录文件、行号、改动前后、内容指纹与当时片段；原文变化时保留片段并提示核对，不把旧行号当成当前内容。对话批注绑定原生 turn/item 和选中文字的范围，可在历史分页中查找。
 
-直接 Codex TUI、专用 Codex Desktop 和直接 Claude Code TUI 的共享运行时内置当前空间的批注与材料工具，无需安装个人辅助 MCP。可以直接告诉它：“读取 Team Cross 批注和回复，按引用读取已发布材料，核对原文后回复这条批注。”共享工具 `read_annotations`、`reply_to_annotation`、`list_materials`、`read_material` 只访问当前空间；个人辅助客户端还可从自己的本机来源发布材料。
+直接 Codex TUI、专用 Codex Desktop 和直接 Claude Code TUI 的共享运行时内置当前空间的批注与材料工具，无需安装个人辅助 MCP。可以直接告诉它：“读取 Team Cross 批注和回复，按引用读取已发布材料；长工具输出需要时按条展开，核对原文后回复这条批注。”共享工具 `read_annotations`、`reply_to_annotation`、`list_materials`、`read_material` 只访问当前空间且仍保持四个；个人辅助客户端还可从自己的本机来源发布材料，并用 `read_publication_draft` 按需读取私有冻结草稿。
 
 保存批注或回复不会自动启动或补充模型轮次。模型需在用户提出要求后读取实际上下文，再判断如何处理；共享 Agent 的回复明确标为 Codex 或 Claude Code。新建协作会自动接入；Codex 旧协作恢复运行时后接入。Claude 旧 worker 的原生启动参数不会被改写，需要新建协作使用新工具；本版本创建的 Claude 协作恢复时会保留接入。
 
@@ -255,7 +255,7 @@ make verify-release
 make verify-homebrew
 ```
 
-本地开发构建默认 `0.1.7-dev`，输出位于 `dist/release/0.1.7-dev/`。版本构建使用 `make release VERSION=0.1.7-rc.1`，要求干净 checkout，并在重建 Web 资源后再次核对。使用相同 `VERSION` 运行两个安装验证目标。构建不上传产物。
+本地开发构建默认 `0.2.1-dev`，输出位于 `dist/release/0.2.1-dev/`。版本构建使用 `make release VERSION=0.2.1-rc.1`，要求干净 checkout，并在重建 Web 资源后再次核对。使用相同 `VERSION` 运行两个安装验证目标。构建不上传产物。
 
 GitHub 对指向 `main` 的 PR 和 `main` push 运行 Go、race、Web 与 Homebrew 定义工程门槛。`Unsigned macOS release` workflow 可以手动构建、验证和保存一个不发布的 `X.Y.Z` 或 `X.Y.Z-rc.N` arm64 产物；推送可从 `origin/main` 到达的同版本 annotated tag 时，它才会生成 provenance 并创建 GitHub Release。RC 标记为 Pre-release，正式版本标记为 Latest；在取得 Developer ID 前，两者都明确使用 ad-hoc 签名且未经 Apple 公证。Release 创建后，独立 Homebrew workflow 重新下载公开资产、验证 checksum 与 attestation、隔离安装对应定义，再使用只覆盖 tap 仓库的短期 GitHub App token 创建 PR；tap CI 通过、自动合并及公共安装 smoke 完成后才更新 Release 中的 Homebrew 状态。Tailcat 公网 smoke 和两台 Mac 验收仍不在托管发布流水线中自动运行。完整参数、证据边界和发布顺序见 [分发与首次体验](docs/agent-wiki/sources/distribution-and-onboarding.md)。
 

@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { Detail } from "../components/Detail";
 import { Publisher } from "../components/Publisher";
 import { Annotations } from "../components/Annotations";
+import { Materials } from "../components/Materials";
 import type { Collaboration, Material, PublicationDraft } from "../types";
 
 const material: Material = {
@@ -90,6 +91,178 @@ it("a read-only space lists metadata without native context or automatic materia
   expect(
     calls.some((c) => c.includes("context") || c.includes("read-material")),
   ).toBe(false);
+});
+
+it("folds long tool output and reads the selected item without advancing the stream", async () => {
+  const user = userEvent.setup(),
+    bodies: Record<string, unknown>[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path.endsWith("/read-material")) {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        bodies.push(body);
+        if (body.itemId)
+          return json({
+            materialId: "m1",
+            version: material.versions[0],
+            scope: "item",
+            itemComplete: true,
+            pageEndsAtTurnBoundary: false,
+            nextCursor: "",
+            segments: [
+              {
+                turnId: "t1",
+                itemId: "tool",
+                type: "toolResult",
+                text: "-TAIL",
+                startOffset: 5,
+                endOffset: 10,
+                length: 10,
+              },
+            ],
+          });
+        return json({
+          materialId: "m1",
+          version: material.versions[0],
+          scope: "stream",
+          pageEndsAtTurnBoundary: true,
+          nextCursor: "",
+          turns: [{ id: "t1", label: "验证工具输出" }],
+          segments: [
+            {
+              turnId: "t1",
+              itemId: "tool",
+              type: "toolResult",
+              text: "HEAD-",
+              startOffset: 0,
+              endOffset: 5,
+              length: 10,
+              collapsed: true,
+              notice: "已折叠，共 10 字",
+            },
+          ],
+        });
+      }
+      return json({});
+    }),
+  );
+  render(
+    <Materials
+      collaboration={readonly}
+      reload={() => {}}
+      onAnnotate={() => {}}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "阅读材料" }));
+  expect(
+    (await screen.findAllByText(/工具输出 · 共 10 字 · 已显示 5 字/))[0],
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "读取完整输出" }));
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("button", { name: "读取完整输出" }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(
+    screen.getByText("HEAD--TAIL", { selector: "[data-source-start]" }),
+  ).toBeInTheDocument();
+  expect(bodies[0]).toMatchObject({ includeOutline: true });
+  expect(bodies[1]).toMatchObject({
+    turnId: "t1",
+    itemId: "tool",
+    startOffset: 5,
+  });
+  expect(bodies[1]).not.toHaveProperty("cursor");
+});
+
+it("turns the open material button into collapse and matches the reading panel close action", async () => {
+  const user = userEvent.setup();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/read-material"))
+        return json({
+          materialId: "m1",
+          version: 1,
+          turns: [{ id: "t1", label: "验证" }],
+          segments: [
+            {
+              turnId: "t1",
+              itemId: "i1",
+              type: "agentMessage",
+              text: "已公开正文",
+              startOffset: 0,
+              endOffset: 5,
+            },
+          ],
+        });
+      return json({});
+    }),
+  );
+  render(
+    <Materials
+      collaboration={readonly}
+      reload={() => {}}
+      onAnnotate={() => {}}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "阅读材料" }));
+  expect(await screen.findByRole("button", { name: "收起材料" })).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "阅读材料" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "收起正文" })).toBeVisible();
+  expect(document.querySelector(".material-reading")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "收起材料" }));
+  expect(document.querySelector(".material-reading")).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "收起正文" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "阅读材料" })).toBeVisible();
+});
+
+it("keeps material provenance on the reader toolbar until the source details are opened", async () => {
+  const user = userEvent.setup();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/read-material"))
+        return json({
+          materialId: "m1",
+          version: 1,
+          turns: [{ id: "t1", label: "验证" }],
+          segments: [
+            {
+              turnId: "t1",
+              itemId: "i1",
+              type: "agentMessage",
+              text: "已公开正文",
+              startOffset: 0,
+              endOffset: 5,
+            },
+          ],
+        });
+      return json({});
+    }),
+  );
+  render(
+    <Materials
+      collaboration={readonly}
+      reload={() => {}}
+      onAnnotate={() => {}}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "阅读材料" }));
+  const summary = await screen.findByText(/codex · 公开 2 轮 · 版本 1/);
+  const details = summary.closest("details.reader-provenance");
+  expect(details).toBeTruthy();
+  expect(details?.parentElement).toHaveClass("material-reader-toolbar");
+  expect((details as HTMLDetailsElement).open).toBe(false);
+  await user.click(summary);
+  expect((details as HTMLDetailsElement).open).toBe(true);
+  expect(screen.getByText("来源 source · 0 处导出说明")).toBeVisible();
 });
 
 it("an ended read-only membership offers a new invitation without execution controls", async () => {

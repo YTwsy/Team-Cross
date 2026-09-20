@@ -27,6 +27,13 @@ type ReplyInput struct {
 }
 
 func number(s string) uint64 { v, _ := strconv.ParseUint(s, 10, 64); return v }
+func historyReadFromURL(u *url.URL) HistoryRead {
+	start, _ := strconv.Atoi(u.Query().Get("startOffset"))
+	return HistoryRead{
+		Cursor: u.Query().Get("cursor"), TurnID: u.Query().Get("turnId"),
+		ItemID: u.Query().Get("itemId"), StartOffset: start,
+	}
+}
 func respond(w http.ResponseWriter, value any, err error) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
@@ -127,7 +134,7 @@ func (a *App) target(ctx context.Context, id, method, path string, input any) (a
 	}
 	if strings.HasPrefix(path, "context") {
 		u, _ := url.Parse(path)
-		return s.Context(ctx, u.Query().Get("kind"), u.Query().Get("path"), number(u.Query().Get("after")), u.Query().Get("cursor"))
+		return s.ContextHistory(ctx, u.Query().Get("kind"), u.Query().Get("path"), number(u.Query().Get("after")), historyReadFromURL(u))
 	}
 	if path == "materials" || path == "read-material" || path == "withdraw-material" || path == "publication-status" {
 		return s.materialOperation(ctx, path, input)
