@@ -177,6 +177,94 @@ it("folds long tool output and reads the selected item without advancing the str
   expect(bodies[1]).not.toHaveProperty("cursor");
 });
 
+it("turns the open material button into collapse and matches the reading panel close action", async () => {
+  const user = userEvent.setup();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/read-material"))
+        return json({
+          materialId: "m1",
+          version: 1,
+          turns: [{ id: "t1", label: "验证" }],
+          segments: [
+            {
+              turnId: "t1",
+              itemId: "i1",
+              type: "agentMessage",
+              text: "已公开正文",
+              startOffset: 0,
+              endOffset: 5,
+            },
+          ],
+        });
+      return json({});
+    }),
+  );
+  render(
+    <Materials
+      collaboration={readonly}
+      reload={() => {}}
+      onAnnotate={() => {}}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "阅读材料" }));
+  expect(await screen.findByRole("button", { name: "收起材料" })).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "阅读材料" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "收起正文" })).toBeVisible();
+  expect(document.querySelector(".material-reading")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "收起材料" }));
+  expect(document.querySelector(".material-reading")).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "收起正文" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "阅读材料" })).toBeVisible();
+});
+
+it("keeps material provenance on the reader toolbar until the source details are opened", async () => {
+  const user = userEvent.setup();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/read-material"))
+        return json({
+          materialId: "m1",
+          version: 1,
+          turns: [{ id: "t1", label: "验证" }],
+          segments: [
+            {
+              turnId: "t1",
+              itemId: "i1",
+              type: "agentMessage",
+              text: "已公开正文",
+              startOffset: 0,
+              endOffset: 5,
+            },
+          ],
+        });
+      return json({});
+    }),
+  );
+  render(
+    <Materials
+      collaboration={readonly}
+      reload={() => {}}
+      onAnnotate={() => {}}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "阅读材料" }));
+  const summary = await screen.findByText(/codex · 公开 2 轮 · 版本 1/);
+  const details = summary.closest("details.reader-provenance");
+  expect(details).toBeTruthy();
+  expect(details?.parentElement).toHaveClass("material-reader-toolbar");
+  expect((details as HTMLDetailsElement).open).toBe(false);
+  await user.click(summary);
+  expect((details as HTMLDetailsElement).open).toBe(true);
+  expect(screen.getByText("来源 source · 0 处导出说明")).toBeVisible();
+});
+
 it("an ended read-only membership offers a new invitation without execution controls", async () => {
   vi.stubGlobal(
     "fetch",

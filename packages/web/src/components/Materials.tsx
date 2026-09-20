@@ -260,6 +260,14 @@ function MaterialReader({
             ))}
           </select>
         </label>
+        <details className="reader-provenance">
+          <summary>
+            {v?.provider} · 公开 {v?.turnCount} 轮 · 版本 {version}
+          </summary>
+          <p className="small-text muted">
+            来源 {v?.sourceId} · {v?.noticeCount || 0} 处导出说明
+          </p>
+        </details>
         <div className="material-reader-copy">
           <Copy
             label="复制 Agent 阅读提示"
@@ -273,14 +281,6 @@ function MaterialReader({
           轮，移出公开范围 {v.changes.removed} 轮。旧版本及旧引用保持不变。
         </p>
       )}
-      <details className="reader-provenance">
-        <summary>
-          {v?.provider} · 公开 {v?.turnCount} 轮 · 版本 {version}
-        </summary>
-        <p className="small-text muted">
-          来源 {v?.sourceId} · {v?.noticeCount || 0} 处导出说明
-        </p>
-      </details>
       {target?.quote && (
         <blockquote className="annotation-preview">
           <strong>所引用的原文 · 版本 {target.version}</strong>
@@ -512,12 +512,19 @@ export function Materials({
               <div className="material-actions">
                 <button
                   className="button small"
-                  disabled={disabled || !!m.withdrawnAt}
+                  disabled={
+                    reading?.materialId !== m.id &&
+                    (disabled || !!m.withdrawnAt)
+                  }
                   onClick={() =>
-                    setReading({ materialId: m.id, version: v.version })
+                    setReading(
+                      reading?.materialId === m.id
+                        ? undefined
+                        : { materialId: m.id, version: v.version },
+                    )
                   }
                 >
-                  阅读材料
+                  {reading?.materialId === m.id ? "收起材料" : "阅读材料"}
                 </button>
                 {m.authorId === self && !m.withdrawnAt && (
                   <>

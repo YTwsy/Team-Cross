@@ -2879,10 +2879,14 @@ mark[data-annotation-highlight] {
   gap: 12px;
 }
 .material-reader-toolbar {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 12px;
+  display: grid;
+  grid-template-areas: "version provenance copy";
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  justify-items: start;
+  gap: 8px 12px;
+  min-width: 0;
+  max-width: 100%;
 }
 .material-version-field {
   display: flex;
@@ -2890,12 +2894,13 @@ mark[data-annotation-highlight] {
   gap: 10px;
   min-width: 0;
   min-height: 31px;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   margin: 0;
   font-size: 12px;
   font-weight: 550;
   line-height: 1.2;
   color: var(--muted);
+  grid-area: version;
 }
 .material-version-field > span {
   flex-shrink: 0;
@@ -2922,8 +2927,10 @@ mark[data-annotation-highlight] {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  flex-shrink: 0;
   min-width: 0;
+  min-height: 31px;
+  grid-area: copy;
+  justify-self: end;
 }
 .material-empty {
   padding: 24px 0;
@@ -2938,6 +2945,8 @@ mark[data-annotation-highlight] {
   display: grid;
   gap: 14px;
   min-width: 0;
+  container-type: inline-size;
+  container-name: material-reader;
 }
 .material-body {
   min-width: 0;
@@ -3015,19 +3024,10 @@ mark[data-annotation-highlight] {
   }
 }
 @media (max-width: 600px) {
-  .material-reader-toolbar {
-    flex-wrap: wrap;
-  }
-  .material-version-field {
-    flex: 1 1 100%;
-  }
   .material-reader .material-version-field select {
     flex: 1 1 auto;
     width: 100%;
     max-width: none;
-  }
-  .material-reader-copy {
-    flex: 1 1 100%;
   }
 }
 
@@ -3362,9 +3362,84 @@ mark[data-annotation-highlight] {
   color: var(--muted);
   font-size: 12px;
   overflow-wrap: anywhere;
+  min-width: 0;
+  max-width: 100%;
+  width: auto;
+  margin: 0;
+  grid-area: provenance;
+  justify-self: stretch;
 }
-.reader-provenance summary {
+.reader-provenance > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 31px;
+  width: max-content;
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
   cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+  list-style: none;
+  white-space: nowrap;
+}
+.reader-provenance > summary::-webkit-details-marker {
+  display: none;
+}
+.reader-provenance > summary::marker {
+  content: none;
+}
+.reader-provenance > summary::before {
+  content: "";
+  width: 0.38em;
+  height: 0.38em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.reader-provenance[open] > summary {
+  margin-bottom: 2px;
+}
+.reader-provenance[open] > summary::before {
+  transform: rotate(45deg);
+}
+.reader-provenance > p {
+  margin: 0;
+  padding: 0 0 2px 1.1em;
+  line-height: 1.4;
+  white-space: normal;
+}
+@container material-reader (max-width: 620px) {
+  .material-reader-toolbar {
+    grid-template-areas:
+      "version copy"
+      "provenance provenance";
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .reader-provenance > summary {
+    min-height: 0;
+  }
+}
+@media (max-width: 600px) {
+  .material-reader-toolbar {
+    grid-template-areas:
+      "version"
+      "provenance"
+      "copy";
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .material-version-field {
+    width: 100%;
+  }
+  .material-reader-copy {
+    justify-self: start;
+  }
 }
 .reader-update {
   display: flex;
