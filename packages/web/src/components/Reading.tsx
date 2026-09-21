@@ -209,19 +209,29 @@ export function ReadingLayout({
   label = "本篇目录",
   focus: controlledFocus,
   onFocusChange,
+  toolbar,
 }: {
-  outline: { id: string; label: string; onSelect: () => void }[];
+  outline: {
+    id: string;
+    label: string;
+    onSelect: () => void;
+    number?: number;
+    selected?: boolean;
+    current?: boolean;
+    meta?: string;
+  }[];
   children: ReactNode;
   label?: string;
   focus?: boolean;
   onFocusChange?: (focus: boolean) => void;
+  toolbar?: ReactNode;
 }) {
   const [localFocus, setLocalFocus] = useState(false);
   const focus = controlledFocus ?? localFocus;
   return (
     <div className={`reading-surface ${focus ? "reader-focus" : ""}`}>
       <div className="reader-toolbar">
-        <span>选中文字可批注</span>
+        <span>{toolbar ?? "选中文字可批注"}</span>
         <button
           className="text-button"
           onClick={() => {
@@ -241,9 +251,17 @@ export function ReadingLayout({
             </summary>
             <nav aria-label={label}>
               {outline.map((turn, i) => (
-                <button key={turn.id} onClick={turn.onSelect}>
-                  <span>{String(i + 1).padStart(2, "0")}</span>
+                <button
+                  key={turn.id}
+                  onClick={turn.onSelect}
+                  aria-current={turn.current ? "true" : undefined}
+                  className={turn.selected ? "is-in-range" : undefined}
+                >
+                  <span>{String(turn.number ?? i + 1).padStart(2, "0")}</span>
                   {turn.label}
+                  {turn.meta && (
+                    <small className="reader-outline-meta">{turn.meta}</small>
+                  )}
                 </button>
               ))}
             </nav>

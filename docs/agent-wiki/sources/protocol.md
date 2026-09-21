@@ -208,7 +208,7 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 
 冻结来源必须提供准确的 `provider/sourceId`；可使用来源列表，或先由个人 MCP `get_current_source` 核对当前原生身份，不能根据更新时间或目录猜测。冻结只读取已结束的连续历史前缀，不 resume、fork 或读取来源目录；正在运行的一轮留在本机。Codex 还以持久化轮次事件核对结束边界。草稿保存在本机 `publication-drafts/`，新对话不会追加进去。
 
-预览在固定草稿中选择连续的 `startTurnId..endTurnId`，每轮包含可导出的用户提问、可见回复和已保存工具过程。`readingStartId` 仅为导航，必须在范围内。WebGUI 可取得完整草稿；个人 MCP 的 `freeze_source_session` / `preview_publication` 默认只返回 `{id,hash,frozenAt,title,provider,sourceId,startTurnId,endTurnId,readingStartId?,turns}` 的小型目录，轮次含 `id/status/label/itemCount`，正文由新增的 `read_publication_draft` 按需读取。隐藏推理不导出；未知内容、未导出的图片/附件与过长项目有明确说明，不凭路径或 URL 额外拉取内容。折叠只是读取投影，完整已保存正文仍属于预览和授权范围。
+预览在固定草稿中选择连续的 `startTurnId..endTurnId`，每轮包含可导出的用户提问、可见回复和已保存工具过程。`readingStartId` 仅为导航，必须在范围内。WebGUI 对冻结和预览请求传入 `compact:true`；个人 MCP 的 `freeze_source_session` / `preview_publication` 默认也返回小型目录：`{id,hash,frozenAt,title,provider,sourceId,startTurnId,endTurnId,readingStartId?,turnCount,noticeCount,turns,readHint}`，轮次含 `id/status/label/itemCount/noticeCount`。导出说明按带有非空 `notice` 的 item 计数，预览只统计所选范围；正文不内联，WebGUI 通过 `publications/read-draft`、个人 MCP 通过 `read_publication_draft` 按需读取。确认页使用范围预览自己的 `draftId/hash`，不能复用完整来源草稿的游标。隐藏推理不导出；未知内容、未导出的图片/附件与过长项目有明确说明，不凭路径或 URL 额外拉取内容。折叠只是读取投影，完整已保存正文仍属于预览和授权范围。
 
 本机草稿与托管材料都以不可变清单和内容寻址正文保存。清单描述 `turns → items → {id,type,notice,body}`；不超过 4 KiB 且清单累计内联不超过 256 KiB 的正文直接放在 `body.kind=inline`，其他正文使用 `body.kind=blob/hash/byteLength/utf16Length/lineCount`。blob 哈希是原始 UTF-8 字节的 SHA-256；轮次和清单使用带版本域的确定性哈希。材料版本哈希就是清单哈希，展示预览不会改变原文、偏移或哈希。
 

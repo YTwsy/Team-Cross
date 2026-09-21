@@ -20,6 +20,8 @@
 
 ## 完整事实来源
 
+- [2026-09-21 分享范围阅读与确认](../sources/validation/publication-range-2026-09-21.md)：目录定位与范围分离、紧凑草稿分页、确认范围隔离、96 项 Web 回归和真实浏览器发布流程。
+
 - [2026-09-21 v0.2.1 正式版发布](../sources/validation/release-v0.2.1-2026-09-21.md)：PR/main、annotated tag、Latest Release、arm64 资产与 provenance、稳定 Homebrew tap PR 和公共 smoke。
 - [2026-09-20 协作对话目录定位](../sources/validation/context-outline-2026-09-20.md)：未加载轮次的读取与定位、专注状态、窄屏留白及工程验证。
 - [2026-09-20 内容寻址材料与按条读取](../sources/validation/content-addressed-materials-2026-09-20.md)：schema 3 清单/blob、可续传发布、材料与活上下文折叠、Agent/MCP 按条读取、83 项 Web 回归和真实浏览器闭环。

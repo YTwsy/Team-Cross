@@ -1,41 +1,33 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, errorText, useResource } from "../api";
 import {
   sourceName,
   type Collaboration,
   type Material,
-  type MaterialTurn,
   type Provider,
-  type PublicationDraft,
+  type PublicationDraftSummary,
   type PublicationResult,
   type Source,
+  projectName,
+  relativeTime,
 } from "../types";
 import { ErrorBox, Icon, Loading, PageHeading, ProviderFilter } from "./ui";
 import { Create } from "./Create";
-
-const turnLabel = (t: MaterialTurn, index: number) =>
-  `${index + 1}. ${(t.items.find((i) => i.type === "userMessage")?.text || t.items[0]?.text || "对话").slice(0, 90)}`;
-export const itemLabel = (type: string) =>
-  ({
-    userMessage: "用户提问",
-    agentMessage: "助手回复",
-    toolCall: "工具调用",
-    toolResult: "工具输出",
-    commandExecution: "命令与结果",
-    fileChange: "文件改动",
-    unavailable: "未能导出的内容",
-  })[type] || "已保存的工具过程";
+import { PublicationReader } from "./PublicationReader";
+export { itemLabel } from "../reading";
 
 export function Publisher({
   spaceId,
   material,
   embedded,
   onPublished,
+  onStageChange,
 }: {
   spaceId?: string;
   material?: Material;
   embedded?: boolean;
   onPublished: (result: PublicationResult, id: string) => void;
+  onStageChange?: (stage: "source" | "range" | "review") => void;
 }) {
   const latest = material?.versions.at(-1);
   const [provider, setProvider] = useState<Provider>(
@@ -45,8 +37,11 @@ export function Publisher({
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState("");
   const [sourceId, setSourceId] = useState(latest?.sourceId || "");
-  const [draft, setDraft] = useState<PublicationDraft>();
-  const [preview, setPreview] = useState<PublicationDraft>();
+  const [draft, setDraft] = useState<PublicationDraftSummary>();
+  const [preview, setPreview] = useState<PublicationDraftSummary>();
+  const [reviewing, setReviewing] = useState(false);
+  const [previewReady, setPreviewReady] = useState(false);
+  const [source, setSource] = useState<Source>();
   const [title, setTitle] = useState(latest?.title || "");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -59,6 +54,19 @@ export function Publisher({
   const spaceRequest = useRef(spaceId || crypto.randomUUID());
   const createdSpace = useRef(spaceId);
   const mounted = useRef(true);
+  const composer = useRef<HTMLElement>(null);
+  const editorPosition = useRef(0);
+  const restoreEditor = useRef(false);
+  const stage = !draft ? "source" : reviewing ? "review" : "range";
+  useEffect(() => onStageChange?.(stage), [stage, onStageChange]);
+  useLayoutEffect(() => {
+    if (restoreEditor.current) {
+      const dialog = composer.current?.closest("dialog");
+      if (dialog) dialog.scrollTop = editorPosition.current;
+      else window.scrollTo({ top: editorPosition.current });
+      restoreEditor.current = false;
+    }
+  }, [reviewing]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -83,9 +91,10 @@ export function Publisher({
     setError("");
     setStatusNote("");
     try {
-      const d = await api<PublicationDraft>("publications/source", {
+      const d = await api<PublicationDraftSummary>("publications/source", {
         provider,
         sourceId,
+        compact: true,
       });
       if (!mounted.current) return;
       setDraft(d);
@@ -117,6 +126,10 @@ export function Publisher({
           "这次历史中没有找到上次公开范围的边界，请重新选择。不会自动扩大公开范围。",
         );
       setPreview(undefined);
+      setReviewing(false);
+      requestAnimationFrame(() =>
+        composer.current?.scrollIntoView?.({ block: "start" }),
+      );
     } catch (e) {
       if (mounted.current) setError(errorText(e));
     } finally {
@@ -127,21 +140,32 @@ export function Publisher({
     setPreview(undefined);
     setUncertain(false);
     setStatusNote("");
+    setError("");
   }
   async function review() {
     if (!draft) return;
     setBusy(true);
     setError("");
     try {
-      const p = await api<PublicationDraft>("publications/preview", {
+      const p = await api<PublicationDraftSummary>("publications/preview", {
         draftId: draft.id,
         title,
         startTurnId: start,
         endTurnId: end,
         readingStartId: reading,
+        compact: true,
       });
       if (!mounted.current) return;
       setPreview(p);
+      setPreviewReady(false);
+      if (!reviewing) {
+        editorPosition.current =
+          composer.current?.closest("dialog")?.scrollTop ?? window.scrollY;
+        setReviewing(true);
+        requestAnimationFrame(() =>
+          composer.current?.scrollIntoView?.({ block: "start" }),
+        );
+      }
       attempt.current = crypto.randomUUID();
       setUncertain(false);
     } catch (e) {
@@ -151,7 +175,7 @@ export function Publisher({
     }
   }
   async function publish() {
-    if (!preview || busy) return;
+    if (!preview || busy || !previewCurrent || !previewReady) return;
     setBusy(true);
     setError("");
     try {
@@ -206,8 +230,43 @@ export function Publisher({
   }
   const startIndex = draft?.turns.findIndex((t) => t.id === start) ?? 0;
   const endIndex = draft?.turns.findIndex((t) => t.id === end) ?? 0;
+  const validRange = startIndex >= 0 && endIndex >= startIndex;
+  const count = validRange ? endIndex - startIndex + 1 : 0;
+  const previewCurrent =
+    !!preview &&
+    preview.title === title.trim() &&
+    preview.startTurnId === start &&
+    preview.endTurnId === end &&
+    (preview.readingStartId || "") === reading;
+  const readingIndex = draft?.turns.findIndex((t) => t.id === reading) ?? -1;
+  const selectedNotices = validRange
+    ? draft?.turns
+        .slice(startIndex, endIndex + 1)
+        .reduce((n, t) => n + (t.noticeCount || 0), 0) || 0
+    : 0;
+  function setRange(first: string, last: string) {
+    if (!draft) return;
+    const from = draft.turns.findIndex((t) => t.id === first);
+    const to = draft.turns.findIndex((t) => t.id === last);
+    const previousReading = draft.turns.findIndex((t) => t.id === reading);
+    setStart(first);
+    setEnd(last);
+    changeScope();
+    if (reading && (previousReading < from || previousReading > to)) {
+      setReading("");
+      setStatusNote("原建议阅读起点已移出范围，改为从分享范围开头阅读。");
+    }
+  }
+  function returnToEditor() {
+    restoreEditor.current = true;
+    setReviewing(false);
+  }
   return (
-    <section className="publication-composer" aria-label="发布会话材料">
+    <section
+      ref={composer}
+      className="publication-composer"
+      aria-label="发布会话材料"
+    >
       {!embedded && (
         <p className="muted">
           选择你本机的一份调查。只有确认的历史范围会发布到空间，供现在和以后获准加入的成员阅读。
@@ -235,6 +294,7 @@ export function Publisher({
                   onChange={(value) => {
                     setProvider(value);
                     setSourceId("");
+                    setSource(undefined);
                     setCursor("");
                   }}
                 />
@@ -270,12 +330,20 @@ export function Publisher({
                         role="radio"
                         aria-checked={sourceId === s.id}
                         disabled={busy}
-                        onClick={() => setSourceId(s.id)}
+                        onClick={() => {
+                          setSourceId(s.id);
+                          setSource(s);
+                        }}
                       >
                         <span className="radio-dot" />
                         <div>
                           <strong>{sourceName(s)}</strong>
-                          <span className="source-description">{s.preview}</span>
+                          <span className="source-description">
+                            {s.preview}
+                          </span>
+                          <span className="row-meta">
+                            {projectName(s.cwd)} · {relativeTime(s.updatedAt)}
+                          </span>
                         </div>
                       </button>
                     ))}
@@ -315,169 +383,197 @@ export function Publisher({
         </>
       ) : (
         <>
-          <p className="inline-note">
-            历史已固定在 {new Date(draft.frozenAt).toLocaleString("zh-CN")}
-            。源会话的新对话不会自动加入本次发布。
-          </p>
-          <fieldset disabled={busy || uncertain} className="publication-range">
-            <label className="field">
-              材料名称
-              <input
-                maxLength={160}
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  changeScope();
-                }}
-              />
-            </label>
-            <button
-              className="button small"
-              type="button"
-              onClick={() => {
-                setStart(draft.startTurnId);
-                setEnd(draft.endTurnId);
-                setReading("");
-                changeScope();
-              }}
-            >
-              选择全部已结束对话
-            </button>
-            <div className="publication-range-grid">
-              <label className="field">
-                从这次提问开始
-                <select
-                  value={start}
-                  onChange={(e) => {
-                    setStart(e.target.value);
-                    setReading("");
-                    changeScope();
-                  }}
-                >
-                  <option value="" disabled>
-                    选择起点…
-                  </option>
-                  {draft.turns.map((t, i) => (
-                    <option key={t.id} value={t.id}>
-                      {turnLabel(t, i)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                公开到这里为止
-                <select
-                  value={end}
-                  onChange={(e) => {
-                    setEnd(e.target.value);
-                    setReading("");
-                    changeScope();
-                  }}
-                >
-                  <option value="" disabled>
-                    选择终点…
-                  </option>
-                  {draft.turns.map((t, i) => (
-                    <option key={t.id} value={t.id} disabled={i < startIndex}>
-                      {turnLabel(t, i)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <label className="field">
-              建议先读哪里
-              <select
-                value={reading}
-                onChange={(e) => {
-                  setReading(e.target.value);
-                  changeScope();
-                }}
-              >
-                <option value="">从公开范围开头阅读</option>
-                {draft.turns.slice(startIndex, endIndex + 1).map((t, i) => (
-                  <option key={t.id} value={t.id}>
-                    {turnLabel(t, startIndex + i)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="small-text muted">
-              每次提问、可见回复及已保存的工具过程一起选中。建议阅读起点只影响导航，范围内其他内容仍然可以读取。
-            </p>
-            <button
-              className="button"
-              disabled={
-                startIndex < 0 ||
-                endIndex < 0 ||
-                startIndex > endIndex ||
-                !title.trim()
-              }
-              onClick={() => void review()}
-            >
-              预览实际公开内容
-            </button>
-          </fieldset>
-          {preview && (
-            <div className="publication-review">
-              <h3>
-                即将公开：{preview.title} · {preview.turns.length} 轮
-              </h3>
-              <p>
-                下方包含全部发布正文；折叠的内容也会公开。工具参数和输出请一并核对，未导出的附件或内容会注明。
-              </p>
-              <div className="publication-transcript">
-                {preview.turns.map((t, i) => (
-                  <details key={t.id} open={i === 0}>
-                    <summary>
-                      {turnLabel(t, i)} ·{" "}
-                      {t.status === "completed" ? "已完成" : "已结束但未完成"}
-                    </summary>
-                    {t.items.map((item) => (
-                      <div className="material-message" key={item.id}>
-                        <strong>{itemLabel(item.type)}</strong>
-                        {item.notice && (
-                          <p className="inline-note">{item.notice}</p>
-                        )}
-                        <pre>{item.text}</pre>
-                      </div>
-                    ))}
-                  </details>
-                ))}
-              </div>
+          <div className="publication-source-bar">
+            <div>
+              <span className="eyebrow">
+                {reviewing ? "确认分享内容" : "选择分享范围"}
+              </span>
+              <h2>{draft.title}</h2>
               <p className="small-text muted">
-                发布后保留固定版本。更新和扩大公开范围都需要再次发布。
+                {provider === "claude" ? "Claude Code" : "Codex"}
+                {source?.cwd ? ` · ${projectName(source.cwd)}` : ""} ·{" "}
+                {draft.turns.length} 轮已结束对话
               </p>
-              <button
-                className="button primary"
-                disabled={busy}
-                onClick={() => void publish()}
-              >
-                {busy
-                  ? "正在保存…"
-                  : material
-                    ? `发布版本 ${latest!.version + 1}`
-                    : spaceId
-                      ? "发布到空间"
-                      : "创建只读空间并发布"}
-              </button>
             </div>
-          )}
-          {!uncertain && (
             <button
               className="text-link"
-              disabled={busy}
+              disabled={busy || uncertain}
               onClick={() => {
                 setDraft(undefined);
                 setPreview(undefined);
+                setReviewing(false);
+                setError("");
               }}
             >
-              重新选择来源
+              {latest ? "重新读取来源" : "重新选择来源"}
             </button>
+          </div>
+          <p className="publication-snapshot small-text muted">
+            固定于 {new Date(draft.frozenAt).toLocaleString("zh-CN")} ·
+            后续对话不会自动加入
+          </p>
+          <div className="publication-scope-bar">
+            <div
+              className="publication-scope-description"
+              role="status"
+              aria-live="polite"
+            >
+              <strong>
+                {validRange
+                  ? `已选第 ${startIndex + 1}–${endIndex + 1} 轮，共 ${count} 轮`
+                  : "请重新选择起点和终点"}
+              </strong>
+              <span className="small-text muted">
+                {readingIndex >= 0
+                  ? `建议从第 ${readingIndex + 1} 轮读起 · 分享范围不变`
+                  : "默认从分享范围开头阅读"}
+              </span>
+            </div>
+            {!reviewing && (
+              <div className="publication-presets">
+                <button
+                  className="button small"
+                  disabled={busy || uncertain}
+                  aria-pressed={
+                    start === draft.startTurnId && end === draft.endTurnId
+                  }
+                  onClick={() => setRange(draft.startTurnId, draft.endTurnId)}
+                >
+                  全部已结束对话
+                </button>
+                {draft.turns.length > 3 && (
+                  <button
+                    className="button small"
+                    disabled={busy || uncertain}
+                    aria-pressed={
+                      start === draft.turns.at(-3)!.id &&
+                      end === draft.endTurnId
+                    }
+                    onClick={() =>
+                      setRange(draft.turns.at(-3)!.id, draft.endTurnId)
+                    }
+                  >
+                    最近 3 轮
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          {selectedNotices > 0 && (
+            <p className="publication-export-notice">
+              选中范围有 {selectedNotices}{" "}
+              处导出说明，请在对应轮次核对附件缺失或内容省略。
+            </p>
           )}
+          {!reviewing && <ErrorBox message={error} />}
+          {!reviewing && statusNote && (
+            <p className="small-text muted" role="status">
+              {statusNote}
+            </p>
+          )}
+          <div hidden={reviewing}>
+            <PublicationReader
+              key={draft.id}
+              draft={draft}
+              disabled={busy || uncertain}
+              scope={{
+                start,
+                end,
+                reading,
+                onStart: (id) => {
+                  const index = draft.turns.findIndex((t) => t.id === id);
+                  setRange(id, endIndex >= 0 && endIndex < index ? id : end);
+                },
+                onEnd: (id) => {
+                  const index = draft.turns.findIndex((t) => t.id === id);
+                  setRange(startIndex > index ? id : start, id);
+                },
+                onReading: (id) => {
+                  setReading(id);
+                  changeScope();
+                },
+              }}
+            />
+          </div>
+          {reviewing && preview && (
+            <div className="publication-confirmation">
+              <label className="field">
+                分享标题
+                <input
+                  maxLength={160}
+                  disabled={busy || uncertain}
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    setError("");
+                  }}
+                />
+              </label>
+              {!previewCurrent && (
+                <p className="small-text muted" role="status">
+                  标题已修改，更新分享预览后即可发布。
+                </p>
+              )}
+              <PublicationReader
+                draft={preview}
+                originalTurns={draft.turns}
+                onReadyChange={setPreviewReady}
+              />
+            </div>
+          )}
+          <div className="publication-footer">
+            <div className="publication-footer-summary">
+              <strong>
+                {validRange
+                  ? `将分享第 ${startIndex + 1}–${endIndex + 1} 轮（共 ${count} 轮）及已保存的工具过程`
+                  : "尚未确定分享范围"}
+              </strong>
+              <span className="small-text muted">
+                {reviewing
+                  ? "发布后保留固定版本，新增内容需再次发布。"
+                  : "每轮提问、回复和工具过程一起选择。"}
+              </span>
+            </div>
+            <div className="publication-footer-actions">
+              {reviewing && (
+                <button
+                  className="button"
+                  disabled={busy || uncertain}
+                  onClick={returnToEditor}
+                >
+                  返回调整范围
+                </button>
+              )}
+              <button
+                className="button primary"
+                disabled={
+                  busy ||
+                  !validRange ||
+                  !title.trim() ||
+                  (reviewing && previewCurrent && !previewReady)
+                }
+                onClick={() =>
+                  void (reviewing && previewCurrent ? publish() : review())
+                }
+              >
+                {busy
+                  ? "正在处理…"
+                  : !reviewing
+                    ? "预览分享内容"
+                    : !previewCurrent
+                      ? "更新分享预览"
+                      : material
+                        ? `发布版本 ${latest!.version + 1}`
+                        : spaceId
+                          ? "发布到空间"
+                          : "创建只读空间并发布"}
+                {!reviewing && <Icon name="arrow" size={16} />}
+              </button>
+            </div>
+          </div>
         </>
       )}
-      <ErrorBox message={error} />
+      {(!draft || reviewing) && <ErrorBox message={error} />}
       {uncertain && (
         <div className="notice">
           <p>
@@ -503,8 +599,12 @@ function keepIntentScroll(e: { preventDefault: () => void }) {
 
 export function StartSpace() {
   const [mode, setMode] = useState<"readonly" | "execution">("readonly");
+  const [publicationStage, setPublicationStage] = useState<
+    "source" | "range" | "review"
+  >("source");
+  const compact = mode === "readonly" && publicationStage !== "source";
   return (
-    <div className="start-space">
+    <div className={`start-space ${compact ? "is-publishing" : ""}`}>
       <a href="#/" className="back-link">
         <Icon name="back" size={16} />
         协作空间
@@ -513,7 +613,19 @@ export function StartSpace() {
         title="发起协作"
         subtitle="从一份本机会话开始。分享讨论只发布选定历史；一起执行会立刻创建原生 fork。"
       />
-      <fieldset className="workspace-field start-intent">
+      {compact && (
+        <div className="publication-intent">
+          <span>
+            <Icon name="comment" size={16} />
+            先分享讨论
+          </span>
+          <span className="muted small-text">
+            来源已选择 ·{" "}
+            {publicationStage === "review" ? "确认分享" : "选择范围"}
+          </span>
+        </div>
+      )}
+      <fieldset className="workspace-field start-intent" hidden={compact}>
         <legend>这次要做什么</legend>
         <div className="workspace-grid">
           <label
@@ -574,6 +686,7 @@ export function StartSpace() {
           <div className="panel publication-start">
             <Publisher
               embedded
+              onStageChange={setPublicationStage}
               onPublished={(_, id) => {
                 sessionStorage.setItem(`teamcross.invite.${id}`, "1");
                 location.hash = `/collaborations/${id}`;
