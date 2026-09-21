@@ -2,7 +2,7 @@
 
 这里是面向 coding agent 的工程知识层，帮助后续任务快速找到产品约束、相关代码和验证方法。当前采用手工维护，沿用 OpenSurge 与 Team Cross 早期 Agent Wiki 的目录组织方式。
 
-从 [任务索引](wiki/index.md) 开始。面向用户的说明继续由根目录 [README](../../README.md) 承担。
+从 [任务索引](wiki/index.md) 开始。面向用户的产品概览与快速开始见根目录 [README](../../README.md)，详细操作见 [使用指南](../user-guide.md)，本地构建与检查见 [开发与验证](../development.md)。
 
 ## 目录与职责
 
