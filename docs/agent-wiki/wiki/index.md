@@ -20,6 +20,7 @@
 
 ## 完整事实来源
 
+- [2026-09-21 v0.2.1 正式版发布](../sources/validation/release-v0.2.1-2026-09-21.md)：PR/main、annotated tag、Latest Release、arm64 资产与 provenance、稳定 Homebrew tap PR 和公共 smoke。
 - [2026-09-20 协作对话目录定位](../sources/validation/context-outline-2026-09-20.md)：未加载轮次的读取与定位、专注状态、窄屏留白及工程验证。
 - [2026-09-20 内容寻址材料与按条读取](../sources/validation/content-addressed-materials-2026-09-20.md)：schema 3 清单/blob、可续传发布、材料与活上下文折叠、Agent/MCP 按条读取、83 项 Web 回归和真实浏览器闭环。
 - [2026-09-19 空间邀请与关闭](../sources/validation/space-invitations-2026-09-19.md)：一个链接多人加入、原空间启用执行、成员访问与无成员关闭。

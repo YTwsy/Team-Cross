@@ -91,3 +91,5 @@ MCP 配置保存稳定 opt/App 绝对路径。通过 Cask 命令链接调用时�
 本轮实际证据与未完成项见 [2026-09-11 v0.1.1 验收](validation/distribution-v0.1.1-2026-09-11.md)；[2026-09-10 验收](validation/onboarding-macos-2026-09-10.md) 保留为当时的开发包记录，其共存设计不再是当前分发规则。外部规范：[Apple 自定义 URL Scheme](https://developer.apple.com/documentation/xcode/defining-a-custom-url-scheme-for-your-app) · [Homebrew Cask Cookbook](https://docs.brew.sh/Cask-Cookbook)。
 
 `v0.1.7-rc.1` 的信任模式 PR、公开产物、来源证明、Homebrew RC 及检查登记竞态恢复见 [2026-09-16 发布验证](validation/release-v0.1.7-rc.1-2026-09-16.md)。
+
+`v0.2.1` 正式版的 release commit/tag、arm64 资产、checksum/provenance、稳定 Homebrew PR 与公共安装 smoke 见 [2026-09-21 发布验证](validation/release-v0.2.1-2026-09-21.md)。
