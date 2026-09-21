@@ -6,7 +6,7 @@
 
 以下流程表包含分享审阅和共同执行；边界按 [协作空间契约](decisions/collaboration-spaces.md) 维护。
 
-统一用词见 [产品核心与词汇](product-core-and-glossary.md)，面向用户的启动与操作说明见 [README](../../../README.md)。
+统一用词见 [产品核心与词汇](product-core-and-glossary.md)，面向用户的快速开始见 [README](../../../README.md)，详细启动与操作说明见 [使用指南](../../user-guide.md)。
 
 | 功能 | 用户流程 | 结束时得到什么 |
 | --- | --- | --- |
