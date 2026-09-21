@@ -26,16 +26,25 @@ type publicationDraftReadResponse struct {
 
 func publicationDraftSummary(draft PublicationDraft) map[string]any {
 	turns := make([]map[string]any, 0, len(draft.Turns))
+	notices := 0
 	for _, turn := range draft.Turns {
-		turns = append(turns, map[string]any{"id": turn.ID, "status": turn.Status, "label": materialTurnLabel(turn), "itemCount": len(turn.Items)})
+		turnNotices := 0
+		for _, item := range turn.Items {
+			if item.Notice != "" {
+				turnNotices++
+			}
+		}
+		notices += turnNotices
+		turns = append(turns, map[string]any{"id": turn.ID, "status": turn.Status, "label": materialTurnLabel(turn), "itemCount": len(turn.Items), "noticeCount": turnNotices})
 	}
 	return map[string]any{
 		"id": draft.ID, "title": draft.Title, "provider": draft.Provider,
 		"sourceId": draft.SourceID, "startTurnId": draft.StartTurnID,
 		"endTurnId": draft.EndTurnID, "readingStartId": draft.ReadingStartID,
 		"frozenAt": draft.FrozenAt, "hash": draft.Hash, "turnCount": len(draft.Turns),
-		"turns":    turns,
-		"readHint": "正文未内联；使用 read_publication_draft 按流读取，长工具输出折叠后可按 turnId + itemId 展开",
+		"noticeCount": notices,
+		"turns":       turns,
+		"readHint":    "正文未内联；使用 read_publication_draft 按流读取，长工具输出折叠后可按 turnId + itemId 展开",
 	}
 }
 

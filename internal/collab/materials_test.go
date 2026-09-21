@@ -742,6 +742,50 @@ func TestPublicationDraftReadUsesSameFoldedAndItemScopes(t *testing.T) {
 	}
 }
 
+func TestPublicationDraftSummaryCountsNoticesWithinPreviewScope(t *testing.T) {
+	a, _, _ := fixture(t)
+	draft, err := a.saveDraft(PublicationDraft{
+		ID: uuid.NewString(), FrozenAt: time.Now(),
+		MaterialContent: MaterialContent{
+			Title: "范围预览", Provider: "codex", SourceID: uuid.NewString(), StartTurnID: "private", EndTurnID: "public",
+			Turns: []MaterialTurn{
+				{ID: "private", Status: "completed", Items: []MaterialItem{
+					{ID: "u", Type: "userMessage", Text: "范围外提问"},
+					{ID: "a", Type: "agentMessage", Text: "完整私有正文不能内联", Notice: "未导出附件"},
+				}},
+				{ID: "public", Status: "completed", Items: []MaterialItem{
+					{ID: "u", Type: "userMessage", Text: "范围内提问"},
+					{ID: "tool", Type: "toolResult", Text: "完整工具正文不能内联", Notice: "部分内容省略"},
+					{ID: "file", Type: "unavailable", Notice: "文件不可用"},
+				}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	full := publicationDraftSummary(draft)
+	if full["noticeCount"] != 3 || full["turnCount"] != 2 {
+		t.Fatal(full)
+	}
+	preview, err := a.PreviewPublication(PublicationSelection{DraftID: draft.ID, Title: "范围预览", StartTurnID: "public", EndTurnID: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	summary := publicationDraftSummary(preview)
+	turns := summary["turns"].([]map[string]any)
+	if summary["noticeCount"] != 2 || len(turns) != 1 || turns[0]["id"] != "public" || turns[0]["noticeCount"] != 2 || turns[0]["itemCount"] != 3 {
+		t.Fatal(summary)
+	}
+	encoded, err := json.Marshal(summary)
+	if err != nil || strings.Contains(string(encoded), "正文不能内联") || strings.Contains(string(encoded), "范围外提问") || strings.Contains(string(encoded), "\"items\"") {
+		t.Fatalf("compact summary exposed body or outside scope: %s, %v", encoded, err)
+	}
+	if _, err = a.ReadPublicationDraft(PublicationDraftRead{DraftID: preview.ID, TurnID: "private"}); err == nil {
+		t.Fatal("confirmation reader reached a turn outside its server-scoped preview")
+	}
+}
+
 func TestSchemaTwoSpaceRemainsOnDiskButIsNotLoaded(t *testing.T) {
 	data := t.TempDir()
 	id := uuid.NewString()

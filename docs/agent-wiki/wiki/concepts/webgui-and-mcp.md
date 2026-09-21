@@ -16,9 +16,11 @@ WebGUI 提供协作管理、材料阅读与原文讨论；执行交互在对应�
 | 本机管理与客户端启动 | [http.go](../../../../internal/collab/http.go)、[launch.go](../../../../internal/collab/launch.go) |
 | STDIO 工具与协议输入 | [mcp/server.go](../../../../internal/mcp/server.go) |
 | 终端协作查询与输入管理 | [collaboration.go](../../../../cmd/teamcross/collaboration.go) |
-| 只读入口、公开范围与固定版本阅读 | [Publisher.tsx](../../../../packages/web/src/components/Publisher.tsx)、[ReadOnlySpace.tsx](../../../../packages/web/src/components/ReadOnlySpace.tsx)、[Materials.tsx](../../../../packages/web/src/components/Materials.tsx) |
+| 只读入口、公开范围与固定版本阅读 | [Publisher.tsx](../../../../packages/web/src/components/Publisher.tsx)、[PublicationReader.tsx](../../../../packages/web/src/components/PublicationReader.tsx)、[ReadOnlySpace.tsx](../../../../packages/web/src/components/ReadOnlySpace.tsx)、[Materials.tsx](../../../../packages/web/src/components/Materials.tsx) |
 
 ## 修改时守住的边界
+
+来源固定后收起形态卡片，用目录与正文选择连续整轮范围。目录只定位，建议阅读起点只导航；底部持续显示起止和轮数。确认页读取 Core 按范围生成的私有预览，正文成功加载后才能发布；返回编辑保留阅读状态。完整行为见 [分享范围与确认](../../sources/product-flows.md#分享范围与确认)，回归见 [发布交互测试](../../../../packages/web/src/test/publication.test.tsx)。
 
 只读流程选择明确来源、冻结历史、起止范围、实际内容预览后发布。更新默认保留上一版范围；边界缺失须重新选，不能退回全部历史。材料正文只按需展开，引用绑定版本，个人和共享 Agent 通过 `list_materials/read_material` 读取；个人 MCP 还可用 `read_publication_draft` 读取私有冻结草稿，共享运行时仍保持四个工具且不枚举个人来源。批注和回复可以附多份材料。
 

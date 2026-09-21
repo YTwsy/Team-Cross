@@ -286,6 +286,17 @@ export type PublicationDraft = {
   readingStartId?: string;
   turns: MaterialTurn[];
 };
+export type PublicationDraftSummary = Omit<PublicationDraft, "turns"> & {
+  turnCount: number;
+  noticeCount: number;
+  turns: {
+    id: string;
+    status: string;
+    label: string;
+    itemCount: number;
+    noticeCount: number;
+  }[];
+};
 export type MaterialVersion = {
   version: number;
   title: string;
@@ -329,6 +340,13 @@ export type MaterialPage = {
     readHint?: string;
   }[];
   nextCursor: string;
+};
+export type PublicationDraftPage = Omit<
+  MaterialPage,
+  "materialId" | "version"
+> & {
+  draftId: string;
+  hash: string;
 };
 export type PublicationResult = {
   materialId: string;
