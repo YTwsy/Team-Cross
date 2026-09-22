@@ -43,6 +43,7 @@ func TestMaterialsBrowserFixture(t *testing.T) {
 			{ID: "analysis", Status: "completed", Items: []MaterialItem{{ID: "analysis", Type: "agentMessage", Text: "## 连接池等待分析\n\n观察到超时集中在**请求获取连接之前**。可以先对照连接池等待与服务端耗时，排除业务逻辑本身。\n\n### 验证步骤\n\n1. 固定并发为 20，重复 200 次请求。\n2. 分别记录等待时间与服务端耗时。\n3. 复测中文🙂，再复测中文🙂，检查选区引用是否精确。\n\n```go\nfunc observe(wait time.Duration) {\n    fmt.Printf(\"连接池等待: %s\\n\", wait)\n}\n```\n\n参数使用 `MaxConnsPerHost`，并记录 [连接池文档](https://pkg.go.dev/net/http#Transport) 中的取值依据。\n\n原文映射也覆盖实体 &amp; 和转义 \\*，保存时保留材料的固定版本。"}, {ID: "tool", Type: "toolResult", Text: "工具日志开头：连接池探针已启动。\n" + strings.Repeat("probe worker=20 wait=420ms server=30ms status=ok\n", 48) + "工具日志结尾：200 次请求完成，测试汇总已保存。"}}},
 			{ID: "private", Status: "completed", Items: []MaterialItem{{ID: "private", Type: "agentMessage", Text: "仅本机可见：另外一个客户的无关问题，不应纳入本次分享。"}}},
 		}
+		f.history[1].Items = append(f.history[1].Items, MaterialItem{ID: "screenshot", Type: "imageView", Text: "连接池观测截图（合成附件）"})
 	}
 	prepare(af, "A")
 	s, err := a.CreateSpace(ctx, SpaceInput{RequestID: uuid.NewString(), Title: "接口超时调查 · 会话材料协作"})

@@ -15,6 +15,10 @@ GitHub `CI` workflow 自动执行 Go/Web 与 Homebrew 定义工程门槛；unsig
 
 ## 已记录的验收
 
+[2026-09-23 资源库浏览顺序稳定性](../../sources/validation/library-browsing-2026-09-23.md) 记录阅读、选择、收藏与后台同步保留顺序，显式刷新采用最近使用排序，资源增删与访问变化回归、112 项 Web 测试以及真实 Core 浏览器结果。
+
+[2026-09-23 分享范围吸顶操作区](../../sources/validation/publication-controls-2026-09-23.md) 记录顶部操作合并、可展开导出说明、目录与轮次避让、113 项 Web 回归，以及按用户要求停止追加视觉测试后的实际覆盖范围。
+
 [2026-09-22 材料卡片内阅读](../../sources/validation/material-cards-2026-09-22.md) 记录卡片内展开、固定版本信息与操作同步、110 项 Web 回归、多材料真实 Core 浏览器流程、六组响应式 DOM 检查及截图边界。
 
 [2026-09-23 v0.2.2 正式版发布](../../sources/validation/release-v0.2.2-2026-09-23.md) 记录 release commit/tag、macOS arm64 构建与安装门槛、公开资产摘要和 provenance，以及稳定 Homebrew tap PR 与公共安装 smoke；不扩大为 Developer ID/公证或真实模型、两台 Mac、Tailcat 公网验收。

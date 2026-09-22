@@ -175,6 +175,58 @@ beforeEach(() => {
   HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 
+it("keeps scope, the active reader tools, export notices and a single next action in the shared controls", async () => {
+  fixture();
+  render(<Publisher onPublished={() => {}} />);
+  const user = await openPublisher();
+  const controls = within(
+    screen.getByRole("region", { name: "分享范围与操作" }),
+  );
+  expect(controls.getByText("已选第 1–6 轮，共 6 轮")).toBeVisible();
+  expect(controls.getByRole("button", { name: "预览分享内容" })).toBeEnabled();
+  expect(screen.getAllByRole("button", { name: "预览分享内容" })).toHaveLength(
+    1,
+  );
+  expect(screen.queryByText(/将分享第/)).not.toBeInTheDocument();
+  expect(
+    controls.getByText("点击目录查看正文，在每轮开头选择范围"),
+  ).toBeVisible();
+  const notice = controls.getByText("1 处导出说明");
+  const explanation = controls.getByText(/这里按说明条目计数/);
+  expect(explanation).not.toBeVisible();
+  await user.click(notice);
+  expect(explanation).toBeVisible();
+  await user.click(controls.getByRole("button", { name: "专注阅读" }));
+  expect(
+    controls.getByRole("button", { name: "退出专注阅读" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await user.click(controls.getByRole("button", { name: "预览分享内容" }));
+  await waitFor(() =>
+    expect(
+      controls.getByRole("button", { name: "创建只读空间并发布" }),
+    ).toBeEnabled(),
+  );
+  expect(
+    controls.queryByText("点击目录查看正文，在每轮开头选择范围"),
+  ).not.toBeInTheDocument();
+  expect(
+    controls.getByText("同事只能读取下方范围，折叠的工具过程也会分享"),
+  ).toBeVisible();
+  expect(screen.getAllByRole("button", { name: "专注阅读" })).toHaveLength(1);
+  expect(
+    screen.queryByRole("button", { name: "退出专注阅读" }),
+  ).not.toBeInTheDocument();
+  await user.click(controls.getByRole("button", { name: "返回调整范围" }));
+  expect(
+    controls.getByRole("button", { name: "退出专注阅读" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await user.click(turn(1).getByRole("button", { name: "到这轮结束" }));
+  expect(controls.queryByText("1 处导出说明")).not.toBeInTheDocument();
+  await user.click(controls.getByRole("button", { name: "全部已结束对话" }));
+  expect(controls.getByText("1 处导出说明")).toBeVisible();
+  expect(controls.getByText(/这里按说明条目计数/)).not.toBeVisible();
+});
+
 it("reads compact private drafts, navigates independently of scope, and renders Markdown without annotation actions", async () => {
   const { calls } = fixture();
   render(<Publisher onPublished={() => {}} />);

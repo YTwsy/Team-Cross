@@ -21,6 +21,9 @@
 
 ## 完整事实来源
 
+- [2026-09-23 资源库浏览顺序稳定性](../sources/validation/library-browsing-2026-09-23.md)：操作与后台同步保持条目及分组位置、显式刷新重排、112 项 Web 回归和真实 Core 浏览器验证。
+- [2026-09-23 分享范围吸顶操作区](../sources/validation/publication-controls-2026-09-23.md)：顶部集中范围、阅读及预览操作，保留可展开导出说明，113 项 Web 回归和滚动避让验证。
+
 - [2026-09-23 v0.2.2 正式版发布](../sources/validation/release-v0.2.2-2026-09-23.md)：PR/main、annotated tag、Latest Release、arm64 资产与 provenance、稳定 Homebrew tap PR 和公共 smoke。
 
 - [2026-09-22 材料卡片内阅读](../sources/validation/material-cards-2026-09-22.md)：卡片内展开、标题与操作去重、历史版本信息同步、110 项 Web 回归与响应式 DOM 检查。

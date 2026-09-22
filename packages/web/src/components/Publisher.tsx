@@ -55,10 +55,33 @@ export function Publisher({
   const createdSpace = useRef(spaceId);
   const mounted = useRef(true);
   const composer = useRef<HTMLElement>(null);
+  const [controls, setControls] = useState<HTMLDivElement | null>(null);
+  const [readerTools, setReaderTools] = useState<HTMLDivElement | null>(null);
   const editorPosition = useRef(0);
   const restoreEditor = useRef(false);
   const stage = !draft ? "source" : reviewing ? "review" : "range";
   useEffect(() => onStageChange?.(stage), [stage, onStageChange]);
+  useLayoutEffect(() => {
+    const element = composer.current;
+    if (!element || !controls) return;
+    // Wrapped actions change height with the viewport, title and review stage.
+    // Keep directory positioning and turn navigation clear of the sticky bar.
+    const updateHeight = () =>
+      element.style.setProperty(
+        "--publication-controls-height",
+        `${controls.getBoundingClientRect().height}px`,
+      );
+    updateHeight();
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(updateHeight)
+        : undefined;
+    observer?.observe(controls);
+    return () => {
+      observer?.disconnect();
+      element.style.removeProperty("--publication-controls-height");
+    };
+  }, [controls]);
   useLayoutEffect(() => {
     if (restoreEditor.current) {
       const dialog = composer.current?.closest("dialog");
@@ -412,59 +435,110 @@ export function Publisher({
             固定于 {new Date(draft.frozenAt).toLocaleString("zh-CN")} ·
             后续对话不会自动加入
           </p>
-          <div className="publication-scope-bar">
-            <div
-              className="publication-scope-description"
-              role="status"
-              aria-live="polite"
-            >
-              <strong>
-                {validRange
-                  ? `已选第 ${startIndex + 1}–${endIndex + 1} 轮，共 ${count} 轮`
-                  : "请重新选择起点和终点"}
-              </strong>
-              <span className="small-text muted">
-                {readingIndex >= 0
-                  ? `建议从第 ${readingIndex + 1} 轮读起 · 分享范围不变`
-                  : "默认从分享范围开头阅读"}
-              </span>
-            </div>
-            {!reviewing && (
-              <div className="publication-presets">
-                <button
-                  className="button small"
-                  disabled={busy || uncertain}
-                  aria-pressed={
-                    start === draft.startTurnId && end === draft.endTurnId
-                  }
-                  onClick={() => setRange(draft.startTurnId, draft.endTurnId)}
-                >
-                  全部已结束对话
-                </button>
-                {draft.turns.length > 3 && (
+          <div
+            ref={setControls}
+            className="publication-controls"
+            role="region"
+            aria-label="分享范围与操作"
+          >
+            <div className="publication-scope-bar">
+              <div
+                className="publication-scope-description"
+                role="status"
+                aria-live="polite"
+              >
+                <strong>
+                  {validRange
+                    ? `已选第 ${startIndex + 1}–${endIndex + 1} 轮，共 ${count} 轮`
+                    : "请重新选择起点和终点"}
+                </strong>
+                <span className="small-text muted">
+                  {readingIndex >= 0
+                    ? `建议从第 ${readingIndex + 1} 轮读起 · 分享范围不变`
+                    : "默认从分享范围开头阅读"}
+                </span>
+              </div>
+              <div className="publication-scope-actions">
+                {!reviewing && (
+                  <div className="publication-presets">
+                    <button
+                      className="button small"
+                      disabled={busy || uncertain}
+                      aria-pressed={
+                        start === draft.startTurnId && end === draft.endTurnId
+                      }
+                      onClick={() =>
+                        setRange(draft.startTurnId, draft.endTurnId)
+                      }
+                    >
+                      全部已结束对话
+                    </button>
+                    {draft.turns.length > 3 && (
+                      <button
+                        className="button small"
+                        disabled={busy || uncertain}
+                        aria-pressed={
+                          start === draft.turns.at(-3)!.id &&
+                          end === draft.endTurnId
+                        }
+                        onClick={() =>
+                          setRange(draft.turns.at(-3)!.id, draft.endTurnId)
+                        }
+                      >
+                        最近 3 轮
+                      </button>
+                    )}
+                  </div>
+                )}
+                <div className="publication-actions">
+                  {reviewing && (
+                    <button
+                      className="button"
+                      disabled={busy || uncertain}
+                      onClick={returnToEditor}
+                    >
+                      返回调整范围
+                    </button>
+                  )}
                   <button
-                    className="button small"
-                    disabled={busy || uncertain}
-                    aria-pressed={
-                      start === draft.turns.at(-3)!.id &&
-                      end === draft.endTurnId
+                    className="button primary"
+                    disabled={
+                      busy ||
+                      !validRange ||
+                      !title.trim() ||
+                      (reviewing && previewCurrent && !previewReady)
                     }
                     onClick={() =>
-                      setRange(draft.turns.at(-3)!.id, draft.endTurnId)
+                      void (reviewing && previewCurrent ? publish() : review())
                     }
                   >
-                    最近 3 轮
+                    {busy
+                      ? "正在处理…"
+                      : !reviewing
+                        ? "预览分享内容"
+                        : !previewCurrent
+                          ? "更新分享预览"
+                          : material
+                            ? `发布版本 ${latest!.version + 1}`
+                            : spaceId
+                              ? "发布到空间"
+                              : "创建只读空间并发布"}
+                    {!reviewing && <Icon name="arrow" size={16} />}
                   </button>
-                )}
+                </div>
               </div>
+            </div>
+            <div className="publication-reading-tools" ref={setReaderTools} />
+            {selectedNotices > 0 && (
+              <details className="publication-export-notice">
+                <summary>{selectedNotices} 处导出说明</summary>
+                <p>
+                  图片等附件或不支持的消息内容可能未包含在分享中。请查看目录中标有“导出说明”的轮次，正文会注明具体原因。
+                  这里按说明条目计数，不是缺少的轮数；工具过程仅折叠显示，仍会分享。
+                </p>
+              </details>
             )}
           </div>
-          {selectedNotices > 0 && (
-            <p className="publication-export-notice">
-              选中范围有 {selectedNotices}{" "}
-              处导出说明，请在对应轮次核对附件缺失或内容省略。
-            </p>
-          )}
           {!reviewing && <ErrorBox message={error} />}
           {!reviewing && statusNote && (
             <p className="small-text muted" role="status">
@@ -475,6 +549,7 @@ export function Publisher({
             <PublicationReader
               key={draft.id}
               draft={draft}
+              toolbarTarget={reviewing ? null : readerTools}
               disabled={busy || uncertain}
               scope={{
                 start,
@@ -516,61 +591,12 @@ export function Publisher({
               )}
               <PublicationReader
                 draft={preview}
+                toolbarTarget={readerTools}
                 originalTurns={draft.turns}
                 onReadyChange={setPreviewReady}
               />
             </div>
           )}
-          <div className="publication-footer">
-            <div className="publication-footer-summary">
-              <strong>
-                {validRange
-                  ? `将分享第 ${startIndex + 1}–${endIndex + 1} 轮（共 ${count} 轮）及已保存的工具过程`
-                  : "尚未确定分享范围"}
-              </strong>
-              <span className="small-text muted">
-                {reviewing
-                  ? "发布后保留固定版本，新增内容需再次发布。"
-                  : "每轮提问、回复和工具过程一起选择。"}
-              </span>
-            </div>
-            <div className="publication-footer-actions">
-              {reviewing && (
-                <button
-                  className="button"
-                  disabled={busy || uncertain}
-                  onClick={returnToEditor}
-                >
-                  返回调整范围
-                </button>
-              )}
-              <button
-                className="button primary"
-                disabled={
-                  busy ||
-                  !validRange ||
-                  !title.trim() ||
-                  (reviewing && previewCurrent && !previewReady)
-                }
-                onClick={() =>
-                  void (reviewing && previewCurrent ? publish() : review())
-                }
-              >
-                {busy
-                  ? "正在处理…"
-                  : !reviewing
-                    ? "预览分享内容"
-                    : !previewCurrent
-                      ? "更新分享预览"
-                      : material
-                        ? `发布版本 ${latest!.version + 1}`
-                        : spaceId
-                          ? "发布到空间"
-                          : "创建只读空间并发布"}
-                {!reviewing && <Icon name="arrow" size={16} />}
-              </button>
-            </div>
-          </div>
         </>
       )}
       {(!draft || reviewing) && <ErrorBox message={error} />}
