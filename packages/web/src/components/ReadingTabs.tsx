@@ -9,13 +9,33 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "./ui";
+import {
+  captureReadingPosition,
+  readingViewport,
+  restoreReadingPosition,
+  type ReadingPosition,
+} from "../reading-position";
 
 export type ReadingTab = "materials" | "context";
 
 const ReadingHeader = createContext<{
   toolbar: HTMLDivElement | null;
+  tools: HTMLDivElement | null;
   active: boolean;
 } | null>(null);
+
+export function ReadingPanelTools({ children }: { children: ReactNode }) {
+  const shared = useContext(ReadingHeader);
+  if (!shared) return children;
+  return shared.tools
+    ? createPortal(
+        <div hidden={!shared.active} className="reading-tools-content">
+          {children}
+        </div>,
+        shared.tools,
+      )
+    : null;
+}
 
 // Standalone readers keep their heading; embedded readers share one toolbar.
 export function ReadingPanelHeading({
@@ -43,8 +63,7 @@ export function ReadingPanelHeading({
   );
 }
 
-// Keep both readers mounted and scroll inside a stable viewport. Switching tabs
-// restores only the reader's offset, never the surrounding document's position.
+// Keep both readers mounted, with the document as the single reading scroller.
 export function ReadingTabs({
   active,
   onChange,
@@ -58,19 +77,43 @@ export function ReadingTabs({
   materialCount: number;
   navigationKey?: number;
   materials: ReactNode;
-  context: ReactNode;
+  context?: ReactNode;
 }) {
   const id = useId();
   const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
+  const [tools, setTools] = useState<HTMLDivElement | null>(null);
+  const section = useRef<HTMLElement>(null);
+  const heading = useRef<HTMLDivElement>(null);
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
   const panes = useRef<Partial<Record<ReadingTab, HTMLDivElement | null>>>({});
-  const positions = useRef<Partial<Record<ReadingTab, number>>>({});
+  const positions = useRef<Partial<Record<ReadingTab, ReadingPosition>>>({});
+  const wasReading = useRef(false);
   const current = useRef(active);
   const navigation = useRef(navigationKey);
   const tabs = [
     { value: "materials", label: "已发布会话材料", icon: "book" },
     { value: "context", label: "协作上下文", icon: "terminal" },
-  ] as const;
+  ].filter(
+    (tab) => tab.value === "materials" || context !== undefined,
+  ) as Array<{ value: ReadingTab; label: string; icon: "book" | "terminal" }>;
+
+  useLayoutEffect(() => {
+    const root = section.current,
+      bar = heading.current;
+    if (!root || !bar) return;
+    const measure = () =>
+      root.style.setProperty(
+        "--reading-header-height",
+        `${bar.getBoundingClientRect().height}px`,
+      );
+    measure();
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measure)
+        : undefined;
+    observer?.observe(bar);
+    return () => observer?.disconnect();
+  });
 
   useLayoutEffect(() => {
     const changed = current.current !== active;
@@ -82,59 +125,93 @@ export function ReadingTabs({
     // Annotation navigation owns the destination; do not restore an old offset.
     if (locating) return;
     const pane = panes.current[active];
-    if (pane) pane.scrollTop = positions.current[active] ?? 0;
+    if (pane && positions.current[active])
+      restoreReadingPosition(pane, positions.current[active]);
+    else if (pane && wasReading.current) {
+      const viewport = readingViewport(pane);
+      const top =
+        window.scrollY +
+        section.current!.getBoundingClientRect().top -
+        viewport.stickyTop;
+      window.scrollTo({ top, behavior: "instant" });
+    }
   }, [active, navigationKey]);
 
   function select(tab: ReadingTab) {
     if (tab === active) return;
     const pane = panes.current[active];
-    if (pane) positions.current[active] = pane.scrollTop;
+    if (pane) {
+      positions.current[active] = captureReadingPosition(pane);
+      wasReading.current =
+        section.current!.getBoundingClientRect().top <=
+        readingViewport(pane).stickyTop;
+    }
     onChange(tab);
   }
 
   return (
-    <section className="panel collaboration-reading" aria-label="协作阅读">
-      <div className="reading-heading">
-        <div className="reading-tabs" role="tablist" aria-label="协作阅读内容">
-          {tabs.map(({ value, label, icon }, index) => (
-            <button
-              key={value}
-              ref={(button) => {
-                buttons.current[index] = button;
-              }}
-              id={`${id}-${value}-tab`}
-              role="tab"
-              aria-selected={active === value}
-              aria-controls={`${id}-${value}-panel`}
-              tabIndex={active === value ? 0 : -1}
-              onClick={() => select(value)}
-              onKeyDown={(event) => {
-                if (
-                  !["ArrowLeft", "ArrowRight", "Home", "End"].includes(
-                    event.key,
-                  )
-                )
-                  return;
-                event.preventDefault();
-                const next =
-                  event.key === "Home"
-                    ? 0
-                    : event.key === "End"
-                      ? tabs.length - 1
-                      : (index + 1) % tabs.length;
-                select(tabs[next]!.value);
-                buttons.current[next]?.focus({ preventScroll: true });
-              }}
+    <section
+      ref={section}
+      className="panel collaboration-reading"
+      aria-label="协作阅读"
+    >
+      <div className="reading-heading" ref={heading}>
+        <div className="reading-heading-row">
+          {tabs.length === 1 ? (
+            <h2 id={`${id}-materials-tab`}>
+              已发布会话材料 <span className="count">{materialCount}</span>
+            </h2>
+          ) : (
+            <div
+              className="reading-tabs"
+              role="tablist"
+              aria-label="协作阅读内容"
             >
-              <Icon name={icon} size={17} />
-              {label}
-              {value === "materials" && (
-                <span className="count">{materialCount}</span>
-              )}
-            </button>
-          ))}
+              {tabs.map(({ value, label, icon }, index) => (
+                <button
+                  key={value}
+                  ref={(button) => {
+                    buttons.current[index] = button;
+                  }}
+                  id={`${id}-${value}-tab`}
+                  role="tab"
+                  aria-selected={active === value}
+                  aria-controls={`${id}-${value}-panel`}
+                  tabIndex={active === value ? 0 : -1}
+                  onClick={() => select(value)}
+                  onKeyDown={(event) => {
+                    if (
+                      !["ArrowLeft", "ArrowRight", "Home", "End"].includes(
+                        event.key,
+                      )
+                    )
+                      return;
+                    event.preventDefault();
+                    const next =
+                      event.key === "Home"
+                        ? 0
+                        : event.key === "End"
+                          ? tabs.length - 1
+                          : (index +
+                              (event.key === "ArrowLeft" ? -1 : 1) +
+                              tabs.length) %
+                            tabs.length;
+                    select(tabs[next]!.value);
+                    buttons.current[next]?.focus({ preventScroll: true });
+                  }}
+                >
+                  <Icon name={icon} size={17} />
+                  {label}
+                  {value === "materials" && (
+                    <span className="count">{materialCount}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="reading-toolbar" ref={setToolbar} />
         </div>
-        <div className="reading-toolbar" ref={setToolbar} />
+        <div className="reading-tools" ref={setTools} />
       </div>
       {tabs.map(({ value }) => (
         <div
@@ -148,12 +225,10 @@ export function ReadingTabs({
           ref={(pane) => {
             panes.current[value] = pane;
           }}
-          onScroll={(event) => {
-            if (active === value)
-              positions.current[value] = event.currentTarget.scrollTop;
-          }}
         >
-          <ReadingHeader.Provider value={{ toolbar, active: active === value }}>
+          <ReadingHeader.Provider
+            value={{ toolbar, tools, active: active === value }}
+          >
             {value === "materials" ? materials : context}
           </ReadingHeader.Provider>
         </div>

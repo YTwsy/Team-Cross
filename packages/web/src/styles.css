@@ -1338,19 +1338,71 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
   min-width: 0;
 }
 .panel.collaboration-reading {
+  --reading-sticky-top: 12px;
+  --reading-header-height: 116px;
   min-width: 0;
   padding: 0;
   align-self: stretch;
 }
 .reading-heading {
+  position: sticky;
+  top: var(--reading-sticky-top);
+  z-index: 25;
+  background: var(--panel);
+  border-radius: 14px 14px 0 0;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 5px 12px #24304706;
+}
+.reading-heading-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  min-height: 76px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--line);
+  min-height: 40px;
+}
+.reading-tools-content[hidden] {
+  display: none;
+}
+.reading-tools:has(.reading-tools-content:not([hidden])) {
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.reading-tools .context-reader-heading {
+  border: 0;
+  padding-top: 6px;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.reading-tools .context-reading-tools {
+  padding-bottom: 0;
+}
+.reading-tools .reader-hint-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.material-reading-navigation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 0;
+  min-width: 0;
+}
+.reading-current-material {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.material-reading-navigation > div {
+  flex-shrink: 0;
 }
 .reading-tabs {
   display: flex;
@@ -1388,10 +1440,7 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
   gap: 8px;
 }
 .reading-pane {
-  height: clamp(320px, calc(100dvh - 220px), 900px);
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  min-height: 240px;
   border-radius: 0 0 14px 14px;
 }
 .reading-pane > .panel {
@@ -1404,14 +1453,31 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
 .reading-heading-actions[hidden] {
   display: none;
 }
-.reading-pane .reader-outline {
-  top: 16px;
+.reading-pane .reader-outline:not(.reader-directory-popover) {
+  top: calc(var(--reading-sticky-top) + var(--reading-header-height) + 12px);
 }
-.reading-pane [data-reader-turn],
-.reading-pane .reader-message {
-  scroll-margin-top: 16px;
+.collaboration-reading
+  :is(
+    .context-panel,
+    [data-reader-turn],
+    .reader-message,
+    [data-annotation-highlight]
+  ) {
+  scroll-margin-top: calc(
+    var(--reading-sticky-top) + var(--reading-header-height) + 16px
+  );
+  scroll-margin-bottom: calc(var(--selection-tray-height, 0px) + 36px);
+}
+.reading-pane pre {
+  max-height: none;
+}
+.reading-pane .reader-raw {
+  overflow: visible;
 }
 @media (max-width: 600px) {
+  .panel.collaboration-reading {
+    --reading-sticky-top: 61px;
+  }
   .reading-heading {
     padding: 12px;
   }
@@ -1432,6 +1498,7 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
   display: flex;
   flex-direction: column;
   gap: 17px;
+  overflow-anchor: none;
 }
 .detail-aside .panel {
   padding: 20px;
@@ -1445,6 +1512,52 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
 }
 .participants-panel .panel-heading {
   margin-bottom: 12px;
+  transition: margin-bottom 220ms ease;
+}
+.participants-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.participants-heading-actions button[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+.participants-heading-actions svg {
+  transition: transform 220ms ease;
+}
+.participants-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-rows 220ms ease,
+    opacity 180ms ease,
+    visibility 0s;
+}
+.participants-body-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.participants-panel.is-collapsed .participants-body {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 220ms ease,
+    opacity 180ms ease,
+    visibility 0s 220ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .participants-panel .panel-heading,
+  .participants-heading-actions svg,
+  .participants-body,
+  .participants-panel.is-collapsed .participants-body {
+    transition: none;
+  }
+}
+.participants-panel.is-collapsed .panel-heading {
+  margin-bottom: 0;
 }
 .participants-caption {
   color: var(--muted);
@@ -3459,6 +3572,41 @@ mark[data-annotation-highlight] {
   font-size: 12px;
   margin-bottom: 10px;
 }
+.reader-outline-heading {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+.reader-navigation-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.reader-directory {
+  position: relative;
+}
+.reader-directory > button {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.reader-outline.reader-directory-popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 40;
+  width: min(330px, calc(100vw - 64px));
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px #0002;
+  white-space: normal;
+}
+.reader-outline.reader-directory-popover nav {
+  max-height: min(360px, 50dvh);
+  overscroll-behavior: contain;
+}
 .reader-outline nav {
   display: grid;
   gap: 4px;
@@ -3849,6 +3997,12 @@ mark[data-annotation-highlight] {
 .reader-focus .reader-layout {
   grid-template-columns: 170px minmax(0, 1fr);
 }
+.reader-adaptive .reader-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+.reader-adaptive.has-side-outline .reader-layout {
+  grid-template-columns: 170px minmax(0, 1fr);
+}
 .selection-action {
   z-index: 70;
   border-radius: 8px;
@@ -4036,19 +4190,19 @@ mark[data-annotation-highlight] {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
-  .reader-outline {
+  .reader-outline:not(.reader-directory-popover) {
     position: static;
     border-right: 0;
     border-bottom: 1px solid var(--line);
     padding-bottom: 12px;
   }
-  .reader-outline nav {
+  .reader-outline:not(.reader-directory-popover) nav {
     display: flex;
     max-height: 130px;
     gap: 6px;
     overflow: auto;
   }
-  .reader-outline nav button {
+  .reader-outline:not(.reader-directory-popover) nav button {
     min-width: 120px;
     max-width: 240px;
     flex-shrink: 0;

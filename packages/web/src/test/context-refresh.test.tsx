@@ -372,6 +372,9 @@ describe("协作对话目录导航", () => {
     const next = deferred();
     readContext = () => next.promise;
     await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "目录 3" }));
+    });
+    await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /02 第 2 轮目录/ }));
     });
     const request = new URL(contextRequests.at(-1)!, "http://localhost");
@@ -389,6 +392,9 @@ describe("协作对话目录导航", () => {
       screen.getByRole("button", { name: "退出专注阅读" }),
     ).toHaveAttribute("aria-pressed", "true");
     const requestCount = contextRequests.length;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "目录 3" }));
+    });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /02 第 2 轮正文/ }));
     });
@@ -423,6 +429,9 @@ describe("协作对话目录导航", () => {
     await openDetail();
     readContext = () => response({ error: "目标轮次读取失败" }, 503);
     await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "目录 3" }));
+    });
+    await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /03 第 3 轮目录/ }));
     });
     expect(screen.getByRole("alert")).toHaveTextContent("目标轮次读取失败");
@@ -445,6 +454,9 @@ describe("协作对话目录导航", () => {
     await openDetail();
     const next = deferred();
     readContext = () => next.promise;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "目录 3" }));
+    });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /02 第 2 轮目录/ }));
     });

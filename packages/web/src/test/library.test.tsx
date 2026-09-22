@@ -238,6 +238,13 @@ async function select(title: string) {
     await screen.findByRole("checkbox", { name: `选择 ${title}` }),
   );
 }
+function findMaterialParagraph() {
+  return screen.findByText(
+    (_, element) =>
+      element?.tagName === "P" &&
+      element.textContent === "连接池等待下降，服务端耗时保持稳定。",
+  );
+}
 
 describe("个人资源库", () => {
   it("keeps rows and groups in place after visits, selection, favorites and background refreshes", async () => {
@@ -467,16 +474,15 @@ describe("个人资源库", () => {
     await userEvent.click(
       await screen.findByRole("button", { name: "阅读材料" }),
     );
-    const text =
-      await screen.findByText("连接池等待下降，服务端耗时保持稳定。");
+    const text = await findMaterialParagraph();
     const materialPane = screen.getByRole("tabpanel", {
       name: /已发布会话材料/,
     });
-    materialPane.scrollTop = 280;
-    const pageScrollCalls = vi.mocked(window.scrollTo).mock.calls.length;
-    const header = screen.getByRole("tablist", {
-      name: "协作阅读内容",
-    }).parentElement!;
+    const header = screen
+      .getByRole("tablist", {
+        name: "协作阅读内容",
+      })
+      .closest<HTMLElement>(".reading-heading")!;
     expect(
       within(header).getByRole("button", { name: "发布会话材料" }),
     ).toBeVisible();
@@ -486,7 +492,7 @@ describe("个人资源库", () => {
     expect(
       screen
         .getByRole("button", { name: "专注阅读" })
-        .closest(".material-reader-actions"),
+        .closest(".reading-heading"),
     ).not.toBeNull();
     expect(
       materialPane.querySelector(".reading-surface > .reader-toolbar"),
@@ -522,8 +528,6 @@ describe("个人资源库", () => {
     await userEvent.keyboard("{ArrowLeft}");
     expect(screen.getByRole("tab", { name: /已发布会话材料/ })).toHaveFocus();
     expect(text).toBeVisible();
-    expect(materialPane.scrollTop).toBe(280);
-    expect(vi.mocked(window.scrollTo).mock.calls).toHaveLength(pageScrollCalls);
     expect(
       screen.getByRole("button", { name: "退出专注阅读", pressed: true }),
     ).toBeVisible();
@@ -568,9 +572,7 @@ describe("个人资源库", () => {
     expect(
       screen.getByRole("tab", { name: /已发布会话材料/, selected: true }),
     ).toBeVisible();
-    expect(
-      await screen.findByText("连接池等待下降，服务端耗时保持稳定。"),
-    ).toBeVisible();
+    expect(await findMaterialParagraph()).toBeVisible();
   });
 
   it("recognizes a selected context excerpt after the Core normalizes target field order", async () => {
@@ -629,9 +631,7 @@ describe("个人资源库", () => {
     await userEvent.click(
       await screen.findByRole("button", { name: "阅读 连接池调查" }),
     );
-    expect(
-      await screen.findByText("连接池等待下降，服务端耗时保持稳定。"),
-    ).toBeInTheDocument();
+    expect(await findMaterialParagraph()).toBeInTheDocument();
     expect(data.selection).toEqual([]);
     await select(material.title);
     await userEvent.click(screen.getByRole("button", { name: "批注" }));

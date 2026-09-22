@@ -1,5 +1,10 @@
 import { ResourceActions } from "../library";
-import { ReadingPanelHeading } from "./ReadingTabs";
+import { ReadingPanelHeading, ReadingPanelTools } from "./ReadingTabs";
+import {
+  captureReadingPosition,
+  restoreReadingPosition,
+  type ReadingPosition,
+} from "../reading-position";
 import {
   useEffect,
   useId,
@@ -36,7 +41,7 @@ import type { AnnotationRequest } from "./Annotations";
 export type ReadingMemory = {
   turn: string;
   page: MaterialPage;
-  position?: { key: string; top: number };
+  position?: ReadingPosition;
 };
 
 export function MaterialReader({
@@ -79,38 +84,41 @@ export function MaterialReader({
   const searchedPages = useRef(0);
   const searchedItems = useRef(new Set<string>());
   const panel = useRef<HTMLDivElement>(null);
-  const restore = useRef(!target ? cached?.position : undefined);
+  const restore = useRef(
+    !target && !reference.turnId ? cached?.position : undefined,
+  );
+  const pendingTurn = useRef(reference.turnId || "");
   useLayoutEffect(
     () => () => {
       const entry = memory.get(memoryKey);
-      const scroll = panel.current?.closest(".library-preview, .reading-pane");
-      const top = scroll?.getBoundingClientRect().top || 80;
-      const anchor = Array.from(
-        panel.current?.querySelectorAll<HTMLElement>("[data-reading-key]") ||
-          [],
-      ).find((el) => el.getBoundingClientRect().bottom > top);
-      if (entry && anchor)
-        entry.position = {
-          key: anchor.dataset.readingKey!,
-          top: anchor.getBoundingClientRect().top,
-        };
+      const position = captureReadingPosition(panel.current);
+      if (entry && position) entry.position = position;
     },
     [memory, memoryKey],
   );
   useLayoutEffect(() => {
     if (!page || !restore.current) return;
-    const position = restore.current;
-    const anchor = Array.from(
-      panel.current?.querySelectorAll<HTMLElement>("[data-reading-key]") || [],
-    ).find((el) => el.dataset.readingKey === position.key);
-    if (anchor) {
-      const delta = anchor.getBoundingClientRect().top - position.top;
-      const scroll = panel.current?.closest(".library-preview, .reading-pane");
-      if (scroll) scroll.scrollTop += delta;
-      else window.scrollBy?.(0, delta);
-    }
+    if (panel.current?.closest("[hidden]")) return;
+    restoreReadingPosition(panel.current, restore.current);
     restore.current = undefined;
   }, [page]);
+  useEffect(() => {
+    if (
+      !page ||
+      loading ||
+      !pendingTurn.current ||
+      target?.quote ||
+      panel.current?.closest("[hidden]")
+    )
+      return;
+    const found = Array.from(
+      panel.current?.querySelectorAll<HTMLElement>("[data-reader-turn]") || [],
+    ).find((element) => element.dataset.readerTurn === pendingTurn.current);
+    if (found) {
+      found.scrollIntoView?.({ block: "start", behavior: "smooth" });
+      pendingTurn.current = "";
+    }
+  }, [page, loading, target]);
   useEffect(() => {
     const serial = ++request.current,
       abort = new AbortController();
@@ -155,6 +163,7 @@ export function MaterialReader({
     };
   }, [spaceId, material.id, version, turn, memory, memoryKey]);
   useEffect(() => {
+    if (panel.current?.closest("[hidden]")) return;
     panel.current
       ?.querySelector("[data-annotation-highlight]")
       ?.scrollIntoView?.({ block: "nearest" });
@@ -308,9 +317,16 @@ export function MaterialReader({
             </div>
             {actions}
           </div>
-          <div ref={setReadingToolbar} />
         </div>
       </div>
+      <ReadingPanelTools>
+        <div className="material-reading-navigation">
+          <span className="reading-current-material" title={v?.title}>
+            {v?.title} · 版本 {version}
+          </span>
+          <div ref={setReadingToolbar} />
+        </div>
+      </ReadingPanelTools>
       {v?.changes && (
         <p className="inline-note">
           相对上一版：新增 {v.changes.added} 轮，变化 {v.changes.changed}{" "}
@@ -332,7 +348,10 @@ export function MaterialReader({
       {!!v?.readingStartId && !turn && (
         <button
           className="text-link"
-          onClick={() => setTurn(v.readingStartId!)}
+          onClick={() => {
+            pendingTurn.current = v.readingStartId!;
+            setTurn(v.readingStartId!);
+          }}
         >
           跳到发布者建议的阅读起点
         </button>
@@ -340,6 +359,7 @@ export function MaterialReader({
       <ErrorBox message={error} />
       {page && (
         <ReadingLayout
+          adaptiveOutline
           toolbarTarget={readingToolbar}
           outline={outline.map((t) => ({
             id: t.id,
@@ -355,7 +375,10 @@ export function MaterialReader({
               ).find((el) => el.dataset.readerTurn === t.id);
               if (found)
                 found.scrollIntoView({ block: "start", behavior: "smooth" });
-              else setTurn(t.id);
+              else {
+                pendingTurn.current = t.id;
+                setTurn(t.id);
+              }
             },
           }))}
         >

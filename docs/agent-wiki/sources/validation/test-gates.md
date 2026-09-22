@@ -57,6 +57,7 @@ go build -o bin/teamcross ./cmd/teamcross
 | [verify-release.py](../../../../scripts/verify-release.py) / [verify-homebrew.py](../../../../scripts/verify-homebrew.py) | CLI/App/DMG、App 命令安装、稳定/RC 独立 Homebrew 定义、临时前缀安装、同渠道双向互斥、升级与卸载；`--public` 另要求通过公开 Release URL 安装 |
 | [verify-app-instance.py](../../../../scripts/verify-app-instance.py) | 两个真实 App 副本与 macOS URL/退出事件；隔离 Core、请求去重、路径别名、无响应与异常退出恢复；测试邀请不联系远端或调用模型 |
 | [flows.test.tsx](../../../../packages/web/src/test/flows.test.tsx) | 首页、创建、邀请失败、输入交接状态与模型显示 |
+| [reading-scroll.test.tsx](../../../../packages/web/src/test/reading-scroll.test.tsx) | 整页阅读的段落恢复、吸顶高度变化、标签与显式批注定位、隐藏阅读器、成员折叠与焦点保护 |
 | [library_test.go](../../../../internal/collab/library_test.go) / [library.test.tsx](../../../../packages/web/src/test/library.test.tsx) | 固定引用选择、读取编号、个人/共享访问隔离、撤回、并发更新、内联入口和设置导航保留；[独立浏览器 fixture](../../../../internal/collab/library_browser_test.go) 使用合成内容与真实 Core/存储 |
 | [annotation_reply_test.go](../../../../internal/collab/annotation_reply_test.go) / [runtime_test.go](../../../../internal/mcp/runtime_test.go) / [annotations.test.tsx](../../../../packages/web/src/test/annotations.test.tsx) | 单层回复、去重、并发快照、访问撤销、受限运行时工具、内嵌草稿与键盘保存 |
 
