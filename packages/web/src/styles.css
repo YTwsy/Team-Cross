@@ -2049,10 +2049,25 @@ mark[data-annotation-highlight] {
   font-size: 11px;
 }
 .invite-transport-field {
-  margin: 20px 0;
+  margin: 20px 0 8px;
+}
+.invite-transport-field legend {
+  font-size: 12px;
+  font-weight: 550;
+  margin-bottom: 10px;
+}
+.invite-transport-field .workspace-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 .invite-transport-field .workspace-card {
-  padding: 16px;
+  padding: 14px;
+}
+.invite-transport-field:disabled .workspace-card {
+  cursor: default;
+}
+.invite-transport-field:disabled .workspace-card:not(.selected) {
+  opacity: 0.55;
 }
 .invite-transport-field .workspace-top {
   margin-bottom: 10px;
@@ -2066,6 +2081,7 @@ mark[data-annotation-highlight] {
 }
 .invite-transport-field .workspace-card p {
   font-size: 11px;
+  text-wrap: pretty;
 }
 .join-layout {
   display: grid;
