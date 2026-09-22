@@ -78,6 +78,7 @@ func Tools() []map[string]any {
 		},
 	}
 	return append([]map[string]any{
+		selectionTool(),
 		tool("list_collaborations", "列出本机发起和已加入的协作；不创建会话或发送输入。", map[string]any{}, []string{}, true),
 		tool("get_collaboration", "确认执行主机、目录、当前输入者、运行状态、待处理审批数与批注；检查 provider/capabilities，Claude 的等待交互见 nativeWaiting。", map[string]any{"id": id}, []string{"id"}, true),
 		inputTool("request_input", "接收者申请输入；不会自动交接或发送模型任务。"),
@@ -94,6 +95,19 @@ func Tools() []map[string]any {
 	}, append(append(managementTools(), currentTools()...), materialTools()...)...)
 }
 func (b Backend) Invoke(ctx context.Context, name string, args map[string]any) (json.RawMessage, error) {
+	if name == "read_selection" {
+		if err := validateToolArgs(selectionTool(), args); err != nil {
+			return nil, err
+		}
+		if value, ok := args["offset"]; ok {
+			encoded, _ := json.Marshal(value)
+			var offset int
+			if err := json.Unmarshal(encoded, &offset); err != nil || offset < 0 || offset > 31 {
+				return nil, fmt.Errorf("offset 必须是 0–31 的整数")
+			}
+		}
+		return b.Call(ctx, "POST", "library/read-selection", args)
+	}
 	if handled, out, err := b.invokeMaterials(ctx, name, args); handled {
 		return out, err
 	}

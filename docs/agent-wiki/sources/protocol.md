@@ -79,6 +79,25 @@
 
 `personal-desktop` 从本机持久化协作记录读取 `sessionId`，生成 `codex://threads/<sessionId>`，不使用来源 `sourceId` 或请求体提供的会话 ID/URL。返回 `{sessionId,url,command,launched,note}`；`launch:false` 仅生成命令，`launch:true` 通过 `open -a <Desktop路径> <URL>` 请求打开普通 Desktop，`launched` 只表示系统打开请求成功，不证明页面、侧边栏或新消息已刷新。此入口不要求当前输入权或在线运行时，不 fork、resume、发送 prompt、连接共享网关或更改共享状态；不适用于接收者或 Claude 协作。
 
+## 个人资源库
+
+以下路由均在本机 `/api` 下，遵循既有 loopback Host 与浏览器同源检查；共享 `/v2` listener 与协作运行时工具不提供个人资源库入口。
+
+| 方法与路径 | 请求与含义 |
+| --- | --- |
+| `GET /library` | 返回 `{resources,selection}`；只聚合本机发起或已加入空间中可见的材料、批注及获准的执行上下文 |
+| `POST /library/state` | `{action:select\|favorite\|visit,reference,enabled?,key?}`；取消可只用 key，`{action:clear}` 清空选择 |
+| `POST /library/read` | 一个资源引用，返回 `{resource,content}`，重新检查当前权限并按需读取 |
+| `POST /library/bundles` | `{references,requestId}`，创建不可变引用组，返回 `{code,references,requestId,createdAt,expiresAt}` |
+| `POST /library/read-selection` | `{code,offset?}`，读取编号中的一页资源，与个人 MCP `read_selection` 对应 |
+| `POST /library/prepare-send` | `{references}`，检查当前可读且来自同一空间；不创建编号、不发送输入 |
+
+引用为 `{spaceId,kind:material\|annotation\|context,materialId?,version?,annotationId?,target?}`。材料必须指定正整数版本；批注必须指定原批注 ID；上下文可提供已存在的 history/file/changes `AnnotationTarget`，材料不得混用原生定位。`spaceId` 是调用者本机的空间 ID，加入者使用自己的 `joined-…` ID。资源 key 是规范引用 JSON 的 SHA-256 前 16 字节十六进制值，用于界面状态，不授予访问。资源条目带来源 Session、空间、类型、更新时间、收藏/选择/本人参与标记与 `available/offline/withdrawn/unavailable` 状态。
+
+选择最多 32 项。编号为 `TC-` 加 6 个随机字节的无填充 Base32 编码，仅在当前数据目录有效，有效期 7 天，至多保留 256 个未到期编号。同一 `requestId` 与相同引用重试返回同一编号，引用不同拒绝；当前勾选的后续变更不影响编号。`read_selection` 每次最多返回 4 项，更多项通过 `nextOffset` 继续；`offset` 为 0–31 的整数。正文分页继续使用已有 `read_material/read_context`，逐项结果包含明确引用和当前内容或错误，不以失去访问前的批注正文兜底。材料撤回后正文拒绝，仍在授权范围内的历史讨论继续保留。
+
+`library.json` 以 0600 原子保存个人组织状态和读取编号，未收藏、未选择的旧导航元数据优先淘汰，总量上限 1000 条。它不是材料全文缓存；已保存的上下文定位可含当时 quote，但失去访问后不会通过资源库响应返回该片段。列表沿用本机快照和后台远端刷新，具体读取与创建入口重新检查实时状态。所有读取都不启动模型轮次，回复仍使用原空间与原批注身份。产品界面与原生桥边界见 [资源库决策](decisions/resource-library.md)。
+
 ## 共享邀请与传输
 
 原始邀请格式 `tcx3.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `3`，能力 `collaboration-spaces-v3-links`。公共字段含空间 ID、显示名称、主机、`readOnly`、`runtimeMode`、`transport`、SHA-256 SPKI 指纹、随机 secret 和到期时间。只读邀请 `readOnly=true` 且不携带 `runtimeMode`；执行邀请 `readOnly=false`，模式省略为受限、未知值拒绝。连接后的能力以 A 的记录为准。`expiresAt` 为可选墙钟期限，省略或零值表示本次共享内无固定到期时间；`tcx2`、v1/v2 空间能力及其他旧能力明确拒绝，双方需使用兼容版本。

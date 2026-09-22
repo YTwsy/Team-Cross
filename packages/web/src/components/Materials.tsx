@@ -1,3 +1,4 @@
+import { ResourceActions } from "../library";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, errorText } from "../api";
 import {
@@ -24,13 +25,13 @@ import { Publisher, itemLabel } from "./Publisher";
 import { Copy, ErrorBox, Loading, Modal } from "./ui";
 import type { AnnotationRequest } from "./Annotations";
 
-type ReadingMemory = {
+export type ReadingMemory = {
   turn: string;
   page: MaterialPage;
   position?: { key: string; top: number };
 };
 
-function MaterialReader({
+export function MaterialReader({
   spaceId,
   material,
   reference,
@@ -69,10 +70,12 @@ function MaterialReader({
   useLayoutEffect(
     () => () => {
       const entry = memory.get(memoryKey);
+      const scroll = panel.current?.closest(".library-preview");
+      const top = scroll?.getBoundingClientRect().top || 80;
       const anchor = Array.from(
         panel.current?.querySelectorAll<HTMLElement>("[data-reading-key]") ||
           [],
-      ).find((el) => el.getBoundingClientRect().bottom > 80);
+      ).find((el) => el.getBoundingClientRect().bottom > top);
       if (entry && anchor)
         entry.position = {
           key: anchor.dataset.readingKey!,
@@ -87,8 +90,12 @@ function MaterialReader({
     const anchor = Array.from(
       panel.current?.querySelectorAll<HTMLElement>("[data-reading-key]") || [],
     ).find((el) => el.dataset.readingKey === position.key);
-    if (anchor)
-      window.scrollBy?.(0, anchor.getBoundingClientRect().top - position.top);
+    if (anchor) {
+      const delta = anchor.getBoundingClientRect().top - position.top;
+      const scroll = panel.current?.closest(".library-preview");
+      if (scroll) scroll.scrollTop += delta;
+      else window.scrollBy?.(0, delta);
+    }
     restore.current = undefined;
   }, [page]);
   useEffect(() => {
@@ -268,6 +275,16 @@ function MaterialReader({
             来源 {v?.sourceId} · {v?.noticeCount || 0} 处导出说明
           </p>
         </details>
+        <ResourceActions
+          reference={{
+            spaceId,
+            kind: "material",
+            materialId: material.id,
+            version,
+          }}
+          disabled={disabled}
+          favorite
+        />
         <div className="material-reader-copy">
           <Copy
             label="复制 Agent 阅读提示"
@@ -345,6 +362,7 @@ function MaterialReader({
                     </p>
                   )}
                 <ReaderMessage
+                  spaceId={spaceId}
                   source={segment.text}
                   label={
                     segment.collapsed
@@ -510,6 +528,15 @@ export function Materials({
                 </small>
               </div>
               <div className="material-actions">
+                <ResourceActions
+                  reference={{
+                    spaceId: c.id,
+                    kind: "material",
+                    materialId: m.id,
+                    version: v.version,
+                  }}
+                  disabled={disabled || !!m.withdrawnAt}
+                />
                 <button
                   className="button small"
                   disabled={

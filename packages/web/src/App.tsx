@@ -6,7 +6,16 @@ import { Detail } from "./components/Detail";
 import { Join } from "./components/Join";
 import { Settings, type Theme } from "./components/Settings";
 import { Icon } from "./components/ui";
+import { LibraryProvider } from "./library";
+import { Library, SelectionTray } from "./components/Library";
 export default function App() {
+  return (
+    <LibraryProvider>
+      <AppShell />
+    </LibraryProvider>
+  );
+}
+function AppShell() {
   const [route, setRoute] = useState(() => location.hash.slice(1) || "/");
   const [theme, setTheme] = useState<Theme>(() => {
     const t = localStorage.getItem("teamcross.theme.v1");
@@ -41,9 +50,18 @@ export default function App() {
     );
     return () => clearTimeout(timer);
   }, [route]);
+  const libraryRoute = route.split("?")[0];
+  const quick = libraryRoute === "/library/quick";
   const detailId = route.match(/^\/collaborations\/([^/]+)$/)?.[1];
   const page =
-    route === "/create" ? (
+    libraryRoute === "/library" || quick ? (
+      <Library
+        quick={quick}
+        initialKey={
+          new URLSearchParams(route.split("?")[1]).get("item") || undefined
+        }
+      />
+    ) : route === "/create" ? (
       <StartSpace />
     ) : route.startsWith("/execute/") ? (
       <Create spaceId={route.slice(9)} />
@@ -58,8 +76,17 @@ export default function App() {
     ) : (
       <Home />
     );
+  if (quick)
+    return (
+      <div className="quick-shell">
+        {page}
+        <SelectionTray quick />
+      </div>
+    );
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell ${libraryRoute === "/library" ? "library-shell" : ""}`}
+    >
       <a
         className="skip-link"
         href="#main-content"
@@ -84,12 +111,24 @@ export default function App() {
         </a>
         <nav aria-label="主导航">
           <a
-            className={route !== "/settings" ? "active" : ""}
+            className={
+              route !== "/settings" && libraryRoute !== "/library"
+                ? "active"
+                : ""
+            }
             href="#/"
             aria-current={route === "/" ? "page" : undefined}
           >
             <Icon name="grid" />
             协作空间
+          </a>
+          <a
+            className={libraryRoute === "/library" ? "active" : ""}
+            href="#/library"
+            aria-current={libraryRoute === "/library" ? "page" : undefined}
+          >
+            <Icon name="book" />
+            资源库
           </a>
           <a
             className={route === "/settings" ? "active" : ""}
@@ -147,6 +186,7 @@ export default function App() {
         <div className="page" key={route}>
           {page}
         </div>
+        <SelectionTray />
       </main>
     </div>
   );

@@ -1,3 +1,4 @@
+import { ResourceActions } from "../library";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, errorText, useResource } from "../api";
 import {
@@ -476,6 +477,7 @@ export function Context({
                     </p>
                   )}
                 <ReaderMessage
+                  spaceId={id}
                   source={segment.text}
                   label={
                     segment.type === "userMessage"
@@ -573,6 +575,10 @@ export function Context({
     <section className="panel context-panel" ref={panel}>
       <div className="panel-heading">
         <h2>协作上下文</h2>
+        <ResourceActions
+          reference={{ spaceId: id, kind: "context" }}
+          disabled={!online || closed}
+        />
         {tab !== "technical" && (
           <button
             className="icon-button"
@@ -632,6 +638,12 @@ export function Context({
               : selectionHint ||
                 "点击行旁的 +，或拖选同一侧的连续代码行来批注。"}
           </span>
+          {selection && (
+            <ResourceActions
+              reference={{ spaceId: id, kind: "context", target: selection }}
+              disabled={!online || closed}
+            />
+          )}
           {selection && (
             <button
               className="button small primary"

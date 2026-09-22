@@ -8,6 +8,9 @@ import {
 import { errorText } from "../api";
 import { status, type Collaboration, type Provider } from "../types";
 export type IconName =
+  | "star"
+  | "book"
+  | "pin"
   | "plus"
   | "join"
   | "arrow"
@@ -31,6 +34,15 @@ export type IconName =
   | "moon"
   | "chevron";
 const paths: Record<IconName, ReactNode> = {
+  star: (
+    <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z" />
+  ),
+  book: (
+    <>
+      <path d="M12 5v16M3 3h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v16h-5a4 4 0 0 0-4 2 4 4 0 0 0-4-2H3Z" />
+    </>
+  ),
+  pin: <path d="m8 3 8 0-1 6 4 4v2h-6v6l-2-3v-3H5v-2l4-4Z" />,
   plus: <path d="M12 5v14M5 12h14" />,
   join: (
     <>

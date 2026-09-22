@@ -56,6 +56,8 @@ Formula 与 Cask 均检查稳定版和 RC 另一渠道的成功安装收据，�
 
 ## 启动、发现与退出
 
+菜单栏左键打开资源速览，`Control + Option + T` 注册成功时可全局呼出；可固定成浮窗，完整材料阅读在 WebGUI 打开。右键图标和速览的服务菜单保留原有服务状态、设置、CLI 管理与退出入口。速览仍经公共启动器发现同一 Core，选择状态与浏览器共用；原生桥仅开放经过同源与路由校验的打开、固定和菜单动作。详见 [资源库决策](decisions/resource-library.md)。
+
 [service](../../../internal/service/service.go) 是 CLI、MCP 和 App 共用的生命周期入口。`teamcross` / `serve` 默认后台启动并打开页面；`serve --foreground` 用于开发。`join` 自动确保服务，`mcp` 仅在实际工具调用时启动服务且不打开浏览器。App 通过同一 helper 的 JSON 命令操作服务，不维护另一套协作实现。
 
 数据目录规范化（含符号链接），`start.lock` 串行化并发启动，`core.lock` 覆盖完整服务生命周期。`connection.json` 以 0600 原子写入实例身份、PID、URL、版本、控制协议、数据目录与本机控制 token。健康检查不启动 Codex，核对身份与协议后才复用；连接失效可启动新实例，不兼容或身份不匹配则报告处理入口。

@@ -1,6 +1,8 @@
 import AppKit
+@preconcurrency import WebKit
+import Carbon
 
-// The App owns only its menu. All service decisions stay in the bundled Go launcher.
+// The App owns its menu and quick view. All service decisions stay in the bundled Go launcher.
 final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
     private var item: NSStatusItem!
     private let statusItem = NSMenuItem(title: "正在启动…", action: nil, keyEquivalent: "")
@@ -21,6 +23,11 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
     private var forwardedRequest: AppInstance.Request?
     private var shellOnlyExit = false
     private var pendingRoute: String?
+    private var serviceMenu: NSMenu?
+    private var quickLook: ResourceQuickLook?
+    private var hotKey: EventHotKeyRef?
+    private var hotKeyHandler: EventHandlerRef?
+    private var openingQuickLook = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -78,13 +85,30 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(statusItem)
         menu.addItem(.separator())
         add("打开协作空间", #selector(openHome), to: menu)
+        add("打开资源库", #selector(openLibrary), to: menu)
         add("加入协作…", #selector(openJoin), to: menu)
         add("启动服务", #selector(startService), to: menu)
         add("诊断与设置", #selector(diagnostics), to: menu)
         add("命令行工具…", #selector(commandLineTools), to: menu)
         menu.addItem(.separator())
         add("退出 Team Cross", #selector(quit), to: menu, key: "q")
-        item.menu = menu
+        let quickEntry = NSMenuItem(title: "资源速览", action: #selector(toggleQuickLook), keyEquivalent: "")
+        quickEntry.target = self
+        menu.insertItem(quickEntry, at: 3)
+        serviceMenu = menu
+        item.button?.target = self
+        item.button?.action = #selector(statusClicked)
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        var event = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        InstallEventHandler(GetApplicationEventTarget(), { _, _, context in
+            guard let context else { return OSStatus(eventNotHandledErr) }
+            Unmanaged<TeamCrossDelegate>.fromOpaque(context).takeUnretainedValue().toggleQuickLook()
+            return noErr
+        }, 1, &event, context, &hotKeyHandler)
+        if RegisterEventHotKey(UInt32(kVK_ANSI_T), UInt32(controlKey | optionKey), EventHotKeyID(signature: 0x54435253, id: 1), GetApplicationEventTarget(), 0, &hotKey) == noErr {
+            quickEntry.title = "资源速览    ⌃⌥T"
+        }
         if !receivedURL { launch(route: "") }
         drainRequests()
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.refresh() }
@@ -183,6 +207,37 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
             } else { self.statusItem.title = "服务已停止 · 可手动启动"; self.baseURL = nil }
         }
     }
+    @objc private func statusClicked() {
+        if NSApp.currentEvent?.type == .rightMouseUp { showServiceMenu() }
+        else { toggleQuickLook() }
+    }
+    private func showServiceMenu() {
+        guard let button = item.button, let menu = serviceMenu else { return }
+        quickLook?.dismiss()
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height), in: button)
+    }
+    @objc fileprivate func toggleQuickLook() {
+        guard !quitting, !openingQuickLook, item != nil else { return }
+        if let quickLook, quickLook.visible { quickLook.dismiss(); return }
+        openingQuickLook = true
+        // Reuse the launcher's service identity checks, including after restart.
+        call(["serve", "--no-open", "--json"]) { result in
+            self.openingQuickLook = false
+            guard !self.quitting else { return }
+            switch result {
+            case .success(let value):
+                guard let raw = value["url"] as? String, let url = URL(string: raw), let button = self.item.button else { return }
+                self.baseURL = url
+                if self.quickLook?.baseURL != url {
+                    self.quickLook?.close()
+                    self.quickLook = ResourceQuickLook(baseURL: url, menu: { [weak self] in self?.showServiceMenu() })
+                }
+                self.quickLook?.show(relativeTo: button)
+            case .failure(let error): self.showError(error.localizedDescription)
+            }
+        }
+    }
+    @objc private func openLibrary() { launch(route: "/#/library") }
     @objc private func openHome() { launch(route: "") }
     @objc private func openJoin() { launch(route: "/#/join") }
     @objc private func startService() { launch(route: "") }
@@ -268,13 +323,112 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
         if item == nil { shellOnlyExit = true; return .terminateNow }
         quit(); return .terminateCancel
     }
-    func applicationWillTerminate(_ notification: Notification) { instance?.close() }
+    func applicationWillTerminate(_ notification: Notification) {
+        quickLook?.close()
+        if let hotKey { UnregisterEventHotKey(hotKey) }
+        if let hotKeyHandler { RemoveEventHandler(hotKeyHandler) }
+        instance?.close()
+    }
     private func showError(_ message: String) {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert(); alert.messageText = "Team Cross 需要处理"; alert.informativeText = message
         alert.addButton(withTitle: "知道了"); alert.runModal()
     }
 }
+// The quick view uses the same loopback API as WebGUI. Only personal references
+// are persisted by Core, so WebKit and the external browser share one selection.
+private final class ResourceQuickLook: NSObject, WKNavigationDelegate, WKScriptMessageHandler, NSWindowDelegate {
+    let baseURL: URL
+    private let menu: () -> Void
+    private let popover = NSPopover()
+    private let controller = NSViewController()
+    private let web: WKWebView
+    private weak var button: NSStatusBarButton?
+    private var panel: NSPanel?
+    var visible: Bool { popover.isShown || panel?.isVisible == true }
+    init(baseURL: URL, menu: @escaping () -> Void) {
+        self.baseURL = baseURL
+        self.menu = menu
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent()
+        web = WKWebView(frame: NSRect(x: 0, y: 0, width: 470, height: 650), configuration: configuration)
+        super.init()
+        web.navigationDelegate = self
+        configuration.userContentController.add(self, name: "teamcross")
+        controller.view = web
+        popover.contentSize = NSSize(width: 470, height: 650)
+        popover.behavior = .transient
+        popover.contentViewController = controller
+        var url = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
+        url.path = "/"; url.fragment = "/library/quick"
+        web.load(URLRequest(url: url.url!))
+    }
+    private func sameOrigin(_ url: URL?) -> Bool {
+        guard let url else { return false }
+        return url.scheme == baseURL.scheme && url.host == baseURL.host && url.port == baseURL.port
+    }
+    func show(relativeTo button: NSStatusBarButton) {
+        self.button = button
+        NSApp.activate(ignoringOtherApps: true)
+        if let panel { panel.makeKeyAndOrderFront(nil) }
+        else { popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY) }
+        web.window?.makeFirstResponder(web)
+        web.evaluateJavaScript("window.dispatchEvent(new Event('focus'))", completionHandler: nil)
+    }
+    func dismiss() { popover.performClose(nil); panel?.orderOut(nil) }
+    func close() {
+        dismiss(); panel?.close(); panel = nil
+        web.stopLoading()
+        web.configuration.userContentController.removeScriptMessageHandler(forName: "teamcross")
+    }
+    private func open(_ route: String) {
+        guard route == "/" || route == "/settings" || route == "/library" || route.range(of: "^/library\\?item=[a-f0-9]{32}$", options: .regularExpression) != nil || route.range(of: "^/collaborations/[A-Za-z0-9-]+$", options: .regularExpression) != nil else { return }
+        var target = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
+        target.path = "/"; target.fragment = route
+        if let url = target.url { NSWorkspace.shared.open(url) }
+        if panel == nil { dismiss() }
+    }
+    private func pin() {
+        if let current = panel {
+            current.orderOut(nil); current.contentViewController = nil; current.delegate = nil
+            panel = nil; current.close()
+            popover.contentViewController = controller
+            if let button { show(relativeTo: button) }
+        } else {
+            popover.performClose(nil); popover.contentViewController = nil
+            let window = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 470, height: 650), styleMask: [.titled, .closable, .resizable, .utilityWindow], backing: .buffered, defer: false)
+            window.title = "Team Cross · 资源速览"
+            window.level = .floating; window.hidesOnDeactivate = false
+            window.isReleasedWhenClosed = false
+            window.minSize = NSSize(width: 420, height: 440)
+            window.contentViewController = controller; window.delegate = self
+            window.center(); panel = window
+            window.makeKeyAndOrderFront(nil)
+        }
+        web.evaluateJavaScript("window.dispatchEvent(new CustomEvent('teamcross-pinned', {detail: \(panel != nil ? "true" : "false")}))", completionHandler: nil)
+    }
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        sender.orderOut(nil)
+        return false
+    }
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.frameInfo.isMainFrame, sameOrigin(message.frameInfo.request.url), let body = message.body as? [String: Any] else { return }
+        switch body["action"] as? String {
+        case "open": if let route = body["route"] as? String { open(route) }
+        case "pin": pin()
+        case "menu": menu()
+        default: break
+        }
+    }
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard sameOrigin(navigationAction.request.url) else { decisionHandler(.cancel); return }
+        if let fragment = navigationAction.request.url?.fragment, fragment != "/library/quick", navigationAction.navigationType == .linkActivated {
+            open(fragment); decisionHandler(.cancel); return
+        }
+        decisionHandler(.allow)
+    }
+}
+
 @main
 enum TeamCrossApplication {
     static func main() {

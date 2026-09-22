@@ -1,0 +1,207 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { api, errorText } from "./api";
+import type { AnnotationTarget } from "./types";
+import { Icon } from "./components/ui";
+
+export type LibraryReference = {
+  spaceId: string;
+  kind: "material" | "annotation" | "context";
+  materialId?: string;
+  version?: number;
+  annotationId?: string;
+  target?: AnnotationTarget;
+};
+export type LibraryResource = {
+  key: string;
+  reference: LibraryReference;
+  title: string;
+  spaceTitle: string;
+  sessionId: string;
+  sessionTitle: string;
+  provider?: string;
+  author?: string;
+  summary?: string;
+  updatedAt: string;
+  openedAt?: string;
+  favorite: boolean;
+  selected: boolean;
+  annotated: boolean;
+  availability: "available" | "offline" | "withdrawn" | "unavailable";
+  replyCount: number;
+};
+export type LibraryView = { resources: LibraryResource[]; selection: string[] };
+export type LibraryBundle = {
+  code: string;
+  references: LibraryReference[];
+  expiresAt: string;
+};
+type Change = {
+  action: "visit" | "select" | "favorite" | "clear";
+  reference?: LibraryReference;
+  key?: string;
+  enabled?: boolean;
+};
+type LibraryContext = {
+  data?: LibraryView;
+  error: string;
+  working: boolean;
+  refresh: () => void;
+  change: (input: Change) => Promise<void>;
+};
+const Context = createContext<LibraryContext | undefined>(undefined);
+export const useLibrary = () => useContext(Context);
+const targetKey = (target?: AnnotationTarget) =>
+  target
+    ? JSON.stringify(
+        Object.entries(target)
+          .filter(
+            ([, value]) => value !== undefined && value !== "" && value !== 0,
+          )
+          .sort(([a], [b]) => a.localeCompare(b)),
+      )
+    : "";
+export const sameReference = (a: LibraryReference, b: LibraryReference) =>
+  a.spaceId === b.spaceId &&
+  a.kind === b.kind &&
+  a.materialId === b.materialId &&
+  a.version === b.version &&
+  a.annotationId === b.annotationId &&
+  targetKey(a.target) === targetKey(b.target);
+export function LibraryProvider({ children }: { children: ReactNode }) {
+  const [data, setData] = useState<LibraryView>();
+  const [error, setError] = useState("");
+  const [working, setWorking] = useState(false);
+  const revision = useRef(0),
+    pending = useRef(false);
+  const refresh = useCallback(() => {
+    if (pending.current) return;
+    const version = ++revision.current;
+    void api<LibraryView>("library")
+      .then((next) => {
+        if (version !== revision.current) return;
+        if (!Array.isArray(next.resources) || !Array.isArray(next.selection))
+          throw new Error("资源库暂不可用，请更新本机服务后重试。");
+        setData(next);
+        setError("");
+      })
+      .catch((e) => {
+        if (version === revision.current) setError(errorText(e));
+      });
+  }, []);
+  useEffect(() => {
+    refresh();
+    const timer = setInterval(refresh, 5000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      revision.current++;
+    };
+  }, [refresh]);
+  const change = useCallback(async (input: Change) => {
+    if (pending.current) return;
+    pending.current = true;
+    revision.current++;
+    setWorking(true);
+    setError("");
+    try {
+      setData(await api<LibraryView>("library/state", input));
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      pending.current = false;
+      setWorking(false);
+    }
+  }, []);
+  return (
+    <Context.Provider value={{ data, error, working, refresh, change }}>
+      {children}
+    </Context.Provider>
+  );
+}
+export function ResourceActions({
+  reference,
+  disabled = false,
+  favorite = false,
+}: {
+  reference: LibraryReference;
+  disabled?: boolean;
+  favorite?: boolean;
+}) {
+  const lib = useLibrary();
+  if (!lib) return null;
+  const resource = lib.data?.resources.find((r) =>
+    sameReference(r.reference, reference),
+  );
+  return (
+    <span className="resource-actions">
+      <button
+        className={`button small ${resource?.selected ? "is-selected" : ""}`}
+        disabled={lib.working || (disabled && !resource?.selected)}
+        aria-pressed={!!resource?.selected}
+        onClick={() =>
+          void lib.change({
+            action: "select",
+            reference,
+            key: resource?.key,
+            enabled: !resource?.selected,
+          })
+        }
+      >
+        <Icon name={resource?.selected ? "check" : "plus"} size={14} />
+        {resource?.selected ? "已加入选择" : "加入选择"}
+      </button>
+      {favorite && (
+        <button
+          className="icon-button"
+          aria-label={resource?.favorite ? "取消收藏" : "收藏"}
+          aria-pressed={!!resource?.favorite}
+          disabled={lib.working || (disabled && !resource?.favorite)}
+          onClick={() =>
+            void lib.change({
+              action: "favorite",
+              reference,
+              key: resource?.key,
+              enabled: !resource?.favorite,
+            })
+          }
+        >
+          <Icon name="star" size={16} />
+        </button>
+      )}
+    </span>
+  );
+}
+export const availabilityLabel = (r: LibraryResource) =>
+  ({
+    available: "",
+    offline: "暂时离线",
+    withdrawn: "已撤回",
+    unavailable: "访问已结束",
+  })[r.availability];
+
+// Only the native wrapper defines this narrow bridge; normal WebGUI uses links.
+declare global {
+  interface Window {
+    webkit?: {
+      messageHandlers?: {
+        teamcross?: {
+          postMessage: (body: { action: string; route?: string }) => void;
+        };
+      };
+    };
+  }
+}
+export function openFullLibrary(route = "/library") {
+  const bridge = window.webkit?.messageHandlers?.teamcross;
+  if (bridge) bridge.postMessage({ action: "open", route });
+  else location.hash = route;
+}

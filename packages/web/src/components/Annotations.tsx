@@ -1,3 +1,4 @@
+import { ResourceActions } from "../library";
 import { AnchoredNote, type AnnotationOrigin } from "./Reading";
 import {
   useCallback,
@@ -53,7 +54,7 @@ function Author({ author, createdAt }: { author: string; createdAt: string }) {
   );
 }
 
-function Discussion({
+export function Discussion({
   id,
   annotation,
   disabled,
@@ -197,6 +198,14 @@ function Discussion({
         </div>
       )}
       <div className="annotation-actions">
+        <ResourceActions
+          reference={{
+            spaceId: id,
+            kind: "annotation",
+            annotationId: annotation.id,
+          }}
+          disabled={disabled}
+        />
         <button
           className="button small"
           aria-expanded={open}

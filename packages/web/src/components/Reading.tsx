@@ -1,3 +1,4 @@
+import { ResourceActions } from "../library";
 import {
   useCallback,
   useEffect,
@@ -85,8 +86,10 @@ export function useReadingPosition(origin?: AnnotationOrigin, toolbar = false) {
 export function SelectionAction({
   origin,
   onClick,
+  children,
 }: {
   origin?: AnnotationOrigin;
+  children?: ReactNode;
   onClick: () => void;
 }) {
   const { refs, floatingStyles } = useReadingPosition(origin, true);
@@ -105,6 +108,7 @@ export function SelectionAction({
         <Icon name="comment" size={14} />
         批注所选内容
       </button>
+      {children}
     </div>,
     document.body,
   );
@@ -289,6 +293,7 @@ export function itemExpandLabel(loading: boolean, shown: number) {
 }
 
 export function ReaderMessage({
+  spaceId,
   source,
   target,
   activeTarget,
@@ -303,6 +308,7 @@ export function ReaderMessage({
   expanding,
   shownLength = 0,
 }: {
+  spaceId?: string;
   source: string;
   target: AnnotationTarget;
   activeTarget?: AnnotationTarget;
@@ -503,7 +509,22 @@ export function ReaderMessage({
             setSelected(undefined);
           }
         }}
-      />
+      >
+        {spaceId && selected && (
+          <ResourceActions
+            reference={
+              selected.target.kind === "material"
+                ? {
+                    spaceId,
+                    kind: "material",
+                    materialId: selected.target.materialId,
+                    version: selected.target.version,
+                  }
+                : { spaceId, kind: "context", target: selected.target }
+            }
+          />
+        )}
+      </SelectionAction>
     </>
   );
   return (
