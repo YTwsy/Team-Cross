@@ -2969,7 +2969,11 @@ mark[data-annotation-highlight] {
   width: 100%;
 }
 .publication-composer {
+  --publication-sticky-top: 12px;
   scroll-margin-top: 24px;
+}
+.modal .publication-composer {
+  --publication-sticky-top: 0px;
 }
 .publication-intent {
   display: flex;
@@ -3009,6 +3013,16 @@ mark[data-annotation-highlight] {
 .publication-snapshot {
   margin-top: -8px;
 }
+.publication-controls {
+  position: sticky;
+  top: var(--publication-sticky-top);
+  z-index: 5;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 4px 12px #00000008;
+}
 .publication-scope-bar {
   display: flex;
   flex-wrap: wrap;
@@ -3016,22 +3030,25 @@ mark[data-annotation-highlight] {
   justify-content: space-between;
   gap: 16px;
   padding: 16px 18px;
-  border-radius: 10px;
+  border-radius: 9px 9px 0 0;
   background: var(--soft);
 }
-.publication-scope-description,
-.publication-footer-summary {
+.publication-scope-description {
   display: grid;
   gap: 4px;
 }
 .publication-presets,
+.publication-scope-actions,
 .publication-boundaries,
-.publication-footer-actions,
+.publication-actions,
 .publication-page-actions {
   display: flex;
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
+}
+.publication-actions {
+  margin-left: auto;
 }
 .publication-presets button[aria-pressed="true"],
 .publication-boundaries button[aria-pressed="true"] {
@@ -3041,14 +3058,37 @@ mark[data-annotation-highlight] {
 }
 .publication-export-notice {
   color: var(--warning);
-  background: var(--warning-bg);
-  padding: 10px 14px;
-  border-radius: 8px;
+  margin: 0 16px 10px;
   font-size: 12px;
+}
+.publication-export-notice summary {
+  cursor: pointer;
+  width: fit-content;
+  background: var(--warning-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.publication-export-notice p {
+  margin-top: 8px;
 }
 .publication-reader .reader-layout {
   grid-template-columns: 205px minmax(0, 1fr);
   gap: 28px;
+}
+.publication-reader .reader-outline {
+  top: calc(
+    var(--publication-sticky-top) + var(--publication-controls-height, 140px) +
+      16px
+  );
+}
+.publication-reader .reader-outline nav {
+  max-height: max(
+    100px,
+    calc(
+      100dvh - var(--publication-sticky-top) -
+        var(--publication-controls-height, 140px) - 100px
+    )
+  );
 }
 .publication-reader .reader-outline nav button.is-in-range {
   background: var(--blue-soft);
@@ -3068,7 +3108,10 @@ mark[data-annotation-highlight] {
   color: var(--blue);
 }
 .publication-turn {
-  scroll-margin-top: 24px;
+  scroll-margin-top: calc(
+    var(--publication-sticky-top) + var(--publication-controls-height, 140px) +
+      16px
+  );
 }
 .publication-turn + .publication-turn {
   margin-top: 32px;
@@ -3094,23 +3137,6 @@ mark[data-annotation-highlight] {
 }
 .publication-boundaries .text-link {
   margin-left: auto;
-}
-.publication-footer {
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  background: var(--panel);
-  border-top: 1px solid var(--line);
-  padding: 16px 0;
-}
-.publication-footer-summary {
-  flex: 1 1 230px;
-  font-size: 12px;
 }
 .publication-confirmation {
   display: grid;
@@ -3384,6 +3410,22 @@ mark[data-annotation-highlight] {
     clip-path: inset(50%);
     white-space: nowrap;
   }
+}
+.publication-reading-tools .reader-toolbar {
+  padding: 10px 16px;
+  white-space: normal;
+}
+.publication-reading-tools .reader-hint-text {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
+}
+.publication-reading-tools .text-button {
+  flex-shrink: 0;
 }
 .reader-toolbar .text-button,
 .reading-surface .text-button,
@@ -4028,8 +4070,8 @@ mark[data-annotation-highlight] {
   .reader-message {
     scroll-margin-top: 85px;
   }
-  .publication-turn,
   .publication-composer {
+    --publication-sticky-top: 61px;
     scroll-margin-top: 85px;
   }
   .publication-source-bar {
@@ -4039,14 +4081,8 @@ mark[data-annotation-highlight] {
   .publication-boundaries .text-link {
     margin-left: 0;
   }
-  .publication-footer {
-    gap: 10px;
-  }
-  .publication-footer-actions {
+  .publication-scope-actions {
     width: 100%;
-  }
-  .publication-footer-actions .primary {
-    margin-left: auto;
   }
   .reader-markdown {
     font-size: 14px;

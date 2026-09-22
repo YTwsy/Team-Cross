@@ -402,11 +402,14 @@
 }
 .library-reader-content .reader-outline {
   position: static;
-  max-height: 150px;
   border: 1px solid var(--line);
   padding: 8px;
   border-radius: 6px;
   margin-bottom: 16px;
+}
+.library-reader-content .reader-outline nav {
+  max-height: 130px;
+  overscroll-behavior: contain;
 }
 .library-reader-content .reader-message {
   min-width: 0;

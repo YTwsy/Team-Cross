@@ -169,6 +169,13 @@ beforeEach(() => {
             .map((r) => r.key);
         } else if (resource && body.action === "favorite")
           resource.favorite = body.enabled;
+        else if (resource && body.action === "visit") {
+          resource.openedAt = new Date().toISOString();
+          data.resources = [
+            resource,
+            ...data.resources.filter((r) => r.key !== resource.key),
+          ];
+        }
         result = data;
       } else if (path === "library") result = data;
       else if (path === "library/read")
@@ -233,6 +240,117 @@ async function select(title: string) {
 }
 
 describe("个人资源库", () => {
+  it("keeps rows and groups in place after visits, selection, favorites and background refreshes", async () => {
+    data.resources = structuredClone([context, material, annotation]);
+    const { container } = mount();
+    await screen.findByRole("button", { name: "阅读 连接池调查" });
+    const rowOrder = () =>
+      Array.from(container.querySelectorAll(".library-row-body"), (row) =>
+        row.getAttribute("aria-label"),
+      );
+    const groupOrder = () =>
+      Array.from(
+        container.querySelectorAll(".library-group-heading strong"),
+        (heading) => heading.textContent,
+      );
+    const initialRows = rowOrder(),
+      initialGroups = groupOrder();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: `阅读 ${annotation.title}` }),
+    );
+    await waitFor(() => expect(data.resources[0]!.key).toBe(annotation.key));
+    expect(data.resources[0]!.openedAt).toBeTruthy();
+    expect(rowOrder()).toEqual(initialRows);
+    expect(groupOrder()).toEqual(initialGroups);
+
+    await select(annotation.title);
+    expect(
+      screen.getByRole("checkbox", { name: `选择 ${annotation.title}` }),
+    ).toBeChecked();
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: `收藏 ${context.title}`,
+      }),
+    );
+    expect(
+      await screen.findByRole("button", {
+        name: `取消收藏 ${context.title}`,
+        pressed: true,
+      }),
+    ).toBeInTheDocument();
+    expect(rowOrder()).toEqual(initialRows);
+    expect(groupOrder()).toEqual(initialGroups);
+
+    data.resources[0]!.summary = "后台更新后的引用片段";
+    fireEvent.focus(window);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: `阅读 ${annotation.title}` }),
+      ).toHaveTextContent("后台更新后的引用片段"),
+    );
+    expect(rowOrder()).toEqual(initialRows);
+    expect(groupOrder()).toEqual(initialGroups);
+
+    await userEvent.click(screen.getByRole("button", { name: "刷新" }));
+    await waitFor(() =>
+      expect(rowOrder()).toEqual([
+        `阅读 ${annotation.title}`,
+        `阅读 ${material.title}`,
+        `阅读 ${context.title}`,
+      ]),
+    );
+    expect(groupOrder()).toEqual([...initialGroups].reverse());
+    expect(
+      screen.getByRole("checkbox", { name: `选择 ${annotation.title}` }),
+    ).toBeChecked();
+  });
+
+  it("applies resource additions, removals and access changes without reshuffling existing rows", async () => {
+    data.resources = structuredClone([material, context, annotation]);
+    const { container } = mount();
+    await screen.findByRole("button", { name: `阅读 ${material.title}` });
+    const added = {
+      ...material,
+      key: "new-material",
+      reference: { ...material.reference, materialId: "m2" },
+      title: "新增材料",
+      sessionId: "new-source",
+      sessionTitle: "新增会话",
+    };
+    data.resources = [
+      added,
+      { ...annotation, availability: "withdrawn", summary: "内容已撤回" },
+      { ...context, favorite: true },
+    ];
+    fireEvent.focus(window);
+    await screen.findByRole("button", { name: "阅读 新增材料" });
+    expect(
+      Array.from(container.querySelectorAll(".library-row-body"), (row) =>
+        row.getAttribute("aria-label"),
+      ),
+    ).toEqual([
+      `阅读 ${annotation.title}`,
+      `阅读 ${context.title}`,
+      "阅读 新增材料",
+    ]);
+    expect(
+      screen.queryByRole("button", { name: `阅读 ${material.title}` }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: `阅读 ${annotation.title}` }),
+    ).toHaveTextContent("内容已撤回");
+    expect(
+      screen.getByRole("checkbox", { name: `选择 ${annotation.title}` }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", {
+        name: `取消收藏 ${context.title}`,
+        pressed: true,
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("shows saved and unsaved favorite states and reports a failed update without changing the state", async () => {
     render(
       <LibraryProvider>
@@ -646,7 +764,8 @@ describe("个人资源库", () => {
       screen.getByRole("button", { name: "阅读 请核对采样范围" }),
     );
     expect(await screen.findByText("已核对同一组样本")).toBeInTheDocument();
-    data.resources[1]!.availability = "unavailable";
+    data.resources.find((r) => r.key === annotation.key)!.availability =
+      "unavailable";
     await userEvent.click(screen.getByRole("button", { name: "刷新" }));
     await waitFor(() =>
       expect(screen.queryByText("已核对同一组样本")).not.toBeInTheDocument(),

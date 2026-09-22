@@ -53,11 +53,39 @@ type LibraryContext = {
   data?: LibraryView;
   error: string;
   working: boolean;
-  refresh: () => void;
+  refresh: (options?: { reorder?: boolean }) => void;
   change: (input: Change) => Promise<string | undefined>;
 };
 const Context = createContext<LibraryContext | undefined>(undefined);
 export const useLibrary = () => useContext(Context);
+export const libraryGroupKey = (resource: LibraryResource) =>
+  `${resource.reference.spaceId}:${resource.sessionId}`;
+
+function keepResourceOrder(
+  previous: LibraryView | undefined,
+  next: LibraryView,
+) {
+  if (!previous) return next;
+  const groups = new Map<string, number>();
+  const rows = new Map<string, number>();
+  for (const resource of previous.resources) {
+    const group = libraryGroupKey(resource);
+    if (!groups.has(group)) groups.set(group, groups.size);
+    rows.set(resource.key, rows.size);
+  }
+  const rank = (order: Map<string, number>, key: string) =>
+    order.get(key) ?? Number.MAX_SAFE_INTEGER;
+  return {
+    ...next,
+    // Apply current content and permissions while retaining the browsing order.
+    resources: [...next.resources].sort(
+      (a, b) =>
+        rank(groups, libraryGroupKey(a)) - rank(groups, libraryGroupKey(b)) ||
+        rank(rows, a.key) - rank(rows, b.key),
+    ),
+  };
+}
+
 const targetKey = (target?: AnnotationTarget) =>
   target
     ? JSON.stringify(
@@ -81,7 +109,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [working, setWorking] = useState(false);
   const revision = useRef(0),
     pending = useRef(false);
-  const refresh = useCallback(() => {
+  const refresh = useCallback((options?: { reorder?: boolean }) => {
     if (pending.current) return;
     const version = ++revision.current;
     void api<LibraryView>("library")
@@ -89,7 +117,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         if (version !== revision.current) return;
         if (!Array.isArray(next.resources) || !Array.isArray(next.selection))
           throw new Error("资源库暂不可用，请更新本机服务后重试。");
-        setData(next);
+        setData((previous) =>
+          options?.reorder ? next : keepResourceOrder(previous, next),
+        );
         setError("");
       })
       .catch((e) => {
@@ -97,12 +127,13 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       });
   }, []);
   useEffect(() => {
-    refresh();
-    const timer = setInterval(refresh, 5000);
-    window.addEventListener("focus", refresh);
+    const synchronize = () => refresh();
+    synchronize();
+    const timer = setInterval(synchronize, 5000);
+    window.addEventListener("focus", synchronize);
     return () => {
       clearInterval(timer);
-      window.removeEventListener("focus", refresh);
+      window.removeEventListener("focus", synchronize);
       revision.current++;
     };
   }, [refresh]);
@@ -113,7 +144,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     setWorking(true);
     setError("");
     try {
-      setData(await api<LibraryView>("library/state", input));
+      const next = await api<LibraryView>("library/state", input);
+      setData((previous) => keepResourceOrder(previous, next));
     } catch (e) {
       const message = errorText(e);
       setError(message);

@@ -34,12 +34,14 @@ export function PublicationReader({
   disabled = false,
   originalTurns = draft.turns,
   onReadyChange,
+  toolbarTarget,
 }: {
   draft: PublicationDraftSummary;
   scope?: PublicationScope;
   disabled?: boolean;
   originalTurns?: PublicationDraftSummary["turns"];
   onReadyChange?: (ready: boolean) => void;
+  toolbarTarget?: HTMLElement | null;
 }) {
   const [current, setCurrent] = useState(scope?.start || draft.startTurnId);
   const [from, setFrom] = useState(current);
@@ -161,6 +163,7 @@ export function PublicationReader({
     <div className="publication-reader" ref={panel}>
       <ReadingLayout
         label={scope ? "会话目录" : "分享内容目录"}
+        toolbarTarget={toolbarTarget}
         toolbar={
           scope
             ? "点击目录查看正文，在每轮开头选择范围"

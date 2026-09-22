@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, errorText, useResource } from "../api";
 import {
   availabilityLabel,
+  libraryGroupKey,
   openFullLibrary,
   ResourceActions,
   useLibrary,
@@ -86,7 +87,7 @@ export function Library({
   const groups = useMemo(() => {
     const result = new Map<string, LibraryResource[]>();
     for (const r of shown) {
-      const key = `${r.reference.spaceId}:${r.sessionId}`;
+      const key = libraryGroupKey(r);
       const group = result.get(key) || [];
       group.push(r);
       result.set(key, group);
@@ -159,7 +160,10 @@ export function Library({
               打开资源库 <Icon name="arrow" size={14} />
             </button>
           ) : (
-            <button className="button small" onClick={lib.refresh}>
+            <button
+              className="button small"
+              onClick={() => lib.refresh({ reorder: true })}
+            >
               <Icon name="refresh" size={14} />
               刷新
             </button>
@@ -178,7 +182,10 @@ export function Library({
           服务与设置
         </button>
       )}
-      <ErrorBox message={lib.error} retry={lib.refresh} />
+      <ErrorBox
+        message={lib.error}
+        retry={() => lib.refresh({ reorder: true })}
+      />
       <div className="library-layout">
         <nav className="library-views" aria-label="资源视图">
           {views.map(([id, label, icon]) => (
@@ -527,7 +534,7 @@ function LibraryReader({
           <p>
             保留来源入口；正文需要当前有效的访问权限。可以重新连接后再读取。
           </p>
-          <button className="button small" onClick={lib.refresh}>
+          <button className="button small" onClick={() => lib.refresh()}>
             重新检查
           </button>
         </div>
