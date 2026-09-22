@@ -1,4 +1,5 @@
 import { ResourceActions } from "../library";
+import { ReadingPanelHeading } from "./ReadingTabs";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, errorText } from "../api";
 import {
@@ -62,6 +63,9 @@ export function MaterialReader({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [itemLoading, setItemLoading] = useState("");
+  const [readingToolbar, setReadingToolbar] = useState<HTMLDivElement | null>(
+    null,
+  );
   const request = useRef(0);
   const searchedPages = useRef(0);
   const searchedItems = useRef(new Set<string>());
@@ -70,7 +74,7 @@ export function MaterialReader({
   useLayoutEffect(
     () => () => {
       const entry = memory.get(memoryKey);
-      const scroll = panel.current?.closest(".library-preview");
+      const scroll = panel.current?.closest(".library-preview, .reading-pane");
       const top = scroll?.getBoundingClientRect().top || 80;
       const anchor = Array.from(
         panel.current?.querySelectorAll<HTMLElement>("[data-reading-key]") ||
@@ -92,7 +96,7 @@ export function MaterialReader({
     ).find((el) => el.dataset.readingKey === position.key);
     if (anchor) {
       const delta = anchor.getBoundingClientRect().top - position.top;
-      const scroll = panel.current?.closest(".library-preview");
+      const scroll = panel.current?.closest(".library-preview, .reading-pane");
       if (scroll) scroll.scrollTop += delta;
       else window.scrollBy?.(0, delta);
     }
@@ -275,16 +279,19 @@ export function MaterialReader({
             来源 {v?.sourceId} · {v?.noticeCount || 0} 处导出说明
           </p>
         </details>
-        <ResourceActions
-          reference={{
-            spaceId,
-            kind: "material",
-            materialId: material.id,
-            version,
-          }}
-          disabled={disabled}
-          favorite
-        />
+        <div className="material-reader-actions">
+          <ResourceActions
+            reference={{
+              spaceId,
+              kind: "material",
+              materialId: material.id,
+              version,
+            }}
+            disabled={disabled}
+            favorite
+          />
+          <div ref={setReadingToolbar} />
+        </div>
         <div className="material-reader-copy">
           <Copy
             label="复制 Agent 阅读提示"
@@ -321,6 +328,7 @@ export function MaterialReader({
       <ErrorBox message={error} />
       {page && (
         <ReadingLayout
+          toolbarTarget={readingToolbar}
           outline={outline.map((t) => ({
             id: t.id,
             label: readingTitle(
@@ -488,13 +496,16 @@ export function Materials({
   }
   return (
     <section className="panel materials-panel" aria-label="已发布会话材料">
-      <div className="panel-heading">
-        <h2>
-          已发布会话材料{" "}
-          <span className="count">
-            {materials.filter((m) => !m.withdrawnAt).length}
-          </span>
-        </h2>
+      <ReadingPanelHeading
+        title={
+          <>
+            已发布会话材料{" "}
+            <span className="count">
+              {materials.filter((m) => !m.withdrawnAt).length}
+            </span>
+          </>
+        }
+      >
         <button
           className="button small"
           disabled={disabled}
@@ -502,7 +513,7 @@ export function Materials({
         >
           发布会话材料
         </button>
-      </div>
+      </ReadingPanelHeading>
       <p className="muted small-text">
         材料各自保留来源和版本。展开才读取正文，个人 Agent
         按需选择，不会自动接收所有历史。
@@ -528,15 +539,18 @@ export function Materials({
                 </small>
               </div>
               <div className="material-actions">
-                <ResourceActions
-                  reference={{
-                    spaceId: c.id,
-                    kind: "material",
-                    materialId: m.id,
-                    version: v.version,
-                  }}
-                  disabled={disabled || !!m.withdrawnAt}
-                />
+                {reading?.materialId !== m.id && (
+                  <ResourceActions
+                    reference={{
+                      spaceId: c.id,
+                      kind: "material",
+                      materialId: m.id,
+                      version: v.version,
+                    }}
+                    disabled={disabled || !!m.withdrawnAt}
+                    favorite
+                  />
+                )}
                 <button
                   className="button small"
                   disabled={

@@ -671,6 +671,10 @@ describe("产品路径", () => {
         : { ...collaboration, role: "remote", runtimeMode: "trusted" },
     );
     render(<Detail id="c1" />);
+    const mode = await screen.findByLabelText("查看协作模式说明");
+    expect(mode).toHaveTextContent("信任模式");
+    expect(screen.getByText(/沿用邀请者的原生配置与权限/)).not.toBeVisible();
+    fireEvent.click(mode);
     expect(await screen.findByText("信任模式 · 创建后固定")).toBeVisible();
     expect(screen.getByText(/沿用邀请者的原生配置与权限/)).toBeVisible();
     expect(
