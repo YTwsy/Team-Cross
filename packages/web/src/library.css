@@ -5,6 +5,15 @@
   gap: 6px;
   flex-wrap: wrap;
 }
+.resource-action-error {
+  flex-basis: 100%;
+  color: var(--danger);
+  font-size: 12px;
+}
+.resource-actions .is-favorite {
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--line));
+  background: var(--warning-bg);
+}
 .resource-actions .is-selected {
   color: var(--blue);
   border-color: var(--blue);

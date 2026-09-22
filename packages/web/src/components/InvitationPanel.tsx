@@ -6,7 +6,7 @@ import {
   type Collaboration,
   type ShareTransport,
 } from "../types";
-import { Copy, ErrorBox, Loading } from "./ui";
+import { Copy, ErrorBox, Icon, Loading } from "./ui";
 
 export function InvitationPanel({
   collaboration: c,
@@ -108,17 +108,48 @@ export function InvitationPanel({
         </>
       ) : (
         <>
-          <label className="field">
-            连接方式
-            <select
-              value={connection}
-              disabled={busy || c.sharing}
-              onChange={(e) => setTransport(e.target.value as ShareTransport)}
-            >
-              <option value="lan">局域网</option>
-              <option value="tailcat">Tailcat 跨网络 · 实验性</option>
-            </select>
-          </label>
+          <fieldset
+            disabled={busy || c.sharing}
+            className="workspace-field invite-transport-field"
+          >
+            <legend>连接方式</legend>
+            <div className="workspace-grid">
+              {(["lan", "tailcat"] as ShareTransport[]).map((value) => (
+                <label
+                  className={`workspace-card ${connection === value ? "selected" : ""}`}
+                  key={value}
+                >
+                  <input
+                    type="radio"
+                    name="inviteTransport"
+                    value={value}
+                    checked={connection === value}
+                    onChange={() => setTransport(value)}
+                  />
+                  <div className="workspace-top">
+                    <span className="entry-icon">
+                      <Icon
+                        name={value === "lan" ? "link" : "globe"}
+                        size={18}
+                      />
+                    </span>
+                    <span className="radio-dot" />
+                  </div>
+                  <h3>{value === "lan" ? "局域网" : "Tailcat 跨网络"}</h3>
+                  <strong>
+                    {value === "lan"
+                      ? "默认 · 快速直连"
+                      : "实验性 · 无需 Tailscale 账号"}
+                  </strong>
+                  <p>
+                    {value === "lan"
+                      ? "两台 Mac 在同一局域网时直连。"
+                      : "无法直连时可能经过 DERP 中继。"}
+                  </p>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           {c.sharing && (
             <p className="notice">链接加入已关闭。已加入的成员可以继续协作。</p>
           )}

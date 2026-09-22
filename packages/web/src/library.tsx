@@ -54,7 +54,7 @@ type LibraryContext = {
   error: string;
   working: boolean;
   refresh: () => void;
-  change: (input: Change) => Promise<void>;
+  change: (input: Change) => Promise<string | undefined>;
 };
 const Context = createContext<LibraryContext | undefined>(undefined);
 export const useLibrary = () => useContext(Context);
@@ -115,7 +115,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     try {
       setData(await api<LibraryView>("library/state", input));
     } catch (e) {
-      setError(errorText(e));
+      const message = errorText(e);
+      setError(message);
+      return message;
     } finally {
       pending.current = false;
       setWorking(false);
@@ -137,7 +139,21 @@ export function ResourceActions({
   favorite?: boolean;
 }) {
   const lib = useLibrary();
+  const [failure, setFailure] = useState("");
+  useEffect(
+    () => setFailure(""),
+    [
+      reference.spaceId,
+      reference.materialId,
+      reference.version,
+      reference.annotationId,
+    ],
+  );
   if (!lib) return null;
+  async function change(input: Change) {
+    setFailure("");
+    setFailure((await lib!.change(input)) || "");
+  }
   const resource = lib.data?.resources.find((r) =>
     sameReference(r.reference, reference),
   );
@@ -148,7 +164,7 @@ export function ResourceActions({
         disabled={lib.working || (disabled && !resource?.selected)}
         aria-pressed={!!resource?.selected}
         onClick={() =>
-          void lib.change({
+          void change({
             action: "select",
             reference,
             key: resource?.key,
@@ -161,12 +177,12 @@ export function ResourceActions({
       </button>
       {favorite && (
         <button
-          className="icon-button"
+          className={`button small library-star ${resource?.favorite ? "is-favorite" : ""}`}
           aria-label={resource?.favorite ? "取消收藏" : "收藏"}
           aria-pressed={!!resource?.favorite}
           disabled={lib.working || (disabled && !resource?.favorite)}
           onClick={() =>
-            void lib.change({
+            void change({
               action: "favorite",
               reference,
               key: resource?.key,
@@ -175,7 +191,13 @@ export function ResourceActions({
           }
         >
           <Icon name="star" size={16} />
+          {resource?.favorite ? "已收藏" : "收藏"}
         </button>
+      )}
+      {failure && (
+        <span className="resource-action-error" role="alert">
+          {failure}
+        </span>
       )}
     </span>
   );

@@ -1,4 +1,5 @@
 import { ResourceActions } from "../library";
+import { ReadingPanelHeading } from "./ReadingTabs";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, errorText, useResource } from "../api";
 import {
@@ -70,6 +71,9 @@ export function Context({
   const [cursor, setCursor] = useState("");
   const [historyTurn, setHistoryTurn] = useState("");
   const [readingFocus, setReadingFocus] = useState(false);
+  const [readingToolbar, setReadingToolbar] = useState<HTMLDivElement | null>(
+    null,
+  );
   const [selection, setSelection] = useState<AnnotationTarget>();
   const [selectionHint, setSelectionHint] = useState("");
   const [activeTarget, setActiveTarget] = useState<AnnotationTarget>();
@@ -437,6 +441,7 @@ export function Context({
       const segments = joinMaterialSegments(data.segments || []);
       body = turns.length ? (
         <ReadingLayout
+          toolbarTarget={readingToolbar}
           focus={readingFocus}
           onFocusChange={setReadingFocus}
           outline={turns.map((turn, i) => ({
@@ -573,8 +578,7 @@ export function Context({
   }
   return (
     <section className="panel context-panel" ref={panel}>
-      <div className="panel-heading">
-        <h2>协作上下文</h2>
+      <ReadingPanelHeading title="协作上下文">
         <ResourceActions
           reference={{ spaceId: id, kind: "context" }}
           disabled={!online || closed}
@@ -589,23 +593,26 @@ export function Context({
             <Icon name="refresh" size={17} />
           </button>
         )}
-      </div>
-      <div className="tabs" role="tablist" aria-label="上下文类型">
-        {[
-          ["history", "最近对话"],
-          ["changes", "代码改动"],
-          ["file", "查看文件"],
-          ...(technical ? [["technical", "技术信息"]] : []),
-        ].map(([value, label]) => (
-          <button
-            role="tab"
-            key={value}
-            aria-selected={tab === value}
-            onClick={() => changeTab(value as ContextTab)}
-          >
-            {label}
-          </button>
-        ))}
+      </ReadingPanelHeading>
+      <div className="context-reader-heading">
+        <div className="tabs" role="tablist" aria-label="上下文类型">
+          {[
+            ["history", "最近对话"],
+            ["changes", "代码改动"],
+            ["file", "查看文件"],
+            ...(technical ? [["technical", "技术信息"]] : []),
+          ].map(([value, label]) => (
+            <button
+              role="tab"
+              key={value}
+              aria-selected={tab === value}
+              onClick={() => changeTab(value as ContextTab)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="context-reading-tools" ref={setReadingToolbar} />
       </div>
       {tab === "file" && (
         <form

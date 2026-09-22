@@ -181,6 +181,23 @@ beforeEach(() => {
         };
       else if (path === "collaborations/space") result = collaboration;
       else if (path === "collaborations/space/read-material") result = page;
+      else if (path.includes("context?kind=history"))
+        result = {
+          thread: {},
+          pageCursor: "current-page",
+          contentHash: "current-history",
+          scope: "stream",
+          turns: [{ id: "live-turn", label: "共享会话的后续验证" }],
+          segments: [
+            {
+              ...page.segments[0],
+              turnId: "live-turn",
+              text: "共享会话的后续验证",
+              endOffset: 10,
+              length: 10,
+            },
+          ],
+        };
       else if (path === "collaborations/space/rpc")
         result = { turn: { id: "new-turn" } };
       else if (path.includes("context?kind=events")) result = { events: [] };
@@ -216,6 +233,228 @@ async function select(title: string) {
 }
 
 describe("个人资源库", () => {
+  it("shows saved and unsaved favorite states and reports a failed update without changing the state", async () => {
+    render(
+      <LibraryProvider>
+        <ResourceActions reference={material.reference} favorite />
+      </LibraryProvider>,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "收藏" }));
+    const saved = await screen.findByRole("button", {
+      name: "取消收藏",
+      pressed: true,
+    });
+    expect(saved).toHaveTextContent("已收藏");
+    expect(saved).toHaveClass("is-favorite");
+    expect(data.resources[0]!.favorite).toBe(true);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "收藏保存失败，请重试" }), {
+        status: 503,
+      }),
+    );
+    await userEvent.click(saved);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "收藏保存失败，请重试",
+    );
+    expect(
+      screen.getByRole("button", { name: "取消收藏", pressed: true }),
+    ).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "取消收藏" }));
+    expect(
+      await screen.findByRole("button", {
+        name: "收藏",
+        pressed: false,
+      }),
+    ).toHaveTextContent("收藏");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(data.resources[0]!.favorite).toBe(false);
+  });
+
+  it("offers one material selection action and selects the version currently being read", async () => {
+    collaboration.materials[0].versions.push({
+      ...page.version,
+      version: 2,
+      title: "连接池调查修订版",
+      turnCount: 3,
+    });
+    data.resources.push({
+      ...material,
+      key: "material-v2",
+      reference: { ...material.reference, version: 2 },
+    });
+    location.hash = "/collaborations/space";
+    render(<App />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "阅读材料" }),
+    );
+    const pane = screen.getByRole("tabpanel", { name: /已发布会话材料/ });
+    expect(
+      within(pane).getByRole("heading", { name: "连接池调查修订版" }),
+    ).toBeVisible();
+    expect(within(pane).getByText(/公开 3 轮/)).toBeVisible();
+    expect(
+      within(pane).getAllByRole("button", { name: "加入选择" }),
+    ).toHaveLength(1);
+    await userEvent.selectOptions(
+      within(pane).getByRole("combobox", { name: "查看固定版本" }),
+      "1",
+    );
+    expect(
+      within(pane).getByRole("heading", { name: "连接池调查" }),
+    ).toBeVisible();
+    expect(
+      within(pane).queryByText("连接池调查修订版"),
+    ).not.toBeInTheDocument();
+    expect(within(pane).getByText(/公开 1 轮/)).toBeVisible();
+    await userEvent.click(
+      within(pane).getByRole("button", { name: "加入选择" }),
+    );
+    await within(pane).findByRole("button", { name: "已加入选择" });
+    expect(data.selection).toEqual(["material-key"]);
+    await userEvent.click(within(pane).getByRole("button", { name: "收藏" }));
+    await within(pane).findByRole("button", {
+      name: "取消收藏",
+      pressed: true,
+    });
+    expect(
+      calls
+        .filter(
+          (c) => c.path === "library/state" && c.body.action === "favorite",
+        )
+        .at(-1)?.body.reference.version,
+    ).toBe(1);
+    expect(
+      calls
+        .filter((c) => c.path === "library/state" && c.body.action === "select")
+        .at(-1)?.body.reference.version,
+    ).toBe(1);
+    await userEvent.click(
+      within(pane).getByRole("button", { name: "收起材料" }),
+    );
+    expect(
+      within(pane).getAllByRole("button", { name: "加入选择" }),
+    ).toHaveLength(1);
+    await userEvent.click(
+      within(pane).getByRole("button", { name: "加入选择" }),
+    );
+    await waitFor(() =>
+      expect(data.selection).toEqual(["material-key", "material-v2"]),
+    );
+  });
+
+  it("switches between materials and context with keyboard access while retaining each reader", async () => {
+    location.hash = "/collaborations/space";
+    render(<App />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "阅读材料" }),
+    );
+    const text =
+      await screen.findByText("连接池等待下降，服务端耗时保持稳定。");
+    const materialPane = screen.getByRole("tabpanel", {
+      name: /已发布会话材料/,
+    });
+    materialPane.scrollTop = 280;
+    const pageScrollCalls = vi.mocked(window.scrollTo).mock.calls.length;
+    const header = screen.getByRole("tablist", {
+      name: "协作阅读内容",
+    }).parentElement!;
+    expect(
+      within(header).getByRole("button", { name: "发布会话材料" }),
+    ).toBeVisible();
+    expect(
+      within(materialPane).queryByRole("heading", { name: /已发布会话材料/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen
+        .getByRole("button", { name: "专注阅读" })
+        .closest(".material-reader-actions"),
+    ).not.toBeNull();
+    expect(
+      materialPane.querySelector(".reading-surface > .reader-toolbar"),
+    ).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "专注阅读" }));
+    await userEvent.click(screen.getByRole("tab", { name: "协作上下文" }));
+    expect(text).not.toBeVisible();
+    expect(
+      within(header).getByRole("button", { name: "刷新上下文" }),
+    ).toBeVisible();
+    expect(
+      within(header).queryByRole("button", { name: "发布会话材料" }),
+    ).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("共享会话的后续验证", {
+        selector: "[data-source-start]",
+      }),
+    ).toBeVisible();
+    expect(
+      screen
+        .getByRole("button", { name: "专注阅读" })
+        .closest(".context-reader-heading"),
+    ).not.toBeNull();
+    await userEvent.click(screen.getByRole("tab", { name: "查看文件" }));
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "相对执行目录的文件路径" }),
+      "src/main.ts",
+    );
+    const contextTab = screen.getByRole("tab", {
+      name: "协作上下文",
+    });
+    contextTab.focus();
+    await userEvent.keyboard("{ArrowLeft}");
+    expect(screen.getByRole("tab", { name: /已发布会话材料/ })).toHaveFocus();
+    expect(text).toBeVisible();
+    expect(materialPane.scrollTop).toBe(280);
+    expect(vi.mocked(window.scrollTo).mock.calls).toHaveLength(pageScrollCalls);
+    expect(
+      screen.getByRole("button", { name: "退出专注阅读", pressed: true }),
+    ).toBeVisible();
+    expect(calls.filter((c) => c.path.endsWith("/read-material"))).toHaveLength(
+      1,
+    );
+    await userEvent.keyboard("{End}");
+    expect(contextTab).toHaveFocus();
+    expect(
+      screen.getByRole("textbox", { name: "相对执行目录的文件路径" }),
+    ).toHaveValue("src/main.ts");
+  });
+
+  it("opens the matching reading tab when locating a material or live context annotation", async () => {
+    collaboration.annotations.push({
+      ...note,
+      id: "live-note",
+      text: "核对后续验证",
+      target: {
+        kind: "history",
+        sessionId: "fork",
+        turnId: "live-turn",
+        itemId: "answer",
+        quote: "共享会话的后续验证",
+        startOffset: 0,
+        endOffset: 10,
+      },
+    });
+    location.hash = "/collaborations/space";
+    render(<App />);
+    const liveNote = await screen.findByLabelText("批注：核对后续验证");
+    await userEvent.click(
+      within(liveNote).getByRole("button", { name: /查看原位置/ }),
+    );
+    expect(
+      screen.getByRole("tab", { name: "协作上下文", selected: true }),
+    ).toBeVisible();
+    const materialNote = screen.getByLabelText("批注：请核对采样范围");
+    await userEvent.click(
+      within(materialNote).getByRole("button", { name: /查看原位置/ }),
+    );
+    expect(
+      screen.getByRole("tab", { name: /已发布会话材料/, selected: true }),
+    ).toBeVisible();
+    expect(
+      await screen.findByText("连接池等待下降，服务端耗时保持稳定。"),
+    ).toBeVisible();
+  });
+
   it("recognizes a selected context excerpt after the Core normalizes target field order", async () => {
     data.resources[2]!.reference.target = {
       kind: "history",

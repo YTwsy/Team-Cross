@@ -457,9 +457,10 @@ describe("产品路径", () => {
       await screen.findByText("邀请尚未使用且已到期，可以重新邀请同事。"),
     ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "邀请成员" }));
-    expect(screen.getByRole("combobox", { name: "连接方式" })).toHaveValue(
-      "lan",
-    );
+    expect(screen.getByRole("radio", { name: /局域网/ })).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: /Tailcat 跨网络/ }),
+    ).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "重新开放链接" }));
     expect(
       calls.some(
@@ -540,7 +541,9 @@ describe("产品路径", () => {
     await user.click(screen.getByRole("radio", { name: /先分享讨论/ }));
     expect(screen.getByRole("radio", { name: /讨论协作入口/ })).toBeChecked();
     expect(
-      screen.queryByText("Claude Code 历史接入仍是实验性能力。只读取已保存的会话。"),
+      screen.queryByText(
+        "Claude Code 历史接入仍是实验性能力。只读取已保存的会话。",
+      ),
     ).not.toBeInTheDocument();
     await user.click(
       screen.getByRole("button", { name: "Claude Code · 实验性" }),
@@ -668,6 +671,10 @@ describe("产品路径", () => {
         : { ...collaboration, role: "remote", runtimeMode: "trusted" },
     );
     render(<Detail id="c1" />);
+    const mode = await screen.findByLabelText("查看协作模式说明");
+    expect(mode).toHaveTextContent("信任模式");
+    expect(screen.getByText(/沿用邀请者的原生配置与权限/)).not.toBeVisible();
+    fireEvent.click(mode);
     expect(await screen.findByText("信任模式 · 创建后固定")).toBeVisible();
     expect(screen.getByText(/沿用邀请者的原生配置与权限/)).toBeVisible();
     expect(

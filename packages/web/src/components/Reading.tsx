@@ -167,9 +167,15 @@ export function AnchoredNote({
     place();
     narrow.addEventListener("change", place);
     const observer = new MutationObserver(() => {
-      if (!origin.element.isConnected) onClose();
+      if (!origin.element.isConnected || origin.element.closest("[hidden]"))
+        onClose();
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["hidden"],
+    });
     return () => {
       narrow.removeEventListener("change", place);
       observer.disconnect();
@@ -214,6 +220,7 @@ export function ReadingLayout({
   focus: controlledFocus,
   onFocusChange,
   toolbar,
+  toolbarTarget,
 }: {
   outline: {
     id: string;
@@ -229,24 +236,36 @@ export function ReadingLayout({
   focus?: boolean;
   onFocusChange?: (focus: boolean) => void;
   toolbar?: ReactNode;
+  toolbarTarget?: HTMLElement | null;
 }) {
   const [localFocus, setLocalFocus] = useState(false);
   const focus = controlledFocus ?? localFocus;
+  const controls = (
+    <div className={`reader-toolbar ${toolbarTarget ? "is-inline" : ""}`}>
+      <span
+        className="reader-hint"
+        title={toolbar ? undefined : "选中文字可批注"}
+      >
+        {toolbarTarget && !toolbar && <Icon name="comment" size={14} />}
+        <span className="reader-hint-text">{toolbar ?? "选中文字可批注"}</span>
+      </span>
+      <button
+        className="text-button"
+        onClick={() => {
+          setLocalFocus(!focus);
+          onFocusChange?.(!focus);
+        }}
+        aria-pressed={focus}
+      >
+        {focus ? "退出专注阅读" : "专注阅读"}
+      </button>
+    </div>
+  );
   return (
     <div className={`reading-surface ${focus ? "reader-focus" : ""}`}>
-      <div className="reader-toolbar">
-        <span>{toolbar ?? "选中文字可批注"}</span>
-        <button
-          className="text-button"
-          onClick={() => {
-            setLocalFocus(!focus);
-            onFocusChange?.(!focus);
-          }}
-          aria-pressed={focus}
-        >
-          {focus ? "退出专注阅读" : "专注阅读"}
-        </button>
-      </div>
+      {toolbarTarget === undefined
+        ? controls
+        : toolbarTarget && createPortal(controls, toolbarTarget)}
       <div className="reader-layout">
         {!!outline.length && (
           <details className="reader-outline" open>

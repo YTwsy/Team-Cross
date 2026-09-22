@@ -13,13 +13,13 @@
 
 ## 安装与升级
 
-面向 Apple Silicon、macOS 14 及以上。当前正式版 `v0.2.1` 的 DMG、CLI 与稳定 Homebrew 入口见 [README 安装](../README.md#安装)。安装后运行不需要 Go、Node 或 pnpm。
+面向 Apple Silicon、macOS 14 及以上。当前正式版 `v0.2.2` 的 DMG、CLI 与稳定 Homebrew 入口见 [README 安装](../README.md#安装)。安装后运行不需要 Go、Node 或 pnpm。
 
 App 自带完整 CLI 和 Core，不要求 Homebrew。Cask 同时安装 App 和 `teamcross` 命令，Formula 提供独立 CLI。App 与 CLI、稳定命名与 RC 命名的 Homebrew 定义会占用同一 App 或命令入口，因此只选一种。RC 必须显式安装，普通 `brew upgrade` 不会把无后缀渠道切换到 RC。
 
 通过 DMG 安装后，在菜单栏选择“命令行工具…”即可安装 `teamcross`；默认入口为 `/usr/local/bin/teamcross`，需要时通过系统授权。已有 Homebrew 或其他来源的命令不会被覆盖。相同位置升级 App 后，命令自动使用新的内置 CLI；移除入口仍可正常使用 App。使用自定义 shell 的用户需确保命令目录在 `PATH` 中。
 
-升级或切换渠道前，先退出正在运行的 Team Cross，再通过原渠道更新或卸载。安装程序保留协作数据和工作目录，但 `v0.2.1` 不加载或迁移旧 `schema:2` 材料，旧数据仍保留在磁盘。详细变化见 [Release](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.1)。
+升级或切换渠道前，先退出正在运行的 Team Cross，再通过原渠道更新或卸载。安装程序保留协作数据和工作目录，但 `v0.2.2` 不加载或迁移旧 `schema:2` 材料，旧数据仍保留在磁盘。详细变化见 [Release](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.2)。
 
 从 Formula 切换到 App 时，退出服务后按实际渠道运行 `brew uninstall --formula --force teamcross` 或 `brew uninstall --formula --force teamcross-rc`，再安装 Cask。反向切换使用 `brew uninstall --cask team-cross` 或 `brew uninstall --cask team-cross@rc`；DMG 用户在移除 App 前先从菜单移除命令入口。以上卸载保留协作数据与工作目录。
 
@@ -220,6 +220,10 @@ teamcross input handoff --id <协作ID> --member <成员ID> --epoch <最新epoch
 取得输入后，用 `teamcross open --id <协作ID> --client tui` 打开新终端窗口，或 `--client desktop` 打开 Codex 专用窗口；`--print-command` 只取得启动计划。Claude 仅支持 TUI。启动请求成功后仍需查看 `clientState`，不把它等同于会话已打开。`end --id` 由发起者结束共享，`leave --id` 由接收者离开，`resume --id` 恢复已有 fork；这些动作保留原生会话与工作目录。
 
 ## 阅读与批注
+
+启用共同执行后，可在阅读面板标题栏切换“已发布会话材料”和“协作上下文”，无需上下寻找两部分。两部分在同一个高度稳定的区域内分别滚动，切换保留各自的阅读位置、已打开版本和工具过程，不会主动移动整页；点击批注的“查看原位置”会自动进入对应内容。只读空间只显示已发布材料。协作标题旁显示当前模式，点击可展开权限范围说明。
+
+点击“阅读材料”后，正文直接在这张材料卡片内展开。卡片顶部集中显示版本、来源和操作，标题与“收起材料”各保留一次；切换历史版本时，标题、公开轮数、“加入选择”和收藏都对应当前查看的版本。收藏成功会显示高亮星标与“已收藏”，再次点击可取消；保存失败时会在按钮旁说明原因。
 
 历史从最近 8 轮开始；正文按轮对齐，对话完整返回，长工具输出默认折叠。工具可将 `nextCursor` 传入 `read_context` 的 `cursor` 继续本页或读取更早内容，也可用响应中的 `pageCursor + turnId + itemId + startOffset` 单独读完一条输出。WebGUI 可翻阅更早的对话，按轮次目录导航；已发布材料与协作上下文支持 Markdown 排版、代码高亮、工具过程折叠、专注阅读及原文切换。对话有新内容时先提示，点击后更新当前阅读内容。
 
