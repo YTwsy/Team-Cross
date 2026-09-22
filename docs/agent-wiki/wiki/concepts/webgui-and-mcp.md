@@ -4,6 +4,8 @@ WebGUI 提供协作管理、材料阅读与原文讨论；执行交互在对应�
 
 独立只读分享、多会话材料与三人以上入口见 [协作空间任务页](collaboration-spaces.md)。公开范围预览必须覆盖实际发布的工具输出和附件，页面隐藏不能代替 Core、MCP/CLI 与运行时工具共同的数据范围限制；导出缺失与截断必须显式标记。
 
+资源库汇集参与过的 Session 材料、本人批注/回复与执行上下文，保留“设置与连接”入口。跨类型选择在 Core 持久化，与菜单栏速览共用；读取编号在底部内联生成，个人 MCP 用 `read_selection` 读取明确固定引用，不读取含糊的当前选择。共享发送保留目标预览及输入检查。范围与取舍见 [资源库决策](../../sources/decisions/resource-library.md)，字段见 [资源库协议](../../sources/protocol.md#个人资源库)。
+
 个人 MCP 和 CLI 也支持选择来源、预览、创建、邀请、加入、直接客户端启动及结束/恢复；[管理工具](../../../../internal/mcp/management.go) 统一映射现有 Core API。个人 MCP 还可通过 [当前来源工具](../../../../internal/mcp/current.go) 核对调用者 Session、预览并登记本轮结束后的分享；无法核对身份时明确选择来源，不猜最近会话。登记后结束本轮，再查询状态和取回邀请；等待可取消，重启不自动重放。邀请失败后只重试分享，不重复 fork。共享运行时的内置批注 MCP 保持当前协作范围。
 
 ## 页面与工具入口
@@ -15,6 +17,8 @@ WebGUI 提供协作管理、材料阅读与原文讨论；执行交互在对应�
 | 视觉、键盘与通用组件 | [styles.css](../../../../packages/web/src/styles.css)、[ui.tsx](../../../../packages/web/src/components/ui.tsx) |
 | 本机管理与客户端启动 | [http.go](../../../../internal/collab/http.go)、[launch.go](../../../../internal/collab/launch.go) |
 | STDIO 工具与协议输入 | [mcp/server.go](../../../../internal/mcp/server.go) |
+| 资源库、选择与读取编号 | [Library.tsx](../../../../packages/web/src/components/Library.tsx)、[状态](../../../../packages/web/src/library.tsx)、[Core](../../../../internal/collab/library.go)、[MCP](../../../../internal/mcp/library.go) |
+| 菜单栏速览、热键与浮窗 | [TeamCross.swift](../../../../apps/macos/TeamCross.swift) |
 | 终端协作查询与输入管理 | [collaboration.go](../../../../cmd/teamcross/collaboration.go) |
 | 只读入口、公开范围与固定版本阅读 | [Publisher.tsx](../../../../packages/web/src/components/Publisher.tsx)、[PublicationReader.tsx](../../../../packages/web/src/components/PublicationReader.tsx)、[ReadOnlySpace.tsx](../../../../packages/web/src/components/ReadOnlySpace.tsx)、[Materials.tsx](../../../../packages/web/src/components/Materials.tsx) |
 

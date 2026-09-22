@@ -50,6 +50,9 @@ func Open(cfg Config) (*App, error) {
 	}
 	host, _ := os.Hostname()
 	a := &App{Config: cfg, Host: host, Token: uuid.NewString(), sessions: map[string]*Session{}, joined: map[string]*Joined{}}
+	if err = a.loadLibrary(); err != nil {
+		return nil, err
+	}
 	_ = readJSON(filepath.Join(cfg.DataDir, "settings.json"), &a.settings)
 	if cfg.Binary != "" {
 		a.settings.Binary = cfg.Binary

@@ -249,6 +249,8 @@ type Settings struct {
 	DesktopApp   string `json:"desktopApp"`
 }
 type App struct {
+	libraryMu     sync.Mutex
+	library       libraryState
 	spaceCreateMu sync.Mutex
 	shareRequests map[string]*shareRequest
 	shareWorkers  sync.WaitGroup

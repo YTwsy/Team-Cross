@@ -15,10 +15,14 @@
 | 修改 TUI/Desktop、登录、模型或原生接入 | [原生客户端与模型](concepts/native-clients-and-models.md) | [nativecodex](../../../internal/nativecodex/)、[本机路由](../../../internal/collab/local_client.go) |
 | 修改邀请、输入交接、审批或断线处理 | [输入协调与共享](concepts/input-and-sharing.md) | [rpc.go](../../../internal/collab/rpc.go)、[network.go](../../../internal/collab/network.go) |
 | 修改页面、上下文、批注或辅助工具 | [WebGUI 与本地 MCP](concepts/webgui-and-mcp.md) | [WebGUI](../../../packages/web/src/)、[MCP](../../../internal/mcp/server.go) |
+| 修改资源库、选择清单或菜单栏速览 | [资源库与速览](../sources/decisions/resource-library.md) | [资源库](../../../internal/collab/library.go)、[界面](../../../packages/web/src/components/Library.tsx)、[App](../../../apps/macos/TeamCross.swift) |
 | 选择测试或判断验收结论 | [验证门槛](concepts/validation-gates.md) | [自动化与真实验证入口](../sources/validation/test-gates.md) |
 | 安装、App 外壳与首次体验 | [分发与首次体验](../sources/distribution-and-onboarding.md) | [公共启动器](../../../internal/service/service.go)、[App](../../../apps/macos/TeamCross.swift)、[构建](../../../scripts/build-release.py) |
 
 ## 完整事实来源
+
+- [2026-09-22 个人资源库与资源速览](../sources/validation/resource-library-2026-09-22.md)：跨类型选择、内联读取入口、真实 MCP 读取、权限隔离、106 项 Web 回归与六组窗口/主题复核；原生速览桌面交互保留未验收边界。
+- [个人资源库与资源速览决策](../sources/decisions/resource-library.md)：本机索引、固定引用编号、个人/共享入口、设置保留和菜单栏取舍。
 
 - [2026-09-21 分享范围阅读与确认](../sources/validation/publication-range-2026-09-21.md)：目录定位与范围分离、紧凑草稿分页、确认范围隔离、96 项 Web 回归和真实浏览器发布流程。
 
