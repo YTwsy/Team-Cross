@@ -440,7 +440,7 @@ it("keeps a paginated code block intact and reopens the same material from its i
     ),
   );
   expect(container.querySelectorAll(".reader-message")).toHaveLength(1);
-  await user.click(screen.getByRole("button", { name: "收起正文" }));
+  await user.click(screen.getByRole("button", { name: "收起材料" }));
   await user.click(screen.getByRole("button", { name: "阅读材料" }));
   await waitFor(() =>
     expect(container.querySelector(".reader-code code")).toHaveTextContent(

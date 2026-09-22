@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { Detail } from "../components/Detail";
@@ -155,14 +161,14 @@ it("folds long tool output and reads the selected item without advancing the str
   expect(bodies[1]).not.toHaveProperty("cursor");
 });
 
-it("turns the open material button into collapse and matches the reading panel close action", async () => {
+it("reads inside the selected card with one title and collapse action, and switches cards on demand", async () => {
   const user = userEvent.setup();
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL) => {
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).endsWith("/read-material"))
         return json({
-          materialId: "m1",
+          materialId: JSON.parse(String(init?.body)).materialId,
           version: 1,
           turns: [{ id: "t1", label: "验证" }],
           segments: [
@@ -181,24 +187,61 @@ it("turns the open material button into collapse and matches the reading panel c
   );
   render(
     <Materials
-      collaboration={readonly}
+      collaboration={{
+        ...readonly,
+        materials: [
+          material,
+          {
+            ...material,
+            id: "m2",
+            versions: [{ ...material.versions[0]!, title: "另一份调查" }],
+          },
+        ],
+      }}
       reload={() => {}}
       onAnnotate={() => {}}
     />,
   );
-  await user.click(screen.getByRole("button", { name: "阅读材料" }));
-  expect(await screen.findByRole("button", { name: "收起材料" })).toBeVisible();
+  const card = screen.getByRole("article", { name: "网络验证" });
+  const other = screen.getByRole("article", { name: "另一份调查" });
+  await user.click(within(card).getByRole("button", { name: "阅读材料" }));
   expect(
-    screen.queryByRole("button", { name: "阅读材料" }),
-  ).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "收起正文" })).toBeVisible();
-  expect(document.querySelector(".material-reading")).toBeTruthy();
-  await user.click(screen.getByRole("button", { name: "收起材料" }));
-  expect(document.querySelector(".material-reading")).toBeNull();
+    await within(card).findByText("已公开正文", {
+      selector: "[data-source-start]",
+    }),
+  ).toBeVisible();
+  const collapse = within(card).getByRole("button", { name: "收起材料" });
+  expect(collapse).toHaveAttribute("aria-expanded", "true");
+  expect(card).toContainElement(
+    document.getElementById(collapse.getAttribute("aria-controls")!),
+  );
+  expect(screen.getAllByText("网络验证")).toHaveLength(1);
+  expect(
+    within(card).getByRole("combobox", { name: "查看固定版本" }),
+  ).toBeVisible();
+  expect(
+    within(card).getByRole("button", { name: "复制 Agent 阅读提示" }),
+  ).toBeVisible();
   expect(
     screen.queryByRole("button", { name: "收起正文" }),
   ).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "阅读材料" })).toBeVisible();
+  expect(within(other).queryByText("已公开正文")).not.toBeInTheDocument();
+  await user.click(within(other).getByRole("button", { name: "阅读材料" }));
+  expect(
+    await within(other).findByText("已公开正文", {
+      selector: "[data-source-start]",
+    }),
+  ).toBeVisible();
+  expect(within(card).queryByText("已公开正文")).not.toBeInTheDocument();
+  expect(
+    within(card).getByRole("button", { name: "阅读材料" }),
+  ).toHaveAttribute("aria-expanded", "false");
+  await user.click(within(other).getByRole("button", { name: "收起材料" }));
+  expect(
+    screen.queryByRole("button", { name: "收起材料" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText("已公开正文")).not.toBeInTheDocument();
+  expect(screen.getAllByRole("button", { name: "阅读材料" })).toHaveLength(2);
 });
 
 it("keeps material provenance on the reader toolbar until the source details are opened", async () => {
@@ -233,7 +276,7 @@ it("keeps material provenance on the reader toolbar until the source details are
     />,
   );
   await user.click(screen.getByRole("button", { name: "阅读材料" }));
-  const summary = await screen.findByText(/codex · 公开 2 轮 · 版本 1/);
+  const summary = await screen.findByText(/A · codex · 公开 2 轮/);
   const details = summary.closest("details.reader-provenance");
   expect(details).toBeTruthy();
   expect(details?.parentElement).toHaveClass("material-reader-toolbar");

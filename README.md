@@ -6,7 +6,7 @@ Team Cross 是 macOS 上围绕 Coding Agent 会话展开的本地协作工具。
 
 继续使用熟悉的终端和原生客户端，也可以打开 WebGUI 查看共同上下文。协作空间与共享执行托管在发起者的 Mac，个人 Agent 通过 MCP 按需参与，各自保留自己的会话、模型与本地上下文。
 
-[官网与交互演示](https://teamcross.pages.dev/) · [下载 v0.2.1 正式版](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.1) · [使用指南](docs/user-guide.md) · [文档导航](docs/README.md)
+[官网与交互演示](https://teamcross.pages.dev/) · [下载 v0.2.2 正式版](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.2) · [使用指南](docs/user-guide.md) · [文档导航](docs/README.md)
 
 > 产品仍处于原型阶段，面向 Apple Silicon、macOS 14 及以上。Claude Code 原生 TUI 与 Tailcat 连接为实验性。官网演示使用模拟场景，实际支持范围见下文。
 
@@ -25,11 +25,11 @@ Team Cross 是 macOS 上围绕 Coding Agent 会话展开的本地协作工具。
 
 ## 安装
 
-当前正式版本为 **`v0.2.1`**。以下方式选择一种：
+当前正式版本为 **`v0.2.2`**。以下方式选择一种：
 
 | 方式 | 安装与打开 |
 | --- | --- |
-| 下载 App | 下载 [Apple Silicon DMG](https://github.com/YTwsy/Team-Cross/releases/download/v0.2.1/Team-Cross-0.2.1-arm64.dmg)，将 `Team Cross.app` 拖入“应用程序”并打开 |
+| 下载 App | 下载 [Apple Silicon DMG](https://github.com/YTwsy/Team-Cross/releases/download/v0.2.2/Team-Cross-0.2.2-arm64.dmg)，将 `Team Cross.app` 拖入“应用程序”并打开 |
 | Homebrew App | `brew install --cask YTwsy/teamcross/team-cross`，打开 App 或运行 `teamcross` |
 | Homebrew CLI | `brew install YTwsy/teamcross/teamcross`，然后运行 `teamcross` |
 
@@ -37,9 +37,9 @@ Team Cross 是 macOS 上围绕 Coding Agent 会话展开的本地协作工具。
 
 当前安装包使用 ad-hoc 签名，未经 Developer ID 签名或 Apple 公证。首次打开若受到系统提示，先尝试打开 App，再按 [Apple 的说明](https://support.apple.com/zh-cn/102445) 在“系统设置 → 隐私与安全性”中允许打开。
 
-升级前退出正在运行的 Team Cross，通过原渠道更新。安装程序保留协作数据与工作目录，但 **`v0.2.1` 不加载或迁移旧 `schema:2` 材料，旧数据仍保留在磁盘**。稳定版与 RC Homebrew 渠道分别维护，普通升级不会自动切换渠道；更换安装方式前应先卸载原渠道。
+升级前退出正在运行的 Team Cross，通过原渠道更新。安装程序保留协作数据与工作目录，但 **`v0.2.2` 不加载或迁移旧 `schema:2` 材料，旧数据仍保留在磁盘**。稳定版与 RC Homebrew 渠道分别维护，普通升级不会自动切换渠道；更换安装方式前应先卸载原渠道。
 
-完整的切换步骤见 [安装与升级](docs/user-guide.md#安装与升级)，版本变化、CLI 下载、校验值和来源信息见 [Release](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.1)。
+完整的切换步骤见 [安装与升级](docs/user-guide.md#安装与升级)，版本变化、CLI 下载、校验值和来源信息见 [Release](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.2)。
 
 ## 开始使用
 
@@ -61,7 +61,7 @@ teamcross
 
 材料支持 Markdown、代码高亮、原文旁批注与固定版本引用。长工具输出按需展开，对话目录可以读取并定位尚未加载的轮次，阅读时可查看材料来源与公开范围。详见 [分享与审阅](docs/user-guide.md#分享与审阅) 和 [阅读与批注](docs/user-guide.md#阅读与批注)。
 
-源码中的“资源库”还可找回参与过的 Session 材料、批注和上下文，跨类型加入选择，生成一个本机读取编号后交给个人 Agent；同一空间的选择也能预览后发给共享会话。读取入口在底部内联显示，原有“设置与连接”入口保留。菜单栏左键或 `Control + Option + T` 打开速览，右键保留服务菜单。详见 [资源库与速览](docs/user-guide.md#资源库与速览)；此改动尚未包含在上方的 v0.2.1 下载中。
+“资源库”可找回参与过的 Session 材料、批注和上下文，跨类型加入选择，生成一个本机读取编号后交给个人 Agent；同一空间的选择也能预览后发给共享会话。读取入口在底部内联显示，原有“设置与连接”入口保留。菜单栏左键或 `Control + Option + T` 打开速览，右键保留服务菜单。详见 [资源库与速览](docs/user-guide.md#资源库与速览)。
 
 ### 共同继续执行
 

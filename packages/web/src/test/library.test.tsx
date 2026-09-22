@@ -272,7 +272,12 @@ describe("个人资源库", () => {
   });
 
   it("offers one material selection action and selects the version currently being read", async () => {
-    collaboration.materials[0].versions.push({ ...page.version, version: 2 });
+    collaboration.materials[0].versions.push({
+      ...page.version,
+      version: 2,
+      title: "连接池调查修订版",
+      turnCount: 3,
+    });
     data.resources.push({
       ...material,
       key: "material-v2",
@@ -285,17 +290,40 @@ describe("个人资源库", () => {
     );
     const pane = screen.getByRole("tabpanel", { name: /已发布会话材料/ });
     expect(
+      within(pane).getByRole("heading", { name: "连接池调查修订版" }),
+    ).toBeVisible();
+    expect(within(pane).getByText(/公开 3 轮/)).toBeVisible();
+    expect(
       within(pane).getAllByRole("button", { name: "加入选择" }),
     ).toHaveLength(1);
     await userEvent.selectOptions(
       within(pane).getByRole("combobox", { name: "查看固定版本" }),
       "1",
     );
+    expect(
+      within(pane).getByRole("heading", { name: "连接池调查" }),
+    ).toBeVisible();
+    expect(
+      within(pane).queryByText("连接池调查修订版"),
+    ).not.toBeInTheDocument();
+    expect(within(pane).getByText(/公开 1 轮/)).toBeVisible();
     await userEvent.click(
       within(pane).getByRole("button", { name: "加入选择" }),
     );
     await within(pane).findByRole("button", { name: "已加入选择" });
     expect(data.selection).toEqual(["material-key"]);
+    await userEvent.click(within(pane).getByRole("button", { name: "收藏" }));
+    await within(pane).findByRole("button", {
+      name: "取消收藏",
+      pressed: true,
+    });
+    expect(
+      calls
+        .filter(
+          (c) => c.path === "library/state" && c.body.action === "favorite",
+        )
+        .at(-1)?.body.reference.version,
+    ).toBe(1);
     expect(
       calls
         .filter((c) => c.path === "library/state" && c.body.action === "select")

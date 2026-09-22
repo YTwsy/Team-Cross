@@ -3142,11 +3142,28 @@ mark[data-annotation-highlight] {
   gap: 12px;
   min-width: 0;
 }
-.material-card strong,
-.material-card p {
+.material-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.material-card-heading > .button {
+  flex-shrink: 0;
+}
+.material-card-summary,
+.material-card-content {
+  min-width: 0;
+}
+.material-card-summary {
   overflow-wrap: anywhere;
 }
-.material-card p {
+.material-card-summary h3 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.material-card-summary p {
   margin: 6px 0;
   font-size: 13px;
   color: var(--muted);
@@ -3159,8 +3176,8 @@ mark[data-annotation-highlight] {
 }
 .material-reader-toolbar {
   display: grid;
-  grid-template-areas: "version provenance copy";
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "version provenance";
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
   justify-items: start;
   gap: 8px 12px;
@@ -3175,6 +3192,10 @@ mark[data-annotation-highlight] {
   flex-wrap: wrap;
   gap: 8px 16px;
   width: 100%;
+}
+.material-card-content .material-reader-toolbar {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
 }
 .material-version-field {
   display: flex;
@@ -3211,23 +3232,11 @@ mark[data-annotation-highlight] {
 }
 .material-reader-copy {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  min-width: 0;
-  min-height: 31px;
-  grid-area: copy;
-  justify-self: end;
 }
 .material-empty {
   padding: 24px 0;
   color: var(--muted);
-}
-.material-reading {
-  border-top: 1px solid var(--line);
-  margin-top: 22px;
-  padding-top: 22px;
 }
 .material-reader {
   display: grid;
@@ -3716,7 +3725,7 @@ mark[data-annotation-highlight] {
   font-weight: 400;
   line-height: 1.2;
   list-style: none;
-  white-space: nowrap;
+  white-space: normal;
 }
 .reader-provenance > summary::-webkit-details-marker {
   display: none;
@@ -3749,27 +3758,17 @@ mark[data-annotation-highlight] {
 @container material-reader (max-width: 620px) {
   .material-reader-toolbar {
     grid-template-areas:
-      "version copy"
-      "provenance provenance";
-    grid-template-columns: minmax(0, 1fr) auto;
+      "version"
+      "provenance";
+    grid-template-columns: minmax(0, 1fr);
   }
   .reader-provenance > summary {
     min-height: 0;
   }
 }
 @media (max-width: 600px) {
-  .material-reader-toolbar {
-    grid-template-areas:
-      "version"
-      "provenance"
-      "copy";
-    grid-template-columns: minmax(0, 1fr);
-  }
   .material-version-field {
     width: 100%;
-  }
-  .material-reader-copy {
-    justify-self: start;
   }
 }
 .reader-update {
@@ -3785,8 +3784,9 @@ mark[data-annotation-highlight] {
   font-size: 12px;
 }
 .material-card.is-reading {
+  grid-column: 1 / -1;
   border-color: color-mix(in srgb, var(--blue) 55%, var(--line));
-  background: color-mix(in srgb, var(--blue-soft) 40%, var(--panel));
+  background: var(--panel);
 }
 .material-list {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));

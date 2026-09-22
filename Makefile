@@ -14,7 +14,7 @@ dev:
 	go run ./cmd/teamcross serve --foreground --dev-web http://127.0.0.1:5173
 
 .PHONY: release verify-release verify-homebrew verify-app-instance
-VERSION ?= 0.2.1-dev
+VERSION ?= 0.2.2-dev
 release:
 	python3 scripts/build-release.py --version $(VERSION)
 verify-release:
