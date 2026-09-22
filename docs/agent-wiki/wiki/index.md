@@ -21,6 +21,8 @@
 
 ## 完整事实来源
 
+- [2026-09-23 v0.2.2 正式版发布](../sources/validation/release-v0.2.2-2026-09-23.md)：PR/main、annotated tag、Latest Release、arm64 资产与 provenance、稳定 Homebrew tap PR 和公共 smoke。
+
 - [2026-09-22 材料卡片内阅读](../sources/validation/material-cards-2026-09-22.md)：卡片内展开、标题与操作去重、历史版本信息同步、110 项 Web 回归与响应式 DOM 检查。
 
 - [2026-09-22 协作阅读布局与操作反馈](../sources/validation/reading-tabs-2026-09-22.md)：标题栏切换、稳定阅读区域、工具栏合并、收藏反馈、110 项 Web 回归与 12 个窗口/主题视图。
