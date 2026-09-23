@@ -21,6 +21,8 @@
 
 ## 完整事实来源
 
+- [2026-09-23 短页面成员折叠稳定性](../sources/validation/member-fold-stability-2026-09-23.md)：已关闭空间反复跳动的复现、滚动范围保护、StrictMode 回归、122 项 Web 测试和浏览器检查。
+
 - [2026-09-23 v0.2.3 正式版发布](../sources/validation/release-v0.2.3-2026-09-23.md)：PR/main、annotated tag、Latest Release、arm64 资产与 provenance、稳定 Homebrew tap PR 和公共 smoke。
 
 - [2026-09-23 协作详情阅读布局反馈](../sources/validation/reading-layout-feedback-2026-09-23.md)：标签对齐、正文间距、概览切换位置、详情顶部和批注卡片布局、吸顶位置以及 Web 回归与截图。

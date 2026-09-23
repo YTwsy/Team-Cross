@@ -5,7 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { useState } from "react";
+import { StrictMode, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   captureReadingPosition,
@@ -184,25 +184,30 @@ describe("成员滚动折叠", () => {
       },
     );
     const result = render(
-      <div className="detail-grid" style={{ display: "grid" }}>
-        <div className="detail-main" />
-        <Members
-          collaboration={
-            {
-              id: "space",
-              role: "owner",
-              writer: "owner",
-              members: [],
-              hasExecution: true,
-            } as unknown as Collaboration
-          }
-          busy={false}
-          closed={false}
-          onAction={() => {}}
-          onRemove={() => {}}
-          onAssist={() => {}}
-        />
-      </div>,
+      <StrictMode>
+        <div className="detail-grid" style={{ display: "grid" }}>
+          <div className="detail-main" />
+          <aside className="detail-aside">
+            <Members
+              collaboration={
+                {
+                  id: "space",
+                  role: "owner",
+                  writer: "owner",
+                  members: [],
+                  hasExecution: true,
+                } as unknown as Collaboration
+              }
+              busy={false}
+              closed={false}
+              onAction={() => {}}
+              onRemove={() => {}}
+              onAssist={() => {}}
+            />
+            <section aria-label="讨论" />
+          </aside>
+        </div>
+      </StrictMode>,
     );
     return result;
   }
@@ -244,6 +249,17 @@ describe("成员滚动折叠", () => {
     await screen.findByRole("button", { name: "收起成员" });
   });
 
+  it("retains the reserved height when mounted in reading position with StrictMode", async () => {
+    scrollY = 500;
+    const { container } = mountMembers();
+    await screen.findByRole("button", { name: "展开成员" });
+    expect(
+      container
+        .querySelector<HTMLElement>(".detail-aside")!
+        .style.getPropertyValue("--members-reading-height"),
+    ).toBe("100px");
+  });
+
   it("does not hide the focused member control while scrolling", async () => {
     mountMembers();
     screen.getByRole("button", { name: "使用自己的客户端辅助" }).focus();
@@ -274,5 +290,70 @@ describe("成员滚动折叠", () => {
       "flex";
     fireEvent.resize(window);
     await screen.findByRole("button", { name: "收起成员" });
+  });
+
+  it("keeps the scroll range stable when folding at the end of a short page", async () => {
+    const { container, unmount } = mountMembers();
+    const aside = container.querySelector<HTMLElement>(".detail-aside")!;
+    const grid = container.querySelector<HTMLElement>(".detail-grid")!;
+    const collapsed = () => !!aside.querySelector(".is-collapsed");
+    // Model the browser's grid sizing and end-of-document scroll clamp;
+    // jsdom does not perform layout or CSS transitions.
+    let mainHeight = 420;
+    const gridHeight = () =>
+      Math.max(
+        mainHeight,
+        collapsed() ? 550 : 700,
+        parseFloat(aside.style.getPropertyValue("--members-reading-height")) ||
+          0,
+      );
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(
+      function (this: HTMLElement) {
+        if (this === grid || this === aside)
+          return rect(300 - scrollY, gridHeight());
+        if (this.getAttribute("aria-label") === "讨论")
+          return rect(300 - scrollY + (collapsed() ? 100 : 250), 450);
+        return rect(0, 100);
+      },
+    );
+    scrollY = 300;
+    fireEvent.scroll(window);
+    await screen.findByRole("button", { name: "展开成员" });
+    for (let i = 0; i < 4; i++) {
+      // A 700px viewport plus 30px of page padding below the grid.
+      scrollY = Math.min(scrollY, 300 + gridHeight() + 30 - 700);
+      fireEvent.scroll(window);
+      await act(
+        async () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => resolve()),
+          ),
+      );
+      expect(scrollY).toBe(300);
+      expect(screen.getByRole("button", { name: "展开成员" })).toBeVisible();
+    }
+    scrollY = 0;
+    fireEvent.scroll(window);
+    await screen.findByRole("button", { name: "收起成员" });
+    expect(aside.style.getPropertyValue("--members-reading-height")).toBe("");
+
+    // A tall reader stretches the grid, but its height must not be reserved
+    // when it is later switched back to a short material list.
+    mainHeight = 3000;
+    scrollY = 300;
+    fireEvent.scroll(window);
+    await screen.findByRole("button", { name: "展开成员" });
+    mainHeight = 420;
+    expect(gridHeight()).toBe(700);
+    grid.style.display = "flex";
+    fireEvent.resize(window);
+    await screen.findByRole("button", { name: "收起成员" });
+    expect(aside.style.getPropertyValue("--members-reading-height")).toBe("");
+
+    grid.style.display = "grid";
+    fireEvent.resize(window);
+    await screen.findByRole("button", { name: "展开成员" });
+    unmount();
+    expect(aside.style.getPropertyValue("--members-reading-height")).toBe("");
   });
 });

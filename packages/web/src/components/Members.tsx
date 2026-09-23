@@ -24,12 +24,15 @@ export function Members({
   const bodyId = useId();
   const [reading, setReading] = useState(false);
   const [manual, setManual] = useState<boolean>();
-  const phase = useRef(false);
   const expanded = manual ?? !reading;
   useEffect(() => {
     const grid = panel.current?.closest<HTMLElement>(".detail-grid");
     if (!grid) return;
+    const aside = panel.current?.closest<HTMLElement>(".detail-aside");
+    const releaseHeight = () =>
+      aside?.style.removeProperty("--members-reading-height");
     let frame = 0;
+    let readingPhase = false;
     const update = () => {
       frame = 0;
       const top = grid.getBoundingClientRect().top;
@@ -37,13 +40,25 @@ export function Members({
       // touchpad movement around that boundary from repeatedly toggling it.
       const next =
         getComputedStyle(grid).display === "grid" &&
-        top < (phase.current ? 44 : 12);
+        top < (readingPhase ? 44 : 12);
       if (
-        next === phase.current ||
+        next === readingPhase ||
         (next && body.current?.contains(document.activeElement))
       )
         return;
-      phase.current = next;
+      if (next && aside?.lastElementChild) {
+        // Keep the sidebar's content height while folding. On short pages,
+        // shrinking the document clamps scrollY and can reopen the card,
+        // creating a scroll/fold loop. Measure the last child, not the stretched
+        // grid column, so switching away from a long reader leaves no huge gap.
+        const height =
+          aside.lastElementChild.getBoundingClientRect().bottom -
+          aside.getBoundingClientRect().top;
+        aside.style.setProperty("--members-reading-height", `${height}px`);
+      } else {
+        releaseHeight();
+      }
+      readingPhase = next;
       setReading(next);
       setManual(undefined);
     };
@@ -60,6 +75,7 @@ export function Members({
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
       current?.removeEventListener("focusout", schedule);
+      releaseHeight();
     };
   }, [c.id]);
   const owner = c.role === "owner";

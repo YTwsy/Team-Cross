@@ -1566,6 +1566,7 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
   display: flex;
   flex-direction: column;
   gap: 17px;
+  min-height: var(--members-reading-height, 0px);
   overflow-anchor: none;
 }
 .detail-aside .panel {
