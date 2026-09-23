@@ -97,3 +97,5 @@ MCP 配置保存稳定 opt/App 绝对路径。通过 Cask 命令链接调用时�
 `v0.2.1` 正式版的 release commit/tag、arm64 资产、checksum/provenance、稳定 Homebrew PR 与公共安装 smoke 见 [2026-09-21 发布验证](validation/release-v0.2.1-2026-09-21.md)。
 
 `v0.2.2` 正式版的 release commit/tag、arm64 资产、checksum/provenance、稳定 Homebrew PR 与公共安装 smoke 见 [2026-09-23 发布验证](validation/release-v0.2.2-2026-09-23.md)。
+
+`v0.2.3` 正式版的 release commit/tag、arm64 资产、checksum/provenance、稳定 Homebrew PR 与公共安装 smoke 见 [2026-09-23 发布验证](validation/release-v0.2.3-2026-09-23.md)。
