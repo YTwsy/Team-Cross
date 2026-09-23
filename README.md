@@ -1,12 +1,11 @@
-# Team Cross
-
-**你的工具，就是协作的入口。**
+# Team Cross：**你的工具，就是协作的入口。**
 
 Team Cross 是 macOS 上围绕 Coding Agent 会话展开的本地协作工具。带上各自的 Codex、Claude Code 会话材料，邀请同事一起阅读、引用和讨论；需要一起动手时，再创建新的原生协作会话，明确开放执行访问并交接输入。
 
 继续使用熟悉的终端和原生客户端，也可以打开 WebGUI 查看共同上下文。协作空间与共享执行托管在发起者的 Mac，个人 Agent 通过 MCP 按需参与，各自保留自己的会话、模型与本地上下文。
 
 [交互演示](https://teamcross.pages.dev/) · [下载 v0.2.4 正式版](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.4) · [使用指南](docs/user-guide.md) · [文档导航](docs/README.md)
+<img width="2400" height="1500" alt="Codex 图像 2026年9月23日 23_34_56" src="https://github.com/user-attachments/assets/ca8316f5-f7a3-441f-a2a9-317822355187" />
 
 ## 从一次具体工作开始
 
