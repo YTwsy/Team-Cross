@@ -16,6 +16,7 @@ import { Settings, type Theme } from "./components/Settings";
 import { Icon } from "./components/ui";
 import { LibraryProvider } from "./library";
 import { Library, SelectionTray } from "./components/Library";
+import { QuickLook } from "./components/QuickLook";
 export default function App() {
   return (
     <LibraryProvider>
@@ -82,9 +83,8 @@ function AppShell() {
   const quick = libraryRoute === "/library/quick";
   const detailId = route.match(/^\/collaborations\/([^/]+)$/)?.[1];
   const page =
-    libraryRoute === "/library" || quick ? (
+    libraryRoute === "/library" ? (
       <Library
-        quick={quick}
         initialKey={
           new URLSearchParams(route.split("?")[1]).get("item") || undefined
         }
@@ -109,13 +109,7 @@ function AppShell() {
     ) : (
       <Home />
     );
-  if (quick)
-    return (
-      <div className="quick-shell">
-        {page}
-        <SelectionTray quick />
-      </div>
-    );
+  if (quick) return <QuickLook />;
   return (
     <div
       className={`app-shell ${libraryRoute === "/library" ? "library-shell" : ""}`}

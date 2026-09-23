@@ -67,6 +67,9 @@
   flex-direction: column;
   gap: 5px;
 }
+.library-navigation {
+  display: contents;
+}
 .library-views button {
   border: 0;
   background: transparent;
@@ -435,8 +438,7 @@
 .library-reader-content .annotation-popover {
   max-width: 100%;
 }
-.has-selection-tray .app-shell .page,
-.has-selection-tray .quick-shell {
+.has-selection-tray .app-shell .page {
   padding-bottom: calc(var(--selection-tray-height, 68px) + 60px);
 }
 .selection-tray {
@@ -622,28 +624,69 @@
 }
 .quick-shell {
   min-height: 100vh;
-  padding: 16px 16px 110px;
+  padding: 16px;
   background: var(--panel);
 }
-.library-quick .library-heading {
-  margin: 0 0 15px;
-  gap: 8px;
+html:has(.quick-shell) {
+  overflow-y: auto;
+  scrollbar-gutter: auto;
+  background: var(--panel);
 }
-.library-quick h1 {
+.quick-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.quick-heading .eyebrow {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  white-space: nowrap;
+}
+.quick-heading .text-link {
+  font-size: 11px;
+}
+.quick-sections {
+  display: flex;
+  gap: 22px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+.quick-sections button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 0 0 10px;
+  color: var(--muted);
+  background: transparent;
   font-size: 20px;
+  font-weight: 650;
+}
+.quick-sections button[aria-pressed="true"] {
+  color: var(--text);
+  border-bottom-color: var(--blue);
+}
+.quick-toolbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 .library-quick .library-layout {
   display: block;
 }
-.library-quick .library-views {
+.quick-shell .library-views {
+  flex: 1;
+  min-width: 0;
+  width: auto;
   flex-direction: row;
-  gap: 4px;
-  margin-bottom: 12px;
-  overflow-x: auto;
+  flex-wrap: wrap;
+  gap: 2px;
 }
-.library-quick .library-views button {
+.quick-shell .library-views button {
   white-space: nowrap;
-  padding: 6px 9px;
+  padding: 6px;
   font-size: 11px;
 }
 .library-quick .library-views button > svg,
@@ -651,8 +694,58 @@
   display: none;
 }
 .library-quick .library-groups {
-  max-height: calc(100vh - 235px - var(--selection-tray-height, 68px));
-  min-height: 120px;
+  max-height: none;
+  min-height: 0;
+  overflow: visible;
+}
+.quick-shell .empty {
+  padding: 36px 18px;
+}
+.quick-collaborations {
+  display: grid;
+  gap: 10px;
+}
+.quick-collaboration {
+  display: grid;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  text-align: left;
+}
+.quick-collaboration:hover {
+  background: var(--soft);
+}
+.quick-collaboration-title,
+.quick-collaboration-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.quick-collaboration-title strong {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.quick-collaboration-title > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.quick-collaboration-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.quick-collaboration-status > span:last-child {
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
 }
 .library-quick .library-row {
   padding: 12px 10px;
@@ -666,10 +759,21 @@
 .library-quick .library-header-actions .text-link {
   font-size: 11px;
 }
-.selection-tray-quick {
-  left: 12px !important;
-  right: 12px;
+.quick-shell .selection-tray-quick {
+  position: sticky;
+  left: auto;
+  right: auto;
   bottom: 12px;
+  margin-top: 16px;
+}
+.quick-shell .selection-tray-quick:has(.selection-items, .selection-entry) {
+  position: static;
+}
+.selection-tray-quick .selection-items,
+.selection-tray-quick .selection-entry,
+.selection-tray-quick .selection-entry ul {
+  max-height: none;
+  overflow: visible;
 }
 .selection-tray-quick .selection-tray-bar {
   padding: 12px;
@@ -819,10 +923,7 @@
     padding: 14px;
   }
   .quick-shell {
-    padding: 14px 12px 110px;
-  }
-  .library-quick .library-views {
-    flex-wrap: nowrap;
+    padding: 14px 12px;
   }
   .sidebar nav a {
     font-size: 11px;
@@ -830,7 +931,9 @@
   }
 }
 .quick-service-menu {
-  display: block;
-  margin: -8px 0 10px auto;
+  flex-shrink: 0;
+  padding: 6px 0;
+  margin-left: auto;
   font-size: 11px;
+  white-space: nowrap;
 }

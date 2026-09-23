@@ -7,7 +7,7 @@
 "诊断与设置" = "Diagnostics and Settings";
 "命令行工具…" = "Command Line Tool…";
 "退出 Team Cross" = "Quit Team Cross";
-"资源速览" = "Quick Look";
+"协作速览" = "Quick Look";
 "语言" = "Language";
 "跟随系统" = "Follow System";
 "简体中文" = "Simplified Chinese";
@@ -37,6 +37,6 @@
 "取消" = "Cancel";
 "Team Cross 需要处理" = "Team Cross Needs Attention";
 "知道了" = "OK";
-"Team Cross · 资源速览" = "Team Cross · Quick Look";
+"Team Cross · 协作速览" = "Team Cross · Quick Look";
 "无法建立 App 本机通信入口，请稍后重试。" = "Could not establish local app communication. Try again later.";
 "无法接收 App 打开请求，请稍后重试。" = "Could not receive app open requests. Try again later.";

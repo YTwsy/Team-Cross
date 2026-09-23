@@ -144,7 +144,7 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
     }
     private func refreshLanguage() {
         for (entry, key) in menuLabels { entry.title = AppLanguage.text(key) }
-        quickEntry?.title = AppLanguage.text("资源速览") + (hotKeyRegistered ? "    ⌃⌥T" : "")
+        quickEntry?.title = AppLanguage.text("协作速览") + (hotKeyRegistered ? "    ⌃⌥T" : "")
         languageEntry?.title = AppLanguage.text("语言")
         languageChoices["auto"]?.title = AppLanguage.text("跟随系统")
         languageChoices["zh-CN"]?.title = AppLanguage.text("简体中文")
@@ -277,6 +277,8 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
     private func showServiceMenu() {
         guard let button = item.button, let menu = serviceMenu else { return }
         quickLook?.dismiss()
+        // The status bar button can be VibrantDark while the app is Aqua.
+        menu.appearance = NSApp.effectiveAppearance
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height), in: button)
     }
     @objc fileprivate func toggleQuickLook() {
@@ -460,7 +462,7 @@ private final class ResourceQuickLook: NSObject, WKNavigationDelegate, WKScriptM
         } else {
             popover.performClose(nil); popover.contentViewController = nil
             let window = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 470, height: 650), styleMask: [.titled, .closable, .resizable, .utilityWindow], backing: .buffered, defer: false)
-            window.title = AppLanguage.text("Team Cross · 资源速览")
+            window.title = AppLanguage.text("Team Cross · 协作速览")
             window.level = .floating; window.hidesOnDeactivate = false
             window.isReleasedWhenClosed = false
             window.minSize = NSSize(width: 420, height: 440)
@@ -474,7 +476,7 @@ private final class ResourceQuickLook: NSObject, WKNavigationDelegate, WKScriptM
         sender.orderOut(nil)
         return false
     }
-    func refreshLanguage() { panel?.title = AppLanguage.text("Team Cross · 资源速览") }
+    func refreshLanguage() { panel?.title = AppLanguage.text("Team Cross · 协作速览") }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.frameInfo.isMainFrame, sameOrigin(message.frameInfo.request.url), let body = message.body as? [String: Any] else { return }
         switch body["action"] as? String {

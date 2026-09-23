@@ -1,5 +1,7 @@
 # WebGUI 与本地 MCP
 
+菜单栏协作速览提供平级的“当前协作 / 资源速览”。当前协作显示未结束、未离开的空间并打开详情；资源筛选和选择在视图切换间保留。速览使用单一页面滚动，服务菜单与筛选同列；完整约定见 [资源库与速览](../../sources/decisions/resource-library.md#macos-协作速览)。
+
 WebGUI 提供协作管理、材料阅读与原文讨论；执行交互在对应原生客户端。MCP 让普通本地会话访问已发起或加入的协作。先核对 [产品流程](../../sources/product-flows.md) 与 [协议](../../sources/protocol.md)。
 
 界面语言由本机 Core 共用偏好控制，默认按 macOS 首选语言决定：中文使用简体中文，其余使用英文。菜单栏“语言”和 WebGUI“设置与连接 → 界面语言”手动选择会同步影响两端；会话与用户内容不翻译。实现见 [界面语言](../../sources/product-flows.md#界面语言)、[Web 消息表](../../../../packages/web/src/i18n.ts)、[Core 偏好](../../../../internal/collab/ui_language.go) 与 [App 语言资源](../../../../apps/macos/AppLanguage.swift)。

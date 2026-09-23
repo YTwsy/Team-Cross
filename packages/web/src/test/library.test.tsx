@@ -6,9 +6,10 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App";
 import { Library, SelectionTray } from "../components/Library";
+import { QuickLook } from "../components/QuickLook";
 import {
   LibraryProvider,
   ResourceActions,
@@ -20,6 +21,7 @@ import {
 let data: LibraryView;
 let calls: { path: string; body: any }[];
 let collaboration: any;
+let collaborations: any[];
 const timestamp = "2026-09-22T03:00:00Z";
 const material: LibraryResource = {
   key: "material-key",
@@ -143,7 +145,11 @@ beforeEach(() => {
       },
     ],
     annotations: [note],
+    updatedAt: timestamp,
+    repo: "/test/project",
+    host: "测试主机",
   };
+  collaborations = [collaboration];
   localStorage.clear();
   location.hash = "/library";
   vi.stubGlobal(
@@ -187,6 +193,7 @@ beforeEach(() => {
           expiresAt: "2026-09-29T03:00:00Z",
         };
       else if (path === "collaborations/space") result = collaboration;
+      else if (path === "collaborations") result = collaborations;
       else if (path === "collaborations/space/read-material") result = page;
       else if (path.includes("context?kind=history"))
         result = {
@@ -225,11 +232,20 @@ beforeEach(() => {
     }),
   );
 });
+afterEach(() => {
+  delete window.webkit;
+});
 function mount(quick = false) {
   return render(
     <LibraryProvider>
-      <Library quick={quick} />
-      <SelectionTray quick={quick} />
+      {quick ? (
+        <QuickLook />
+      ) : (
+        <>
+          <Library />
+          <SelectionTray />
+        </>
+      )}
     </LibraryProvider>,
   );
 }
@@ -784,6 +800,7 @@ describe("个人资源库", () => {
       value: { messageHandlers: { teamcross: { postMessage } } },
     });
     mount(true);
+    await userEvent.click(screen.getByRole("button", { name: "资源速览" }));
     await select(material.title);
     await userEvent.click(
       screen.getByRole("button", { name: "阅读 连接池调查" }),
@@ -800,5 +817,94 @@ describe("个人资源库", () => {
     ).toHaveAttribute("aria-pressed", "true");
     expect(data.selection).toEqual(["material-key"]);
     delete window.webkit;
+  });
+  it("shows current spaces including disconnected spaces and opens the exact collaboration", async () => {
+    collaborations.push(
+      {
+        ...collaboration,
+        id: "read-only",
+        title: "只读空间",
+        hasExecution: false,
+      },
+      {
+        ...collaboration,
+        id: "offline",
+        title: "断线协作",
+        role: "remote",
+        online: false,
+      },
+      { ...collaboration, id: "ended", title: "已结束空间", state: "ended" },
+      { ...collaboration, id: "left", title: "已离开空间", state: "left" },
+    );
+    const postMessage = vi.fn();
+    vi.stubGlobal("webkit", {
+      messageHandlers: { teamcross: { postMessage } },
+    });
+    mount(true);
+    const current = screen.getByRole("region", { name: "当前协作" });
+    expect(await within(current).findByText("只读空间")).toBeInTheDocument();
+    expect(within(current).getByText("只读分享与讨论")).toBeInTheDocument();
+    expect(within(current).getByText("断线协作")).toBeInTheDocument();
+    expect(within(current).queryByText("已结束空间")).not.toBeInTheDocument();
+    expect(within(current).queryByText("已离开空间")).not.toBeInTheDocument();
+    await userEvent.click(
+      within(current).getByRole("button", { name: /断线协作/ }),
+    );
+    expect(postMessage).toHaveBeenCalledWith({
+      action: "open",
+      route: "/collaborations/offline",
+    });
+    await userEvent.click(
+      within(current).getByRole("button", { name: "我加入的" }),
+    );
+    expect(within(current).queryByText("只读空间")).not.toBeInTheDocument();
+    expect(within(current).getByText("断线协作")).toBeInTheDocument();
+    await userEvent.click(
+      within(current).getByRole("button", { name: "服务与设置" }),
+    );
+    expect(postMessage).toHaveBeenCalledWith({ action: "menu" });
+    delete window.webkit;
+  });
+  it("preserves resource filters and selection when switching quick views", async () => {
+    mount(true);
+    await userEvent.click(screen.getByRole("button", { name: "资源速览" }));
+    await select(material.title);
+    await userEvent.click(screen.getByRole("button", { name: /^当前选择/ }));
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "搜索资源库" }),
+      "连接池",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "当前协作" }));
+    expect(
+      screen.queryByRole("textbox", { name: "搜索资源库" }),
+    ).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    expect(screen.getByRole("button", { name: "当前协作" })).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: "资源速览" }));
+    expect(screen.getByRole("textbox", { name: "搜索资源库" })).toHaveValue(
+      "连接池",
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "选择 连接池调查" }),
+    ).toBeChecked();
+    expect(screen.getByRole("button", { name: /^当前选择/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(
+      screen.queryByRole("button", { name: "阅读 请核对采样范围" }),
+    ).not.toBeInTheDocument();
+  });
+  it("refreshes current collaboration status when the quick window regains focus", async () => {
+    mount(true);
+    expect(await screen.findByText("等待输入")).toBeInTheDocument();
+    collaboration.busy = true;
+    fireEvent(window, new Event("focus"));
+    expect(await screen.findByText("运行中")).toBeInTheDocument();
+    collaboration.state = "ended";
+    fireEvent(window, new Event("focus"));
+    expect(
+      await screen.findByText("这里还没有进行中的协作"),
+    ).toBeInTheDocument();
   });
 });

@@ -21,6 +21,8 @@
 
 ## 完整事实来源
 
+- [2026-09-24 状态栏协作速览](../sources/validation/quicklook-navigation-2026-09-24.md)：当前协作与资源速览平级切换、单一页面滚动、服务菜单位置、126 项 Web 回归、26 个浏览器视图与 Swift 构建边界。
+
 - [2026-09-23 v0.2.4 正式版发布](../sources/validation/release-v0.2.4-2026-09-23.md)：直接 main 提交、短页面跳动修复、Latest Release、arm64 资产与来源证明、稳定 Homebrew PR 和公共安装验证。
 
 - [2026-09-23 短页面成员折叠稳定性](../sources/validation/member-fold-stability-2026-09-23.md)：已关闭空间反复跳动的复现、滚动范围保护、StrictMode 回归、122 项 Web 测试和浏览器检查。

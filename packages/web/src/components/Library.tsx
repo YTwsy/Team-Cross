@@ -1,5 +1,5 @@
 import { formatDate, t, tr } from "../i18n";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, errorText, useResource } from "../api";
 import {
   availabilityLabel,
@@ -44,9 +44,13 @@ function kindName(kind: LibraryResource["reference"]["kind"]) {
 
 export function Library({
   quick = false,
+  hidden = false,
+  quickActions,
   initialKey,
 }: {
   quick?: boolean;
+  hidden?: boolean;
+  quickActions?: ReactNode;
   initialKey?: string;
 }) {
   const views = [
@@ -61,7 +65,6 @@ export function Library({
     [search, setSearch] = useState("");
   const [active, setActive] = useState(initialKey),
     [collapsed, setCollapsed] = useState(new Set<string>());
-  const [pinned, setPinned] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
   const memories = useRef(new Map<string, Map<string, ReadingMemory>>());
   const activeMemory = active
@@ -101,6 +104,7 @@ export function Library({
   }, [shown]);
   const selected = resources.find((r) => r.key === active);
   useEffect(() => {
+    if (hidden) return;
     if (quick) searchInput.current?.focus();
     const key = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -114,14 +118,11 @@ export function Library({
       )
         setActive(undefined);
     };
-    const pin = (e: Event) => setPinned(!!(e as CustomEvent<boolean>).detail);
-    window.addEventListener("teamcross-pinned", pin);
     window.addEventListener("keydown", key);
     return () => {
       window.removeEventListener("keydown", key);
-      window.removeEventListener("teamcross-pinned", pin);
     };
-  }, [quick]);
+  }, [quick, hidden]);
   function read(r: LibraryResource) {
     if (quick) {
       openFullLibrary(`/library?item=${r.key}`);
@@ -133,41 +134,20 @@ export function Library({
   }
   return (
     <section
+      hidden={hidden}
       className={`library ${quick ? "library-quick" : ""} ${active ? "has-reader" : ""}`}
       aria-label={quick ? t("资源速览") : t("个人资源库")}
     >
-      <header className="library-heading">
-        <div>
-          <p className="eyebrow">{quick ? "TEAM CROSS" : t("你的协作足迹")}</p>
-          <h1 tabIndex={-1}>{quick ? t("资源速览") : t("资源库")}</h1>
-          {!quick && (
+      {!quick && (
+        <header className="library-heading">
+          <div>
+            <p className="eyebrow">{t("你的协作足迹")}</p>
+            <h1 tabIndex={-1}>{t("资源库")}</h1>
             <p>
               {t("找回参与过的会话材料、批注和上下文，选好后一起带给 Agent。")}
             </p>
-          )}
-        </div>
-        <div className="library-header-actions">
-          {quick && window.webkit?.messageHandlers?.teamcross && (
-            <button
-              className="icon-button"
-              aria-label={pinned ? t("取消固定浮窗") : t("固定为浮窗")}
-              aria-pressed={pinned}
-              onClick={() => {
-                window.webkit!.messageHandlers!.teamcross!.postMessage({
-                  action: "pin",
-                });
-                setPinned(!pinned);
-              }}
-            >
-              <Icon name="pin" size={17} />
-            </button>
-          )}
-          {quick ? (
-            <button className="text-link" onClick={() => openFullLibrary()}>
-              {t("打开资源库") + " "}
-              <Icon name="arrow" size={14} />
-            </button>
-          ) : (
+          </div>
+          <div className="library-header-actions">
             <button
               className="button small"
               onClick={() => lib.refresh({ reorder: true })}
@@ -175,61 +155,55 @@ export function Library({
               <Icon name="refresh" size={14} />
               {t("刷新") + " "}
             </button>
-          )}
-        </div>
-      </header>
-      {quick && window.webkit?.messageHandlers?.teamcross && (
-        <button
-          className="quick-service-menu text-link"
-          onClick={() =>
-            window.webkit!.messageHandlers!.teamcross!.postMessage({
-              action: "menu",
-            })
-          }
-        >
-          {t("服务与设置") + " "}
-        </button>
+          </div>
+        </header>
       )}
       <ErrorBox
         message={lib.error}
         retry={() => lib.refresh({ reorder: true })}
       />
       <div className="library-layout">
-        <nav className="library-views" aria-label={t("资源视图")}>
-          {views.map(([id, label, icon]) => (
-            <button
-              key={id}
-              className={view === id ? "active" : ""}
-              aria-current={view === id ? "page" : undefined}
-              onClick={() => setView(id)}
-            >
-              <Icon name={icon} size={16} />
-              {label}
-              <span>
-                {
-                  resources.filter((r) =>
-                    id === "favorites"
-                      ? r.favorite
-                      : id === "annotated"
-                        ? r.annotated
-                        : true,
-                  ).length
-                }
-              </span>
-            </button>
-          ))}
-          {quick && (
-            <button
-              className={view === "selected" ? "active" : ""}
-              onClick={() => setView("selected")}
-            >
-              <Icon name="check" size={16} />
-              {t("当前选择")}
-              <span>{lib.data?.selection.length || 0}</span>
-            </button>
-          )}
-          {!quick && <p>{t("材料保留来源与版本。收藏和选择只在本机保存。")}</p>}
-        </nav>
+        <div className={quick ? "quick-toolbar" : "library-navigation"}>
+          <nav className="library-views" aria-label={t("资源视图")}>
+            {views.map(([id, label, icon]) => (
+              <button
+                key={id}
+                className={view === id ? "active" : ""}
+                aria-current={view === id ? "page" : undefined}
+                onClick={() => setView(id)}
+              >
+                <Icon name={icon} size={16} />
+                {label}
+                <span>
+                  {
+                    resources.filter((r) =>
+                      id === "favorites"
+                        ? r.favorite
+                        : id === "annotated"
+                          ? r.annotated
+                          : true,
+                    ).length
+                  }
+                </span>
+              </button>
+            ))}
+            {quick && (
+              <button
+                className={view === "selected" ? "active" : ""}
+                aria-current={view === "selected" ? "page" : undefined}
+                onClick={() => setView("selected")}
+              >
+                <Icon name="check" size={16} />
+                {t("当前选择")}
+                <span>{lib.data?.selection.length || 0}</span>
+              </button>
+            )}
+            {!quick && (
+              <p>{t("材料保留来源与版本。收藏和选择只在本机保存。")}</p>
+            )}
+          </nav>
+          {quick && quickActions}
+        </div>
         <div className="library-browse">
           <div className="library-search">
             <Icon name="search" size={17} />
@@ -278,9 +252,9 @@ export function Library({
           {lib.data && !resources.length && (
             <Empty icon="book" title={t("让协作内容留在手边")}>
               <p>{t("发起或加入协作后，已发布材料和讨论会自动出现在这里。")}</p>
-              <a className="button" href="#/">
+              <button className="button" onClick={() => openFullLibrary("/")}>
                 {t("打开协作空间") + " "}
-              </a>
+              </button>
             </Empty>
           )}
           {!!resources.length && !shown.length && (
@@ -681,6 +655,10 @@ export function SelectionTray({ quick = false }: { quick?: boolean }) {
     mode === "read" &&
     items.map((r) => r.key).join(",") !== snapshot.map((r) => r.key).join(",");
   const hasTray = items.length > 0 || mode === "read";
+  useEffect(() => {
+    if (quick && (expanded || mode === "read"))
+      tray.current?.scrollIntoView?.({ block: "nearest" });
+  }, [quick, expanded, mode]);
   useEffect(() => {
     document.body.classList.toggle("has-selection-tray", hasTray);
     const updateHeight = () =>

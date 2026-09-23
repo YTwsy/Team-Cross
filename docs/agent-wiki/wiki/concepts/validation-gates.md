@@ -15,6 +15,8 @@ GitHub `CI` workflow 自动执行 Go/Web 与 Homebrew 定义工程门槛；unsig
 
 ## 已记录的验收
 
+[2026-09-24 状态栏协作速览](../../sources/validation/quicklook-navigation-2026-09-24.md) 记录当前协作列表、切换状态保留、单一页面滚动、服务入口位置、126 项 Web 回归、26 个浏览器视图及 Swift 构建；未扩大为原生弹窗桌面交互验收。
+
 [2026-09-23 v0.2.4 正式版发布](../../sources/validation/release-v0.2.4-2026-09-23.md) 记录 main 提交与 annotated tag、完整托管流水线、公开资产校验和与来源证明，以及稳定 Homebrew PR 合并和公共安装验证。
 
 [2026-09-23 短页面成员折叠稳定性](../../sources/validation/member-fold-stability-2026-09-23.md) 记录已关闭空间的持续跳动、保留右栏内容最低高度的修复、StrictMode 与短页回归、122 项 Web 测试及三种宽度的深浅主题浏览器结果；正式发行以对应 tag 流水线为准。
