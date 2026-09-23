@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -19,6 +20,11 @@ import {
 } from "@floating-ui/react";
 import type { Annotation, AnnotationTarget } from "../types";
 import { mappedSelection, sameMessage } from "../reading";
+import {
+  captureReadingPosition,
+  restoreReadingPosition,
+  type ReadingPosition,
+} from "../reading-position";
 import { MarkdownText } from "./MarkdownText";
 import { Icon } from "./ui";
 
@@ -221,6 +227,7 @@ export function ReadingLayout({
   onFocusChange,
   toolbar,
   toolbarTarget,
+  adaptiveOutline = false,
 }: {
   outline: {
     id: string;
@@ -237,9 +244,78 @@ export function ReadingLayout({
   onFocusChange?: (focus: boolean) => void;
   toolbar?: ReactNode;
   toolbarTarget?: HTMLElement | null;
+  adaptiveOutline?: boolean;
 }) {
   const [localFocus, setLocalFocus] = useState(false);
   const focus = controlledFocus ?? localFocus;
+  const root = useRef<HTMLDivElement>(null);
+  const directory = useRef<HTMLDivElement>(null);
+  const directoryButton = useRef<HTMLButtonElement>(null);
+  const outlineId = useId();
+  const [wide, setWide] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState<boolean>();
+  const sideOutline = adaptiveOutline && wide && outline.length > 1;
+  const showOutline = outlineOpen ?? sideOutline;
+  const pendingPosition = useRef<ReadingPosition | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (!adaptiveOutline || !root.current) return;
+    const measure = () =>
+      setWide((root.current?.getBoundingClientRect().width || 0) >= 980);
+    measure();
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measure)
+        : undefined;
+    observer?.observe(root.current);
+    return () => observer?.disconnect();
+  }, [adaptiveOutline, focus]);
+  useLayoutEffect(() => {
+    const position = pendingPosition.current;
+    if (!position) return;
+    restoreReadingPosition(root.current, position);
+    // The responsive outline follows the new width after the aside disappears.
+    const frame = requestAnimationFrame(() => {
+      restoreReadingPosition(root.current, position);
+      pendingPosition.current = undefined;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focus, sideOutline, showOutline]);
+  useEffect(() => {
+    if (!adaptiveOutline || !showOutline || sideOutline) return;
+    const outside = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !directory.current?.contains(event.target)
+      )
+        setOutlineOpen(false);
+    };
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, [adaptiveOutline, showOutline, sideOutline]);
+  const outlineLinks = (
+    <nav aria-label={label} id={outlineId}>
+      {outline.map((turn, i) => (
+        <button
+          key={turn.id}
+          onClick={() => {
+            if (adaptiveOutline && !sideOutline) {
+              setOutlineOpen(false);
+              directoryButton.current?.focus({ preventScroll: true });
+            }
+            turn.onSelect();
+          }}
+          aria-current={turn.current ? "true" : undefined}
+          className={turn.selected ? "is-in-range" : undefined}
+        >
+          <span>{String(turn.number ?? i + 1).padStart(2, "0")}</span>
+          {turn.label}
+          {turn.meta && (
+            <small className="reader-outline-meta">{turn.meta}</small>
+          )}
+        </button>
+      ))}
+    </nav>
+  );
   const controls = (
     <div className={`reader-toolbar ${toolbarTarget ? "is-inline" : ""}`}>
       <span
@@ -249,47 +325,80 @@ export function ReadingLayout({
         {toolbarTarget && !toolbar && <Icon name="comment" size={14} />}
         <span className="reader-hint-text">{toolbar ?? "选中文字可批注"}</span>
       </span>
-      <button
-        className="text-button"
-        onClick={() => {
-          setLocalFocus(!focus);
-          onFocusChange?.(!focus);
-        }}
-        aria-pressed={focus}
-      >
-        {focus ? "退出专注阅读" : "专注阅读"}
-      </button>
+      <div className="reader-navigation-actions">
+        {adaptiveOutline && !!outline.length && (
+          <div
+            ref={directory}
+            className="reader-directory"
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && showOutline) {
+                event.stopPropagation();
+                setOutlineOpen(false);
+                directoryButton.current?.focus({ preventScroll: true });
+              }
+            }}
+          >
+            <button
+              className="text-button"
+              ref={directoryButton}
+              aria-expanded={showOutline}
+              aria-controls={outlineId}
+              onClick={() => {
+                if (sideOutline)
+                  pendingPosition.current = captureReadingPosition(
+                    root.current,
+                  );
+                setOutlineOpen(!showOutline);
+              }}
+            >
+              <Icon name="book" size={14} /> 目录 {outline.length}
+            </button>
+            {showOutline && !sideOutline && (
+              <div className="reader-outline reader-directory-popover">
+                {outlineLinks}
+              </div>
+            )}
+          </div>
+        )}
+        <button
+          className="text-button"
+          onClick={() => {
+            pendingPosition.current = captureReadingPosition(root.current);
+            setLocalFocus(!focus);
+            onFocusChange?.(!focus);
+          }}
+          aria-pressed={focus}
+        >
+          {focus ? "退出专注阅读" : "专注阅读"}
+        </button>
+      </div>
     </div>
   );
   return (
-    <div className={`reading-surface ${focus ? "reader-focus" : ""}`}>
+    <div
+      ref={root}
+      className={`reading-surface ${focus ? "reader-focus" : ""} ${adaptiveOutline ? "reader-adaptive" : ""} ${sideOutline && showOutline ? "has-side-outline" : ""}`}
+    >
       {toolbarTarget === undefined
         ? controls
         : toolbarTarget && createPortal(controls, toolbarTarget)}
       <div className="reader-layout">
-        {!!outline.length && (
-          <details className="reader-outline" open>
-            <summary>
-              {label} <span className="count">{outline.length}</span>
-            </summary>
-            <nav aria-label={label}>
-              {outline.map((turn, i) => (
-                <button
-                  key={turn.id}
-                  onClick={turn.onSelect}
-                  aria-current={turn.current ? "true" : undefined}
-                  className={turn.selected ? "is-in-range" : undefined}
-                >
-                  <span>{String(turn.number ?? i + 1).padStart(2, "0")}</span>
-                  {turn.label}
-                  {turn.meta && (
-                    <small className="reader-outline-meta">{turn.meta}</small>
-                  )}
-                </button>
-              ))}
-            </nav>
-          </details>
-        )}
+        {adaptiveOutline
+          ? sideOutline &&
+            showOutline && (
+              <aside className="reader-outline">
+                <div className="reader-outline-heading">{label}</div>
+                {outlineLinks}
+              </aside>
+            )
+          : !!outline.length && (
+              <details className="reader-outline" open>
+                <summary>
+                  {label} <span className="count">{outline.length}</span>
+                </summary>
+                {outlineLinks}
+              </details>
+            )}
         <div className="reader-content">{children}</div>
       </div>
     </div>

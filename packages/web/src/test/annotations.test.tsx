@@ -193,8 +193,9 @@ describe("原处批注", () => {
     const participants = document.querySelector<HTMLElement>(
       ".participants-panel",
     )!;
-    const context = document.querySelector<HTMLElement>(".context-panel")!;
-    const tabs = within(context).getAllByRole("tab");
+    const tabs = within(
+      screen.getByRole("tablist", { name: "上下文类型" }),
+    ).getAllByRole("tab");
     expect(execution).toContainElement(sharing);
     expect(
       within(sharing).getByLabelText("查看共享状态详情"),

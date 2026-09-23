@@ -3,6 +3,7 @@ import { api, errorText } from "../api";
 import { transportName, type Collaboration } from "../types";
 import { Annotations, type AnnotationRequest } from "./Annotations";
 import { Materials } from "./Materials";
+import { ReadingTabs } from "./ReadingTabs";
 import { Members } from "./Members";
 import { Clients } from "./Clients";
 import { InvitationPanel } from "./InvitationPanel";
@@ -134,16 +135,25 @@ export function ReadOnlySpace({
       </section>
       <div className="detail-grid">
         <div className="detail-main">
-          <Materials
-            collaboration={c}
-            reload={reload}
-            onAnnotate={(target, origin) =>
-              setRequest({ target, origin, serial: Date.now() })
+          <ReadingTabs
+            active="materials"
+            onChange={() => {}}
+            materialCount={
+              c.materials?.filter((m) => !m.withdrawnAt).length || 0
             }
-            onDiscuss={(annotationId, origin) =>
-              setRequest({ annotationId, origin, serial: Date.now() })
+            materials={
+              <Materials
+                collaboration={c}
+                reload={reload}
+                onAnnotate={(target, origin) =>
+                  setRequest({ target, origin, serial: Date.now() })
+                }
+                onDiscuss={(annotationId, origin) =>
+                  setRequest({ annotationId, origin, serial: Date.now() })
+                }
+                location={location}
+              />
             }
-            location={location}
           />
           <section className="panel optional-execution">
             <h2>共同继续执行</h2>

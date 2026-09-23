@@ -216,10 +216,12 @@ export function Copy({
   text,
   label = "复制",
   className = "",
+  ariaLabel,
 }: {
   text: string;
   label?: string;
   className?: string;
+  ariaLabel?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
@@ -232,6 +234,8 @@ export function Copy({
     <>
       <button
         className={`button small ${className}`}
+        aria-label={copied ? undefined : ariaLabel}
+        title={copied ? undefined : ariaLabel}
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(text);
@@ -310,7 +314,7 @@ export function PageHeading({
   subtitle,
   children,
 }: {
-  eyebrow?: string;
+  eyebrow?: ReactNode;
   title: string;
   subtitle?: string;
   children?: ReactNode;

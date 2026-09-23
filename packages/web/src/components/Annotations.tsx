@@ -205,10 +205,13 @@ export function Discussion({
             annotationId: annotation.id,
           }}
           disabled={disabled}
+          selectedLabel="已选择"
         />
         <button
-          className="button small"
+          className="button small annotation-reply-action"
           aria-expanded={open}
+          aria-label={open ? "收起回复" : text ? "继续回复" : "回复"}
+          title={open ? "收起回复" : text ? "继续回复" : undefined}
           disabled={disabled && !text}
           onClick={() => {
             setOpen(!open);
@@ -216,11 +219,11 @@ export function Discussion({
           }}
         >
           <Icon name="comment" size={14} />
-          {open ? "收起回复" : text ? "继续回复" : "回复"}
+          {open ? "收起" : text ? "继续" : "回复"}
         </button>
         <Copy
-          className="annotation-copy"
-          label="复制处理提示"
+          label="复制提示"
+          ariaLabel="复制处理提示"
           text={`请使用 Team Cross 读取协作 ${id} 的批注 ${annotation.id} 及回复。共享会话使用 read_annotations；个人辅助会话使用 read_context（kind=annotations）。核对 target 与 quote 对应的当前原文，再分析这条意见；需要答复时使用 reply_to_annotation 回复原批注。`}
         />
       </div>

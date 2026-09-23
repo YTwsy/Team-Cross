@@ -176,13 +176,15 @@ function AppShell() {
         </div>
       </aside>
       <main id="main-content" tabIndex={-1} className="main-content">
-        <div className="topbar">
-          <span>你的工作现场，与同事相连</span>
-          <span className="local-pill">
-            <Icon name="desktop" size={14} />
-            macOS · 原生会话
-          </span>
-        </div>
+        {!detailId && (
+          <div className="topbar">
+            <span>你的工作现场，与同事相连</span>
+            <span className="local-pill">
+              <Icon name="desktop" size={14} />
+              macOS · 原生会话
+            </span>
+          </div>
+        )}
         <div className="page" key={route}>
           {page}
         </div>

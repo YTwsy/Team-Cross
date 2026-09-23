@@ -246,12 +246,17 @@ export function Detail({ id }: { id: string }) {
             : "会话与代码保留在执行主机上，可随时重新打开。";
   return (
     <>
-      <a href="#/" className="back-link">
-        <Icon name="back" size={16} />
-        协作空间
-      </a>
       <PageHeading
-        eyebrow={`${projectName(c.repo)} / ${owner ? "我发起的" : "我加入的"}`}
+        eyebrow={
+          <nav className="detail-breadcrumb" aria-label="当前位置">
+            <a href="#/" className="back-link">
+              <Icon name="back" size={16} />
+              协作空间
+            </a>
+            <span aria-hidden="true">/</span>
+            <span>{`${projectName(c.repo)} / ${owner ? "我发起的" : "我加入的"}`}</span>
+          </nav>
+        }
         title={c.title}
       >
         <Badge collaboration={c} />

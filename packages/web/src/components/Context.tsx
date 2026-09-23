@@ -1,6 +1,19 @@
 import { ResourceActions } from "../library";
-import { ReadingPanelHeading } from "./ReadingTabs";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ReadingPanelHeading, ReadingPanelTools } from "./ReadingTabs";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  captureReadingPosition,
+  readingViewport,
+  restoreReadingPosition,
+  type ReadingPosition,
+} from "../reading-position";
 import { api, errorText, useResource } from "../api";
 import {
   joinMaterialSegments,
@@ -81,6 +94,10 @@ export function Context({
   const [historyItemError, setHistoryItemError] = useState("");
   const [itemLoading, setItemLoading] = useState("");
   const panel = useRef<HTMLElement>(null);
+  const positions = useRef<Partial<Record<ContextTab, ReadingPosition>>>({});
+  const restore = useRef<
+    { tab: ContextTab; position: ReadingPosition } | undefined
+  >(undefined);
   const pendingHistoryTurn = useRef("");
   const searched = useRef(new Set<string>());
   const finishedLocation = useRef(false);
@@ -132,7 +149,31 @@ export function Context({
     "thread" in latest &&
     historyView?.path === contextPath &&
     historyView.signature !== historySignature;
+  useLayoutEffect(() => {
+    const pending = restore.current;
+    const ready =
+      tab === "technical" ||
+      !online ||
+      (tab === "file" && !file) ||
+      !!data ||
+      (!!context.error && !context.loading);
+    if (
+      !pending ||
+      pending.tab !== tab ||
+      panel.current?.closest("[hidden]")
+    )
+      return;
+    if (pending.position.key && !ready) return;
+    restoreReadingPosition(panel.current, pending.position);
+    if (!ready) return;
+    const frame = requestAnimationFrame(() => {
+      restoreReadingPosition(panel.current, pending.position);
+      if (restore.current === pending) restore.current = undefined;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [tab, data, context.loading, context.error, file, online]);
   function scrollToHistoryTurn(turnId: string) {
+    if (panel.current?.closest("[hidden]")) return false;
     const element = Array.from(
       panel.current?.querySelectorAll<HTMLElement>("[data-reader-turn]") || [],
     ).find((el) => el.dataset.readerTurn === turnId);
@@ -233,6 +274,7 @@ export function Context({
   useEffect(() => {
     const target = location?.target;
     if (!target || target.kind === "material") return;
+    restore.current = undefined;
     setActiveTarget(target);
     setTab(target.kind);
     setHistoryTurn("");
@@ -344,6 +386,31 @@ export function Context({
     );
   }
   function changeTab(next: ContextTab) {
+    if (next === tab) return;
+    const root = panel.current;
+    const position = captureReadingPosition(root);
+    if (position) positions.current[tab] = position;
+    if (root) {
+      const viewport = readingViewport(root);
+      // Preserve the overview while the toolbar is still below its sticky edge.
+      // Stored tab positions only apply after the reader itself is in view.
+      if (
+        viewport.workspace &&
+        viewport.workspace.getBoundingClientRect().top > viewport.stickyTop
+      )
+        restore.current = {
+          tab: next,
+          position: { scrollTop: viewport.scrollTop },
+        };
+      else
+        restore.current = {
+          tab: next,
+          position: positions.current[next] || {
+            scrollTop:
+              window.scrollY + root.getBoundingClientRect().top - viewport.top,
+          },
+        };
+    }
     setActiveTarget(undefined);
     setLocationStatus("");
     pendingHistoryTurn.current = "";
@@ -441,6 +508,7 @@ export function Context({
       const segments = joinMaterialSegments(data.segments || []);
       body = turns.length ? (
         <ReadingLayout
+          adaptiveOutline
           toolbarTarget={readingToolbar}
           focus={readingFocus}
           onFocusChange={setReadingFocus}
@@ -464,6 +532,7 @@ export function Context({
                 key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
                 className="history-turn"
                 data-reader-turn={segment.turnId}
+                data-reading-key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
               >
                 {(!index || all[index - 1]?.turnId !== segment.turnId) && (
                   <div className="reader-turn-heading">
@@ -594,26 +663,28 @@ export function Context({
           </button>
         )}
       </ReadingPanelHeading>
-      <div className="context-reader-heading">
-        <div className="tabs" role="tablist" aria-label="上下文类型">
-          {[
-            ["history", "最近对话"],
-            ["changes", "代码改动"],
-            ["file", "查看文件"],
-            ...(technical ? [["technical", "技术信息"]] : []),
-          ].map(([value, label]) => (
-            <button
-              role="tab"
-              key={value}
-              aria-selected={tab === value}
-              onClick={() => changeTab(value as ContextTab)}
-            >
-              {label}
-            </button>
-          ))}
+      <ReadingPanelTools>
+        <div className="context-reader-heading">
+          <div className="tabs" role="tablist" aria-label="上下文类型">
+            {[
+              ["history", "最近对话"],
+              ["changes", "代码改动"],
+              ["file", "查看文件"],
+              ...(technical ? [["technical", "技术信息"]] : []),
+            ].map(([value, label]) => (
+              <button
+                role="tab"
+                key={value}
+                aria-selected={tab === value}
+                onClick={() => changeTab(value as ContextTab)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="context-reading-tools" ref={setReadingToolbar} />
         </div>
-        <div className="context-reading-tools" ref={setReadingToolbar} />
-      </div>
+      </ReadingPanelTools>
       {tab === "file" && (
         <form
           className="file-search"

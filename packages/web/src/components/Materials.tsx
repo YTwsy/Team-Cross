@@ -1,5 +1,10 @@
 import { ResourceActions } from "../library";
-import { ReadingPanelHeading } from "./ReadingTabs";
+import { ReadingPanelHeading, ReadingPanelTools } from "./ReadingTabs";
+import {
+  captureReadingPosition,
+  restoreReadingPosition,
+  type ReadingPosition,
+} from "../reading-position";
 import {
   useEffect,
   useId,
@@ -36,7 +41,7 @@ import type { AnnotationRequest } from "./Annotations";
 export type ReadingMemory = {
   turn: string;
   page: MaterialPage;
-  position?: { key: string; top: number };
+  position?: ReadingPosition;
 };
 
 export function MaterialReader({
@@ -51,6 +56,7 @@ export function MaterialReader({
   memory,
   onVersion,
   actions,
+  navigation,
 }: {
   spaceId: string;
   material: Material;
@@ -63,6 +69,11 @@ export function MaterialReader({
   memory: Map<string, ReadingMemory>;
   onVersion: (version: number) => void;
   actions?: ReactNode;
+  navigation?: {
+    materials: Material[];
+    onSelect: (materialId: string) => void;
+    onCollapse: () => void;
+  };
 }) {
   const version = reference.version,
     memoryKey = `${material.id}:${version}`;
@@ -79,38 +90,41 @@ export function MaterialReader({
   const searchedPages = useRef(0);
   const searchedItems = useRef(new Set<string>());
   const panel = useRef<HTMLDivElement>(null);
-  const restore = useRef(!target ? cached?.position : undefined);
+  const restore = useRef(
+    !target && !reference.turnId ? cached?.position : undefined,
+  );
+  const pendingTurn = useRef(reference.turnId || "");
   useLayoutEffect(
     () => () => {
       const entry = memory.get(memoryKey);
-      const scroll = panel.current?.closest(".library-preview, .reading-pane");
-      const top = scroll?.getBoundingClientRect().top || 80;
-      const anchor = Array.from(
-        panel.current?.querySelectorAll<HTMLElement>("[data-reading-key]") ||
-          [],
-      ).find((el) => el.getBoundingClientRect().bottom > top);
-      if (entry && anchor)
-        entry.position = {
-          key: anchor.dataset.readingKey!,
-          top: anchor.getBoundingClientRect().top,
-        };
+      const position = captureReadingPosition(panel.current);
+      if (entry && position) entry.position = position;
     },
     [memory, memoryKey],
   );
   useLayoutEffect(() => {
     if (!page || !restore.current) return;
-    const position = restore.current;
-    const anchor = Array.from(
-      panel.current?.querySelectorAll<HTMLElement>("[data-reading-key]") || [],
-    ).find((el) => el.dataset.readingKey === position.key);
-    if (anchor) {
-      const delta = anchor.getBoundingClientRect().top - position.top;
-      const scroll = panel.current?.closest(".library-preview, .reading-pane");
-      if (scroll) scroll.scrollTop += delta;
-      else window.scrollBy?.(0, delta);
-    }
+    if (panel.current?.closest("[hidden]")) return;
+    restoreReadingPosition(panel.current, restore.current);
     restore.current = undefined;
   }, [page]);
+  useEffect(() => {
+    if (
+      !page ||
+      loading ||
+      !pendingTurn.current ||
+      target?.quote ||
+      panel.current?.closest("[hidden]")
+    )
+      return;
+    const found = Array.from(
+      panel.current?.querySelectorAll<HTMLElement>("[data-reader-turn]") || [],
+    ).find((element) => element.dataset.readerTurn === pendingTurn.current);
+    if (found) {
+      found.scrollIntoView?.({ block: "start", behavior: "smooth" });
+      pendingTurn.current = "";
+    }
+  }, [page, loading, target]);
   useEffect(() => {
     const serial = ++request.current,
       abort = new AbortController();
@@ -155,6 +169,7 @@ export function MaterialReader({
     };
   }, [spaceId, material.id, version, turn, memory, memoryKey]);
   useEffect(() => {
+    if (panel.current?.closest("[hidden]")) return;
     panel.current
       ?.querySelector("[data-annotation-highlight]")
       ?.scrollIntoView?.({ block: "nearest" });
@@ -259,6 +274,15 @@ export function MaterialReader({
     }
   }, [page, target, located, loading, itemLoading, error]);
   const v = material.versions.find((v) => v.version === version);
+  const materialChoices =
+    navigation?.materials.filter(
+      (item) => !item.withdrawnAt && item.versions.length,
+    ) || [];
+  const materialIndex = materialChoices.findIndex(
+    (item) => item.id === material.id,
+  );
+  const canSwitchMaterial =
+    !!navigation && materialChoices.length > 1 && materialIndex >= 0;
   const outline = page?.turns || [];
   const joinedSegments = joinMaterialSegments(page?.segments || []);
   return (
@@ -308,9 +332,55 @@ export function MaterialReader({
             </div>
             {actions}
           </div>
-          <div ref={setReadingToolbar} />
         </div>
       </div>
+      <ReadingPanelTools>
+        <div className="material-reading-navigation">
+          <div className="material-reading-main">
+            {canSwitchMaterial ? (
+              <label className="material-reading-switcher">
+                <span>
+                  {materialIndex + 1}/{materialChoices.length}
+                </span>
+                <select
+                  aria-label="切换已发布材料"
+                  title={v?.title}
+                  value={material.id}
+                  onChange={(event) =>
+                    navigation?.onSelect(event.target.value)
+                  }
+                >
+                  {materialChoices.map((item) => {
+                    const choiceVersion =
+                      item.id === material.id ? v : item.versions.at(-1);
+                    return (
+                      <option key={item.id} value={item.id}>
+                        版本 {choiceVersion?.version} · {choiceVersion?.title} ·{" "}
+                        {item.author}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+            ) : (
+              <span className="reading-current-material" title={v?.title}>
+                {v?.title} · 版本 {version}
+              </span>
+            )}
+            {navigation && (
+              <button
+                className="button small material-reading-close"
+                aria-label="收起当前材料"
+                title="收起当前材料"
+                onClick={navigation.onCollapse}
+              >
+                收起
+              </button>
+            )}
+          </div>
+          <div className="material-reading-tools" ref={setReadingToolbar} />
+        </div>
+      </ReadingPanelTools>
       {v?.changes && (
         <p className="inline-note">
           相对上一版：新增 {v.changes.added} 轮，变化 {v.changes.changed}{" "}
@@ -332,7 +402,10 @@ export function MaterialReader({
       {!!v?.readingStartId && !turn && (
         <button
           className="text-link"
-          onClick={() => setTurn(v.readingStartId!)}
+          onClick={() => {
+            pendingTurn.current = v.readingStartId!;
+            setTurn(v.readingStartId!);
+          }}
         >
           跳到发布者建议的阅读起点
         </button>
@@ -340,6 +413,7 @@ export function MaterialReader({
       <ErrorBox message={error} />
       {page && (
         <ReadingLayout
+          adaptiveOutline
           toolbarTarget={readingToolbar}
           outline={outline.map((t) => ({
             id: t.id,
@@ -355,7 +429,10 @@ export function MaterialReader({
               ).find((el) => el.dataset.readerTurn === t.id);
               if (found)
                 found.scrollIntoView({ block: "start", behavior: "smooth" });
-              else setTurn(t.id);
+              else {
+                pendingTurn.current = t.id;
+                setTurn(t.id);
+              }
             },
           }))}
         >
@@ -468,6 +545,10 @@ export function Materials({
   const [error, setError] = useState("");
   const id = useId();
   const memory = useRef(new Map<string, ReadingMemory>());
+  const pendingNavigation = useRef<
+    | { materialId: string; scroll: boolean; focus: "switcher" | "card" }
+    | undefined
+  >(undefined);
   const materials = c.materials || [];
   const self = c.selfId || c.role;
   const disabled =
@@ -489,6 +570,47 @@ export function Materials({
     }
   }, [materials]);
   const selected = materials.find((m) => m.id === reading?.materialId);
+  useLayoutEffect(() => {
+    const next = pendingNavigation.current;
+    if (!next) return;
+    pendingNavigation.current = undefined;
+    const card = document.getElementById(`${id}-${next.materialId}-card`);
+    if (next.scroll)
+      card?.scrollIntoView?.({ block: "start", behavior: "instant" });
+    if (next.focus === "card")
+      card
+        ?.querySelector<HTMLButtonElement>(".material-card-heading > button")
+        ?.focus({ preventScroll: true });
+    else
+      document
+        .querySelector<HTMLSelectElement>(
+          'select[aria-label="切换已发布材料"]',
+        )
+        ?.focus({ preventScroll: true });
+  }, [reading?.materialId, id]);
+
+  function selectFromReader(materialId: string) {
+    const next = materials.find((item) => item.id === materialId);
+    const version = next?.versions.at(-1)?.version;
+    if (!next || next.withdrawnAt || version === undefined) return;
+    pendingNavigation.current = {
+      materialId,
+      scroll: !memory.current.get(`${materialId}:${version}`)?.position,
+      focus: "switcher",
+    };
+    setReading({ materialId, version });
+  }
+
+  function collapseFromReader() {
+    if (!reading) return;
+    pendingNavigation.current = {
+      materialId: reading.materialId,
+      scroll: true,
+      focus: "card",
+    };
+    setReading(undefined);
+  }
+
   async function confirmWithdraw() {
     if (!withdraw) return;
     setBusy(true);
@@ -540,7 +662,7 @@ export function Materials({
           const contentId = `${id}-${m.id}-content`;
           const titleId = `${id}-${m.id}-title`;
           const authorActions = m.authorId === self && !m.withdrawnAt && (
-            <>
+            <div className="material-author-actions">
               <button
                 className="text-link"
                 disabled={disabled}
@@ -555,10 +677,11 @@ export function Materials({
               >
                 撤回
               </button>
-            </>
+            </div>
           );
           return (
             <article
+              id={`${id}-${m.id}-card`}
               className={`material-card ${expanded ? "is-reading" : ""}`}
               key={m.id}
               aria-labelledby={titleId}
@@ -623,6 +746,11 @@ export function Materials({
                       onDiscuss={onDiscuss}
                       disabled={disabled}
                       actions={authorActions}
+                      navigation={{
+                        materials,
+                        onSelect: selectFromReader,
+                        onCollapse: collapseFromReader,
+                      }}
                     />
                   )}
                 </div>
