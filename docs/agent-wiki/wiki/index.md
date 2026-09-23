@@ -21,6 +21,8 @@
 
 ## 完整事实来源
 
+- [2026-09-23 v0.2.3 正式版发布](../sources/validation/release-v0.2.3-2026-09-23.md)：PR/main、annotated tag、Latest Release、arm64 资产与 provenance、稳定 Homebrew tap PR 和公共 smoke。
+
 - [2026-09-23 协作详情阅读布局反馈](../sources/validation/reading-layout-feedback-2026-09-23.md)：标签对齐、正文间距、概览切换位置、详情顶部和批注卡片布局、吸顶位置以及 Web 回归与截图。
 - [2026-09-23 整页阅读与成员折叠](../sources/validation/reading-scroll-2026-09-23.md)：单一页面滚动、吸顶工具栏、段落位置恢复、成员过渡动画、119 项 Web 回归和 12 个窗口/主题视图。
 - [2026-09-23 资源库浏览顺序稳定性](../sources/validation/library-browsing-2026-09-23.md)：操作与后台同步保持条目及分组位置、显式刷新重排、112 项 Web 回归和真实 Core 浏览器验证。
