@@ -3,6 +3,8 @@
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>io.github.ytwsy.teamcross</string>
 <key>CFBundleName</key><string>Team Cross</string>
+<key>CFBundleDevelopmentRegion</key><string>zh-Hans</string>
+<key>CFBundleLocalizations</key><array><string>zh-Hans</string><string>en</string></array>
 <key>CFBundleExecutable</key><string>TeamCross</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleIconFile</key><string>TeamCross</string>

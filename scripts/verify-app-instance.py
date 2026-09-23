@@ -46,7 +46,7 @@ with tempfile.TemporaryDirectory(prefix="teamcross-app-instance-") as temp:
         str(ROOT / "scripts/fixtures/app-instance-driver.swift"), "-o", str(driver))
     probe = root / "probe"
     run("xcrun", "swiftc", "-module-cache-path", str(ROOT / "bin/swift-cache"),
-        str(ROOT / "apps/macos/AppInstance.swift"), str(ROOT / "scripts/fixtures/app-instance-probe.swift"), "-o", str(probe))
+        str(ROOT / "apps/macos/AppLanguage.swift"), str(ROOT / "apps/macos/AppInstance.swift"), str(ROOT / "scripts/fixtures/app-instance-probe.swift"), "-o", str(probe))
     apps = []
     fixture_id = "io.github.ytwsy.teamcross.fixture." + uuid.uuid4().hex
     for name in ["First copy", "Second copy"]:

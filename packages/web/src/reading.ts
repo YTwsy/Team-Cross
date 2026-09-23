@@ -1,19 +1,20 @@
+import { t } from "./i18n";
 import { decodeString } from "micromark-util-decode-string";
 import type { AnnotationTarget, MaterialPage } from "./types";
 
 export const itemLabel = (type: string) =>
   ({
-    userMessage: "用户提问",
-    agentMessage: "助手回复",
-    toolCall: "工具调用",
-    toolResult: "工具输出",
-    commandExecution: "命令与结果",
-    fileChange: "文件改动",
-    unavailable: "未能导出的内容",
-  })[type] || "已保存的工具过程";
+    userMessage: t("用户提问"),
+    agentMessage: t("助手回复"),
+    toolCall: t("工具调用"),
+    toolResult: t("工具输出"),
+    commandExecution: t("命令与结果"),
+    fileChange: t("文件改动"),
+    unavailable: t("未能导出的内容"),
+  })[type] || t("已保存的工具过程");
 
 export function readingTitle(source: string, limit = 32) {
-  const line = source.trim().split(/\r?\n/)[0] || "对话";
+  const line = source.trim().split(/\r?\n/)[0] || t("对话");
   const title = line
     .replace(/^\s{0,3}(?:#{1,6}|>)\s*/, "")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")

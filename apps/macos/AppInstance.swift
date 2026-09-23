@@ -29,6 +29,7 @@ final class AppInstance {
         let url = URL(fileURLWithPath: path, isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         self.dataDirectory = url.standardizedFileURL.resolvingSymlinksInPath().path
+        AppLanguage.load(dataDirectory: self.dataDirectory)
         let identity = Data("\(getuid())\n\(self.dataDirectory)".utf8)
         name = "io.github.ytwsy.teamcross.app." + SHA256.hash(data: identity).map { String(format: "%02x", $0) }.joined()
         lock = Darwin.open(self.dataDirectory + "/app.lock", O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0o600)
@@ -51,12 +52,12 @@ final class AppInstance {
             return instance.reply(to: data as Data).map { Unmanaged.passRetained($0 as CFData) }
         }, &context, nil) else {
             flock(lock, LOCK_UN)
-            throw NSError(domain: "TeamCross", code: 1, userInfo: [NSLocalizedDescriptionKey: "无法建立 App 本机通信入口，请稍后重试。"])
+            throw NSError(domain: "TeamCross", code: 1, userInfo: [NSLocalizedDescriptionKey: AppLanguage.text("无法建立 App 本机通信入口，请稍后重试。")])
         }
         guard let runLoopSource = CFMessagePortCreateRunLoopSource(nil, local, 0) else {
             CFMessagePortInvalidate(local)
             flock(lock, LOCK_UN)
-            throw NSError(domain: "TeamCross", code: 1, userInfo: [NSLocalizedDescriptionKey: "无法接收 App 打开请求，请稍后重试。"])
+            throw NSError(domain: "TeamCross", code: 1, userInfo: [NSLocalizedDescriptionKey: AppLanguage.text("无法接收 App 打开请求，请稍后重试。")])
         }
         port = local
         source = runLoopSource

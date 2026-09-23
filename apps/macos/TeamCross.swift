@@ -5,7 +5,7 @@ import Carbon
 // The App owns its menu and quick view. All service decisions stay in the bundled Go launcher.
 final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
     private var item: NSStatusItem!
-    private let statusItem = NSMenuItem(title: "正在启动…", action: nil, keyEquivalent: "")
+    private let statusItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private var timer: Timer?
     private var busy = false
     private var quitting = false
@@ -28,6 +28,13 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
     private var hotKey: EventHotKeyRef?
     private var hotKeyHandler: EventHandlerRef?
     private var openingQuickLook = false
+    private var menuLabels: [(NSMenuItem, String)] = []
+    private var quickEntry: NSMenuItem?
+    private var languageEntry: NSMenuItem?
+    private var languageChoices: [String: NSMenuItem] = [:]
+    private var hotKeyRegistered = false
+    private var serviceRunning: Bool?
+    private var activeCount = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -59,7 +66,7 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
             showError(error.localizedDescription); finishShellOnly(); return
         }
         guard Date() < startupDeadline else {
-            showError("已有 Team Cross App 暂时无法接收打开请求。请从现有菜单栏入口打开协作空间，或稍后重试。")
+            showError(AppLanguage.text("已有 Team Cross App 暂时无法接收打开请求。请从现有菜单栏入口打开协作空间，或稍后重试。"))
             finishShellOnly(); return
         }
         if forwardedRequest == nil { forwardedRequest = AppInstance.Request(urls: pendingURLs) }
@@ -90,11 +97,24 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
         add("启动服务", #selector(startService), to: menu)
         add("诊断与设置", #selector(diagnostics), to: menu)
         add("命令行工具…", #selector(commandLineTools), to: menu)
+        let languageItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        let languageMenu = NSMenu()
+        for (mode, title) in [("auto", "跟随系统"), ("zh-CN", "简体中文"), ("en", "English")] {
+            let entry = NSMenuItem(title: title, action: #selector(selectLanguage(_:)), keyEquivalent: "")
+            entry.target = self
+            entry.representedObject = mode
+            languageChoices[mode] = entry
+            languageMenu.addItem(entry)
+        }
+        languageItem.submenu = languageMenu
+        languageEntry = languageItem
+        menu.addItem(languageItem)
         menu.addItem(.separator())
         add("退出 Team Cross", #selector(quit), to: menu, key: "q")
-        let quickEntry = NSMenuItem(title: "资源速览", action: #selector(toggleQuickLook), keyEquivalent: "")
+        let quickEntry = NSMenuItem(title: "", action: #selector(toggleQuickLook), keyEquivalent: "")
         quickEntry.target = self
         menu.insertItem(quickEntry, at: 3)
+        self.quickEntry = quickEntry
         serviceMenu = menu
         item.button?.target = self
         item.button?.action = #selector(statusClicked)
@@ -106,9 +126,8 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
             Unmanaged<TeamCrossDelegate>.fromOpaque(context).takeUnretainedValue().toggleQuickLook()
             return noErr
         }, 1, &event, context, &hotKeyHandler)
-        if RegisterEventHotKey(UInt32(kVK_ANSI_T), UInt32(controlKey | optionKey), EventHotKeyID(signature: 0x54435253, id: 1), GetApplicationEventTarget(), 0, &hotKey) == noErr {
-            quickEntry.title = "资源速览    ⌃⌥T"
-        }
+        hotKeyRegistered = RegisterEventHotKey(UInt32(kVK_ANSI_T), UInt32(controlKey | optionKey), EventHotKeyID(signature: 0x54435253, id: 1), GetApplicationEventTarget(), 0, &hotKey) == noErr
+        refreshLanguage()
         if !receivedURL { launch(route: "") }
         drainRequests()
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.refresh() }
@@ -118,7 +137,39 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
         return false
     }
     private func add(_ title: String, _ action: Selector, to menu: NSMenu, key: String = "") {
-        let entry = NSMenuItem(title: title, action: action, keyEquivalent: key); entry.target = self; menu.addItem(entry)
+        let entry = NSMenuItem(title: AppLanguage.text(title), action: action, keyEquivalent: key)
+        entry.target = self
+        menuLabels.append((entry, title))
+        menu.addItem(entry)
+    }
+    private func refreshLanguage() {
+        for (entry, key) in menuLabels { entry.title = AppLanguage.text(key) }
+        quickEntry?.title = AppLanguage.text("资源速览") + (hotKeyRegistered ? "    ⌃⌥T" : "")
+        languageEntry?.title = AppLanguage.text("语言")
+        languageChoices["auto"]?.title = AppLanguage.text("跟随系统")
+        languageChoices["zh-CN"]?.title = AppLanguage.text("简体中文")
+        languageChoices["en"]?.title = "English"
+        for (mode, entry) in languageChoices { entry.state = mode == AppLanguage.mode ? .on : .off }
+        if let running = serviceRunning {
+            statusItem.title = running
+                ? AppLanguage.format("服务运行中 · 活动协作 %d", activeCount)
+                : AppLanguage.text("服务已停止 · 可手动启动")
+        } else { statusItem.title = AppLanguage.text("正在启动…") }
+        quickLook?.refreshLanguage()
+    }
+    @objc private func selectLanguage(_ sender: NSMenuItem) {
+        guard !busy, let mode = sender.representedObject as? String else { return }
+        busy = true
+        call(["ui-language", "--set", mode, "--json"]) { result in
+            self.busy = false
+            switch result {
+            case .success(let value):
+                AppLanguage.adopt(mode: value["mode"] as? String, resolved: value["resolved"] as? String)
+                self.refreshLanguage()
+            case .failure(let error): self.showError(error.localizedDescription)
+            }
+            self.drainRequests()
+        }
     }
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls where url.scheme == "teamcross" && url.host == "join" {
@@ -148,6 +199,10 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
         let binary = executable
         let directory = dataDir
         let commandDirectory = cliDir
+        let english = AppLanguage.resolved == "en"
+        let unauthorizedMessage = AppLanguage.text("此操作不支持系统授权")
+        let failureMessage = AppLanguage.text("操作未完成，请查看诊断信息。")
+        let incompleteMessage = AppLanguage.text("服务命令未完成")
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let process = Process(); process.executableURL = binary
@@ -155,7 +210,7 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
                 let arguments = args + (cliCommand ? (commandDirectory.map { ["--cli-dir", $0] } ?? []) : (directory.map { ["--data-dir", $0] } ?? []))
                 if administrator {
                     // Only the install/remove command runs with privilege. Never elevate Core.
-                    guard ["install-cli", "uninstall-cli"].contains(args.first ?? "") else { throw NSError(domain: "TeamCross", code: 1, userInfo: [NSLocalizedDescriptionKey: "此操作不支持系统授权"]) }
+                    guard ["install-cli", "uninstall-cli"].contains(args.first ?? "") else { throw NSError(domain: "TeamCross", code: 1, userInfo: [NSLocalizedDescriptionKey: unauthorizedMessage]) }
                     let shell = ([binary.path] + arguments).map { "'" + $0.replacingOccurrences(of: "'", with: "'\"'\"'") + "'" }.joined(separator: " ")
                     let literal = shell.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "\n", with: "\\n").replacingOccurrences(of: "\r", with: "\\r")
                     process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
@@ -171,7 +226,12 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
                 process.waitUntilExit()
                 let value = (try? JSONSerialization.jsonObject(with: output)) as? [String: Any] ?? [:]
                 if process.terminationStatus != 0 {
-                    throw NSError(domain: "TeamCross", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "服务命令未完成", "problemCode": value["code"] as? String ?? ""])
+                    let detail = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    let code = value["code"] as? String ?? ""
+                    let message = english
+                        ? failureMessage + (code.isEmpty ? "" : " (\(code))")
+                        : (detail.isEmpty ? incompleteMessage : detail)
+                    throw NSError(domain: "TeamCross", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: message, "problemCode": code])
                 }
                 DispatchQueue.main.async { completion(.success(value)) }
             } catch { DispatchQueue.main.async { completion(.failure(error)) } }
@@ -192,7 +252,7 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
             self.busy = false
             switch result {
             case .success(let value): self.openResult(value, route: route)
-            case .failure(let error): self.statusItem.title = "服务未启动"; self.showError(error.localizedDescription)
+            case .failure(let error): self.serviceRunning = false; self.statusItem.title = AppLanguage.text("服务未启动"); self.showError(error.localizedDescription)
             }
             self.refresh(); self.drainRequests()
         }
@@ -203,8 +263,11 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
             self.refreshing = false
             if case .success(let status) = result, status["running"] as? Bool == true {
                 self.baseURL = (status["url"] as? String).flatMap(URL.init(string:))
-                self.statusItem.title = "服务运行中 · 活动协作 \(status["active"] as? Int ?? 0)"
-            } else { self.statusItem.title = "服务已停止 · 可手动启动"; self.baseURL = nil }
+                self.serviceRunning = true
+                self.activeCount = status["active"] as? Int ?? 0
+                AppLanguage.adopt(mode: status["uiLanguage"] as? String, resolved: status["resolvedLanguage"] as? String)
+            } else { self.serviceRunning = false; self.baseURL = nil }
+            self.refreshLanguage()
         }
     }
     @objc private func statusClicked() {
@@ -251,23 +314,23 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
                 if case .failure(let error) = result { self.showError(error.localizedDescription) }; return
             }
             NSApp.activate(ignoringOtherApps: true)
-            let alert = NSAlert(); alert.messageText = "Team Cross 命令行工具"
+            let alert = NSAlert(); alert.messageText = AppLanguage.text("Team Cross 命令行工具")
             let target = status["target"] as? String ?? "/usr/local/bin/teamcross"
-            let command = status["command"] as? String ?? "尚未安装"
-            alert.informativeText = "当前命令：\(command)\n安装位置：\(target)\n\n安装后可在终端运行 teamcross。移除命令入口不会停止服务或删除协作数据。"
+            let command = status["command"] as? String ?? AppLanguage.text("尚未安装")
+            alert.informativeText = AppLanguage.format("当前命令：%@\n安装位置：%@\n\n安装后可在终端运行 teamcross。移除命令入口不会停止服务或删除协作数据。", command, target)
             var operations: [String] = []
             if status["canInstall"] as? Bool == true && status["installed"] as? Bool != true {
-                alert.addButton(withTitle: "安装命令"); operations.append("install-cli")
+                alert.addButton(withTitle: AppLanguage.text("安装命令")); operations.append("install-cli")
             }
             if status["canRemove"] as? Bool == true {
-                alert.addButton(withTitle: "移除命令"); operations.append("uninstall-cli")
+                alert.addButton(withTitle: AppLanguage.text("移除命令")); operations.append("uninstall-cli")
             }
             if let conflict = status["conflict"] as? String, !conflict.isEmpty {
-                alert.informativeText += "\n\n已有命令由其他安装管理：\(conflict)。请通过原安装渠道切换。"
+                alert.informativeText += AppLanguage.format("\n\n已有命令由其他安装管理：%@。请通过原安装渠道切换。", conflict)
             } else if operations.isEmpty {
-                alert.informativeText += "\n\n现有命令由安装渠道管理，无需重复安装。"
+                alert.informativeText += AppLanguage.text("\n\n现有命令由安装渠道管理，无需重复安装。")
             }
-            alert.addButton(withTitle: "关闭")
+            alert.addButton(withTitle: AppLanguage.text("关闭"))
             let selected = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
             if selected >= 0 && selected < operations.count { self.manageCommand(operations[selected]) }
         }
@@ -280,10 +343,10 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
             switch result {
             case .success(let value):
                 NSApp.activate(ignoringOtherApps: true)
-                let alert = NSAlert(); alert.messageText = command == "install-cli" ? "命令行工具已安装" : "命令入口已移除"
-                alert.informativeText = command == "install-cli" ? "打开终端，运行 teamcross。\n\(value["target"] as? String ?? "")" : "App、服务和协作数据继续保留。"
-                if command == "install-cli" && value["pathReady"] as? Bool == false { alert.informativeText += "\n如终端找不到命令，请检查 PATH 是否包含该目录。" }
-                alert.addButton(withTitle: "完成"); alert.runModal()
+                let alert = NSAlert(); alert.messageText = command == "install-cli" ? AppLanguage.text("命令行工具已安装") : AppLanguage.text("命令入口已移除")
+                alert.informativeText = command == "install-cli" ? AppLanguage.format("打开终端，运行 teamcross。\n%@", value["target"] as? String ?? "") : AppLanguage.text("App、服务和协作数据继续保留。")
+                if command == "install-cli" && value["pathReady"] as? Bool == false { alert.informativeText += AppLanguage.text("\n如终端找不到命令，请检查 PATH 是否包含该目录。") }
+                alert.addButton(withTitle: AppLanguage.text("完成")); alert.runModal()
             case .failure(let error):
                 if !administrator && (error as NSError).userInfo["problemCode"] as? String == "cli_permission_denied" {
                     self.manageCommand(command, administrator: true)
@@ -302,9 +365,9 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
             let active = status["active"] as? Int ?? 0
             if active > 0 {
                 NSApp.activate(ignoringOtherApps: true)
-                let alert = NSAlert(); alert.messageText = "停止本机服务并退出？"
-                alert.informativeText = "将断开本机的 \(active) 个活动协作。发起的运行时会停止，参与的协作只断开本机连接。会话、代码和工作目录都会保留。"
-                alert.addButton(withTitle: "停止并退出"); alert.addButton(withTitle: "取消")
+                let alert = NSAlert(); alert.messageText = AppLanguage.text("停止本机服务并退出？")
+                alert.informativeText = AppLanguage.format("将断开本机的 %d 个活动协作。发起的运行时会停止，参与的协作只断开本机连接。会话、代码和工作目录都会保留。", active)
+                alert.addButton(withTitle: AppLanguage.text("停止并退出")); alert.addButton(withTitle: AppLanguage.text("取消"))
                 if alert.runModal() != .alertFirstButtonReturn { self.quitting = false; return }
             }
             self.call(["stop", "--force", "--json"]) { result in
@@ -331,8 +394,8 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
     }
     private func showError(_ message: String) {
         NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert(); alert.messageText = "Team Cross 需要处理"; alert.informativeText = message
-        alert.addButton(withTitle: "知道了"); alert.runModal()
+        let alert = NSAlert(); alert.messageText = AppLanguage.text("Team Cross 需要处理"); alert.informativeText = message
+        alert.addButton(withTitle: AppLanguage.text("知道了")); alert.runModal()
     }
 }
 // The quick view uses the same loopback API as WebGUI. Only personal references
@@ -397,7 +460,7 @@ private final class ResourceQuickLook: NSObject, WKNavigationDelegate, WKScriptM
         } else {
             popover.performClose(nil); popover.contentViewController = nil
             let window = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 470, height: 650), styleMask: [.titled, .closable, .resizable, .utilityWindow], backing: .buffered, defer: false)
-            window.title = "Team Cross · 资源速览"
+            window.title = AppLanguage.text("Team Cross · 资源速览")
             window.level = .floating; window.hidesOnDeactivate = false
             window.isReleasedWhenClosed = false
             window.minSize = NSSize(width: 420, height: 440)
@@ -411,6 +474,7 @@ private final class ResourceQuickLook: NSObject, WKNavigationDelegate, WKScriptM
         sender.orderOut(nil)
         return false
     }
+    func refreshLanguage() { panel?.title = AppLanguage.text("Team Cross · 资源速览") }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.frameInfo.isMainFrame, sameOrigin(message.frameInfo.request.url), let body = message.body as? [String: Any] else { return }
         switch body["action"] as? String {

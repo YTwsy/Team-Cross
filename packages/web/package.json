@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -b && vite build",
-    "check": "tsc -b --pretty false",
+    "check": "tsc -b --pretty false && node scripts/check-i18n.mjs",
     "dev": "vite --host 127.0.0.1",
     "format": "prettier --write src",
     "test": "vitest run"

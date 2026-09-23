@@ -1,3 +1,4 @@
+import { t, tr } from "../i18n";
 import { ResourceActions } from "../library";
 import { ReadingPanelHeading, ReadingPanelTools } from "./ReadingTabs";
 import {
@@ -157,11 +158,7 @@ export function Context({
       (tab === "file" && !file) ||
       !!data ||
       (!!context.error && !context.loading);
-    if (
-      !pending ||
-      pending.tab !== tab ||
-      panel.current?.closest("[hidden]")
-    )
+    if (!pending || pending.tab !== tab || panel.current?.closest("[hidden]"))
       return;
     if (pending.position.key && !ready) return;
     restoreReadingPosition(panel.current, pending.position);
@@ -286,7 +283,7 @@ export function Context({
     }
     setSelection(undefined);
     setHistoryItemError("");
-    setLocationStatus("正在查找批注原文…");
+    setLocationStatus(t("正在查找批注原文…"));
     searched.current = new Set();
     finishedLocation.current = false;
     acceptNextHistory.current = true;
@@ -298,7 +295,7 @@ export function Context({
     if (!activeTarget || activeTarget.kind !== tab || !data || context.loading)
       return;
     if (activeTarget.sessionId && activeTarget.sessionId !== sessionId) {
-      setLocationStatus("这条批注属于其他会话，以下保留批注时的原文。");
+      setLocationStatus(t("这条批注属于其他会话，以下保留批注时的原文。"));
     } else if (tab === "history" && "thread" in data) {
       const matching = joinMaterialSegments(data.segments).filter(
         (segment) =>
@@ -346,16 +343,20 @@ export function Context({
       }
       setLocationStatus(
         located
-          ? "已定位到批注原文。"
+          ? t("已定位到批注原文。")
           : matching.length
-            ? "这条消息已变化，以下保留批注时的原文。"
-            : "在已读取的历史中未找到原消息，以下保留批注时的原文。可以继续查看更早对话。",
+            ? t("这条消息已变化，以下保留批注时的原文。")
+            : t(
+                "在已读取的历史中未找到原消息，以下保留批注时的原文。可以继续查看更早对话。",
+              ),
       );
     } else if (tab !== "history") {
       setLocationStatus(
         codeMatch
-          ? "已定位到批注原文。"
-          : "文件或改动已变化，以下保留批注时的原文。请核对当前内容后再处理。",
+          ? t("已定位到批注原文。")
+          : t(
+              "文件或改动已变化，以下保留批注时的原文。请核对当前内容后再处理。",
+            ),
       );
     } else return;
     if (!finishedLocation.current) {
@@ -446,7 +447,7 @@ export function Context({
     }
     setSelection(undefined);
     setSelectionHint(
-      "请选择同一条消息，或同一文件、同一侧的连续代码行（最多 8000 字）。",
+      t("请选择同一条消息，或同一文件、同一侧的连续代码行（最多 8000 字）。"),
     );
   }
   function makeLineTarget(start: number, end: number) {
@@ -483,7 +484,7 @@ export function Context({
         {target ? (
           <button
             className="code-annotate"
-            aria-label={`批注 ${targetLabel(target)}`}
+            aria-label={tr`批注 ${targetLabel(target)}`}
             onClick={(event) =>
               start(
                 target,
@@ -521,7 +522,7 @@ export function Context({
               )?.text ||
                 segments.find((segment) => segment.turnId === turn.id)?.text ||
                 turn.label ||
-                `第 ${i + 1} 轮`,
+                tr`第 ${i + 1} 轮`,
             ),
             onSelect: () => selectHistoryTurn(turn.id),
           }))}
@@ -536,9 +537,9 @@ export function Context({
               >
                 {(!index || all[index - 1]?.turnId !== segment.turnId) && (
                   <div className="reader-turn-heading">
-                    第{" "}
+                    {t("第")}{" "}
                     {turns.findIndex((turn) => turn.id === segment.turnId) + 1}{" "}
-                    轮
+                    {t("轮") + " "}
                   </div>
                 )}
                 {!!index &&
@@ -546,8 +547,9 @@ export function Context({
                   all[index - 1]?.itemId === segment.itemId &&
                   all[index - 1]!.endOffset < segment.startOffset && (
                     <p className="material-fold-gap">
-                      中间已折叠{" "}
-                      {segment.startOffset - all[index - 1]!.endOffset} 字
+                      {t("中间已折叠")}{" "}
+                      {segment.startOffset - all[index - 1]!.endOffset}
+                      {" " + t("字") + " "}
                     </p>
                   )}
                 <ReaderMessage
@@ -555,11 +557,11 @@ export function Context({
                   source={segment.text}
                   label={
                     segment.type === "userMessage"
-                      ? "用户"
+                      ? t("用户")
                       : segment.type === "agentMessage"
                         ? agentName
                         : segment.collapsed
-                          ? `${itemLabel(segment.type)} · 共 ${segment.length} 字 · 已显示 ${segment.endOffset - segment.startOffset} 字`
+                          ? tr`${itemLabel(segment.type)} · 共 ${segment.length} 字 · 已显示 ${segment.endOffset - segment.startOffset} 字`
                           : itemLabel(segment.type)
                   }
                   notice={segment.notice}
@@ -598,8 +600,8 @@ export function Context({
           </div>
         </ReadingLayout>
       ) : (
-        <Empty icon="comment" title="还没有新的活动">
-          <p>在 {agentName} 中继续，最新的上下文会出现在这里。</p>
+        <Empty icon="comment" title={t("还没有新的活动")}>
+          <p>{tr`在 ${agentName} 中继续，最新的上下文会出现在这里。`}</p>
         </Empty>
       );
     } else if (tab === "changes" && "diff" in data) {
@@ -620,18 +622,17 @@ export function Context({
               </div>
             ) : (
               <p className="muted small-text">
-                文件状态已列出；未跟踪文件可通过文件入口查看。
+                {t("文件状态已列出；未跟踪文件可通过文件入口查看。") + " "}
               </p>
             )}
             {data.truncated && (
               <p className="muted small-text">
-                改动较大，仅展示前 256 KiB。其余内容请查看文件或在 {agentName}
-                中阅读。
+                {tr`改动较大，仅展示前 256 KiB。其余内容请查看文件或在 ${agentName} 中阅读。`}
               </p>
             )}
           </>
         ) : (
-          <Empty icon="branch" title="当前没有代码改动" />
+          <Empty icon="branch" title={t("当前没有代码改动")} />
         );
     } else if (tab === "file" && "text" in data) {
       body = (
@@ -647,7 +648,7 @@ export function Context({
   }
   return (
     <section className="panel context-panel" ref={panel}>
-      <ReadingPanelHeading title="协作上下文">
+      <ReadingPanelHeading title={t("协作上下文")}>
         <ResourceActions
           reference={{ spaceId: id, kind: "context" }}
           disabled={!online || closed}
@@ -655,7 +656,7 @@ export function Context({
         {tab !== "technical" && (
           <button
             className="icon-button"
-            aria-label="刷新上下文"
+            aria-label={t("刷新上下文")}
             disabled={!online}
             onClick={refresh}
           >
@@ -665,12 +666,12 @@ export function Context({
       </ReadingPanelHeading>
       <ReadingPanelTools>
         <div className="context-reader-heading">
-          <div className="tabs" role="tablist" aria-label="上下文类型">
+          <div className="tabs" role="tablist" aria-label={t("上下文类型")}>
             {[
-              ["history", "最近对话"],
-              ["changes", "代码改动"],
-              ["file", "查看文件"],
-              ...(technical ? [["technical", "技术信息"]] : []),
+              ["history", t("最近对话")],
+              ["changes", t("代码改动")],
+              ["file", t("查看文件")],
+              ...(technical ? [["technical", t("技术信息")]] : []),
             ].map(([value, label]) => (
               <button
                 role="tab"
@@ -696,13 +697,13 @@ export function Context({
           }}
         >
           <input
-            aria-label="相对执行目录的文件路径"
-            placeholder="相对执行目录的文件路径，例如 src/main.ts"
+            aria-label={t("相对执行目录的文件路径")}
+            placeholder={t("相对执行目录的文件路径，例如 src/main.ts")}
             value={path}
             onChange={(event) => setPath(event.target.value)}
           />
           <button className="button small" disabled={!path.trim() || !online}>
-            查看
+            {t("查看") + " "}
           </button>
         </form>
       )}
@@ -714,7 +715,7 @@ export function Context({
             {selection
               ? targetLabel(selection)
               : selectionHint ||
-                "点击行旁的 +，或拖选同一侧的连续代码行来批注。"}
+                t("点击行旁的 +，或拖选同一侧的连续代码行来批注。")}
           </span>
           {selection && (
             <ResourceActions
@@ -728,7 +729,7 @@ export function Context({
               onClick={() => start(selection)}
             >
               <Icon name="comment" size={14} />
-              批注所选内容
+              {t("批注所选内容") + " "}
             </button>
           )}
         </div>
@@ -739,7 +740,7 @@ export function Context({
             <strong>{targetLabel(activeTarget)}</strong>
             <button
               className="icon-button"
-              aria-label="关闭批注定位"
+              aria-label={t("关闭批注定位")}
               onClick={() => {
                 setActiveTarget(undefined);
                 setLocationStatus("");
@@ -749,7 +750,7 @@ export function Context({
             </button>
           </div>
           <p>{locationStatus}</p>
-          {!locationStatus.startsWith("已定位") && (
+          {!locationStatus.startsWith(t("已定位")) && (
             <blockquote>{activeTarget.quote}</blockquote>
           )}
         </div>
@@ -764,7 +765,7 @@ export function Context({
           />
           {historyPending && (
             <div className="reader-update" role="status">
-              <span>对话有新内容，当前阅读位置已保留。</span>
+              <span>{t("对话有新内容，当前阅读位置已保留。")}</span>
               <button
                 className="button small"
                 onClick={() => {
@@ -776,7 +777,7 @@ export function Context({
                     });
                 }}
               >
-                显示新内容
+                {t("显示新内容") + " "}
               </button>
             </div>
           )}
@@ -785,14 +786,14 @@ export function Context({
               icon="link"
               title={
                 closed
-                  ? "使用新邀请加入后可查看上下文"
-                  : "连接恢复后可查看上下文"
+                  ? t("使用新邀请加入后可查看上下文")
+                  : t("连接恢复后可查看上下文")
               }
             />
           ) : context.loading && !data ? (
             <Loading />
           ) : (
-            body || <Empty icon="folder" title="输入相对路径以查看文件" />
+            body || <Empty icon="folder" title={t("输入相对路径以查看文件")} />
           )}
           {tab === "history" &&
             data &&
@@ -810,13 +811,17 @@ export function Context({
                       finishedLocation.current = false;
                     }}
                   >
-                    {data.sourcePageComplete ? "更早对话" : "继续读取本页"}
+                    {data.sourcePageComplete
+                      ? t("更早对话")
+                      : t("继续读取本页")}
                   </button>
                 )}
                 {data.nextCursor &&
                   !data.sourcePageComplete &&
                   !data.pageEndsAtTurnBoundary && (
-                    <span className="muted small-text">本轮尚未读完</span>
+                    <span className="muted small-text">
+                      {t("本轮尚未读完")}
+                    </span>
                   )}
                 {cursor && (
                   <button
@@ -829,7 +834,7 @@ export function Context({
                       setCursor("");
                     }}
                   >
-                    回到最近对话
+                    {t("回到最近对话") + " "}
                   </button>
                 )}
               </div>
@@ -838,8 +843,8 @@ export function Context({
       )}
       <div className="panel-footnote">
         {tab === "technical"
-          ? "这些信息来自当前协作记录和运行时最近确认的状态。"
-          : `这里展示已读取的协作上下文；执行交互继续使用 ${agentName} 原生客户端。`}
+          ? t("这些信息来自当前协作记录和运行时最近确认的状态。")
+          : tr`这里展示已读取的协作上下文；执行交互继续使用 ${agentName} 原生客户端。`}
       </div>
     </section>
   );

@@ -247,6 +247,7 @@ type Settings struct {
 	ClaudeBinary string `json:"claudeBinary"`
 	Binary       string `json:"binary"`
 	DesktopApp   string `json:"desktopApp"`
+	UILanguage   string `json:"uiLanguage,omitempty"`
 }
 type App struct {
 	libraryMu     sync.Mutex

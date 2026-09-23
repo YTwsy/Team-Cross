@@ -1,4 +1,12 @@
+import {
+  languageInfo,
+  setLanguageInfo,
+  t,
+  tr,
+  type LanguageInfo,
+} from "./i18n";
 import { useEffect, useState } from "react";
+import { api } from "./api";
 import { Home } from "./components/Home";
 import { StartSpace } from "./components/Publisher";
 import { Create } from "./components/Create";
@@ -17,6 +25,26 @@ export default function App() {
 }
 function AppShell() {
   const [route, setRoute] = useState(() => location.hash.slice(1) || "/");
+  const [uiLanguage, setUILanguage] = useState<LanguageInfo>(languageInfo);
+  function adoptLanguage(next: LanguageInfo) {
+    if (setLanguageInfo(next)) setUILanguage(languageInfo());
+  }
+  useEffect(() => {
+    let mounted = true;
+    const refresh = async () => {
+      try {
+        const next = await api<LanguageInfo>("ui-language");
+        if (mounted) adoptLanguage(next);
+      } catch {
+        // Keep the last confirmed language while the local Core is unavailable.
+      }
+    };
+    const interval = setInterval(() => void refresh(), 5000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
   const [theme, setTheme] = useState<Theme>(() => {
     const t = localStorage.getItem("teamcross.theme.v1");
     return t === "light" || t === "dark" ? t : "system";
@@ -70,7 +98,12 @@ function AppShell() {
         pendingId={route.startsWith("/join/") ? route.slice(6) : undefined}
       />
     ) : route === "/settings" ? (
-      <Settings theme={theme} setTheme={setTheme} />
+      <Settings
+        theme={theme}
+        setTheme={setTheme}
+        uiLanguage={uiLanguage}
+        onLanguageChange={adoptLanguage}
+      />
     ) : detailId ? (
       <Detail key={detailId} id={detailId} />
     ) : (
@@ -95,10 +128,10 @@ function AppShell() {
           document.getElementById("main-content")?.focus();
         }}
       >
-        跳到主要内容
+        {t("跳到主要内容") + " "}
       </a>
       <aside className="sidebar">
-        <a className="brand" href="#/" aria-label="Team Cross 首页">
+        <a className="brand" href="#/" aria-label={t("Team Cross 首页")}>
           <span className="brand-mark">
             <i />
             <i />
@@ -106,10 +139,10 @@ function AppShell() {
             <i />
           </span>
           <span>
-            Team Cross<small>一起继续</small>
+            Team Cross<small>{t("一起继续")}</small>
           </span>
         </a>
-        <nav aria-label="主导航">
+        <nav aria-label={t("主导航")}>
           <a
             className={
               route !== "/settings" && libraryRoute !== "/library"
@@ -120,7 +153,7 @@ function AppShell() {
             aria-current={route === "/" ? "page" : undefined}
           >
             <Icon name="grid" />
-            协作空间
+            {t("协作空间") + " "}
           </a>
           <a
             className={libraryRoute === "/library" ? "active" : ""}
@@ -128,7 +161,7 @@ function AppShell() {
             aria-current={libraryRoute === "/library" ? "page" : undefined}
           >
             <Icon name="book" />
-            资源库
+            {t("资源库") + " "}
           </a>
           <a
             className={route === "/settings" ? "active" : ""}
@@ -136,13 +169,14 @@ function AppShell() {
             aria-current={route === "/settings" ? "page" : undefined}
           >
             <Icon name="settings" />
-            设置与连接
+            {t("设置与连接") + " "}
           </a>
         </nav>
         <div className="sidebar-bottom">
           <div className="local-label">
             <span className="dot green-dot" />
-            本地运行 <span className="experiment">实验版</span>
+            {t("本地运行") + " "}
+            <span className="experiment">{t("实验版")}</span>
           </div>
           <button
             className="theme-toggle"
@@ -155,7 +189,7 @@ function AppShell() {
                     : "system",
               )
             }
-            aria-label={`切换主题，当前${theme === "system" ? "跟随系统" : theme === "light" ? "浅色" : "深色"}`}
+            aria-label={tr`切换主题，当前${theme === "system" ? t("跟随系统") : theme === "light" ? t("浅色") : t("深色")}`}
           >
             <Icon
               name={
@@ -168,20 +202,20 @@ function AppShell() {
               size={17}
             />
             {theme === "system"
-              ? "跟随系统"
+              ? t("跟随系统")
               : theme === "light"
-                ? "浅色外观"
-                : "深色外观"}
+                ? t("浅色外观")
+                : t("深色外观")}
           </button>
         </div>
       </aside>
       <main id="main-content" tabIndex={-1} className="main-content">
         {!detailId && (
           <div className="topbar">
-            <span>你的工作现场，与同事相连</span>
+            <span>{t("你的工作现场，与同事相连")}</span>
             <span className="local-pill">
               <Icon name="desktop" size={14} />
-              macOS · 原生会话
+              {t("macOS · 原生会话") + " "}
             </span>
           </div>
         )}

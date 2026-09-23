@@ -1,0 +1,3 @@
+"NSLocalNetworkUsageDescription" = "Team Cross 在局域网中连接受邀协作者，分享所选会话的上下文。";
+"NSAppleEventsUsageDescription" = "按你的选择，在 Terminal 中打开 Codex 协作客户端。";
+"CFBundleURLName" = "Team Cross 邀请";

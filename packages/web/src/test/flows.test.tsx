@@ -332,7 +332,14 @@ describe("个人 Claude Code 辅助模式", () => {
       },
     }));
     const user = userEvent.setup();
-    render(<Settings theme="light" setTheme={() => {}} />);
+    render(
+      <Settings
+        theme="light"
+        setTheme={() => {}}
+        uiLanguage={{ mode: "auto", resolved: "zh-CN" }}
+        onLanguageChange={() => {}}
+      />,
+    );
     await user.click(
       await screen.findByRole("button", { name: "Claude Code" }),
     );
@@ -357,7 +364,14 @@ describe("产品路径", () => {
       },
       mcpCommand: "codex mcp add teamcross -- /app/teamcross mcp",
     }));
-    render(<Settings theme="light" setTheme={() => {}} />);
+    render(
+      <Settings
+        theme="light"
+        setTheme={() => {}}
+        uiLanguage={{ mode: "auto", resolved: "zh-CN" }}
+        onLanguageChange={() => {}}
+      />,
+    );
     expect(await screen.findByText(/重新打开以应用更新/)).toHaveAttribute(
       "role",
       "status",

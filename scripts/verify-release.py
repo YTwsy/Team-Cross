@@ -19,6 +19,9 @@ with tempfile.TemporaryDirectory(prefix='teamcross-install-') as temp:
         installed=root/'Applications with spaces'/'Team Cross.app';installed.parent.mkdir();shutil.copytree(mount/'Team Cross.app',installed)
         info=plistlib.loads((installed/'Contents/Info.plist').read_bytes());assert info['LSMinimumSystemVersion']=='14.0';assert info['CFBundleURLTypes'][0]['CFBundleURLSchemes']==['teamcross']
         icon=installed/'Contents/Resources/TeamCross.icns';assert info['CFBundleIconFile']=='TeamCross' and icon.is_file()
+        for language in ('zh-Hans','en'):
+            for name in ('Localizable.strings','InfoPlist.strings'):
+                assert (installed/'Contents/Resources'/(language+'.lproj')/name).is_file(),(language,name)
         iconset=root/'installed-app-icon.iconset';run('iconutil','-c','iconset',str(icon),'-o',str(iconset));assert (iconset/'icon_512x512@2x.png').is_file()
         run('codesign','--verify','--deep','--strict',str(installed))
         helper=installed/'Contents/Resources/teamcross';assert json.loads(subprocess.check_output([str(helper),'version','--json'],text=True))==version

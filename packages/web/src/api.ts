@@ -1,3 +1,4 @@
+import { language, serviceText, t, tr } from "./i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 export class APIError extends Error {
   constructor(
@@ -5,7 +6,11 @@ export class APIError extends Error {
     public code = "operation_failed",
     public recovery = "",
   ) {
-    super(recovery ? `${message}。${recovery}` : message);
+    super(
+      recovery
+        ? `${message}${language() === "en" ? " " : "。"}${recovery}`
+        : message,
+    );
   }
 }
 export async function api<T>(
@@ -25,29 +30,30 @@ export async function api<T>(
   } catch (e) {
     if (signal?.aborted) throw e;
     throw new APIError(
-      "本机服务连接已中断",
+      t("本机服务连接已中断"),
       "core_unreachable",
       body === undefined || path.includes("preview")
-        ? "请从菜单栏或终端启动 Team Cross 后重新连接"
-        : "请重新连接后先查看操作结果，避免重复提交",
+        ? t("请从菜单栏或终端启动 Team Cross 后重新连接")
+        : t("请重新连接后先查看操作结果，避免重复提交"),
     );
   }
   let value;
   try {
     value = await res.json();
   } catch {
-    throw new Error("服务暂时不可用，请确认 Team Cross 正在运行后重试。");
+    throw new Error(t("服务暂时不可用，请确认 Team Cross 正在运行后重试。"));
   }
   if (!res.ok)
     throw new APIError(
-      value.error || `请求失败 (${res.status})`,
+      serviceText(value.error, "操作未完成，请查看诊断信息。") ||
+        tr`请求失败 (${res.status})`,
       value.code,
-      value.recovery,
+      serviceText(value.recovery, "请检查当前状态后重试。"),
     );
   return value as T;
 }
 export const errorText = (e: unknown) =>
-  e instanceof Error ? e.message : "操作未完成，请重试。";
+  e instanceof Error ? e.message : t("操作未完成，请重试。");
 export function useResource<T>(
   path: string | null,
   interval = 0,

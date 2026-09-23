@@ -1,3 +1,4 @@
+import { formatDate, serviceText, t, tr } from "../i18n";
 import {
   transportName,
   runtimeModeName,
@@ -43,49 +44,52 @@ function TechnicalInformation({
           <Icon name="terminal" size={20} />
         </span>
         <div>
-          <h3>运行与会话</h3>
-          <p>当前协作记录与运行时最近确认的信息。</p>
+          <h3>{t("运行与会话")}</h3>
+          <p>{t("当前协作记录与运行时最近确认的信息。")}</p>
         </div>
       </div>
       <dl>
         <div>
-          <dt>协作模式</dt>
-          <dd>{runtimeModeName(c.runtimeMode)} · 创建后固定</dd>
-        </div>
-        <div>
-          <dt>原生客户端</dt>
+          <dt>{t("协作模式")}</dt>
           <dd>
-            {agentName}
-            {c.provider === "claude" ? " · 实验性" : ""}
+            {runtimeModeName(c.runtimeMode)}
+            {" " + t("· 创建后固定")}
           </dd>
         </div>
         <div>
-          <dt>协作 ID</dt>
+          <dt>{t("原生客户端")}</dt>
+          <dd>
+            {agentName}
+            {c.provider === "claude" ? t(" · 实验性") : ""}
+          </dd>
+        </div>
+        <div>
+          <dt>{t("协作 ID")}</dt>
           <dd>{c.id}</dd>
         </div>
         <div>
-          <dt>来源会话</dt>
+          <dt>{t("来源会话")}</dt>
           <dd>{c.sourceId}</dd>
         </div>
         <div>
-          <dt>协作会话</dt>
+          <dt>{t("协作会话")}</dt>
           <dd>{c.sessionId}</dd>
         </div>
         <div>
-          <dt>Git 分支</dt>
+          <dt>{t("Git 分支")}</dt>
           <dd>{c.branch}</dd>
         </div>
         <div>
-          <dt>基线提交</dt>
+          <dt>{t("基线提交")}</dt>
           <dd>{c.head}</dd>
         </div>
         <div>
-          <dt>{c.online ? "当前模型" : "最近确认的模型"}</dt>
-          <dd>{c.model || `等待 ${agentName} 确认`}</dd>
+          <dt>{c.online ? t("当前模型") : t("最近确认的模型")}</dt>
+          <dd>{c.model || tr`等待 ${agentName} 确认`}</dd>
         </div>
         <div>
-          <dt>推理强度</dt>
-          <dd>{c.reasoningEffort || `${agentName} 默认`}</dd>
+          <dt>{t("推理强度")}</dt>
+          <dd>{c.reasoningEffort || tr`${agentName} 默认`}</dd>
         </div>
       </dl>
     </div>
@@ -182,7 +186,9 @@ export function Detail({ id }: { id: string }) {
         `collaborations/${id}/personal-desktop`,
         { launch: true },
       );
-      setPersonalOpenNote(result.note || "已请求个人 Codex 打开此协作会话。");
+      setPersonalOpenNote(
+        serviceText(result.note) || t("已请求个人 Codex 打开此协作会话。"),
+      );
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -194,7 +200,7 @@ export function Detail({ id }: { id: string }) {
       <>
         <a href="#/" className="back-link">
           <Icon name="back" size={16} />
-          协作空间
+          {t("协作空间") + " "}
         </a>
         <ErrorBox message={resource.error} retry={resource.reload} />
         {resource.loading && <Loading />}
@@ -215,8 +221,8 @@ export function Detail({ id }: { id: string }) {
   const mine = (c.selfId || c.role) === c.writer;
   const writerName =
     c.writer === "owner"
-      ? "发起者"
-      : c.members?.find((m) => m.id === c.writer)?.name || "同事";
+      ? t("发起者")
+      : c.members?.find((m) => m.id === c.writer)?.name || t("同事");
   const closed = ["ended", "left", "expired"].includes(c.state);
   const canOpenPersonalCodex =
     owner &&
@@ -227,46 +233,49 @@ export function Detail({ id }: { id: string }) {
     !c.sharing && c.runtimeState === "released";
   const connectionName = transportName(c.transport);
   const sharingState = c.sharingPreparing
-    ? `正在建立${connectionName}通道`
+    ? tr`正在建立${connectionName}通道`
     : c.sharing
-      ? `${connectionName}共享中`
-      : "共享已关闭";
+      ? tr`${connectionName}共享中`
+      : t("共享已关闭");
   const sharingDescription = c.sharingPreparing
     ? c.transport === "tailcat"
-      ? "正在连接 Tailcat DERP 并生成临时跨网络地址；可以取消或等待完成。"
-      : "正在生成局域网地址与临时 TLS 邀请。"
+      ? t("正在连接 Tailcat DERP 并生成临时跨网络地址；可以取消或等待完成。")
+      : t("正在生成局域网地址与临时 TLS 邀请。")
     : c.participantJoined && c.sharing
-      ? `${owner ? "同事" : "你"}已加入，访问持续有效，直到主动离开或结束共享。`
+      ? tr`${owner ? t("同事") : t("你")}已加入，访问持续有效，直到主动离开或结束共享。`
       : c.sharing && c.expiresAt
-        ? `首次加入期限：${new Date(c.expiresAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}。加入后不受此期限影响。`
+        ? tr`首次加入期限：${formatDate(c.expiresAt, { hour: "2-digit", minute: "2-digit" })}。加入后不受此期限影响。`
         : c.sharing && c.invitationState === "expired"
-          ? "邀请尚未使用且已到期，可以重新邀请同事。"
+          ? t("邀请尚未使用且已到期，可以重新邀请同事。")
           : c.releasePending
-            ? "当前执行和审批完成、专用客户端关闭后，会自动释放会话。"
-            : "会话与代码保留在执行主机上，可随时重新打开。";
+            ? t("当前执行和审批完成、专用客户端关闭后，会自动释放会话。")
+            : t("会话与代码保留在执行主机上，可随时重新打开。");
   return (
     <>
       <PageHeading
         eyebrow={
-          <nav className="detail-breadcrumb" aria-label="当前位置">
+          <nav className="detail-breadcrumb" aria-label={t("当前位置")}>
             <a href="#/" className="back-link">
               <Icon name="back" size={16} />
-              协作空间
+              {t("协作空间") + " "}
             </a>
             <span aria-hidden="true">/</span>
-            <span>{`${projectName(c.repo)} / ${owner ? "我发起的" : "我加入的"}`}</span>
+            <span>{`${projectName(c.repo)} / ${owner ? t("我发起的") : t("我加入的")}`}</span>
           </nav>
         }
         title={c.title}
       >
         <Badge collaboration={c} />
         <details className="runtime-mode-details">
-          <summary aria-label="查看协作模式说明">
+          <summary aria-label={t("查看协作模式说明")}>
             {runtimeModeName(c.runtimeMode)}
             <Icon name="chevron" size={14} />
           </summary>
           <div className="runtime-mode-popover" role="note">
-            <strong>{runtimeModeName(c.runtimeMode)} · 创建后固定</strong>
+            <strong>
+              {runtimeModeName(c.runtimeMode)}
+              {" " + t("· 创建后固定")}
+            </strong>
             <p>{runtimeModeDescription(c.runtimeMode)}</p>
           </div>
         </details>
@@ -279,7 +288,7 @@ export function Detail({ id }: { id: string }) {
         <div>
           <Icon name="desktop" />
           <span>
-            <small>执行主机</small>
+            <small>{t("执行主机")}</small>
             <strong title={c.host}>{c.host}</strong>
           </span>
         </div>
@@ -287,7 +296,9 @@ export function Detail({ id }: { id: string }) {
           <Icon name={c.workspaceMode === "worktree" ? "branch" : "folder"} />
           <span>
             <small>
-              {c.workspaceMode === "worktree" ? "独立 worktree" : "使用原目录"}
+              {c.workspaceMode === "worktree"
+                ? t("独立 worktree")
+                : t("使用原目录")}
             </small>
             <strong className="path" title={c.executionCwd}>
               {c.executionCwd}
@@ -296,28 +307,33 @@ export function Detail({ id }: { id: string }) {
         </div>
         <div>
           <span className={`avatar ${mine ? "self" : ""}`}>
-            {mine ? "我" : "同"}
+            {mine ? t("我") : t("同")}
           </span>
           <span>
-            <small>当前输入者</small>
-            <strong>{closed ? "共享已关闭" : mine ? "我" : writerName}</strong>
+            <small>{t("当前输入者")}</small>
+            <strong>
+              {closed ? t("共享已关闭") : mine ? t("我") : writerName}
+            </strong>
           </span>
         </div>
         <div className="execution-sharing">
           <details className="sharing-inspector">
-            <summary aria-label="查看共享状态详情" title={sharingDescription}>
+            <summary
+              aria-label={t("查看共享状态详情")}
+              title={sharingDescription}
+            >
               <span className={`share-state-icon ${c.sharing ? "active" : ""}`}>
                 <Icon name="link" size={16} />
               </span>
               <span>
-                <small>共享状态</small>
+                <small>{t("共享状态")}</small>
                 <strong>{sharingState}</strong>
               </span>
               <Icon name="arrow" size={12} />
             </summary>
             <div className="sharing-inspector-popover">
               <div className="sharing-inspector-heading">
-                <h3>共享状态</h3>
+                <h3>{t("共享状态")}</h3>
                 <span className={`dot ${c.sharing ? "green-dot" : ""}`} />
               </div>
               <strong className="sharing-inspector-value">
@@ -329,7 +345,7 @@ export function Detail({ id }: { id: string }) {
                   className="text-link danger"
                   onClick={() => setModal("end")}
                 >
-                  {c.sharingPreparing ? "取消生成邀请" : "结束共享"}
+                  {c.sharingPreparing ? t("取消生成邀请") : t("结束共享")}
                 </button>
               ) : !owner && c.state !== "left" ? (
                 <button
@@ -337,7 +353,7 @@ export function Detail({ id }: { id: string }) {
                   disabled={!!busy}
                   onClick={() => void action("leave")}
                 >
-                  离开协作
+                  {t("离开协作") + " "}
                 </button>
               ) : null}
             </div>
@@ -353,58 +369,62 @@ export function Detail({ id }: { id: string }) {
             <h2>
               {closed
                 ? c.state === "expired"
-                  ? "这份邀请已到期"
+                  ? t("这份邀请已到期")
                   : c.state === "left"
-                    ? "你已离开协作"
-                    : "这次共享已结束"
+                    ? t("你已离开协作")
+                    : t("这次共享已结束")
                 : c.state === "error"
-                  ? "协作需要处理"
+                  ? t("协作需要处理")
                   : !c.online
                     ? owner
                       ? c.runtimeState === "releasing"
-                        ? "正在释放协作会话"
-                        : "恢复协作，继续上次的工作"
-                      : "正在等待发起者连接"
+                        ? t("正在释放协作会话")
+                        : t("恢复协作，继续上次的工作")
+                      : t("正在等待发起者连接")
                     : waiting
-                      ? `${agentName} 需要你的回应`
+                      ? tr`${agentName} 需要你的回应`
                       : c.busy
-                        ? `${agentName} 正在执行`
+                        ? tr`${agentName} 正在执行`
                         : mine
-                          ? "准备好继续了"
-                          : "同事正在掌握输入"}
+                          ? t("准备好继续了")
+                          : t("同事正在掌握输入")}
             </h2>
             <p>
               {closed
-                ? "会话与代码仍保留在发起者的 Mac 上。继续参与时，请向同事获取新邀请。"
+                ? t(
+                    "会话与代码仍保留在发起者的 Mac 上。继续参与时，请向同事获取新邀请。",
+                  )
                 : !c.online
                   ? owner
                     ? c.runtimeState === "releasing"
-                      ? "正在关闭这次协作的后台运行时，会话与代码继续保留。"
-                      : "恢复同一个会话与目录，不会重新创建分支。"
+                      ? t("正在关闭这次协作的后台运行时，会话与代码继续保留。")
+                      : t("恢复同一个会话与目录，不会重新创建分支。")
                     : c.transport === "tailcat"
-                      ? "确认双方网络可以访问 Tailcat DERP，并让发起者保持共享。"
-                      : "确认两台 Mac 在同一局域网，并让发起者保持共享。"
+                      ? t(
+                          "确认双方网络可以访问 Tailcat DERP，并让发起者保持共享。",
+                        )
+                      : t("确认两台 Mac 在同一局域网，并让发起者保持共享。")
                   : waiting
-                    ? `请在当前 ${agentName} 客户端中查看并回应请求。`
+                    ? tr`请在当前 ${agentName} 客户端中查看并回应请求。`
                     : c.busy
-                      ? `代码操作发生在 ${c.host}，可以在 ${agentName} 中补充或中断。`
+                      ? tr`代码操作发生在 ${c.host}，可以在 ${agentName} 中补充或中断。`
                       : mine
                         ? c.connected
-                          ? `${c.client || agentName} 已连接，继续在客户端中工作。`
-                          : `打开 ${agentName} 客户端，接着已有上下文继续。`
-                        : "先查看下方的共享上下文，需要操作时可以申请输入。"}
+                          ? tr`${c.client || agentName} 已连接，继续在客户端中工作。`
+                          : tr`打开 ${agentName} 客户端，接着已有上下文继续。`
+                        : t("先查看下方的共享上下文，需要操作时可以申请输入。")}
             </p>
           </div>
         </div>
         <div className="action-buttons">
           {closed ? (
             <a className="button primary" href="#/join">
-              使用新邀请加入
+              {t("使用新邀请加入") + " "}
               <Icon name="join" size={16} />
             </a>
           ) : c.state === "error" ? (
             <a className="button primary" href="#/settings">
-              检查连接设置
+              {t("检查连接设置") + " "}
             </a>
           ) : !c.online && owner && c.state === "ready" ? (
             <button
@@ -413,10 +433,10 @@ export function Detail({ id }: { id: string }) {
               onClick={() => void action("start")}
             >
               {busy === "start"
-                ? "正在恢复…"
+                ? t("正在恢复…")
                 : c.runtimeState === "released"
-                  ? `恢复并打开 ${agentName}`
-                  : "恢复运行时"}
+                  ? tr`恢复并打开 ${agentName}`
+                  : t("恢复运行时")}
               <Icon name="refresh" size={16} />
             </button>
           ) : (
@@ -425,7 +445,7 @@ export function Detail({ id }: { id: string }) {
               onClick={() => setModal(mine ? "clients" : "assist")}
             >
               <Icon name={mine ? "terminal" : "people"} size={18} />
-              {mine ? `打开 ${agentName}` : "用自己的客户端辅助"}
+              {mine ? tr`打开 ${agentName}` : t("用自己的客户端辅助")}
             </button>
           )}
           {canOpenPersonalCodex && (
@@ -433,14 +453,14 @@ export function Detail({ id }: { id: string }) {
               className="button"
               disabled={!!busy}
               onClick={() => void openPersonalCodex()}
-              title="直接定位此协作，无需从 Desktop 列表中查找"
+              title={t("直接定位此协作，无需从 Desktop 列表中查找")}
             >
               <Icon name="desktop" size={17} />
               {busy === "personal-desktop"
-                ? "正在打开…"
+                ? t("正在打开…")
                 : canContinueInPersonalCodex
-                  ? "在个人 Codex 中继续"
-                  : "在个人 Codex 中打开"}
+                  ? t("在个人 Codex 中继续")
+                  : t("在个人 Codex 中打开")}
             </button>
           )}
           {owner && c.state !== "preparing" && (
@@ -451,10 +471,10 @@ export function Detail({ id }: { id: string }) {
             >
               <Icon name="link" size={17} />
               {busy === "share"
-                ? "正在生成…"
+                ? t("正在生成…")
                 : c.invitation
-                  ? "邀请成员"
-                  : "邀请成员"}
+                  ? t("邀请成员")
+                  : t("邀请成员")}
             </button>
           )}
         </div>
@@ -599,14 +619,14 @@ export function Detail({ id }: { id: string }) {
         <Modal
           title={
             modal === "invite"
-              ? "邀请成员"
+              ? t("邀请成员")
               : modal === "end"
                 ? c.sharingPreparing
-                  ? "取消生成邀请？"
-                  : "结束这次共享？"
+                  ? t("取消生成邀请？")
+                  : t("结束这次共享？")
                 : modal === "assist"
-                  ? "用个人客户端辅助"
-                  : `用 ${agentName} 继续`
+                  ? t("用个人客户端辅助")
+                  : tr`用 ${agentName} 继续`
           }
           onClose={() => setModal(null)}
         >
@@ -623,29 +643,34 @@ export function Detail({ id }: { id: string }) {
             <>
               {c.sharingPreparing ? (
                 <p>
-                  将停止当前连接方式的准备过程。协作会话、执行目录和所有代码继续保留，之后可以重新选择连接方式。
+                  {t(
+                    "将停止当前连接方式的准备过程。协作会话、执行目录和所有代码继续保留，之后可以重新选择连接方式。",
+                  ) + " "}
                 </p>
               ) : (
                 <>
                   <p>
-                    同事的直接连接和工具访问会关闭。协作会话、执行目录和所有代码继续保留。
+                    {t(
+                      "同事的直接连接和工具访问会关闭。协作会话、执行目录和所有代码继续保留。",
+                    ) + " "}
                   </p>
                   <p>
-                    当前执行和审批完成、专用客户端关闭后，会自动释放会话，之后可以从
-                    Team Cross 恢复同一个会话。
+                    {t(
+                      "当前执行和审批完成、专用客户端关闭后，会自动释放会话，之后可以从 Team Cross 恢复同一个会话。",
+                    ) + " "}
                   </p>
                 </>
               )}
               <div className="form-footer">
                 <button className="button" onClick={() => setModal(null)}>
-                  {c.sharingPreparing ? "继续等待" : "继续共享"}
+                  {c.sharingPreparing ? t("继续等待") : t("继续共享")}
                 </button>
                 <button
                   className="button danger-button"
                   disabled={!!busy}
                   onClick={() => void action("end")}
                 >
-                  {c.sharingPreparing ? "取消生成" : "结束共享"}
+                  {c.sharingPreparing ? t("取消生成") : t("结束共享")}
                 </button>
               </div>
             </>

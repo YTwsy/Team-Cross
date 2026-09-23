@@ -1,0 +1,3 @@
+"NSLocalNetworkUsageDescription" = "Team Cross connects invited collaborators on your local network and shares the session context you choose.";
+"NSAppleEventsUsageDescription" = "Opens the Codex collaboration client in Terminal when you choose to do so.";
+"CFBundleURLName" = "Team Cross Invitation";

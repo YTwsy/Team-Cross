@@ -1,3 +1,4 @@
+import { t, tr } from "../i18n";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, errorText } from "../api";
 import {
@@ -65,17 +66,18 @@ export function PublicationReader({
     originalTurns.findIndex((t) => t.id === id) + 1;
   const label = (id: string) => {
     const index = draft.turns.findIndex((t) => t.id === id);
-    if (!scope) return draft.readingStartId === id ? "建议先读" : "将分享";
-    if (!selected(index)) return "不分享";
+    if (!scope)
+      return draft.readingStartId === id ? t("建议先读") : t("将分享");
+    if (!selected(index)) return t("不分享");
     const boundary =
       id === scope.start && id === scope.end
-        ? "起点 / 终点"
+        ? t("起点 / 终点")
         : id === scope.start
-          ? "起点"
+          ? t("起点")
           : id === scope.end
-            ? "终点"
-            : "将分享";
-    return `${boundary}${id === scope.reading ? " · 建议先读" : ""}`;
+            ? t("终点")
+            : t("将分享");
+    return `${boundary}${id === scope.reading ? t(" · 建议先读") : ""}`;
   };
   async function read(
     request: ReadRequest,
@@ -98,7 +100,7 @@ export function PublicationReader({
       );
       if (token !== serial.current) return;
       if (next.draftId !== draft.id || next.hash !== draft.hash)
-        throw new Error("读取的内容与当前预览不一致，请重新选择来源。");
+        throw new Error(t("读取的内容与当前预览不一致，请重新选择来源。"));
       setPage((previous) =>
         mode === "replace" || !previous
           ? next
@@ -162,12 +164,12 @@ export function PublicationReader({
   return (
     <div className="publication-reader" ref={panel}>
       <ReadingLayout
-        label={scope ? "会话目录" : "分享内容目录"}
+        label={scope ? t("会话目录") : t("分享内容目录")}
         toolbarTarget={toolbarTarget}
         toolbar={
           scope
-            ? "点击目录查看正文，在每轮开头选择范围"
-            : "同事只能读取下方范围，折叠的工具过程也会分享"
+            ? t("点击目录查看正文，在每轮开头选择范围")
+            : t("同事只能读取下方范围，折叠的工具过程也会分享")
         }
         outline={draft.turns.map((turn, index) => ({
           id: turn.id,
@@ -175,7 +177,7 @@ export function PublicationReader({
           number: number(turn.id),
           current: current === turn.id,
           selected: selected(index),
-          meta: `${label(turn.id)}${turn.noticeCount ? ` · ${turn.noticeCount} 处导出说明` : ""}`,
+          meta: `${label(turn.id)}${turn.noticeCount ? tr` · ${turn.noticeCount} 处导出说明` : ""}`,
           onSelect: () => navigate(turn.id),
         }))}
       >
@@ -187,15 +189,21 @@ export function PublicationReader({
               className="publication-turn"
               data-publication-turn={turn.id}
               key={turn.id}
-              aria-label={`第 ${number(turn.id)} 轮`}
+              aria-label={tr`第 ${number(turn.id)} 轮`}
             >
               <header className="publication-turn-heading">
                 <div className="publication-turn-meta">
-                  <span>第 {number(turn.id)} 轮</span>
+                  <span>
+                    {t("第") + " "}
+                    {number(turn.id)}
+                    {" " + t("轮")}
+                  </span>
                   <span className={`badge ${included ? "blue" : "muted"}`}>
                     {label(turn.id)}
                   </span>
-                  {turn.status !== "completed" && <span>已结束但未完成</span>}
+                  {turn.status !== "completed" && (
+                    <span>{t("已结束但未完成")}</span>
+                  )}
                 </div>
                 <h3>{readingTitle(turn.label, 100)}</h3>
                 {scope && (
@@ -206,7 +214,7 @@ export function PublicationReader({
                       aria-pressed={scope.start === turn.id}
                       onClick={() => scope.onStart(turn.id)}
                     >
-                      从这轮开始
+                      {t("从这轮开始") + " "}
                     </button>
                     <button
                       className="button small"
@@ -214,7 +222,7 @@ export function PublicationReader({
                       aria-pressed={scope.end === turn.id}
                       onClick={() => scope.onEnd(turn.id)}
                     >
-                      到这轮结束
+                      {t("到这轮结束") + " "}
                     </button>
                     {included && (
                       <button
@@ -228,8 +236,8 @@ export function PublicationReader({
                         }
                       >
                         {scope.reading === turn.id
-                          ? "取消建议阅读起点"
-                          : "建议同事从这轮读起"}
+                          ? t("取消建议阅读起点")
+                          : t("建议同事从这轮读起")}
                       </button>
                     )}
                   </div>
@@ -243,7 +251,7 @@ export function PublicationReader({
                     source={segment.text}
                     label={
                       segment.collapsed
-                        ? `${itemLabel(segment.type)} · 已读 ${segment.endOffset} / ${segment.length} 字`
+                        ? tr`${itemLabel(segment.type)} · 已读 ${segment.endOffset} / ${segment.length} 字`
                         : itemLabel(segment.type)
                     }
                     notice={segment.notice}
@@ -285,7 +293,7 @@ export function PublicationReader({
             failure ? () => void read(failure.request, failure.mode) : undefined
           }
         />
-        {loading && <Loading text="正在读取会话正文…" />}
+        {loading && <Loading text={t("正在读取会话正文…")} />}
         {page?.nextCursor && (
           <div className="publication-page-actions">
             <button
@@ -293,16 +301,16 @@ export function PublicationReader({
               disabled={loading}
               onClick={() => void read({ cursor: page.nextCursor }, "append")}
             >
-              继续读取正文
+              {t("继续读取正文") + " "}
             </button>
             {!page.pageEndsAtTurnBoundary && (
-              <span className="small-text muted">本轮尚未读完</span>
+              <span className="small-text muted">{t("本轮尚未读完")}</span>
             )}
           </div>
         )}
         {page && !page.nextCursor && (
           <p className="small-text muted publication-reader-end">
-            {scope ? "已到本次固定历史末尾。" : "已到分享范围末尾。"}
+            {scope ? t("已到本次固定历史末尾。") : t("已到分享范围末尾。")}
           </p>
         )}
       </ReadingLayout>

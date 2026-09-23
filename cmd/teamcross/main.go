@@ -68,6 +68,7 @@ func run(args []string) error {
 	desktop := flags.String("desktop-app", "", "Codex Desktop 应用路径")
 	cliDir := flags.String("cli-dir", cliinstall.DefaultDir, "App 命令入口目录")
 	runtimeID := flags.String("runtime-id", "", "共享运行时批注工具的协作 ID")
+	setLanguage := flags.String("set", "", "界面语言：auto、zh-CN 或 en")
 	if e := flags.Parse(args); e != nil {
 		if errors.Is(e, flag.ErrHelp) {
 			return nil
@@ -108,9 +109,9 @@ func run(args []string) error {
 		return e
 	}
 	switch command {
-	case "serve", "join", "mcp", "status", "doctor", "stop":
+	case "serve", "join", "mcp", "status", "doctor", "stop", "ui-language":
 	default:
-		return fmt.Errorf("用法: teamcross [serve | join | sources | space | freeze | publication-preview | publish | publication-status | materials | read-material | withdraw-material | preview | create | share | invite | inspect-invitation | collaborations | input | open | end | leave | resume | share-status | cancel-share | mcp | status | doctor | stop | version | cli-status | install-cli | uninstall-cli]")
+		return fmt.Errorf("用法: teamcross [serve | join | sources | space | freeze | publication-preview | publish | publication-status | materials | read-material | withdraw-material | preview | create | share | invite | inspect-invitation | collaborations | input | open | end | leave | resume | share-status | cancel-share | mcp | status | doctor | stop | ui-language | version | cli-status | install-cli | uninstall-cli]")
 	}
 	var e error
 	*data, e = service.Normalize(*data)
@@ -124,6 +125,26 @@ func run(args []string) error {
 			return mcp.ServeRuntime(ctx, *data, *runtimeID, os.Getenv(mcp.RuntimeTokenEnv), os.Stdin, os.Stdout)
 		}
 		return mcp.Serve(ctx, *data, os.Stdin, os.Stdout)
+	}
+	if command == "ui-language" {
+		s, err := service.Ensure(ctx, *data, "", nil)
+		if err != nil {
+			return err
+		}
+		var result map[string]string
+		if *setLanguage != "" {
+			err = s.Call(ctx, "POST", "ui-language", map[string]string{"mode": *setLanguage}, &result)
+		} else {
+			err = s.Call(ctx, "GET", "ui-language", nil, &result)
+		}
+		if err != nil {
+			return err
+		}
+		if *jsonOut {
+			return printJSON(result)
+		}
+		fmt.Printf("%s (%s)\n", result["mode"], result["resolved"])
+		return nil
 	}
 	if command == "status" || command == "doctor" || command == "stop" {
 		s, e := service.Probe(ctx, *data)
@@ -321,7 +342,8 @@ func serve(ctx context.Context, stop context.CancelFunc, cfg collab.Config, list
 		public.Token = ""
 		switch {
 		case r.Method == "GET" && r.URL.Path == "/api/control/status":
-			_ = json.NewEncoder(w).Encode(service.Status{Connection: public, Running: true, Active: app.Active()})
+			mode, resolved := app.UILanguage()
+			_ = json.NewEncoder(w).Encode(service.Status{Connection: public, Running: true, Active: app.Active(), UILanguage: mode, ResolvedLanguage: resolved})
 		case r.Method == "POST" && r.URL.Path == "/api/control/stop":
 			var in struct {
 				Force bool `json:"force"`

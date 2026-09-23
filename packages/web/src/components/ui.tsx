@@ -1,3 +1,4 @@
+import { serviceText, t } from "../i18n";
 import {
   useEffect,
   useLayoutEffect,
@@ -164,7 +165,7 @@ export function Badge({ collaboration }: { collaboration: Collaboration }) {
     </span>
   );
 }
-export function Loading({ text = "正在加载…" }: { text?: string }) {
+export function Loading({ text = t("正在加载…") }: { text?: string }) {
   return (
     <div className="loading" role="status">
       <span className="spinner" />
@@ -182,12 +183,12 @@ export function ErrorBox({
   if (!message) return null;
   return (
     <div className="error-box" role="alert">
-      <strong>暂时无法完成</strong>
-      <p>{message}</p>
+      <strong>{t("暂时无法完成")}</strong>
+      <p>{serviceText(message)}</p>
       {retry && (
         <button className="button small" onClick={retry}>
           <Icon name="refresh" size={15} />
-          重试
+          {t("重试") + " "}
         </button>
       )}
     </div>
@@ -214,7 +215,7 @@ export function Empty({
 }
 export function Copy({
   text,
-  label = "复制",
+  label = t("复制"),
   className = "",
   ariaLabel,
 }: {
@@ -247,11 +248,11 @@ export function Copy({
         }}
       >
         <Icon name={copied ? "check" : "copy"} size={15} />
-        {copied ? "已复制" : label}
+        {copied ? t("已复制") : label}
       </button>
       {error && (
         <span role="alert" className="muted">
-          复制失败，请手动选择文字。
+          {t("复制失败，请手动选择文字。") + " "}
         </span>
       )}
     </>
@@ -300,7 +301,11 @@ export function Modal({
     >
       <div className="modal-heading">
         <h2 id="modal-title">{title}</h2>
-        <button className="icon-button" aria-label="关闭" onClick={onClose}>
+        <button
+          className="icon-button"
+          aria-label={t("关闭")}
+          onClick={onClose}
+        >
           <Icon name="close" />
         </button>
       </div>
@@ -343,7 +348,7 @@ export function ProviderFilter({
     <div
       className="segmented provider-filter"
       role="group"
-      aria-label="来源客户端"
+      aria-label={t("来源客户端")}
     >
       {(["codex", "claude"] as const).map((provider) => (
         <button
@@ -353,7 +358,7 @@ export function ProviderFilter({
           disabled={disabled}
           onClick={() => onChange(provider)}
         >
-          {provider === "codex" ? "Codex" : "Claude Code · 实验性"}
+          {provider === "codex" ? "Codex" : t("Claude Code · 实验性")}
         </button>
       ))}
     </div>

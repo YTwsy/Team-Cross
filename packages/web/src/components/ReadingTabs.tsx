@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import {
   createContext,
   useContext,
@@ -91,8 +92,8 @@ export function ReadingTabs({
   const current = useRef(active);
   const navigation = useRef(navigationKey);
   const tabs = [
-    { value: "materials", label: "已发布会话材料", icon: "book" },
-    { value: "context", label: "协作上下文", icon: "terminal" },
+    { value: "materials", label: t("已发布会话材料"), icon: "book" },
+    { value: "context", label: t("协作上下文"), icon: "terminal" },
   ].filter(
     (tab) => tab.value === "materials" || context !== undefined,
   ) as Array<{ value: ReadingTab; label: string; icon: "book" | "terminal" }>;
@@ -153,19 +154,20 @@ export function ReadingTabs({
     <section
       ref={section}
       className="panel collaboration-reading"
-      aria-label="协作阅读"
+      aria-label={t("协作阅读")}
     >
       <div className="reading-heading" ref={heading}>
         <div className="reading-heading-row">
           {tabs.length === 1 ? (
             <h2 id={`${id}-materials-tab`}>
-              已发布会话材料 <span className="count">{materialCount}</span>
+              {t("已发布会话材料") + " "}
+              <span className="count">{materialCount}</span>
             </h2>
           ) : (
             <div
               className="reading-tabs"
               role="tablist"
-              aria-label="协作阅读内容"
+              aria-label={t("协作阅读内容")}
             >
               {tabs.map(({ value, label, icon }, index) => (
                 <button

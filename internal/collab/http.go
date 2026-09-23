@@ -13,6 +13,7 @@ import (
 	"strings"
 	"teamcross/internal/problem"
 	"teamcross/internal/sharing"
+	"teamcross/internal/uilanguage"
 	"time"
 )
 
@@ -201,6 +202,33 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 	case "info":
 		respond(w, a.Info(ctx), nil)
 		return
+	case "ui-language":
+		if r.Method == "GET" {
+			mode, resolved := a.UILanguage()
+			respond(w, map[string]string{"mode": mode, "resolved": resolved}, nil)
+			return
+		}
+		if r.Method != "POST" {
+			http.NotFound(w, r)
+			return
+		}
+		var in struct {
+			Mode string `json:"mode"`
+		}
+		if !decode(w, r, &in) {
+			return
+		}
+		if !uilanguage.Valid(in.Mode) {
+			respond(w, nil, problem.New("invalid_ui_language", "界面语言无效", "请选择跟随系统、简体中文或 English"))
+			return
+		}
+		if err := a.SetUILanguage(in.Mode); err != nil {
+			respond(w, nil, err)
+			return
+		}
+		mode, resolved := a.UILanguage()
+		respond(w, map[string]string{"mode": mode, "resolved": resolved}, nil)
+		return
 	case "settings":
 		if r.Method != "POST" {
 			http.NotFound(w, r)
@@ -211,8 +239,11 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.mu.Lock()
-		a.settings = in
+		in.UILanguage = a.settings.UILanguage
 		e := writeJSONFile(filepath.Join(a.Config.DataDir, "settings.json"), in)
+		if e == nil {
+			a.settings = in
+		}
 		a.mu.Unlock()
 		respond(w, map[string]bool{"ok": e == nil}, e)
 		return

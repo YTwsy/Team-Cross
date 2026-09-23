@@ -1,3 +1,4 @@
+import { serviceText, t, tr } from "../i18n";
 import { useEffect, useState } from "react";
 import { api, errorText, useResource } from "../api";
 import {
@@ -77,7 +78,7 @@ export function Clients({
   }
   return (
     <div className="clients">
-      <div className="segmented full" aria-label="参与方式">
+      <div className="segmented full" aria-label={t("参与方式")}>
         <button
           aria-pressed={mode === "direct"}
           disabled={
@@ -89,7 +90,7 @@ export function Clients({
             setError("");
           }}
         >
-          直接操作
+          {t("直接操作") + " "}
         </button>
         <button
           aria-pressed={mode === "assist"}
@@ -100,27 +101,29 @@ export function Clients({
             setError("");
           }}
         >
-          用自己的客户端辅助
+          {t("用自己的客户端辅助") + " "}
         </button>
       </div>
       <p className="client-description">
         {mode === "direct"
-          ? `连接共享会话，代码与模型调用在 ${collaboration.host} 上执行。`
-          : `继续与你自己的 ${name} 对话，通过 Team Cross 工具查看和参与这次协作。个人对话使用本机的模型设置。`}
+          ? tr`连接共享会话，代码与模型调用在 ${collaboration.host} 上执行。`
+          : tr`继续与你自己的 ${name} 对话，通过 Team Cross 工具查看和参与这次协作。个人对话使用本机的模型设置。`}
       </p>
       {mode === "direct" && (!mine || !collaboration.online) && (
         <div className="notice">
           {!collaboration.online
-            ? "等待发起者恢复协作运行时后，即可打开客户端。"
-            : "当前由另一位参与者输入。交接完成后，即可直接操作；现在仍可使用个人辅助客户端读取上下文。"}
+            ? t("等待发起者恢复协作运行时后，即可打开客户端。")
+            : t(
+                "当前由另一位参与者输入。交接完成后，即可直接操作；现在仍可使用个人辅助客户端读取上下文。",
+              )}
         </div>
       )}
       {mode === "direct" && collaboration.connected && (
         <div className="notice">
           {collaboration.clientState === "session_ready"
-            ? "共享会话已打开。"
-            : `客户端已连接，等待在 ${claude ? "Claude" : "Codex"} 中打开共享会话。`}
-          切换前请关闭当前直接客户端。
+            ? t("共享会话已打开。")
+            : tr`客户端已连接，等待在 ${claude ? "Claude" : "Codex"} 中打开共享会话。`}
+          {t("切换前请关闭当前直接客户端。") + " "}
         </div>
       )}
       {mode === "assist" && (
@@ -140,8 +143,9 @@ export function Clients({
       )}
       {collaboration.provider === "claude" && (
         <p className="notice">
-          Claude 协作当前通过原生 TUI
-          审批、补充和中断。辅助工具可读取上下文、添加批注，并在空闲时发送文本。
+          {t(
+            "Claude 协作当前通过原生 TUI 审批、补充和中断。辅助工具可读取上下文、添加批注，并在空闲时发送文本。",
+          ) + " "}
         </p>
       )}
       <div className="client-grid">
@@ -156,14 +160,14 @@ export function Clients({
                 : "Codex Desktop"}
             </h3>
             {preferred === client && (
-              <small className="muted">偏好的客户端</small>
+              <small className="muted">{t("偏好的客户端")}</small>
             )}
             <p>
               {client === "tui"
-                ? "在本机终端中打开"
+                ? t("在本机终端中打开")
                 : mode === "direct"
-                  ? "打开专用于此协作的独立实例"
-                  : "打开你平时使用的 Desktop"}
+                  ? t("打开专用于此协作的独立实例")
+                  : t("打开你平时使用的 Desktop")}
             </p>
             <button
               className="button primary"
@@ -177,7 +181,7 @@ export function Clients({
               }
               onClick={() => void open(client, true)}
             >
-              {busy === client ? "正在打开…" : "打开"}
+              {busy === client ? t("正在打开…") : t("打开")}
               <Icon name="arrow" size={16} />
             </button>
             <button
@@ -191,7 +195,7 @@ export function Clients({
               }
               onClick={() => void open(client, false)}
             >
-              查看启动命令
+              {t("查看启动命令") + " "}
             </button>
           </div>
         ))}
@@ -199,7 +203,7 @@ export function Clients({
       <ErrorBox message={error || clientError || info.error} />
       {(clientError || (!claude && !info.data?.desktopApp)) && (
         <a className="text-link" href="#/settings">
-          检查客户端设置
+          {t("检查客户端设置") + " "}
         </a>
       )}
       {plan && (
@@ -208,13 +212,13 @@ export function Clients({
             <p>
               <Icon name="check" size={17} />
               {mode === "direct"
-                ? "已发送打开请求，连接状态会显示在协作详情中。"
-                : `已发送打开请求，请在个人 ${name} 中选择这次协作。`}
+                ? t("已发送打开请求，连接状态会显示在协作详情中。")
+                : tr`已发送打开请求，请在个人 ${name} 中选择这次协作。`}
             </p>
           )}
-          {plan.note && <p className="muted">{plan.note}</p>}
+          {plan.note && <p className="muted">{serviceText(plan.note)}</p>}
           <details open={!plan.launched}>
-            <summary>启动命令</summary>
+            <summary>{t("启动命令")}</summary>
             <pre>{plan.command}</pre>
             <Copy text={plan.command} />
           </details>
@@ -222,13 +226,11 @@ export function Clients({
       )}
       {mode === "assist" && (
         <div className="assistant-prompt">
-          <span className="eyebrow">可以这样告诉自己的 {name}</span>
-          <p>
-            使用 Team Cross 查看「{collaboration.title}」的上下文和当前状态。
-          </p>
+          <span className="eyebrow">{tr`可以这样告诉自己的 ${name}`}</span>
+          <p>{tr`使用 Team Cross 查看「${collaboration.title}」的上下文和当前状态。`}</p>
           <Copy
-            text={`使用 Team Cross 工具查看协作 ${collaboration.id}（${collaboration.title}）的上下文和当前状态。`}
-            label={`复制给 ${name}`}
+            text={tr`使用 Team Cross 工具查看协作 ${collaboration.id}（${collaboration.title}）的上下文和当前状态。`}
+            label={tr`复制给 ${name}`}
           />
         </div>
       )}
