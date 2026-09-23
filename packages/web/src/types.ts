@@ -1,11 +1,16 @@
+import { formatDate, language, t, tr } from "./i18n";
 export type Mode = "existing" | "worktree";
 export type RuntimeMode = "restricted" | "trusted";
 export const runtimeModeName = (mode?: RuntimeMode) =>
-  mode === "trusted" ? "信任模式" : "受限模式";
+  mode === "trusted" ? t("信任模式") : t("受限模式");
 export const runtimeModeDescription = (mode?: RuntimeMode) =>
   mode === "trusted"
-    ? "沿用邀请者的原生配置与权限，包括 MCP、插件、hooks、网络、命令及已启用的浏览器和电脑控制。操作可能访问工作目录之外的数据，并使用邀请者的服务授权。"
-    : "使用 Team Cross 的受限运行配置，关闭个人 MCP、插件、hooks 等扩展，按协作权限处理代码操作。";
+    ? t(
+        "沿用邀请者的原生配置与权限，包括 MCP、插件、hooks、网络、命令及已启用的浏览器和电脑控制。操作可能访问工作目录之外的数据，并使用邀请者的服务授权。",
+      )
+    : t(
+        "使用 Team Cross 的受限运行配置，关闭个人 MCP、插件、hooks 等扩展，按协作权限处理代码操作。",
+      );
 export type ShareTransport = "lan" | "tailcat";
 export type AnnotationTarget = {
   kind: "history" | "file" | "changes" | "material";
@@ -152,6 +157,8 @@ export type MCPClientStatus = {
   observedAt?: string;
 };
 export type Info = {
+  uiLanguage?: "auto" | "zh-CN" | "en";
+  resolvedLanguage?: "zh-CN" | "en";
   mcpClients?: Record<Provider, MCPClientStatus>;
   claudeBinary?: string;
   claudeVersion?: string;
@@ -202,47 +209,55 @@ export type Changes = {
 };
 export type FileContext = { path?: string; text: string; contentHash?: string };
 export const projectName = (path = "") =>
-  path.split("/").filter(Boolean).at(-1) || "项目";
+  path.split("/").filter(Boolean).at(-1) || t("项目");
 export const sourceName = (s: Source) =>
-  s.name || s.preview?.slice(0, 72) || "未命名会话";
+  s.name || s.preview?.slice(0, 72) || t("未命名会话");
 export function relativeTime(date: string | number) {
   const diff = Math.max(
     0,
     Date.now() -
       (typeof date === "number" ? date * 1000 : new Date(date).getTime()),
   );
-  if (diff < 60000) return "刚刚";
-  if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
-  return new Date(
-    typeof date === "number" ? date * 1000 : date,
-  ).toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
+  if (diff < 60000) return t("刚刚");
+  if (diff < 3600000)
+    return new Intl.RelativeTimeFormat(language(), {
+      numeric: "always",
+    }).format(-Math.floor(diff / 60000), "minute");
+  if (diff < 86400000)
+    return new Intl.RelativeTimeFormat(language(), {
+      numeric: "always",
+    }).format(-Math.floor(diff / 3600000), "hour");
+  return formatDate(typeof date === "number" ? date * 1000 : date, {
+    month: "short",
+    day: "numeric",
+  });
 }
 export function status(c: Collaboration) {
-  if (c.state === "expired") return { text: "邀请已到期", tone: "warning" };
-  if (c.state === "ended") return { text: "共享已结束", tone: "muted" };
-  if (c.state === "left") return { text: "已离开", tone: "muted" };
-  if (c.state === "error") return { text: "需要处理", tone: "warning" };
-  if (c.state === "preparing") return { text: "创建中", tone: "blue" };
-  if (c.state === "joining") return { text: "等待确认加入", tone: "warning" };
+  if (c.state === "expired") return { text: t("邀请已到期"), tone: "warning" };
+  if (c.state === "ended") return { text: t("共享已结束"), tone: "muted" };
+  if (c.state === "left") return { text: t("已离开"), tone: "muted" };
+  if (c.state === "error") return { text: t("需要处理"), tone: "warning" };
+  if (c.state === "preparing") return { text: t("创建中"), tone: "blue" };
+  if (c.state === "joining")
+    return { text: t("等待确认加入"), tone: "warning" };
   if (c.hasExecution === false)
     return {
-      text: c.reachable === false ? "暂时断线" : "只读分享与讨论",
+      text: c.reachable === false ? t("暂时断线") : t("只读分享与讨论"),
       tone: c.reachable === false ? "muted" : "green",
     };
   if (c.runtimeState === "releasing")
-    return { text: "正在释放会话", tone: "muted" };
+    return { text: t("正在释放会话"), tone: "muted" };
   if (c.runtimeState === "released")
-    return { text: "会话已释放", tone: "muted" };
-  if (!c.online) return { text: "等待连接", tone: "muted" };
-  if (c.nativeWaiting) return { text: "等待原生交互", tone: "warning" };
-  if (c.approvals > 0) return { text: "等待审批", tone: "warning" };
-  if (c.busy) return { text: "运行中", tone: "blue" };
-  return { text: "等待输入", tone: "green" };
+    return { text: t("会话已释放"), tone: "muted" };
+  if (!c.online) return { text: t("等待连接"), tone: "muted" };
+  if (c.nativeWaiting) return { text: t("等待原生交互"), tone: "warning" };
+  if (c.approvals > 0) return { text: t("等待审批"), tone: "warning" };
+  if (c.busy) return { text: t("运行中"), tone: "blue" };
+  return { text: t("等待输入"), tone: "green" };
 }
 
 export function transportName(transport?: ShareTransport) {
-  return transport === "tailcat" ? "Tailcat 跨网络" : "局域网";
+  return transport === "tailcat" ? t("Tailcat 跨网络") : t("局域网");
 }
 
 export function invitationText(
@@ -251,9 +266,9 @@ export function invitationText(
 ) {
   const connection =
     transport === "tailcat"
-      ? "本邀请使用 Tailcat 跨网络连接（实验性），可能经第三方 DERP 中继。"
-      : "双方需在同一局域网。";
-  return `邀请你加入 Team Cross 协作。${connection}同一链接可供多人加入，有效至关闭、重置或本次共享结束。每位成员加入后独立参与。\n\n已安装 App：teamcross://join?invite=${encodeURIComponent(token)}\n\n安装说明：https://github.com/YTwsy/Team-Cross#安装\n安装后再次打开上方链接，或在“加入协作”中粘贴以下邀请码：\n${token}`;
+      ? t("本邀请使用 Tailcat 跨网络连接（实验性），可能经第三方 DERP 中继。")
+      : t("双方需在同一局域网。");
+  return tr`邀请你加入 Team Cross 协作。${connection}同一链接可供多人加入，有效至关闭、重置或本次共享结束。每位成员加入后独立参与。\n\n已安装 App：teamcross://join?invite=${encodeURIComponent(token)}\n\n安装说明：https://github.com/YTwsy/Team-Cross#安装\n安装后再次打开上方链接，或在“加入协作”中粘贴以下邀请码：\n${token}`;
 }
 
 export type MaterialReference = {

@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useEffect, useMemo, useState } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -25,7 +26,9 @@ const components: Components = {
     ),
   img: ({ alt }) => (
     <span className="reader-media-note">
-      图片：{alt || "未命名"}（未加载外部内容）
+      {t("图片：")}
+      {alt || t("未命名")}
+      {t("（未加载外部内容）") + " "}
     </span>
   ),
   pre: ({ children, node }) => {
@@ -33,8 +36,8 @@ const components: Components = {
     return (
       <div className="reader-code">
         <div className="reader-code-tools">
-          <span>代码</span>
-          <Copy label="复制代码" text={original} />
+          <span>{t("代码")}</span>
+          <Copy label={t("复制代码")} text={original} />
         </div>
         <pre>{children}</pre>
       </div>

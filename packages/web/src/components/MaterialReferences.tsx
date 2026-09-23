@@ -1,3 +1,4 @@
+import { t, tr } from "../i18n";
 import { useId, useRef, useState } from "react";
 import { api, errorText } from "../api";
 import {
@@ -31,11 +32,11 @@ export function MaterialReferenceLinks({
             onClick={() => onLocate(r)}
           >
             <Icon name="link" size={13} />
-            {v?.title || "会话材料"} · v{r.version}
+            {v?.title || t("会话材料")} · v{r.version}
             {m?.withdrawnAt
-              ? " · 已撤回"
+              ? t(" · 已撤回")
               : m && r.version !== m.versions.at(-1)?.version
-                ? " · 有新版本"
+                ? t(" · 有新版本")
                 : ""}
           </button>
         );
@@ -131,13 +132,13 @@ export function MaterialReferencePicker({
               >
                 <Icon name="link" size={12} />
                 <span>
-                  {v?.title || "会话材料"} · v{ref.version}
-                  {m?.withdrawnAt && " · 已撤回"}
+                  {v?.title || t("会话材料")} · v{ref.version}
+                  {m?.withdrawnAt && t(" · 已撤回")}
                 </span>
                 <button
                   type="button"
                   className="icon-button"
-                  aria-label={`移除引用 ${v?.title || "会话材料"} v${ref.version}`}
+                  aria-label={tr`移除引用 ${v?.title || t("会话材料")} v${ref.version}`}
                   disabled={disabled}
                   onClick={() => onChange(value.filter((_, n) => n !== i))}
                 >
@@ -162,21 +163,22 @@ export function MaterialReferencePicker({
         }}
       >
         <Icon name="link" size={14} />
-        引用材料{value.length ? `（${value.length}）` : ""}
+        {t("引用材料")}
+        {value.length ? tr`（${value.length}）` : ""}
       </button>
       {open && (
         <div
           className="reference-menu"
           id={id}
           role="group"
-          aria-label="选择引用材料"
+          aria-label={t("选择引用材料")}
         >
           <div className="reference-menu-heading">
-            <strong>引用已发布材料</strong>
+            <strong>{t("引用已发布材料")}</strong>
             <button
               type="button"
               className="icon-button"
-              aria-label="关闭材料选择"
+              aria-label={t("关闭材料选择")}
               onClick={() => {
                 setOpen(false);
                 trigger.current?.focus();
@@ -186,7 +188,7 @@ export function MaterialReferencePicker({
             </button>
           </div>
           <label className="sr-only" htmlFor={`${id}-search`}>
-            搜索材料标题或作者
+            {t("搜索材料标题或作者") + " "}
           </label>
           <input
             ref={search}
@@ -195,7 +197,7 @@ export function MaterialReferencePicker({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索标题或作者"
+            placeholder={t("搜索标题或作者")}
           />
           {choices.map((m) => {
             const versions = m.versions
@@ -216,15 +218,17 @@ export function MaterialReferencePicker({
                     {v.title} · v{v.version}
                   </strong>
                   <span>
-                    {m.author} · {v.turnCount} 轮 · {relativeTime(v.createdAt)}
-                    {v === latest ? " · 最新" : ""}
+                    {m.author} · {v.turnCount}
+                    {" " + t("轮 ·") + " "}
+                    {relativeTime(v.createdAt)}
+                    {v === latest ? t(" · 最新") : ""}
                   </span>
                 </button>
                 {spaceId && (
                   <button
                     type="button"
                     className="text-button"
-                    aria-label={`预览 ${v.title} v${v.version}`}
+                    aria-label={tr`预览 ${v.title} v${v.version}`}
                     onClick={() =>
                       void read(
                         { materialId: m.id, version: v.version },
@@ -232,7 +236,7 @@ export function MaterialReferencePicker({
                       )
                     }
                   >
-                    预览
+                    {t("预览") + " "}
                   </button>
                 )}
               </div>
@@ -242,7 +246,7 @@ export function MaterialReferencePicker({
                 {row(latest)}
                 {versions.length > 1 && (
                   <details>
-                    <summary>选择历史版本（{versions.length - 1}）</summary>
+                    <summary>{tr`选择历史版本（${versions.length - 1}）`}</summary>
                     {versions.slice(1).map(row)}
                   </details>
                 )}
@@ -252,28 +256,30 @@ export function MaterialReferencePicker({
           {!choices.length && (
             <p className="small-text muted">
               {available.length
-                ? "没有找到匹配的材料。"
-                : "还没有已发布材料。先在材料区发布会话，再回到这份草稿引用。"}
+                ? t("没有找到匹配的材料。")
+                : t(
+                    "还没有已发布材料。先在材料区发布会话，再回到这份草稿引用。",
+                  )}
             </p>
           )}
           {preview && (
-            <section className="reference-preview" aria-label="材料预览">
+            <section className="reference-preview" aria-label={t("材料预览")}>
               <strong>
                 {preview.title} · v{preview.ref.version}
               </strong>
               <ErrorBox message={preview.error} />
               {preview.text !== undefined ? (
-                <pre>{preview.text || "这页没有文字内容。"}</pre>
+                <pre>{preview.text || t("这页没有文字内容。")}</pre>
               ) : (
-                !preview.error && <p role="status">正在读取预览…</p>
+                !preview.error && <p role="status">{t("正在读取预览…")}</p>
               )}
               <p className="small-text muted">
-                仅预览首屏片段，完整内容可在材料区阅读。
+                {t("仅预览首屏片段，完整内容可在材料区阅读。") + " "}
               </p>
             </section>
           )}
           <p className="small-text muted">
-            引用保留所选版本；新增发布不会替换已有引用。
+            {t("引用保留所选版本；新增发布不会替换已有引用。") + " "}
           </p>
         </div>
       )}

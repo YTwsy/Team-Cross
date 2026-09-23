@@ -106,6 +106,7 @@ func (a *App) ClientPlan(ctx context.Context, id, client string, launch bool) (m
 	return result, nil
 }
 func (a *App) Info(ctx context.Context) map[string]any {
+	uiLanguage, resolvedLanguage := a.UILanguage()
 	binary, e := a.binary()
 	version := ""
 	problem := ""
@@ -137,7 +138,7 @@ func (a *App) Info(ctx context.Context) map[string]any {
 		status.ConfigError = claudeConfigError.Error()
 		clients["claude"] = status
 	}
-	return map[string]any{"mcpClients": clients, "claudeBinary": claudeBinary, "claudeVersion": claudeVersion, "claudeError": claudeError, "mcpObservedAt": observed, "mcpProbed": probed, "name": "Team Cross", "version": buildinfo.Version, "installedVersion": service.InstalledVersion(ctx, executable), "cli": cliinstall.Inspect(executable, cliinstall.DefaultDir, os.Getenv("PATH")), "commit": buildinfo.Commit, "host": a.Host, "binary": binary, "codexVersion": version, "codexError": problem, "desktopApp": a.desktop(), "dataDir": a.Config.DataDir, "mcpCommand": mcpCommand, "mcpConfigured": codexConfigured, "time": time.Now()}
+	return map[string]any{"mcpClients": clients, "claudeBinary": claudeBinary, "claudeVersion": claudeVersion, "claudeError": claudeError, "mcpObservedAt": observed, "mcpProbed": probed, "name": "Team Cross", "version": buildinfo.Version, "installedVersion": service.InstalledVersion(ctx, executable), "cli": cliinstall.Inspect(executable, cliinstall.DefaultDir, os.Getenv("PATH")), "commit": buildinfo.Commit, "host": a.Host, "binary": binary, "codexVersion": version, "codexError": problem, "desktopApp": a.desktop(), "dataDir": a.Config.DataDir, "mcpCommand": mcpCommand, "mcpConfigured": codexConfigured, "uiLanguage": uiLanguage, "resolvedLanguage": resolvedLanguage, "time": time.Now()}
 }
 func (a *App) SetupMCP(ctx context.Context, provider string) error {
 	provider, e := providerName(provider)

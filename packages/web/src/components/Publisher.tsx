@@ -1,3 +1,4 @@
+import { formatDate, t, tr } from "../i18n";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, errorText, useResource } from "../api";
 import {
@@ -146,7 +147,9 @@ export function Publisher({
         (!contains(latest.startTurnId) || !contains(latest.endTurnId))
       )
         setError(
-          "这次历史中没有找到上次公开范围的边界，请重新选择。不会自动扩大公开范围。",
+          t(
+            "这次历史中没有找到上次公开范围的边界，请重新选择。不会自动扩大公开范围。",
+          ),
         );
       setPreview(undefined);
       setReviewing(false);
@@ -243,7 +246,9 @@ export function Publisher({
         onPublished(result, createdSpace.current || spaceRequest.current);
       else
         setStatusNote(
-          "尚未查到已保存结果。网络中的原请求可能仍在进行；需要重试时保持当前预览与请求标识。",
+          t(
+            "尚未查到已保存结果。网络中的原请求可能仍在进行；需要重试时保持当前预览与请求标识。",
+          ),
         );
     } catch (e) {
       if (mounted.current) setError(errorText(e));
@@ -277,7 +282,7 @@ export function Publisher({
     changeScope();
     if (reading && (previousReading < from || previousReading > to)) {
       setReading("");
-      setStatusNote("原建议阅读起点已移出范围，改为从分享范围开头阅读。");
+      setStatusNote(t("原建议阅读起点已移出范围，改为从分享范围开头阅读。"));
     }
   }
   function returnToEditor() {
@@ -288,27 +293,28 @@ export function Publisher({
     <section
       ref={composer}
       className="publication-composer"
-      aria-label="发布会话材料"
+      aria-label={t("发布会话材料")}
     >
       {!embedded && (
         <p className="muted">
-          选择你本机的一份调查。只有确认的历史范围会发布到空间，供现在和以后获准加入的成员阅读。
+          {t(
+            "选择你本机的一份调查。只有确认的历史范围会发布到空间，供现在和以后获准加入的成员阅读。",
+          ) + " "}
         </p>
       )}
       {!draft ? (
         <>
           {latest ? (
-            <p>
-              更新「{latest.title}」，来源为 {latest.provider} ·{" "}
-              {latest.sourceId}。
-            </p>
+            <p>{tr`更新「${latest.title}」，来源为 ${latest.provider} · ${latest.sourceId}。`}</p>
           ) : (
             <>
               <div className="panel-heading source-heading">
                 <div>
-                  <h2>选择本机会话</h2>
+                  <h2>{t("选择本机会话")}</h2>
                   <span className="muted small-text">
-                    本机 {provider === "claude" ? "Claude Code" : "Codex"} 历史
+                    {t("本机") + " "}
+                    {provider === "claude" ? "Claude Code" : "Codex"}
+                    {" " + t("历史") + " "}
                   </span>
                 </div>
                 <ProviderFilter
@@ -324,14 +330,16 @@ export function Publisher({
               </div>
               {provider === "claude" ? (
                 <p className="source-provider-note">
-                  Claude Code 历史接入仍是实验性能力。只读取已保存的会话。
+                  {t(
+                    "Claude Code 历史接入仍是实验性能力。只读取已保存的会话。",
+                  ) + " "}
                 </p>
               ) : null}
               <label className="search">
                 <Icon name="search" size={18} />
                 <input
-                  aria-label="搜索本机会话"
-                  placeholder="搜索会话名称或内容…"
+                  aria-label={t("搜索本机会话")}
+                  placeholder={t("搜索会话名称或内容…")}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -340,10 +348,10 @@ export function Publisher({
               <div
                 className="publication-sources"
                 role="radiogroup"
-                aria-label="要发布的会话"
+                aria-label={t("要发布的会话")}
               >
                 {pending ? (
-                  <Loading text="正在读取本机历史…" />
+                  <Loading text={t("正在读取本机历史…")} />
                 ) : (
                   <>
                     {rows?.data.map((s) => (
@@ -371,7 +379,7 @@ export function Publisher({
                       </button>
                     ))}
                     {!rows?.data.length && (
-                      <p className="muted">没有找到来源会话。</p>
+                      <p className="muted">{t("没有找到来源会话。")}</p>
                     )}
                   </>
                 )}
@@ -382,7 +390,7 @@ export function Publisher({
                     className="button small"
                     onClick={() => setCursor("")}
                   >
-                    回到首批
+                    {t("回到首批") + " "}
                   </button>
                 )}
                 {rows?.nextCursor && (
@@ -390,7 +398,7 @@ export function Publisher({
                     className="button small"
                     onClick={() => setCursor(rows.nextCursor!)}
                   >
-                    下一批会话
+                    {t("下一批会话") + " "}
                   </button>
                 )}
               </div>
@@ -401,7 +409,7 @@ export function Publisher({
             disabled={busy || !sourceId}
             onClick={() => void freeze()}
           >
-            {busy ? "正在冻结历史…" : "选择公开范围"}
+            {busy ? t("正在冻结历史…") : t("选择公开范围")}
           </button>
         </>
       ) : (
@@ -409,13 +417,14 @@ export function Publisher({
           <div className="publication-source-bar">
             <div>
               <span className="eyebrow">
-                {reviewing ? "确认分享内容" : "选择分享范围"}
+                {reviewing ? t("确认分享内容") : t("选择分享范围")}
               </span>
               <h2>{draft.title}</h2>
               <p className="small-text muted">
                 {provider === "claude" ? "Claude Code" : "Codex"}
                 {source?.cwd ? ` · ${projectName(source.cwd)}` : ""} ·{" "}
-                {draft.turns.length} 轮已结束对话
+                {draft.turns.length}
+                {" " + t("轮已结束对话") + " "}
               </p>
             </div>
             <button
@@ -428,18 +437,15 @@ export function Publisher({
                 setError("");
               }}
             >
-              {latest ? "重新读取来源" : "重新选择来源"}
+              {latest ? t("重新读取来源") : t("重新选择来源")}
             </button>
           </div>
-          <p className="publication-snapshot small-text muted">
-            固定于 {new Date(draft.frozenAt).toLocaleString("zh-CN")} ·
-            后续对话不会自动加入
-          </p>
+          <p className="publication-snapshot small-text muted">{tr`固定于 ${formatDate(draft.frozenAt)} · 后续对话不会自动加入`}</p>
           <div
             ref={setControls}
             className="publication-controls"
             role="region"
-            aria-label="分享范围与操作"
+            aria-label={t("分享范围与操作")}
           >
             <div className="publication-scope-bar">
               <div
@@ -449,13 +455,13 @@ export function Publisher({
               >
                 <strong>
                   {validRange
-                    ? `已选第 ${startIndex + 1}–${endIndex + 1} 轮，共 ${count} 轮`
-                    : "请重新选择起点和终点"}
+                    ? tr`已选第 ${startIndex + 1}–${endIndex + 1} 轮，共 ${count} 轮`
+                    : t("请重新选择起点和终点")}
                 </strong>
                 <span className="small-text muted">
                   {readingIndex >= 0
-                    ? `建议从第 ${readingIndex + 1} 轮读起 · 分享范围不变`
-                    : "默认从分享范围开头阅读"}
+                    ? tr`建议从第 ${readingIndex + 1} 轮读起 · 分享范围不变`
+                    : t("默认从分享范围开头阅读")}
                 </span>
               </div>
               <div className="publication-scope-actions">
@@ -471,7 +477,7 @@ export function Publisher({
                         setRange(draft.startTurnId, draft.endTurnId)
                       }
                     >
-                      全部已结束对话
+                      {t("全部已结束对话") + " "}
                     </button>
                     {draft.turns.length > 3 && (
                       <button
@@ -485,7 +491,7 @@ export function Publisher({
                           setRange(draft.turns.at(-3)!.id, draft.endTurnId)
                         }
                       >
-                        最近 3 轮
+                        {t("最近 3 轮") + " "}
                       </button>
                     )}
                   </div>
@@ -497,7 +503,7 @@ export function Publisher({
                       disabled={busy || uncertain}
                       onClick={returnToEditor}
                     >
-                      返回调整范围
+                      {t("返回调整范围") + " "}
                     </button>
                   )}
                   <button
@@ -513,16 +519,16 @@ export function Publisher({
                     }
                   >
                     {busy
-                      ? "正在处理…"
+                      ? t("正在处理…")
                       : !reviewing
-                        ? "预览分享内容"
+                        ? t("预览分享内容")
                         : !previewCurrent
-                          ? "更新分享预览"
+                          ? t("更新分享预览")
                           : material
-                            ? `发布版本 ${latest!.version + 1}`
+                            ? tr`发布版本 ${latest!.version + 1}`
                             : spaceId
-                              ? "发布到空间"
-                              : "创建只读空间并发布"}
+                              ? t("发布到空间")
+                              : t("创建只读空间并发布")}
                     {!reviewing && <Icon name="arrow" size={16} />}
                   </button>
                 </div>
@@ -531,10 +537,14 @@ export function Publisher({
             <div className="publication-reading-tools" ref={setReaderTools} />
             {selectedNotices > 0 && (
               <details className="publication-export-notice">
-                <summary>{selectedNotices} 处导出说明</summary>
+                <summary>
+                  {selectedNotices}
+                  {" " + t("处导出说明")}
+                </summary>
                 <p>
-                  图片等附件或不支持的消息内容可能未包含在分享中。请查看目录中标有“导出说明”的轮次，正文会注明具体原因。
-                  这里按说明条目计数，不是缺少的轮数；工具过程仅折叠显示，仍会分享。
+                  {t(
+                    "图片等附件或不支持的消息内容可能未包含在分享中。请查看目录中标有“导出说明”的轮次，正文会注明具体原因。 这里按说明条目计数，不是缺少的轮数；工具过程仅折叠显示，仍会分享。",
+                  ) + " "}
                 </p>
               </details>
             )}
@@ -573,7 +583,7 @@ export function Publisher({
           {reviewing && preview && (
             <div className="publication-confirmation">
               <label className="field">
-                分享标题
+                {t("分享标题") + " "}
                 <input
                   maxLength={160}
                   disabled={busy || uncertain}
@@ -586,7 +596,7 @@ export function Publisher({
               </label>
               {!previewCurrent && (
                 <p className="small-text muted" role="status">
-                  标题已修改，更新分享预览后即可发布。
+                  {t("标题已修改，更新分享预览后即可发布。") + " "}
                 </p>
               )}
               <PublicationReader
@@ -603,14 +613,15 @@ export function Publisher({
       {uncertain && (
         <div className="notice">
           <p>
-            结果尚未确认。发布请求：<code>{attempt.current}</code>
+            {t("结果尚未确认。发布请求：")}
+            <code>{attempt.current}</code>
           </p>
           <button
             className="button small"
             disabled={busy}
             onClick={() => void checkStatus()}
           >
-            查询发布结果
+            {t("查询发布结果") + " "}
           </button>
           <p>{statusNote}</p>
         </div>
@@ -633,26 +644,28 @@ export function StartSpace() {
     <div className={`start-space ${compact ? "is-publishing" : ""}`}>
       <a href="#/" className="back-link">
         <Icon name="back" size={16} />
-        协作空间
+        {t("协作空间") + " "}
       </a>
       <PageHeading
-        title="发起协作"
-        subtitle="从一份本机会话开始。分享讨论只发布选定历史；一起执行会立刻创建原生 fork。"
+        title={t("发起协作")}
+        subtitle={t(
+          "从一份本机会话开始。分享讨论只发布选定历史；一起执行会立刻创建原生 fork。",
+        )}
       />
       {compact && (
         <div className="publication-intent">
           <span>
             <Icon name="comment" size={16} />
-            先分享讨论
+            {t("先分享讨论") + " "}
           </span>
           <span className="muted small-text">
-            来源已选择 ·{" "}
-            {publicationStage === "review" ? "确认分享" : "选择范围"}
+            {t("来源已选择 ·")}{" "}
+            {publicationStage === "review" ? t("确认分享") : t("选择范围")}
           </span>
         </div>
       )}
       <fieldset className="workspace-field start-intent" hidden={compact}>
-        <legend>这次要做什么</legend>
+        <legend>{t("这次要做什么")}</legend>
         <div className="workspace-grid">
           <label
             className={`workspace-card ${mode === "readonly" ? "selected" : ""}`}
@@ -671,11 +684,12 @@ export function StartSpace() {
               </span>
               <span className="radio-dot" />
             </div>
-            <h3>先分享讨论</h3>
-            <strong>默认 · 不创建 fork</strong>
+            <h3>{t("先分享讨论")}</h3>
+            <strong>{t("默认 · 不创建 fork")}</strong>
             <p>
-              发布选定历史，邀请阅读和批注。不要求 Git
-              工作区，也不开放执行目录。
+              {t(
+                "发布选定历史，邀请阅读和批注。不要求 Git 工作区，也不开放执行目录。",
+              ) + " "}
             </p>
           </label>
           <label
@@ -695,10 +709,12 @@ export function StartSpace() {
               </span>
               <span className="radio-dot" />
             </div>
-            <h3>直接一起执行</h3>
-            <strong>立刻创建原生会话</strong>
+            <h3>{t("直接一起执行")}</h3>
+            <strong>{t("立刻创建原生会话")}</strong>
             <p>
-              在本机 fork 来源会话，选择目录与权限后共同继续。空间仍可发布材料。
+              {t(
+                "在本机 fork 来源会话，选择目录与权限后共同继续。空间仍可发布材料。",
+              ) + " "}
             </p>
           </label>
         </div>

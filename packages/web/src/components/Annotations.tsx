@@ -1,3 +1,4 @@
+import { t, tr } from "../i18n";
 import { ResourceActions } from "../library";
 import { AnchoredNote, type AnnotationOrigin } from "./Reading";
 import {
@@ -47,7 +48,7 @@ function saveShortcut(
 function Author({ author, createdAt }: { author: string; createdAt: string }) {
   return (
     <div className="annotation-author">
-      <span className="avatar small">{author?.[0] || "同"}</span>
+      <span className="avatar small">{author?.[0] || t("同")}</span>
       <strong>{author}</strong>
       <time dateTime={createdAt}>{relativeTime(createdAt)}</time>
     </div>
@@ -130,14 +131,14 @@ export function Discussion({
   const content = (
     <article
       className="annotation-thread"
-      aria-label={`批注：${annotation.text}`}
+      aria-label={tr`批注：${annotation.text}`}
     >
       <Author author={annotation.author} createdAt={annotation.createdAt} />
       {annotation.target ? (
         <button
           className="annotation-source"
           onClick={() => onLocate(annotation)}
-          title="查看原位置"
+          title={t("查看原位置")}
         >
           <span>
             <Icon
@@ -148,7 +149,8 @@ export function Discussion({
           </span>
           <blockquote>{annotation.target.quote}</blockquote>
           <span className="annotation-source-action">
-            查看原位置 <Icon name="arrow" size={13} />
+            {t("查看原位置") + " "}
+            <Icon name="arrow" size={13} />
           </span>
         </button>
       ) : annotation.reference ? (
@@ -166,7 +168,9 @@ export function Discussion({
               : "annotation-general"
           }
         >
-          {annotation.target || annotation.reference ? "批注意见" : "整体意见"}
+          {annotation.target || annotation.reference
+            ? t("批注意见")
+            : t("整体意见")}
         </span>
         <p className="annotation-body">{annotation.text}</p>
       </div>
@@ -179,10 +183,11 @@ export function Discussion({
         <div
           className="annotation-replies"
           role="group"
-          aria-label={`${annotation.replies.length} 条回复`}
+          aria-label={tr`${annotation.replies.length} 条回复`}
         >
           <span className="annotation-reply-count">
-            {annotation.replies.length} 条回复
+            {annotation.replies.length}
+            {" " + t("条回复") + " "}
           </span>
           {annotation.replies.map((reply) => (
             <div className="annotation-reply" key={reply.id}>
@@ -205,13 +210,13 @@ export function Discussion({
             annotationId: annotation.id,
           }}
           disabled={disabled}
-          selectedLabel="已选择"
+          selectedLabel={t("已选择")}
         />
         <button
           className="button small annotation-reply-action"
           aria-expanded={open}
-          aria-label={open ? "收起回复" : text ? "继续回复" : "回复"}
-          title={open ? "收起回复" : text ? "继续回复" : undefined}
+          aria-label={open ? t("收起回复") : text ? t("继续回复") : t("回复")}
+          title={open ? t("收起回复") : text ? t("继续回复") : undefined}
           disabled={disabled && !text}
           onClick={() => {
             setOpen(!open);
@@ -219,29 +224,29 @@ export function Discussion({
           }}
         >
           <Icon name="comment" size={14} />
-          {open ? "收起" : text ? "继续" : "回复"}
+          {open ? t("收起") : text ? t("继续") : t("回复")}
         </button>
         <Copy
-          label="复制提示"
-          ariaLabel="复制处理提示"
-          text={`请使用 Team Cross 读取协作 ${id} 的批注 ${annotation.id} 及回复。共享会话使用 read_annotations；个人辅助会话使用 read_context（kind=annotations）。核对 target 与 quote 对应的当前原文，再分析这条意见；需要答复时使用 reply_to_annotation 回复原批注。`}
+          label={t("复制提示")}
+          ariaLabel={t("复制处理提示")}
+          text={tr`请使用 Team Cross 读取协作 ${id} 的批注 ${annotation.id} 及回复。共享会话使用 read_annotations；个人辅助会话使用 read_context（kind=annotations）。核对 target 与 quote 对应的当前原文，再分析这条意见；需要答复时使用 reply_to_annotation 回复原批注。`}
         />
       </div>
       {saved && (
         <p className="annotation-saved" role="status">
-          回复已保存
+          {t("回复已保存") + " "}
         </p>
       )}
       {open && (
         <form
           className="annotation-reply-composer"
-          aria-label="回复原批注"
+          aria-label={t("回复原批注")}
           onSubmit={(event) => {
             event.preventDefault();
             void save();
           }}
         >
-          <label htmlFor={`reply-${annotation.id}`}>回复这条批注</label>
+          <label htmlFor={`reply-${annotation.id}`}>{t("回复这条批注")}</label>
           <textarea
             id={`reply-${annotation.id}`}
             ref={editor}
@@ -249,7 +254,7 @@ export function Discussion({
             maxLength={4000}
             value={text}
             disabled={pending}
-            placeholder="补充说明，或回应这条意见…"
+            placeholder={t("补充说明，或回应这条意见…")}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => saveShortcut(event, () => void save())}
           />
@@ -263,7 +268,7 @@ export function Discussion({
           <ErrorBox message={error} />
           {disabled && (
             <p className="muted small-text" role="status">
-              连接恢复后可以保存，草稿会保留在当前页面。
+              {t("连接恢复后可以保存，草稿会保留在当前页面。") + " "}
             </p>
           )}
           <div className="annotation-composer-footer">
@@ -272,7 +277,7 @@ export function Discussion({
               className="button primary small"
               disabled={pending || disabled || !text.trim()}
             >
-              {pending ? "正在保存…" : "保存回复"}
+              {pending ? t("正在保存…") : t("保存回复")}
             </button>
           </div>
         </form>
@@ -280,7 +285,7 @@ export function Discussion({
     </article>
   );
   return origin ? (
-    <AnchoredNote origin={origin} onClose={onClose} label="原文讨论">
+    <AnchoredNote origin={origin} onClose={onClose} label={t("原文讨论")}>
       {content}
     </AnchoredNote>
   ) : (
@@ -403,14 +408,14 @@ export function Annotations({
     <form
       ref={composer}
       className="annotation-composer"
-      aria-label="添加批注"
+      aria-label={t("添加批注")}
       onSubmit={(event) => {
         event.preventDefault();
         void save();
       }}
     >
       <div className="annotation-composer-heading">
-        <span>{draft.target ? "针对所选内容" : "整体意见"}</span>
+        <span>{draft.target ? t("针对所选内容") : t("整体意见")}</span>
         {draft.target && (
           <button
             type="button"
@@ -418,7 +423,7 @@ export function Annotations({
             disabled={pending}
             onClick={() => switchDraft(general)}
           >
-            写整体意见
+            {t("写整体意见") + " "}
           </button>
         )}
       </div>
@@ -429,7 +434,7 @@ export function Annotations({
         </div>
       )}
       <label htmlFor="annotation-text" className="sr-only">
-        你的意见
+        {t("你的意见") + " "}
       </label>
       <textarea
         id="annotation-text"
@@ -439,7 +444,9 @@ export function Annotations({
         value={draft.text}
         disabled={pending}
         placeholder={
-          draft.target ? "这段内容有哪些需要关注？" : "留下对这次协作的意见…"
+          draft.target
+            ? t("这段内容有哪些需要关注？")
+            : t("留下对这次协作的意见…")
         }
         onChange={(event) => {
           const text = event.target.value;
@@ -466,20 +473,20 @@ export function Annotations({
       <ErrorBox message={error} />
       {disabled && (
         <p role="status" className="muted small-text">
-          连接恢复后可以保存，草稿会保留在当前页面。
+          {t("连接恢复后可以保存，草稿会保留在当前页面。") + " "}
         </p>
       )}
       <div className="annotation-composer-footer">
-        <span className="muted small-text">⌘ / Ctrl + Enter 保存</span>
+        <span className="muted small-text">{t("⌘ / Ctrl + Enter 保存")}</span>
         <button
           className="button primary small"
           disabled={pending || disabled || !draft.text.trim()}
         >
-          {pending ? "正在保存…" : "保存批注"}
+          {pending ? t("正在保存…") : t("保存批注")}
         </button>
       </div>
       {!!otherDrafts.length && (
-        <div className="annotation-drafts" aria-label="未保存的草稿">
+        <div className="annotation-drafts" aria-label={t("未保存的草稿")}>
           {otherDrafts.map(([key, value]) => (
             <button
               key={key}
@@ -488,7 +495,8 @@ export function Annotations({
               disabled={pending}
               onClick={() => switchDraft(key)}
             >
-              继续草稿 · {value.target ? targetLabel(value.target) : "整体意见"}
+              {t("继续草稿 ·") + " "}
+              {value.target ? targetLabel(value.target) : t("整体意见")}
             </button>
           ))}
         </div>
@@ -496,24 +504,25 @@ export function Annotations({
     </form>
   );
   return (
-    <section className="panel notes-panel" aria-label="协作批注">
+    <section className="panel notes-panel" aria-label={t("协作批注")}>
       <div className="panel-heading annotation-panel-heading">
         <h2>
-          批注 <span className="count">{annotations.length}</span>
+          {t("批注") + " "}
+          <span className="count">{annotations.length}</span>
         </h2>
         <p className="annotation-hint">
-          选中文字可在原文旁讨论，也可以在这里写整体意见。
+          {t("选中文字可在原文旁讨论，也可以在这里写整体意见。") + " "}
         </p>
       </div>
       {activeOrigin ? (
         <>
           <p className="annotation-hint">
-            正在原文旁填写，收起后草稿仍会保留。
+            {t("正在原文旁填写，收起后草稿仍会保留。") + " "}
           </p>
           <AnchoredNote
             origin={activeOrigin}
             onClose={closeEditor}
-            label="原文批注"
+            label={t("原文批注")}
           >
             {form}
           </AnchoredNote>
@@ -525,7 +534,7 @@ export function Annotations({
       {saved && (
         <p className="annotation-saved" role="status">
           <Icon name="check" size={14} />
-          已保存，协作者和工具可读取。
+          {t("已保存，协作者和工具可读取。") + " "}
         </p>
       )}
       {annotations.length ? (
@@ -555,13 +564,14 @@ export function Annotations({
       ) : (
         <div className="annotation-empty">
           <Icon name="comment" size={24} />
-          <p>还没有批注</p>
-          <span>留下第一条意见，一起讨论。</span>
+          <p>{t("还没有批注")}</p>
+          <span>{t("留下第一条意见，一起讨论。")}</span>
         </div>
       )}
       <p className="annotation-hint annotation-boundary">
-        在个人或共享客户端里告诉 Agent“读取 Team Cross
-        批注”，即可查看意见与回复。保存不会自动开始执行。
+        {t(
+          "在个人或共享客户端里告诉 Agent“读取 Team Cross 批注”，即可查看意见与回复。保存不会自动开始执行。",
+        ) + " "}
       </p>
     </section>
   );

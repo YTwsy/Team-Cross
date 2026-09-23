@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useRef, useState } from "react";
 import { api, errorText } from "../api";
 import {
@@ -49,7 +50,9 @@ export function InvitationPanel({
   return (
     <>
       <p>
-        将同一个链接发给需要参与的同事。每个人分别加入，保留自己的材料、批注和输入身份。
+        {t(
+          "将同一个链接发给需要参与的同事。每个人分别加入，保留自己的材料、批注和输入身份。",
+        ) + " "}
       </p>
       <div className="invite-card">
         <strong>{c.title}</strong>
@@ -59,16 +62,20 @@ export function InvitationPanel({
       </div>
       <p className="small-text muted">
         {(c.invitationReadOnly ?? c.hasExecution === false)
-          ? "通过此链接可以阅读已发布材料、参与讨论和发布调查。执行访问由发起者在成员列表另行开放。"
-          : "通过此链接可以阅读已发布材料、协作原生历史和工作目录，并参与共同执行；实际输入由发起者交接。"}
+          ? t(
+              "通过此链接可以阅读已发布材料、参与讨论和发布调查。执行访问由发起者在成员列表另行开放。",
+            )
+          : t(
+              "通过此链接可以阅读已发布材料、协作原生历史和工作目录，并参与共同执行；实际输入由发起者交接。",
+            )}
       </p>
       {c.sharingPreparing ? (
         <>
           <Loading
             text={
               connection === "tailcat"
-                ? "正在建立 Tailcat 跨网络通道…"
-                : "正在生成邀请链接…"
+                ? t("正在建立 Tailcat 跨网络通道…")
+                : t("正在生成邀请链接…")
             }
           />
           <button
@@ -76,19 +83,19 @@ export function InvitationPanel({
             disabled={busy}
             onClick={() => void manage("action", { action: "end" })}
           >
-            取消生成邀请
+            {t("取消生成邀请") + " "}
           </button>
         </>
       ) : c.invitation ? (
         <>
           <Copy
             text={invitationText(c.invitation, connection)}
-            label="复制邀请链接"
+            label={t("复制邀请链接")}
             className="primary full-width"
           />
           <div className="material-actions invitation-management">
             <button className="button" disabled={busy} onClick={reset}>
-              重置邀请链接
+              {t("重置邀请链接") + " "}
             </button>
             <button
               className="text-link danger"
@@ -99,11 +106,13 @@ export function InvitationPanel({
                 })
               }
             >
-              关闭链接加入
+              {t("关闭链接加入") + " "}
             </button>
           </div>
           <p className="small-text muted">
-            关闭链接会停止接纳新成员；重置后旧链接失效。已加入的成员继续参与。
+            {t(
+              "关闭链接会停止接纳新成员；重置后旧链接失效。已加入的成员继续参与。",
+            ) + " "}
           </p>
         </>
       ) : (
@@ -112,7 +121,7 @@ export function InvitationPanel({
             disabled={busy || c.sharing}
             className="workspace-field invite-transport-field"
           >
-            <legend>连接方式</legend>
+            <legend>{t("连接方式")}</legend>
             <div className="workspace-grid">
               {(["lan", "tailcat"] as ShareTransport[]).map((value) => (
                 <label
@@ -135,23 +144,25 @@ export function InvitationPanel({
                     </span>
                     <span className="radio-dot" />
                   </div>
-                  <h3>{value === "lan" ? "局域网" : "Tailcat 跨网络"}</h3>
+                  <h3>{value === "lan" ? t("局域网") : t("Tailcat 跨网络")}</h3>
                   <strong>
                     {value === "lan"
-                      ? "默认 · 快速直连"
-                      : "实验性 · 无需 Tailscale 账号"}
+                      ? t("默认 · 快速直连")
+                      : t("实验性 · 无需 Tailscale 账号")}
                   </strong>
                   <p>
                     {value === "lan"
-                      ? "两台 Mac 在同一局域网时直连。"
-                      : "无法直连时可能经过 DERP 中继。"}
+                      ? t("两台 Mac 在同一局域网时直连。")
+                      : t("无法直连时可能经过 DERP 中继。")}
                   </p>
                 </label>
               ))}
             </div>
           </fieldset>
           {c.sharing && (
-            <p className="notice">链接加入已关闭。已加入的成员可以继续协作。</p>
+            <p className="notice">
+              {t("链接加入已关闭。已加入的成员可以继续协作。")}
+            </p>
           )}
           <button
             className="button primary full-width"
@@ -165,14 +176,20 @@ export function InvitationPanel({
                   })
             }
           >
-            {busy ? "正在生成…" : c.sharing ? "重新开放链接" : "生成邀请链接"}
+            {busy
+              ? t("正在生成…")
+              : c.sharing
+                ? t("重新开放链接")
+                : t("生成邀请链接")}
           </button>
         </>
       )}
       <p className="small-text muted">
-        链接可供多人使用，有效至关闭、重置或本次共享结束。新成员也能阅读尚未撤回的已有材料。
+        {t(
+          "链接可供多人使用，有效至关闭、重置或本次共享结束。新成员也能阅读尚未撤回的已有材料。",
+        ) + " "}
         {connection === "tailcat" &&
-          " Tailcat 为实验性连接，无法直连时可能经第三方 DERP 中继。"}
+          t(" Tailcat 为实验性连接，无法直连时可能经第三方 DERP 中继。")}
       </p>
       <ErrorBox message={error} />
     </>

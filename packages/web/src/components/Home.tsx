@@ -1,3 +1,4 @@
+import { t, tr } from "../i18n";
 import { useState } from "react";
 import { useResource } from "../api";
 import { type Collaboration, projectName, relativeTime } from "../types";
@@ -14,9 +15,9 @@ export function Home() {
   return (
     <>
       <PageHeading
-        eyebrow="一起继续，已有的工作"
-        title="协作空间"
-        subtitle="分享已完成的调查，汇集各自的分析，需要时再一起继续执行。"
+        eyebrow={t("一起继续，已有的工作")}
+        title={t("协作空间")}
+        subtitle={t("分享已完成的调查，汇集各自的分析，需要时再一起继续执行。")}
       />
       <div className="entry-grid">
         <a href="#/create" className="entry-card">
@@ -24,8 +25,8 @@ export function Home() {
             <Icon name="plus" size={26} />
           </div>
           <div>
-            <h2>发起协作</h2>
-            <p>选择会话与公开范围，分享审阅或共同继续执行。</p>
+            <h2>{t("发起协作")}</h2>
+            <p>{t("选择会话与公开范围，分享审阅或共同继续执行。")}</p>
           </div>
           <Icon name="arrow" />
         </a>
@@ -34,21 +35,22 @@ export function Home() {
             <Icon name="join" size={26} />
           </div>
           <div>
-            <h2>加入协作</h2>
-            <p>有同事的邀请？先看看共享上下文。</p>
+            <h2>{t("加入协作")}</h2>
+            <p>{t("有同事的邀请？先看看共享上下文。")}</p>
           </div>
           <Icon name="arrow" />
         </a>
       </div>
       <div className="section-heading">
         <h2>
-          最近协作 <span className="count">{data?.length || 0}</span>
+          {t("最近协作") + " "}
+          <span className="count">{data?.length || 0}</span>
         </h2>
-        <div className="segmented" aria-label="筛选协作">
+        <div className="segmented" aria-label={t("筛选协作")}>
           {[
-            ["all", "全部"],
-            ["owner", "我发起的"],
-            ["remote", "我加入的"],
+            ["all", t("全部")],
+            ["owner", t("我发起的")],
+            ["remote", t("我加入的")],
           ].map(([value, label]) => (
             <button
               key={value}
@@ -81,19 +83,21 @@ export function Home() {
                 <div className="row-meta">
                   <span>
                     {c.hasExecution === false
-                      ? `${c.materials?.filter((m) => !m.withdrawnAt).length || 0} 份会话材料`
+                      ? tr`${c.materials?.filter((m) => !m.withdrawnAt).length || 0} 份会话材料`
                       : projectName(c.repo)}
                   </span>
                   <span className="separator">·</span>
                   <span title={c.host}>{c.host}</span>
                   <span className="separator">·</span>
-                  <span>{c.role === "owner" ? "我发起的" : "我加入的"}</span>
+                  <span>
+                    {c.role === "owner" ? t("我发起的") : t("我加入的")}
+                  </span>
                 </div>
               </div>
               <div className="row-status">
                 <Badge collaboration={c} />
                 <span className="muted small-text">
-                  {c.sharing ? "共享中" : "未共享"} ·{" "}
+                  {c.sharing ? t("共享中") : t("未共享")} ·{" "}
                   {relativeTime(c.updatedAt)}
                 </span>
               </div>
@@ -106,13 +110,16 @@ export function Home() {
           <Empty
             icon="people"
             title={
-              filter === "all" ? "下一次协作，从这里开始" : "这里还没有协作"
+              filter === "all"
+                ? t("下一次协作，从这里开始")
+                : t("这里还没有协作")
             }
           >
-            <p>已有的讨论、代码和思路，不必再从头解释。</p>
+            <p>{t("已有的讨论、代码和思路，不必再从头解释。")}</p>
             {filter === "all" && (
               <a className="text-link" href="#/create">
-                选择一个来源会话 <Icon name="arrow" size={16} />
+                {t("选择一个来源会话") + " "}
+                <Icon name="arrow" size={16} />
               </a>
             )}
           </Empty>
@@ -120,7 +127,9 @@ export function Home() {
       )}
       <div className="quiet-note">
         <Icon name="desktop" size={17} />
-        <span>共享会话在发起者的 Mac 上执行，同事使用本机的原生客户端。</span>
+        <span>
+          {t("共享会话在发起者的 Mac 上执行，同事使用本机的原生客户端。")}
+        </span>
       </div>
     </>
   );

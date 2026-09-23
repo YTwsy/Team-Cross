@@ -33,8 +33,10 @@ type Connection struct {
 }
 type Status struct {
 	Connection
-	Running bool `json:"running"`
-	Active  int  `json:"active"`
+	Running          bool   `json:"running"`
+	Active           int    `json:"active"`
+	UILanguage       string `json:"uiLanguage,omitempty"`
+	ResolvedLanguage string `json:"resolvedLanguage,omitempty"`
 }
 
 func Normalize(path string) (string, error) {

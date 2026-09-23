@@ -1,3 +1,4 @@
+import { serviceText, t } from "../i18n";
 import { ResourceActions } from "../library";
 import {
   useCallback,
@@ -112,7 +113,7 @@ export function SelectionAction({
         onClick={onClick}
       >
         <Icon name="comment" size={14} />
-        批注所选内容
+        {t("批注所选内容") + " "}
       </button>
       {children}
     </div>,
@@ -207,7 +208,7 @@ export function AnchoredNote({
         <button
           type="button"
           className="icon-button"
-          aria-label="收起原文旁批注"
+          aria-label={t("收起原文旁批注")}
           onClick={onClose}
         >
           <Icon name="close" size={15} />
@@ -222,7 +223,7 @@ export function AnchoredNote({
 export function ReadingLayout({
   outline,
   children,
-  label = "本篇目录",
+  label = t("本篇目录"),
   focus: controlledFocus,
   onFocusChange,
   toolbar,
@@ -320,10 +321,12 @@ export function ReadingLayout({
     <div className={`reader-toolbar ${toolbarTarget ? "is-inline" : ""}`}>
       <span
         className="reader-hint"
-        title={toolbar ? undefined : "选中文字可批注"}
+        title={toolbar ? undefined : t("选中文字可批注")}
       >
         {toolbarTarget && !toolbar && <Icon name="comment" size={14} />}
-        <span className="reader-hint-text">{toolbar ?? "选中文字可批注"}</span>
+        <span className="reader-hint-text">
+          {toolbar ?? t("选中文字可批注")}
+        </span>
       </span>
       <div className="reader-navigation-actions">
         {adaptiveOutline && !!outline.length && (
@@ -351,7 +354,9 @@ export function ReadingLayout({
                 setOutlineOpen(!showOutline);
               }}
             >
-              <Icon name="book" size={14} /> 目录 {outline.length}
+              <Icon name="book" size={14} />
+              {" " + t("目录") + " "}
+              {outline.length}
             </button>
             {showOutline && !sideOutline && (
               <div className="reader-outline reader-directory-popover">
@@ -369,7 +374,7 @@ export function ReadingLayout({
           }}
           aria-pressed={focus}
         >
-          {focus ? "退出专注阅读" : "专注阅读"}
+          {focus ? t("退出专注阅读") : t("专注阅读")}
         </button>
       </div>
     </div>
@@ -405,19 +410,21 @@ export function ReadingLayout({
   );
 }
 
-const DIALOGUE_ROLES = [
-  "用户",
-  "Codex",
-  "Claude Code",
-  "回复",
-  "提问",
-  "用户提问",
-  "助手回复",
-];
+function isDialogueRole(label: string) {
+  return [
+    t("用户"),
+    "Codex",
+    "Claude Code",
+    t("回复"),
+    t("提问"),
+    t("用户提问"),
+    t("助手回复"),
+  ].includes(label);
+}
 
 export function itemExpandLabel(loading: boolean, shown: number) {
-  if (loading) return "正在读取这条输出…";
-  return shown <= 1500 ? "读取完整输出" : "继续读取这条输出";
+  if (loading) return t("正在读取这条输出…");
+  return shown <= 1500 ? t("读取完整输出") : t("继续读取这条输出");
 }
 
 export function ReaderMessage({
@@ -431,7 +438,7 @@ export function ReaderMessage({
   onDiscuss,
   disabled,
   notice,
-  actionLabel = "批注这条消息",
+  actionLabel = t("批注这条消息"),
   onExpand,
   expanding,
   shownLength = 0,
@@ -461,7 +468,7 @@ export function ReaderMessage({
     message = useRef<HTMLDivElement>(null);
   const details = useRef<HTMLDetailsElement>(null);
   const id = useId();
-  const tool = !DIALOGUE_ROLES.includes(label);
+  const tool = !isDialogueRole(label);
   const expand = onExpand ? (
     <button
       type="button"
@@ -535,7 +542,9 @@ export function ReaderMessage({
       setSelected(undefined);
       setHint(
         range?.toString().trim()
-          ? "请选择同一条消息中的文字（最多 8000 字）。复杂排版可切换到原文后选择。"
+          ? t(
+              "请选择同一条消息中的文字（最多 8000 字）。复杂排版可切换到原文后选择。",
+            )
           : "",
       );
       return;
@@ -567,7 +576,7 @@ export function ReaderMessage({
             }}
             aria-pressed={raw}
           >
-            {raw ? "阅读排版" : "显示原文"}
+            {raw ? t("阅读排版") : t("显示原文")}
           </button>
           {!disabled && target.itemId && source.trim() && (
             <button
@@ -592,7 +601,7 @@ export function ReaderMessage({
           {!tool && expand}
         </div>
       </div>
-      {notice && <p className="inline-note">{notice}</p>}
+      {notice && <p className="inline-note">{serviceText(notice)}</p>}
       <div
         ref={content}
         data-message-text
@@ -613,7 +622,7 @@ export function ReaderMessage({
         </p>
       )}
       {!!notes.length && (
-        <div className="reader-note-links" aria-label="原文批注">
+        <div className="reader-note-links" aria-label={t("原文批注")}>
           {notes.map((note) => (
             <button
               key={note.id}
@@ -669,7 +678,7 @@ export function ReaderMessage({
         >
           <summary>
             <span className="reader-tool-summary-text">
-              {label} <span>查看已保存的过程</span>
+              {label} <span>{t("查看已保存的过程")}</span>
             </span>
             {expand}
           </summary>

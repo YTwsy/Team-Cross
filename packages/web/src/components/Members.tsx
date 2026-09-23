@@ -1,3 +1,4 @@
+import { t, tr } from "../i18n";
 import type { Collaboration } from "../types";
 import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "./ui";
@@ -90,14 +91,17 @@ export function Members({
       className={`panel participants-panel ${expanded ? "" : "is-collapsed"}`}
     >
       <div className="panel-heading">
-        <h2>参与成员</h2>
+        <h2>{t("参与成员")}</h2>
         <div className="participants-heading-actions">
-          <span className="participants-caption">{active.length + 1} 人</span>
+          <span className="participants-caption">
+            {active.length + 1}
+            {" " + t("人")}
+          </span>
           <button
             className="icon-button"
             aria-expanded={expanded}
             aria-controls={bodyId}
-            aria-label={expanded ? "收起成员" : "展开成员"}
+            aria-label={expanded ? t("收起成员") : t("展开成员")}
             onClick={() => setManual(!expanded)}
           >
             <Icon name="chevron" size={14} />
@@ -114,12 +118,14 @@ export function Members({
         <div className="participants-body-inner">
           <div className="aside-participant-list">
             <div className="participant">
-              <span className="avatar self">{owner ? "我" : "A"}</span>
+              <span className="avatar self">{owner ? t("我") : "A"}</span>
               <div>
-                <strong>{owner ? "我" : "发起者"}</strong>
+                <strong>{owner ? t("我") : t("发起者")}</strong>
                 <span>
-                  {execution ? "执行主机" : "托管主机"} ·{" "}
-                  {execution && c.writer === "owner" ? "正在输入" : "可查看"}
+                  {execution ? t("执行主机") : t("托管主机")} ·{" "}
+                  {execution && c.writer === "owner"
+                    ? t("正在输入")
+                    : t("可查看")}
                 </span>
               </div>
             </div>
@@ -127,27 +133,29 @@ export function Members({
               <div className="member-entry" key={member.id}>
                 <div className="participant">
                   <span className="avatar">
-                    {member.id === selfId ? "我" : member.name.slice(0, 1)}
+                    {member.id === selfId ? t("我") : member.name.slice(0, 1)}
                   </span>
                   <div>
                     <strong>
                       {member.name}
-                      {member.id === selfId && "（我）"}
+                      {member.id === selfId && t("（我）")}
                     </strong>
                     <span>
                       {!member.active
-                        ? "已离开或移除"
+                        ? t("已离开或移除")
                         : c.writer === member.id
-                          ? "已获输入权"
+                          ? t("已获输入权")
                           : member.online
-                            ? "在线查看"
-                            : "暂时离线"}
+                            ? t("在线查看")
+                            : t("暂时离线")}
                       {member.active &&
                         member.inputRequested &&
-                        " · 正在申请输入"}
+                        t(" · 正在申请输入")}
                     </span>
                     <small className="muted">
-                      {member.executionAccess ? "可参与共同执行" : "阅读与讨论"}
+                      {member.executionAccess
+                        ? t("可参与共同执行")
+                        : t("阅读与讨论")}
                     </small>
                   </div>
                 </div>
@@ -162,8 +170,8 @@ export function Members({
                         }
                       >
                         {member.executionAccess
-                          ? "收回执行访问"
-                          : "开放执行访问"}
+                          ? t("收回执行访问")
+                          : t("开放执行访问")}
                       </button>
                     )}
                     {mine && member.executionAccess !== false && (
@@ -172,16 +180,17 @@ export function Members({
                         disabled={busy || c.busy || !c.online}
                         onClick={() => onAction("handoff", member.id)}
                       >
-                        将输入交给{member.name}
+                        {t("将输入交给")}
+                        {member.name}
                       </button>
                     )}
                     <button
                       className="text-link danger small-text"
                       disabled={busy}
                       onClick={() => onRemove(member.id)}
-                      aria-label={`移除成员 ${member.name}`}
+                      aria-label={tr`移除成员 ${member.name}`}
                     >
-                      移除
+                      {t("移除") + " "}
                     </button>
                   </div>
                 )}
@@ -189,13 +198,15 @@ export function Members({
             ))}
             {!active.length && (
               <p className="small-text muted">
-                复制空间邀请链接，同事可使用同一链接分别加入。
+                {t("复制空间邀请链接，同事可使用同一链接分别加入。") + " "}
               </p>
             )}
           </div>
           {owner && execution && active.some((m) => !m.executionAccess) && (
             <p className="small-text muted">
-              开放执行访问会共享这个协作会话的完整原生历史和工作目录；实际输入仍需单独交接。
+              {t(
+                "开放执行访问会共享这个协作会话的完整原生历史和工作目录；实际输入仍需单独交接。",
+              ) + " "}
             </p>
           )}
           <div className="participants-actions">
@@ -206,7 +217,7 @@ export function Members({
                 onClick={() => onAction("reclaim")}
               >
                 <Icon name="people" size={14} />
-                接回输入
+                {t("接回输入") + " "}
               </button>
             )}
             {execution && !owner && c.sharing && !mine && (
@@ -217,7 +228,7 @@ export function Members({
                   onAction(c.inputRequested ? "cancel_input" : "request_input")
                 }
               >
-                {c.inputRequested ? "取消输入申请" : "申请输入"}
+                {c.inputRequested ? t("取消输入申请") : t("申请输入")}
               </button>
             )}
             {!owner && c.sharing && mine && (
@@ -226,7 +237,7 @@ export function Members({
                 disabled={busy || c.busy || closed}
                 onClick={() => onAction("return")}
               >
-                交还输入
+                {t("交还输入") + " "}
               </button>
             )}
             <button
@@ -234,12 +245,13 @@ export function Members({
               disabled={closed}
               onClick={onAssist}
             >
-              使用自己的客户端辅助 <Icon name="arrow" size={14} />
+              {t("使用自己的客户端辅助") + " "}
+              <Icon name="arrow" size={14} />
             </button>
           </div>
           {owner && c.sharing && c.busy && mine && (
             <p className="small-text muted participants-action-note">
-              当前轮完成后可以交出输入。
+              {t("当前轮完成后可以交出输入。") + " "}
             </p>
           )}
         </div>

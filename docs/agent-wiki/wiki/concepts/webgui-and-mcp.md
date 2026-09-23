@@ -2,6 +2,10 @@
 
 WebGUI 提供协作管理、材料阅读与原文讨论；执行交互在对应原生客户端。MCP 让普通本地会话访问已发起或加入的协作。先核对 [产品流程](../../sources/product-flows.md) 与 [协议](../../sources/protocol.md)。
 
+界面语言由本机 Core 共用偏好控制，默认按 macOS 首选语言决定：中文使用简体中文，其余使用英文。菜单栏“语言”和 WebGUI“设置与连接 → 界面语言”手动选择会同步影响两端；会话与用户内容不翻译。实现见 [界面语言](../../sources/product-flows.md#界面语言)、[Web 消息表](../../../../packages/web/src/i18n.ts)、[Core 偏好](../../../../internal/collab/ui_language.go) 与 [App 语言资源](../../../../apps/macos/AppLanguage.swift)。
+
+新增 Web 文案用 `t` / `tr` 并补 [英文消息表](../../../../packages/web/src/en.json)；翻译必须在组件渲染或函数调用时执行，不要在模块顶层计算。`pnpm --filter @teamcross/web check` 会检查遗漏文案、占位符和模块顶层翻译。动态的服务提示只按产品消息处理，不能翻译会话正文或用户内容。
+
 独立只读分享、多会话材料与三人以上入口见 [协作空间任务页](collaboration-spaces.md)。公开范围预览必须覆盖实际发布的工具输出和附件，页面隐藏不能代替 Core、MCP/CLI 与运行时工具共同的数据范围限制；导出缺失与截断必须显式标记。
 
 资源库汇集参与过的 Session 材料、本人批注/回复与执行上下文，保留“设置与连接”入口。跨类型选择在 Core 持久化，与菜单栏速览共用；读取编号在底部内联生成，个人 MCP 用 `read_selection` 读取明确固定引用，不读取含糊的当前选择。共享发送保留目标预览及输入检查。范围与取舍见 [资源库决策](../../sources/decisions/resource-library.md)，字段见 [资源库协议](../../sources/protocol.md#个人资源库)。

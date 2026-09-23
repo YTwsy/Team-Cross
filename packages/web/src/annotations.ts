@@ -1,14 +1,15 @@
+import { t, tr } from "./i18n";
 import type { AnnotationTarget } from "./types";
 
 export function targetLabel(target?: AnnotationTarget) {
-  if (!target) return "整体意见";
-  if (target.kind === "material") return `会话材料 · 版本 ${target.version}`;
-  if (target.kind === "history") return "对话片段";
+  if (!target) return t("整体意见");
+  if (target.kind === "material") return tr`会话材料 · 版本 ${target.version}`;
+  if (target.kind === "history") return t("对话片段");
   const lines =
     target.startLine === target.endLine
-      ? `第 ${target.startLine} 行`
-      : `第 ${target.startLine}–${target.endLine} 行`;
-  return `${target.path} · ${lines}${target.kind === "changes" ? (target.side === "old" ? " · 改动前" : " · 改动后") : ""}`;
+      ? tr`第 ${target.startLine} 行`
+      : tr`第 ${target.startLine}–${target.endLine} 行`;
+  return `${target.path} · ${lines}${target.kind === "changes" ? (target.side === "old" ? t(" · 改动前") : t(" · 改动后")) : ""}`;
 }
 
 export type CodeLine = {

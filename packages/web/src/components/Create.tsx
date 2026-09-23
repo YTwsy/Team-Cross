@@ -1,3 +1,4 @@
+import { t, tr } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import { api, errorText, useResource } from "../api";
 import {
@@ -131,25 +132,25 @@ export function Create({
         <>
           <a href="#/" className="back-link">
             <Icon name="back" size={16} />
-            协作空间
+            {t("协作空间") + " "}
           </a>
           <PageHeading
-            title={spaceId ? "启用共同执行" : "发起协作"}
+            title={spaceId ? t("启用共同执行") : t("发起协作")}
             subtitle={
               spaceId
-                ? "在当前空间开始共同执行，保留已有成员、材料和讨论。"
-                : "创建协作空间，并直接开始共同执行。"
+                ? t("在当前空间开始共同执行，保留已有成员、材料和讨论。")
+                : t("创建协作空间，并直接开始共同执行。")
             }
           />
         </>
       )}
       {spaceId && (
         <div className="notice">
-          <strong>确认新增的共享范围</strong>
+          <strong>{t("确认新增的共享范围")}</strong>
           <p>
-            将创建新的原生
-            fork，开放其历史、执行目录、文件与改动读取，并按所选权限执行。原来发布的片段范围不会限制这个
-            fork。原邀请链接和成员保留；在成员列表向需要参与执行的人开放新增访问。
+            {t(
+              "将创建新的原生 fork，开放其历史、执行目录、文件与改动读取，并按所选权限执行。原来发布的片段范围不会限制这个 fork。原邀请链接和成员保留；在成员列表向需要参与执行的人开放新增访问。",
+            ) + " "}
           </p>
         </div>
       )}
@@ -157,10 +158,11 @@ export function Create({
         <ol className="steps">
           <li className={step === 1 ? "active" : "done"}>
             <span>{step === 2 ? <Icon name="check" size={15} /> : "1"}</span>
-            选择来源会话
+            {t("选择来源会话") + " "}
           </li>
           <li className={step === 2 ? "active" : ""}>
-            <span>2</span>确认工作现场
+            <span>2</span>
+            {t("确认工作现场") + " "}
           </li>
         </ol>
       )}
@@ -168,9 +170,11 @@ export function Create({
         <section className="panel source-panel">
           <div className="panel-heading source-heading">
             <div>
-              <h2>从哪里继续？</h2>
+              <h2>{t("从哪里继续？")}</h2>
               <span className="muted small-text">
-                本机 {provider === "claude" ? "Claude Code" : "Codex"} 历史
+                {t("本机") + " "}
+                {provider === "claude" ? "Claude Code" : "Codex"}
+                {" " + t("历史") + " "}
               </span>
             </div>
             <ProviderFilter
@@ -188,14 +192,16 @@ export function Create({
           </div>
           {provider === "claude" ? (
             <p className="source-provider-note">
-              使用 Claude 原生 TUI 继续会话，审批与中断在 TUI 中处理。当前支持 Claude Code 2.1.268。
+              {t(
+                "使用 Claude 原生 TUI 继续会话，审批与中断在 TUI 中处理。当前支持 Claude Code 2.1.268。",
+              ) + " "}
             </p>
           ) : null}
           <label className="search">
             <Icon name="search" size={18} />
             <input
-              aria-label="搜索来源会话"
-              placeholder="搜索会话名称或内容…"
+              aria-label={t("搜索来源会话")}
+              placeholder={t("搜索会话名称或内容…")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -205,16 +211,13 @@ export function Create({
           <div
             className="source-list"
             role="radiogroup"
-            aria-label="来源会话"
+            aria-label={t("来源会话")}
           >
             {pending && !data ? (
-              <Loading text="正在读取本机会话…" />
+              <Loading text={t("正在读取本机会话…")} />
             ) : !data?.data.length ? (
-              <Empty icon="comment" title="没有找到来源会话">
-                <p>
-                  请先在 {provider === "claude" ? "Claude Code" : "Codex"}{" "}
-                  中完成一轮对话，或尝试其他搜索词。
-                </p>
+              <Empty icon="comment" title={t("没有找到来源会话")}>
+                <p>{tr`请先在 ${provider === "claude" ? "Claude Code" : "Codex"} 中完成一轮对话，或尝试其他搜索词。`}</p>
               </Empty>
             ) : (
               [...data.data, ...more].map((s) => (
@@ -273,18 +276,21 @@ export function Create({
                   }
                 }}
               >
-                加载更多
+                {t("加载更多") + " "}
               </button>
             )}
           </div>
           <div className="form-footer">
-            <span className="muted">只读取历史，选择来源不会发送指令。</span>
+            <span className="muted">
+              {t("只读取历史，选择来源不会发送指令。")}
+            </span>
             <button
               className="button primary"
               disabled={!source}
               onClick={() => setStep(2)}
             >
-              下一步 <Icon name="arrow" size={17} />
+              {t("下一步") + " "}
+              <Icon name="arrow" size={17} />
             </button>
           </div>
         </section>
@@ -295,7 +301,7 @@ export function Create({
               <Icon name="comment" />
             </span>
             <div>
-              <span className="eyebrow">来源会话</span>
+              <span className="eyebrow">{t("来源会话")}</span>
               <strong>{source && sourceName(source)}</strong>
             </div>
             <button
@@ -303,11 +309,11 @@ export function Create({
               disabled={busy}
               onClick={() => setStep(1)}
             >
-              重新选择
+              {t("重新选择") + " "}
             </button>
           </div>
           <fieldset disabled={busy} className="workspace-field">
-            <legend>选择执行目录</legend>
+            <legend>{t("选择执行目录")}</legend>
             <div className="workspace-grid">
               {(["existing", "worktree"] as Mode[]).map((value) => (
                 <label
@@ -334,24 +340,30 @@ export function Create({
                     <span className="radio-dot" />
                   </div>
                   <h3>
-                    {value === "existing" ? "使用原目录" : "创建新 worktree"}
+                    {value === "existing"
+                      ? t("使用原目录")
+                      : t("创建新 worktree")}
                   </h3>
                   <strong>
                     {value === "existing"
-                      ? "使用当前现场"
-                      : "从提交开始，独立工作"}
+                      ? t("使用当前现场")
+                      : t("从提交开始，独立工作")}
                   </strong>
                   <p>
                     {value === "existing"
-                      ? "保留当前 Git 分支和所有现有文件。协作中的代码操作直接发生在这个目录。"
-                      : "从当前 HEAD 创建新分支和目录。暂存、未暂存、未跟踪与忽略的文件都不会带入。"}
+                      ? t(
+                          "保留当前 Git 分支和所有现有文件。协作中的代码操作直接发生在这个目录。",
+                        )
+                      : t(
+                          "从当前 HEAD 创建新分支和目录。暂存、未暂存、未跟踪与忽略的文件都不会带入。",
+                        )}
                   </p>
                 </label>
               ))}
             </div>
           </fieldset>
           <fieldset disabled={busy} className="workspace-field">
-            <legend>选择协作模式</legend>
+            <legend>{t("选择协作模式")}</legend>
             <div className="workspace-grid">
               {(["restricted", "trusted"] as RuntimeMode[]).map((value) => (
                 <label
@@ -378,20 +390,22 @@ export function Create({
                   <h3>{runtimeModeName(value)}</h3>
                   <strong>
                     {value === "trusted"
-                      ? "信任同事使用我的运行环境"
-                      : "默认 · 保留权限限制"}
+                      ? t("信任同事使用我的运行环境")
+                      : t("默认 · 保留权限限制")}
                   </strong>
                   <p>{runtimeModeDescription(value)}</p>
                 </label>
               ))}
             </div>
             <p className="inline-note">
-              模式创建后固定，恢复时沿用。信任模式仍遵循原生客户端和系统的授权；原生不可用的能力不会自动启用。
+              {t(
+                "模式创建后固定，恢复时沿用。信任模式仍遵循原生客户端和系统的授权；原生不可用的能力不会自动启用。",
+              ) + " "}
             </p>
           </fieldset>
           {!spaceId && (
             <fieldset disabled={busy} className="workspace-field">
-              <legend>选择连接方式</legend>
+              <legend>{t("选择连接方式")}</legend>
               <div className="workspace-grid">
                 {(["lan", "tailcat"] as ShareTransport[]).map((value) => (
                   <label
@@ -414,16 +428,22 @@ export function Create({
                       </span>
                       <span className="radio-dot" />
                     </div>
-                    <h3>{value === "lan" ? "局域网" : "Tailcat 跨网络"}</h3>
+                    <h3>
+                      {value === "lan" ? t("局域网") : t("Tailcat 跨网络")}
+                    </h3>
                     <strong>
                       {value === "lan"
-                        ? "默认 · 快速直连"
-                        : "实验性 · 无需 Tailscale 账号"}
+                        ? t("默认 · 快速直连")
+                        : t("实验性 · 无需 Tailscale 账号")}
                     </strong>
                     <p>
                       {value === "lan"
-                        ? "适合两台 Mac 位于同一局域网，连接不会经过公网中继。"
-                        : "通过 Tailcat 建立加密通道；无法点对点直连时可能经过第三方 DERP 中继。"}
+                        ? t(
+                            "适合两台 Mac 位于同一局域网，连接不会经过公网中继。",
+                          )
+                        : t(
+                            "通过 Tailcat 建立加密通道；无法点对点直连时可能经过第三方 DERP 中继。",
+                          )}
                     </p>
                   </label>
                 ))}
@@ -437,32 +457,32 @@ export function Create({
             />
           </div>
           {!preview && !error ? (
-            <Loading text="正在确认会话与 Git 起点…" />
+            <Loading text={t("正在确认会话与 Git 起点…")} />
           ) : (
             preview && (
               <div className="panel starting-point">
                 <div className="panel-heading">
-                  <h3>确认起点</h3>
-                  <span className="badge muted">创建时不会发送指令</span>
+                  <h3>{t("确认起点")}</h3>
+                  <span className="badge muted">{t("创建时不会发送指令")}</span>
                 </div>
                 <dl>
-                  <dt>来源目录</dt>
+                  <dt>{t("来源目录")}</dt>
                   <dd className="path">{preview.workspace.sourceCwd}</dd>
-                  <dt>执行目录</dt>
+                  <dt>{t("执行目录")}</dt>
                   <dd className="path">
                     {mode === "existing"
                       ? preview.workspace.sourceCwd
                       : preview.targetDirectory ||
-                        "Team Cross 数据目录中的独立 worktree"}
+                        t("Team Cross 数据目录中的独立 worktree")}
                   </dd>
-                  <dt>Git 起点</dt>
+                  <dt>{t("Git 起点")}</dt>
                   <dd>
                     <code>
-                      {preview.workspace.head?.slice(0, 10) || "尚无提交"}
+                      {preview.workspace.head?.slice(0, 10) || t("尚无提交")}
                     </code>
                     <span className="muted">
                       {" "}
-                      · {preview.workspace.branch || "分离 HEAD"}
+                      · {preview.workspace.branch || t("分离 HEAD")}
                     </span>
                     {mode === "worktree" && (
                       <span className="branch-chip">
@@ -473,7 +493,7 @@ export function Create({
                 </dl>
                 {mode === "existing" && preview.workspace.dirty && (
                   <p className="inline-note">
-                    当前目录有未提交内容，将保留在原处供协作使用。
+                    {t("当前目录有未提交内容，将保留在原处供协作使用。") + " "}
                   </p>
                 )}
               </div>
@@ -481,13 +501,13 @@ export function Create({
           )}
           {!spaceId && (
             <label className="field">
-              协作名称
+              {t("协作名称") + " "}
               <input
                 value={title}
                 maxLength={160}
                 disabled={busy}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="为这次协作起个名字"
+                placeholder={t("为这次协作起个名字")}
               />
             </label>
           )}
@@ -498,7 +518,7 @@ export function Create({
               onClick={() => setStep(1)}
             >
               <Icon name="back" size={16} />
-              上一步
+              {t("上一步") + " "}
             </button>
             <button
               className="button primary"
@@ -509,12 +529,12 @@ export function Create({
                 <>
                   <span className="spinner" />
                   {!spaceId && shareTransport === "tailcat"
-                    ? "正在建立跨网络邀请…"
-                    : "正在创建协作…"}
+                    ? t("正在建立跨网络邀请…")
+                    : t("正在创建协作…")}
                 </>
               ) : (
                 <>
-                  {spaceId ? "启用共同执行" : "创建并邀请"}{" "}
+                  {spaceId ? t("启用共同执行") : t("创建并邀请")}{" "}
                   <Icon name="arrow" size={17} />
                 </>
               )}

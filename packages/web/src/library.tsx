@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import {
   createContext,
   useCallback,
@@ -116,7 +117,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       .then((next) => {
         if (version !== revision.current) return;
         if (!Array.isArray(next.resources) || !Array.isArray(next.selection))
-          throw new Error("资源库暂不可用，请更新本机服务后重试。");
+          throw new Error(t("资源库暂不可用，请更新本机服务后重试。"));
         setData((previous) =>
           options?.reorder ? next : keepResourceOrder(previous, next),
         );
@@ -165,7 +166,7 @@ export function ResourceActions({
   reference,
   disabled = false,
   favorite = false,
-  selectedLabel = "已加入选择",
+  selectedLabel = t("已加入选择"),
 }: {
   reference: LibraryReference;
   disabled?: boolean;
@@ -192,8 +193,8 @@ export function ResourceActions({
     sameReference(r.reference, reference),
   );
   const selectedHint =
-    resource?.selected && selectedLabel !== "已加入选择"
-      ? "已加入选择"
+    resource?.selected && selectedLabel !== t("已加入选择")
+      ? t("已加入选择")
       : undefined;
   return (
     <span className="resource-actions">
@@ -213,12 +214,12 @@ export function ResourceActions({
         }
       >
         <Icon name={resource?.selected ? "check" : "plus"} size={14} />
-        {resource?.selected ? selectedLabel : "加入选择"}
+        {resource?.selected ? selectedLabel : t("加入选择")}
       </button>
       {favorite && (
         <button
           className={`button small library-star ${resource?.favorite ? "is-favorite" : ""}`}
-          aria-label={resource?.favorite ? "取消收藏" : "收藏"}
+          aria-label={resource?.favorite ? t("取消收藏") : t("收藏")}
           aria-pressed={!!resource?.favorite}
           disabled={lib.working || (disabled && !resource?.favorite)}
           onClick={() =>
@@ -231,7 +232,7 @@ export function ResourceActions({
           }
         >
           <Icon name="star" size={16} />
-          {resource?.favorite ? "已收藏" : "收藏"}
+          {resource?.favorite ? t("已收藏") : t("收藏")}
         </button>
       )}
       {failure && (
@@ -245,9 +246,9 @@ export function ResourceActions({
 export const availabilityLabel = (r: LibraryResource) =>
   ({
     available: "",
-    offline: "暂时离线",
-    withdrawn: "已撤回",
-    unavailable: "访问已结束",
+    offline: t("暂时离线"),
+    withdrawn: t("已撤回"),
+    unavailable: t("访问已结束"),
   })[r.availability];
 
 // Only the native wrapper defines this narrow bridge; normal WebGUI uses links.

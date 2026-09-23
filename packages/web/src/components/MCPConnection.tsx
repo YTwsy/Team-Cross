@@ -1,3 +1,4 @@
+import { t, tr } from "../i18n";
 import { useState } from "react";
 import { api, errorText } from "../api";
 import type { Info, MCPClientStatus, Provider } from "../types";
@@ -48,7 +49,7 @@ export function MCPConnection({
       if (setup) await api("mcp/setup", { provider });
       const result = await api<{ ready: boolean }>("mcp/probe", {});
       if (!result.ready)
-        setError("Team Cross 工具协议检查未通过，请重新检查。");
+        setError(t("Team Cross 工具协议检查未通过，请重新检查。"));
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -59,7 +60,7 @@ export function MCPConnection({
   }
   return (
     <div className="mcp-connection">
-      <div className="segmented" aria-label="个人辅助客户端">
+      <div className="segmented" aria-label={t("个人辅助客户端")}>
         {(["codex", "claude"] as const).map((value) => (
           <button
             key={value}
@@ -76,8 +77,12 @@ export function MCPConnection({
       </div>
       <p>
         {provider === "claude"
-          ? "接入个人 Claude Code TUI。配置保存在本机个人范围，已打开的客户端请在 /mcp 中重新连接或重新打开。"
-          : "接入个人 Codex，TUI 与 Desktop 共用配置。已打开的客户端需重新加载工具。"}
+          ? t(
+              "接入个人 Claude Code TUI。配置保存在本机个人范围，已打开的客户端请在 /mcp 中重新连接或重新打开。",
+            )
+          : t(
+              "接入个人 Codex，TUI 与 Desktop 共用配置。已打开的客户端需重新加载工具。",
+            )}
       </p>
       <button
         className="button small"
@@ -93,38 +98,40 @@ export function MCPConnection({
       >
         <Icon name={status.configured ? "check" : "plus"} size={15} />
         {busy
-          ? "正在检查…"
+          ? t("正在检查…")
           : status.configured
-            ? `${name} MCP 配置已保存`
-            : `接入本机 ${name}`}
+            ? tr`${name} MCP 配置已保存`
+            : tr`接入本机 ${name}`}
       </button>
       <p className="small-text muted">
-        Team Cross 工具协议：{info?.mcpProbed ? "通过" : "尚未检查"}。<br />
-        {name} 客户端：
-        {status.observedAt && !status.observedAt.startsWith("0001")
-          ? "本次运行已收到工具调用"
-          : "等待实际工具调用；请让客户端使用 Team Cross 列出协作"}
-        。
+        {tr`Team Cross 工具协议：${info?.mcpProbed ? t("通过") : t("尚未检查")}。`}
+        <br />
+        {tr`${name} 客户端：${
+          status.observedAt && !status.observedAt.startsWith("0001")
+            ? t("本次运行已收到工具调用")
+            : t("等待实际工具调用；请让客户端使用 Team Cross 列出协作")
+        }。`}
       </p>
       <button
         className="text-link"
         disabled={busy || disabled}
         onClick={() => void check(false)}
       >
-        检查工具连接
+        {t("检查工具连接") + " "}
       </button>
       <ErrorBox message={error || status.configError} />
       <details className="technical">
-        <summary>手动配置与诊断</summary>
+        <summary>{t("手动配置与诊断")}</summary>
         {status.command && (
           <>
             <pre>{status.command}</pre>
-            <Copy text={status.command} label="复制配置命令" />
+            <Copy text={status.command} label={t("复制配置命令")} />
           </>
         )}
         <p className="small-text muted">
-          配置检测对应 Team Cross
-          当前本地目录。其他项目中的同名配置、禁用设置或组织策略可能影响加载，以客户端实际调用为准。
+          {t(
+            "配置检测对应 Team Cross 当前本地目录。其他项目中的同名配置、禁用设置或组织策略可能影响加载，以客户端实际调用为准。",
+          ) + " "}
         </p>
       </details>
     </div>
