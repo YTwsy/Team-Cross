@@ -6,9 +6,7 @@ Team Cross 是 macOS 上围绕 Coding Agent 会话展开的本地协作工具。
 
 继续使用熟悉的终端和原生客户端，也可以打开 WebGUI 查看共同上下文。协作空间与共享执行托管在发起者的 Mac，个人 Agent 通过 MCP 按需参与，各自保留自己的会话、模型与本地上下文。
 
-[官网与交互演示](https://teamcross.pages.dev/) · [下载 v0.2.3 正式版](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.3) · [使用指南](docs/user-guide.md) · [文档导航](docs/README.md)
-
-> 产品仍处于原型阶段，面向 Apple Silicon、macOS 14 及以上。Claude Code 原生 TUI 与 Tailcat 连接为实验性。官网演示使用模拟场景，实际支持范围见下文。
+[交互演示](https://teamcross.pages.dev/) · [下载 v0.2.3 正式版](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.3) · [使用指南](docs/user-guide.md) · [文档导航](docs/README.md)
 
 ## 从一次具体工作开始
 
