@@ -13,13 +13,13 @@
 
 ## 安装与升级
 
-面向 Apple Silicon、macOS 14 及以上。当前正式版 `v0.2.4` 的 DMG、CLI 与稳定 Homebrew 入口见 [README 安装](../README.md#安装)。安装后运行不需要 Go、Node 或 pnpm。
+面向 Apple Silicon、macOS 14 及以上。当前正式版 `v0.2.5` 的 DMG、CLI 与稳定 Homebrew 入口见 [README 安装](../README.md#安装)。安装后运行不需要 Go、Node 或 pnpm。
 
 App 自带完整 CLI 和 Core，不要求 Homebrew。Cask 同时安装 App 和 `teamcross` 命令，Formula 提供独立 CLI。App 与 CLI、稳定命名与 RC 命名的 Homebrew 定义会占用同一 App 或命令入口，因此只选一种。RC 必须显式安装，普通 `brew upgrade` 不会把无后缀渠道切换到 RC。
 
 通过 DMG 安装后，在菜单栏选择“命令行工具…”即可安装 `teamcross`；默认入口为 `/usr/local/bin/teamcross`，需要时通过系统授权。已有 Homebrew 或其他来源的命令不会被覆盖。相同位置升级 App 后，命令自动使用新的内置 CLI；移除入口仍可正常使用 App。使用自定义 shell 的用户需确保命令目录在 `PATH` 中。
 
-升级或切换渠道前，先退出正在运行的 Team Cross，再通过原渠道更新或卸载。安装程序保留协作数据和工作目录，但 `v0.2.4` 不加载或迁移旧 `schema:2` 材料，旧数据仍保留在磁盘。详细变化见 [Release](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.4)。
+升级或切换渠道前，先退出正在运行的 Team Cross，再通过原渠道更新或卸载。安装程序保留协作数据和工作目录，但 `v0.2.5` 不加载或迁移旧 `schema:2` 材料，旧数据仍保留在磁盘。详细变化见 [Release](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.5)。
 
 从 Formula 切换到 App 时，退出服务后按实际渠道运行 `brew uninstall --formula --force teamcross` 或 `brew uninstall --formula --force teamcross-rc`，再安装 Cask。反向切换使用 `brew uninstall --cask team-cross` 或 `brew uninstall --cask team-cross@rc`；DMG 用户在移除 App 前先从菜单移除命令入口。以上卸载保留协作数据与工作目录。
 

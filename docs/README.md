@@ -6,7 +6,7 @@
 | --- | --- |
 | 安装升级、分享加入、CLI / MCP 与恢复 | [使用指南](user-guide.md) |
 | 源码开发、构建与检查 | [开发与验证](development.md) |
-| 当前版本变化与下载说明 | [v0.2.4 正式版](releases/v0.2.4.md) · [GitHub Releases](https://github.com/YTwsy/Team-Cross/releases) |
+| 当前版本变化与下载说明 | [v0.2.5 正式版](releases/v0.2.5.md) · [GitHub Releases](https://github.com/YTwsy/Team-Cross/releases) |
 | 产品功能与使用流程 | [产品流程](agent-wiki/sources/product-flows.md) |
 | 概念、命名与产品边界 | [核心模型与词汇](agent-wiki/sources/product-core-and-glossary.md) |
 | 只读分享、三人以上协作与多份材料 | [协作空间任务页](agent-wiki/wiki/concepts/collaboration-spaces.md) · [完整契约](agent-wiki/sources/decisions/collaboration-spaces.md) |
