@@ -56,6 +56,7 @@ export function MaterialReader({
   memory,
   onVersion,
   actions,
+  navigation,
 }: {
   spaceId: string;
   material: Material;
@@ -68,6 +69,11 @@ export function MaterialReader({
   memory: Map<string, ReadingMemory>;
   onVersion: (version: number) => void;
   actions?: ReactNode;
+  navigation?: {
+    materials: Material[];
+    onSelect: (materialId: string) => void;
+    onCollapse: () => void;
+  };
 }) {
   const version = reference.version,
     memoryKey = `${material.id}:${version}`;
@@ -268,6 +274,15 @@ export function MaterialReader({
     }
   }, [page, target, located, loading, itemLoading, error]);
   const v = material.versions.find((v) => v.version === version);
+  const materialChoices =
+    navigation?.materials.filter(
+      (item) => !item.withdrawnAt && item.versions.length,
+    ) || [];
+  const materialIndex = materialChoices.findIndex(
+    (item) => item.id === material.id,
+  );
+  const canSwitchMaterial =
+    !!navigation && materialChoices.length > 1 && materialIndex >= 0;
   const outline = page?.turns || [];
   const joinedSegments = joinMaterialSegments(page?.segments || []);
   return (
@@ -321,10 +336,49 @@ export function MaterialReader({
       </div>
       <ReadingPanelTools>
         <div className="material-reading-navigation">
-          <span className="reading-current-material" title={v?.title}>
-            {v?.title} · 版本 {version}
-          </span>
-          <div ref={setReadingToolbar} />
+          <div className="material-reading-main">
+            {canSwitchMaterial ? (
+              <label className="material-reading-switcher">
+                <span>
+                  {materialIndex + 1}/{materialChoices.length}
+                </span>
+                <select
+                  aria-label="切换已发布材料"
+                  title={v?.title}
+                  value={material.id}
+                  onChange={(event) =>
+                    navigation?.onSelect(event.target.value)
+                  }
+                >
+                  {materialChoices.map((item) => {
+                    const choiceVersion =
+                      item.id === material.id ? v : item.versions.at(-1);
+                    return (
+                      <option key={item.id} value={item.id}>
+                        版本 {choiceVersion?.version} · {choiceVersion?.title} ·{" "}
+                        {item.author}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+            ) : (
+              <span className="reading-current-material" title={v?.title}>
+                {v?.title} · 版本 {version}
+              </span>
+            )}
+            {navigation && (
+              <button
+                className="button small material-reading-close"
+                aria-label="收起当前材料"
+                title="收起当前材料"
+                onClick={navigation.onCollapse}
+              >
+                收起
+              </button>
+            )}
+          </div>
+          <div className="material-reading-tools" ref={setReadingToolbar} />
         </div>
       </ReadingPanelTools>
       {v?.changes && (
@@ -491,6 +545,10 @@ export function Materials({
   const [error, setError] = useState("");
   const id = useId();
   const memory = useRef(new Map<string, ReadingMemory>());
+  const pendingNavigation = useRef<
+    | { materialId: string; scroll: boolean; focus: "switcher" | "card" }
+    | undefined
+  >(undefined);
   const materials = c.materials || [];
   const self = c.selfId || c.role;
   const disabled =
@@ -512,6 +570,47 @@ export function Materials({
     }
   }, [materials]);
   const selected = materials.find((m) => m.id === reading?.materialId);
+  useLayoutEffect(() => {
+    const next = pendingNavigation.current;
+    if (!next) return;
+    pendingNavigation.current = undefined;
+    const card = document.getElementById(`${id}-${next.materialId}-card`);
+    if (next.scroll)
+      card?.scrollIntoView?.({ block: "start", behavior: "instant" });
+    if (next.focus === "card")
+      card
+        ?.querySelector<HTMLButtonElement>(".material-card-heading > button")
+        ?.focus({ preventScroll: true });
+    else
+      document
+        .querySelector<HTMLSelectElement>(
+          'select[aria-label="切换已发布材料"]',
+        )
+        ?.focus({ preventScroll: true });
+  }, [reading?.materialId, id]);
+
+  function selectFromReader(materialId: string) {
+    const next = materials.find((item) => item.id === materialId);
+    const version = next?.versions.at(-1)?.version;
+    if (!next || next.withdrawnAt || version === undefined) return;
+    pendingNavigation.current = {
+      materialId,
+      scroll: !memory.current.get(`${materialId}:${version}`)?.position,
+      focus: "switcher",
+    };
+    setReading({ materialId, version });
+  }
+
+  function collapseFromReader() {
+    if (!reading) return;
+    pendingNavigation.current = {
+      materialId: reading.materialId,
+      scroll: true,
+      focus: "card",
+    };
+    setReading(undefined);
+  }
+
   async function confirmWithdraw() {
     if (!withdraw) return;
     setBusy(true);
@@ -563,7 +662,7 @@ export function Materials({
           const contentId = `${id}-${m.id}-content`;
           const titleId = `${id}-${m.id}-title`;
           const authorActions = m.authorId === self && !m.withdrawnAt && (
-            <>
+            <div className="material-author-actions">
               <button
                 className="text-link"
                 disabled={disabled}
@@ -578,10 +677,11 @@ export function Materials({
               >
                 撤回
               </button>
-            </>
+            </div>
           );
           return (
             <article
+              id={`${id}-${m.id}-card`}
               className={`material-card ${expanded ? "is-reading" : ""}`}
               key={m.id}
               aria-labelledby={titleId}
@@ -646,6 +746,11 @@ export function Materials({
                       onDiscuss={onDiscuss}
                       disabled={disabled}
                       actions={authorActions}
+                      navigation={{
+                        materials,
+                        onSelect: selectFromReader,
+                        onCollapse: collapseFromReader,
+                      }}
                     />
                   )}
                 </div>

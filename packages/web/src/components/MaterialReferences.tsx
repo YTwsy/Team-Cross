@@ -17,6 +17,7 @@ export function MaterialReferenceLinks({
   materials?: Material[];
   onLocate: (ref: MaterialReference) => void;
 }) {
+  if (!references.length) return null;
   return (
     <div className="material-reference-links">
       {references.map((r, i) => {

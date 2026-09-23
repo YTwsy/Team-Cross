@@ -781,6 +781,17 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
 .back-link:hover {
   color: var(--blue);
 }
+.detail-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.detail-breadcrumb .back-link {
+  margin-bottom: 0;
+  font-size: inherit;
+  letter-spacing: inherit;
+}
 .steps {
   display: flex;
   list-style: none;
@@ -1338,7 +1349,7 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
   min-width: 0;
 }
 .panel.collaboration-reading {
-  --reading-sticky-top: 12px;
+  --reading-sticky-top: 0px;
   --reading-header-height: 116px;
   min-width: 0;
   padding: 0;
@@ -1371,11 +1382,22 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
 }
 .reading-tools .context-reader-heading {
   border: 0;
-  padding-top: 6px;
-  flex-wrap: wrap;
-  gap: 6px 12px;
+  min-height: 38px;
+  flex-wrap: nowrap;
+  gap: 12px;
+}
+.reading-tools .context-reader-heading .tabs {
+  align-self: stretch;
+  gap: 12px;
+}
+.reading-tools .context-reader-heading .tabs button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0;
 }
 .reading-tools .context-reading-tools {
+  flex-shrink: 0;
   padding-bottom: 0;
 }
 .reading-tools .reader-hint-text {
@@ -1389,11 +1411,45 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px 16px;
   padding: 8px 0;
   min-width: 0;
 }
+.material-reading-main {
+  display: flex;
+  align-items: center;
+  flex: 1 1 180px;
+  gap: 8px;
+  min-width: 0;
+}
+.material-reading-switcher {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 6px;
+  min-width: 0;
+}
+.material-reading-switcher > span {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.material-reading-switcher select {
+  min-width: 0;
+  min-height: 34px;
+  padding: 5px 9px;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.material-reading-close {
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 6px 9px;
+}
 .reading-current-material {
+  flex: 1 1 auto;
   font-size: 12px;
   color: var(--muted);
   overflow: hidden;
@@ -1401,7 +1457,7 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
   white-space: nowrap;
   min-width: 0;
 }
-.material-reading-navigation > div {
+.material-reading-tools {
   flex-shrink: 0;
 }
 .reading-tabs {
@@ -1448,6 +1504,18 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
   border: 0;
   border-radius: 0;
   box-shadow: none;
+}
+.reading-pane > .context-panel {
+  padding-top: 8px;
+}
+.reading-pane .context-panel .reader-layout {
+  padding-top: 0;
+}
+.reading-pane .context-panel .history {
+  padding-top: 0;
+}
+.reading-pane .context-panel .reader-turn-heading {
+  padding-top: 8px;
 }
 .reading-pane[hidden],
 .reading-heading-actions[hidden] {
@@ -1859,9 +1927,6 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
   font-size: 10px;
   margin-top: 6px;
 }
-.annotation-copy {
-  font-size: 10px;
-}
 .annotation-saved {
   color: var(--green);
   font-size: 11px;
@@ -1916,9 +1981,48 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
   gap: 8px;
 }
 .annotation-actions {
-  padding-top: 11px;
+  display: grid;
+  grid-template-columns: repeat(3, max-content);
+  justify-content: space-between;
+  gap: 4px;
   margin-top: 12px;
-  border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.annotation-actions .resource-actions {
+  display: block;
+  min-width: 0;
+}
+.annotation-actions .button {
+  min-height: 34px;
+  gap: 4px;
+  padding: 6px 1px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+.annotation-actions .annotation-reply-action {
+  padding: 6px 7px;
+  border: 1px solid color-mix(in srgb, var(--blue) 25%, var(--line));
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-weight: 620;
+}
+.annotation-actions .button:hover:not(:disabled) {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+.annotation-actions .button:focus-visible {
+  outline-offset: 1px;
+}
+.annotation-actions .resource-actions .is-selected {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+.annotation-actions > [role="alert"] {
+  grid-column: 1 / -1;
 }
 .annotation-composer-heading {
   font-size: 11px;
@@ -1935,12 +2039,12 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
   background: var(--panel);
 }
 .annotation-replies {
-  margin: 16px 0 12px 5px;
+  margin: 10px 0 12px 5px;
   padding-left: 13px;
   border-left: 2px solid var(--line);
 }
 .annotation-reply {
-  margin-top: 14px;
+  margin-top: 8px;
 }
 .annotation-reply .avatar {
   width: 22px;
@@ -3276,6 +3380,9 @@ mark[data-annotation-highlight] {
 .material-card {
   border: 1px solid var(--line);
   border-radius: 10px;
+  scroll-margin-top: calc(
+    var(--reading-sticky-top, 0px) + var(--reading-header-height, 0px) + 12px
+  );
   padding: 16px;
   display: grid;
   gap: 12px;
@@ -3312,6 +3419,15 @@ mark[data-annotation-highlight] {
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
+}
+.material-author-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+.material-reader-actions > .material-actions {
+  width: 100%;
 }
 .material-reader-toolbar {
   display: grid;
@@ -3583,6 +3699,8 @@ mark[data-annotation-highlight] {
   gap: 14px;
 }
 .reader-directory {
+  display: flex;
+  align-items: center;
   position: relative;
 }
 .reader-directory > button {
@@ -3975,7 +4093,6 @@ mark[data-annotation-highlight] {
 }
 .material-card.is-reading {
   grid-column: 1 / -1;
-  border-color: color-mix(in srgb, var(--blue) 55%, var(--line));
   background: var(--panel);
 }
 .material-list {

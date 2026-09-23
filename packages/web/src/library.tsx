@@ -165,10 +165,12 @@ export function ResourceActions({
   reference,
   disabled = false,
   favorite = false,
+  selectedLabel = "已加入选择",
 }: {
   reference: LibraryReference;
   disabled?: boolean;
   favorite?: boolean;
+  selectedLabel?: string;
 }) {
   const lib = useLibrary();
   const [failure, setFailure] = useState("");
@@ -189,12 +191,18 @@ export function ResourceActions({
   const resource = lib.data?.resources.find((r) =>
     sameReference(r.reference, reference),
   );
+  const selectedHint =
+    resource?.selected && selectedLabel !== "已加入选择"
+      ? "已加入选择"
+      : undefined;
   return (
     <span className="resource-actions">
       <button
         className={`button small ${resource?.selected ? "is-selected" : ""}`}
         disabled={lib.working || (disabled && !resource?.selected)}
         aria-pressed={!!resource?.selected}
+        aria-label={selectedHint}
+        title={selectedHint}
         onClick={() =>
           void change({
             action: "select",
@@ -205,7 +213,7 @@ export function ResourceActions({
         }
       >
         <Icon name={resource?.selected ? "check" : "plus"} size={14} />
-        {resource?.selected ? "已加入选择" : "加入选择"}
+        {resource?.selected ? selectedLabel : "加入选择"}
       </button>
       {favorite && (
         <button

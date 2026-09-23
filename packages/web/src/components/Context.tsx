@@ -151,17 +151,27 @@ export function Context({
     historyView.signature !== historySignature;
   useLayoutEffect(() => {
     const pending = restore.current;
+    const ready =
+      tab === "technical" ||
+      !online ||
+      (tab === "file" && !file) ||
+      !!data ||
+      (!!context.error && !context.loading);
     if (
       !pending ||
       pending.tab !== tab ||
-      (tab !== "technical" && context.loading) ||
       panel.current?.closest("[hidden]")
     )
       return;
-    if (tab === "history" && (!data || !("thread" in data))) return;
+    if (pending.position.key && !ready) return;
     restoreReadingPosition(panel.current, pending.position);
-    restore.current = undefined;
-  }, [tab, data, context.loading]);
+    if (!ready) return;
+    const frame = requestAnimationFrame(() => {
+      restoreReadingPosition(panel.current, pending.position);
+      if (restore.current === pending) restore.current = undefined;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [tab, data, context.loading, context.error, file, online]);
   function scrollToHistoryTurn(turnId: string) {
     if (panel.current?.closest("[hidden]")) return false;
     const element = Array.from(
@@ -378,18 +388,24 @@ export function Context({
   function changeTab(next: ContextTab) {
     if (next === tab) return;
     const root = panel.current;
-    positions.current[tab] = captureReadingPosition(root);
-    if (positions.current[next])
-      restore.current = { tab: next, position: positions.current[next]! };
-    else if (root) {
+    const position = captureReadingPosition(root);
+    if (position) positions.current[tab] = position;
+    if (root) {
       const viewport = readingViewport(root);
+      // Preserve the overview while the toolbar is still below its sticky edge.
+      // Stored tab positions only apply after the reader itself is in view.
       if (
         viewport.workspace &&
-        viewport.workspace.getBoundingClientRect().top <= viewport.stickyTop
+        viewport.workspace.getBoundingClientRect().top > viewport.stickyTop
       )
         restore.current = {
           tab: next,
-          position: {
+          position: { scrollTop: viewport.scrollTop },
+        };
+      else
+        restore.current = {
+          tab: next,
+          position: positions.current[next] || {
             scrollTop:
               window.scrollY + root.getBoundingClientRect().top - viewport.top,
           },

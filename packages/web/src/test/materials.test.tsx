@@ -226,7 +226,11 @@ it("reads inside the selected card with one title and collapse action, and switc
     screen.queryByRole("button", { name: "收起正文" }),
   ).not.toBeInTheDocument();
   expect(within(other).queryByText("已公开正文")).not.toBeInTheDocument();
-  await user.click(within(other).getByRole("button", { name: "阅读材料" }));
+  const switcher = screen.getByRole("combobox", {
+    name: "切换已发布材料",
+  });
+  expect(switcher).toHaveValue("m1");
+  await user.selectOptions(switcher, "m2");
   expect(
     await within(other).findByText("已公开正文", {
       selector: "[data-source-start]",
@@ -236,12 +240,19 @@ it("reads inside the selected card with one title and collapse action, and switc
   expect(
     within(card).getByRole("button", { name: "阅读材料" }),
   ).toHaveAttribute("aria-expanded", "false");
-  await user.click(within(other).getByRole("button", { name: "收起材料" }));
+  expect(
+    screen.getByRole("combobox", { name: "切换已发布材料" }),
+  ).toHaveValue("m2");
+  expect(
+    screen.getByRole("combobox", { name: "切换已发布材料" }),
+  ).toHaveFocus();
+  await user.click(screen.getByRole("button", { name: "收起当前材料" }));
   expect(
     screen.queryByRole("button", { name: "收起材料" }),
   ).not.toBeInTheDocument();
   expect(screen.queryByText("已公开正文")).not.toBeInTheDocument();
   expect(screen.getAllByRole("button", { name: "阅读材料" })).toHaveLength(2);
+  expect(within(other).getByRole("button", { name: "阅读材料" })).toHaveFocus();
 });
 
 it("keeps material provenance on the reader toolbar until the source details are opened", async () => {

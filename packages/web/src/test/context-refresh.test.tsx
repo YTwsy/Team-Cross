@@ -256,6 +256,48 @@ describe("协作上下文刷新", () => {
     expect(screen.getByText("第二个文件的内容")).toBeVisible();
   });
 
+  it("在概览处切换上下文标签时保留当前页面位置", async () => {
+    let pageY = 160;
+    vi.spyOn(window, "scrollY", "get").mockImplementation(() => pageY);
+    vi.spyOn(window, "scrollTo").mockImplementation((options) => {
+      const target = options as number | ScrollToOptions;
+      if (typeof target === "object") pageY = target.top || 0;
+    });
+    readContext = (url) =>
+      url.searchParams.get("kind") === "changes"
+        ? response({ diff: "+新改动", status: "M src/a.ts", stat: "" })
+        : history();
+    await openDetail();
+    const workspace = document.querySelector<HTMLElement>(
+      ".collaboration-reading",
+    )!;
+    vi.spyOn(workspace, "getBoundingClientRect").mockImplementation(
+      () => ({ top: 500 - pageY, height: 1200 }) as DOMRect,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("tab", { name: "协作上下文" }));
+    });
+
+    pageY = 210;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("tab", { name: "代码改动" }));
+    });
+    expect(screen.getByText("+新改动")).toBeVisible();
+    expect(pageY).toBe(210);
+
+    pageY = 250;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("tab", { name: "最近对话" }));
+    });
+    expect(pageY).toBe(250);
+
+    pageY = 290;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("tab", { name: "代码改动" }));
+    });
+    expect(pageY).toBe(290);
+  });
+
   it("较早的刷新响应不会覆盖后来的对话", async () => {
     await openDetail();
     const older = deferred();
