@@ -16,7 +16,7 @@ make verify-release
 make verify-homebrew
 ```
 
-本地开发构建默认 `0.2.2-dev`，输出位于 `dist/release/0.2.2-dev/`。版本构建使用 `make release VERSION=0.2.2`，要求干净 checkout，并在重建 Web 资源后再次核对。使用相同 `VERSION` 运行两个安装验证目标。构建不上传产物。
+本地开发构建默认 `0.2.3-dev`，输出位于 `dist/release/0.2.3-dev/`。版本构建使用 `make release VERSION=0.2.3`，要求干净 checkout，并在重建 Web 资源后再次核对。使用相同 `VERSION` 运行两个安装验证目标。构建不上传产物。
 
 GitHub 对指向 `main` 的 PR 和 `main` push 运行 Go、race、Web 与 Homebrew 定义工程门槛。`Unsigned macOS release` workflow 可以手动构建、验证和保存一个不发布的 `X.Y.Z` 或 `X.Y.Z-rc.N` arm64 产物；推送可从 `origin/main` 到达的同版本 annotated tag 时，它才会生成 provenance 并创建 GitHub Release。RC 标记为 Pre-release，正式版本标记为 Latest；在取得 Developer ID 前，两者都明确使用 ad-hoc 签名且未经 Apple 公证。Release 创建后，独立 Homebrew workflow 重新下载公开资产、验证 checksum 与 attestation、隔离安装对应定义，再使用只覆盖 tap 仓库的短期 GitHub App token 创建 PR；tap CI 通过、自动合并及公共安装 smoke 完成后才更新 Release 中的 Homebrew 状态。Tailcat 公网 smoke 和两台 Mac 验收仍不在托管发布流水线中自动运行。完整参数、证据边界和发布顺序见 [分发与首次体验](agent-wiki/sources/distribution-and-onboarding.md)。
 
