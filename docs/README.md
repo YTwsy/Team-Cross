@@ -1,10 +1,10 @@
 # Team Cross 文档
 
-产品概览与快速开始见根目录 [README](../README.md)，详细操作见 [使用指南](user-guide.md)，构建与检查见 [开发与验证](development.md)。工程知识统一组织在 [Agent Wiki](agent-wiki/README.md)，从 [任务索引](agent-wiki/wiki/index.md) 按当前工作选择上下文。
+产品概览与快速开始见根目录 [中文 README](../README.md) 或 [English README](../README.en.md)，详细操作见 [中文使用指南](user-guide.md) 或 [English user guide](user-guide.en.md)，构建与检查见 [开发与验证](development.md)。工程知识统一组织在 [Agent Wiki](agent-wiki/README.md)，从 [任务索引](agent-wiki/wiki/index.md) 按当前工作选择上下文。
 
 | 需要了解什么 | 阅读入口 |
 | --- | --- |
-| 安装升级、分享加入、CLI / MCP 与恢复 | [使用指南](user-guide.md) |
+| 安装升级、分享加入、CLI / MCP 与恢复 | [中文使用指南](user-guide.md) · [English user guide](user-guide.en.md) |
 | 源码开发、构建与检查 | [开发与验证](development.md) |
 | 当前版本变化与下载说明 | [v0.2.5 正式版](releases/v0.2.5.md) · [GitHub Releases](https://github.com/YTwsy/Team-Cross/releases) |
 | 产品功能与使用流程 | [产品流程](agent-wiki/sources/product-flows.md) |

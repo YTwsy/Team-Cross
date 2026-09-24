@@ -1,5 +1,7 @@
 # Team Cross 使用指南
 
+**简体中文** | [English](user-guide.en.md)
+
 [返回 README](../README.md) · [文档导航](README.md) · [开发与验证](development.md)
 
 这里保存安装、分享、加入、原生客户端、MCP 与恢复的详细操作。产品概览和当前下载入口见 [README](../README.md)；具体版本的变化与升级限制以 [GitHub Releases](https://github.com/YTwsy/Team-Cross/releases) 为准。
@@ -7,7 +9,8 @@
 - [安装与升级](#安装与升级) · [打开与停止服务](#打开-team-cross)
 - [分享与审阅](#分享与审阅) · [共同继续执行](#共同继续执行) · [邀请与加入](#邀请与加入)
 - [Claude Code 原生 TUI](#claude-code-原生-tui实验性) · [模型与推理强度](#模型与推理强度)
-- [个人 Agent 与 MCP](#个人-agent-与-mcp) · [阅读与批注](#阅读与批注) · [结束与恢复](#结束与恢复)
+- [个人 Agent 与 MCP](#个人-agent-与-mcp) · [阅读与批注](#阅读与批注)
+- [资源库与速览](#资源库与速览) · [结束与恢复](#结束与恢复)
 
 下文 A 指发起者及其 Mac，B 指一位接收者；同一空间可以有多位接收者，各自使用独立成员身份。
 
@@ -148,7 +151,7 @@ teamcross join 'tcx3.…'
 
 创建页选择「Claude Code · 实验性」。最低要求 Claude Code `2.1.268`，A/B 都需不低于该版本；`2.1.268` 是旧实现的已实测基线，后续正式版本不因版本号不同而拒绝；可在设置页指定 CLI 路径，或启动时传入 `--claude-bin`。A 上一个原生后台 job 承担执行，当前输入者的原生 TUI 处理输入、审批与中断。读取历史、创建 fork 和恢复不会发送业务 prompt。
 
-Claude 协作通过原生 `--fork-session` 创建新会话。信任模式直接由 Claude 在个人配置目录管理新 fork；受限模式在发生首次业务输入并持久化后，由 Team Cross 只把这个新 fork 的单个 transcript 发布到 A 当前个人 Claude home 的 `projects`，它会像普通原生 fork 一样出现在 Claude Code CLI/TUI `/resume`，结束共享后可从个人历史继续。零输入 fork 可能尚未落盘，也不保证释放后可恢复；Team Cross 不把这个情况当成创建失败。受限模式下，每次协作使用独立 `claude-runtime` 作为 worker 配置目录，其中只放所选来源的逐字节快照、本次 fork、受限 settings、MCP、认证快照、daemon/job 和所有权状态；不会把整个个人 `projects` 暴露给协作 worker。Team Cross 不自行构造 Provider JSONL，也不把个人设置、插件、已有历史或认证文件作为写入目标；受限模式下，Team Cross 在个人 history 中只新增用户明确创建的 fork；信任模式的原生工具可能依授权修改个人资源。B 的直接 TUI 不保存 A 的 Provider 历史，Claude Desktop、Web 与 Cloud 的历史也不在本功能范围。项目仍处于 prerelease，旧独立 `claude-home` 协作不迁移，需要重新创建。
+Claude 协作通过原生 `--fork-session` 创建新会话。信任模式直接由 Claude 在个人配置目录管理新 fork；受限模式在发生首次业务输入并持久化后，由 Team Cross 只把这个新 fork 的单个 transcript 发布到 A 当前个人 Claude home 的 `projects`，它会像普通原生 fork 一样出现在 Claude Code CLI/TUI `/resume`，结束共享后可从个人历史继续。零输入 fork 可能尚未落盘，也不保证释放后可恢复；Team Cross 不把这个情况当成创建失败。受限模式下，每次协作使用独立 `claude-runtime` 作为 worker 配置目录，其中只放所选来源的逐字节快照、本次 fork、受限 settings、MCP、认证快照、daemon/job 和所有权状态；不会把整个个人 `projects` 暴露给协作 worker。Team Cross 不自行构造 Provider JSONL，也不把个人设置、插件、已有历史或认证文件作为写入目标；受限模式下，Team Cross 在个人 history 中只新增用户明确创建的 fork；信任模式的原生工具可能依授权修改个人资源。B 的直接 TUI 不保存 A 的 Provider 历史，Claude Desktop、Web 与 Cloud 的历史也不在本功能范围。旧独立 `claude-home` 协作不迁移，需要重新创建。
 
 WebGUI 与辅助工具可查看已持久化的上下文、添加批注，并在空闲时发送文本。Claude 的补充、中断、审批与模型选择目前需要在原生 TUI 中操作；共享 worker 内置当前协作的批注读取与回复工具。信任模式在邀请者原生配置目录中创建和运行新 fork，复用个人 MCP、插件、hooks、权限及可用工具；受限模式继续关闭这些扩展。Claude Desktop 仍未接入，Claude 权限机制不等同于 Codex 的 OS 权限隔离。Claude 使用 A 的 API 路由；OAuth / Keychain 登录流程尚未验收。详见 [Claude 接入契约](agent-wiki/sources/decisions/claude-native-tui.md) 与 [2026-09-14 个人 CLI/TUI 历史验收](agent-wiki/sources/validation/claude-personal-history-2026-09-14.md)；[2026-09-12 实测记录](agent-wiki/sources/validation/claude-native-tui-2026-09-12.md)属于切换前的旧实现。
 

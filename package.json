@@ -1,5 +1,6 @@
 {
   "name": "teamcross",
+  "license": "GPL-3.0-only",
   "private": true,
   "packageManager": "pnpm@11.19.0",
   "engines": {

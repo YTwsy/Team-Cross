@@ -1,6 +1,7 @@
 {
   "name": "@teamcross/web",
   "version": "0.1.4",
+  "license": "GPL-3.0-only",
   "private": true,
   "type": "module",
   "scripts": {

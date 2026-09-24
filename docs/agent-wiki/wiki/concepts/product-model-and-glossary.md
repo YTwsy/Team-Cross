@@ -2,11 +2,15 @@
 
 Team Cross 空间保存成员、已发布会话材料与讨论；可独立只读分享，也可关联一个新的原生 fork 在 A 的目录中共同执行。各人的个人 Agent 按需读取材料并参与讨论。
 
+设计从已有 Session 和会话记录入手，让人的经验和判断能及时加入正在进行的工作，并保留各自的工具。个人资源库也让当前 Agent 按选择接上此前分享或参与的上下文；本机托管、连接方式与设计原因见 [项目简报](../../sources/project-brief.md#设计出发点)。
+
 空间及三人以上流程先读 [协作空间任务页](collaboration-spaces.md) 和 [完整契约](../../sources/decisions/collaboration-spaces.md)；不要把只读材料与可操作 fork 混为同一个对象。
 
 ## 先读
 
 [项目简报](../../sources/project-brief.md) · [完整词汇](../../sources/product-core-and-glossary.md) · [用户流程](../../sources/product-flows.md)
+
+项目许可证为 [GPL-3.0-only](../../../../LICENSE)，适用范围见 [项目简报](../../sources/project-brief.md#开源协议)。
 
 ## 修改时守住的边界
 
