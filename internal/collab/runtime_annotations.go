@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
 	"teamcross/internal/mcp"
+	"teamcross/internal/readview"
 	"teamcross/internal/runtimeconfig"
 	"teamcross/internal/service"
 
@@ -122,38 +124,23 @@ func (a *App) runtimeAnnotationsHTTP(w http.ResponseWriter, r *http.Request, id 
 		return
 	}
 	if input.Name == "read_material" {
+		readview.Defaults(input.Arguments)
 		data, _ := json.Marshal(input.Arguments)
 		var in MaterialRead
 		if err := json.Unmarshal(data, &in); err != nil {
 			respond(w, nil, err)
 			return
 		}
-		if in.Cursor == "" {
-			if _, specified := input.Arguments["includeOutline"]; !specified {
-				in.IncludeOutline = true
-			}
-		}
 		out, err := s.readMaterial(ctx, in)
 		respond(w, out, err)
 		return
 	}
 	if input.Name == "read_annotations" {
-		out, err := s.Context(ctx, "annotations", "", 0)
-		if err == nil {
-			if annotationID, _ := input.Arguments["annotationId"].(string); annotationID != "" {
-				data := out.(map[string]any)
-				found := []Annotation{}
-				for _, annotation := range data["annotations"].([]Annotation) {
-					if annotation.ID == annotationID {
-						found = append(found, annotation)
-					}
-				}
-				if len(found) == 0 {
-					err = fmt.Errorf("没有找到当前协作的原批注")
-				}
-				data["annotations"] = found
-			}
+		q := url.Values{"compact": {"true"}}
+		for key, value := range input.Arguments {
+			q.Set(key, fmt.Sprint(value))
 		}
+		out, err := s.ContextHistory(ctx, "annotations", "", 0, historyReadFromURL(&url.URL{RawQuery: q.Encode()}))
 		respond(w, out, err)
 		return
 	}
@@ -166,6 +153,6 @@ func (a *App) runtimeAnnotationsHTTP(w http.ResponseWriter, r *http.Request, id 
 		author = "Claude Code"
 	}
 	s.mu.Unlock()
-	out, err := s.replyAnnotation(ctx, reply, author)
+	out, err := s.replyAnnotationResult(ctx, reply, author, true)
 	respond(w, out, err)
 }

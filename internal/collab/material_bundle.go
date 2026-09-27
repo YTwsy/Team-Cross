@@ -114,7 +114,7 @@ func buildMaterialBundle(content MaterialContent) (materialstore.Bundle, Materia
 				body = materialstore.BlobBody(text)
 				bundle.Blobs[body.Hash] = text
 			}
-			turn.Items = append(turn.Items, materialstore.Item{ID: item.ID, Type: item.Type, Notice: item.Notice, Body: body, SourceUTF16Length: item.SourceUTF16Length, OmittedUTF16Length: item.OmittedUTF16Length})
+			turn.Items = append(turn.Items, materialstore.Item{ID: item.ID, Type: item.Type, Phase: item.Phase, Label: item.Label, Notice: item.Notice, Body: body, SourceUTF16Length: item.SourceUTF16Length, OmittedUTF16Length: item.OmittedUTF16Length})
 			normalizedTurn.Items[itemIndex] = item
 		}
 		normalized.Turns[turnIndex] = normalizedTurn
@@ -137,7 +137,7 @@ func materializeManifest(store *materialstore.Store, manifest materialstore.Mani
 			if err != nil {
 				return MaterialContent{}, err
 			}
-			turn.Items = append(turn.Items, MaterialItem{ID: storedItem.ID, Type: storedItem.Type, Text: text, Notice: storedItem.Notice, SourceUTF16Length: storedItem.SourceUTF16Length, OmittedUTF16Length: storedItem.OmittedUTF16Length})
+			turn.Items = append(turn.Items, MaterialItem{ID: storedItem.ID, Type: storedItem.Type, Phase: storedItem.Phase, Label: storedItem.Label, Text: text, Notice: storedItem.Notice, SourceUTF16Length: storedItem.SourceUTF16Length, OmittedUTF16Length: storedItem.OmittedUTF16Length})
 		}
 		content.Turns = append(content.Turns, turn)
 	}

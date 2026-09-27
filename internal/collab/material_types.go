@@ -4,11 +4,14 @@ import (
 	"time"
 
 	"teamcross/internal/materialstore"
+	"teamcross/internal/readview"
 )
 
 // Published content contains visible messages and saved tool results only. It
 // never grants native resume, filesystem access, or access to the source reader.
 type MaterialItem struct {
+	Phase              string `json:"phase,omitempty"`
+	Label              string `json:"label,omitempty"`
 	ID                 string `json:"id"`
 	Type               string `json:"type"`
 	Text               string `json:"text"`
@@ -105,6 +108,7 @@ type publicationNegotiation struct {
 	Result       map[string]any `json:"result,omitempty"`
 }
 type MaterialRead struct {
+	readview.Options
 	MaterialID     string `json:"materialId"`
 	Version        int    `json:"version"`
 	Cursor         string `json:"cursor,omitempty"`
@@ -114,6 +118,7 @@ type MaterialRead struct {
 	IncludeOutline bool   `json:"includeOutline,omitempty"`
 }
 type PublicationDraftRead struct {
+	readview.Options
 	DraftID        string `json:"draftId"`
 	Cursor         string `json:"cursor,omitempty"`
 	TurnID         string `json:"turnId,omitempty"`

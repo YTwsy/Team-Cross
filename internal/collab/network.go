@@ -344,7 +344,7 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		if !decodeAnnotationReply(w, r, &in) {
 			return
 		}
-		out, e := s.replyAnnotation(r.Context(), in, sharing.MemberName(r.Context()))
+		out, e := s.replyAnnotationResult(r.Context(), in, sharing.MemberName(r.Context()), r.URL.Query().Get("compact") == "true")
 		respond(w, out, e)
 		return
 	}

@@ -138,6 +138,15 @@ func exportTurn(raw json.RawMessage) (MaterialTurn, error) {
 		}
 		ids[id] = true
 		i := MaterialItem{ID: id, Type: typ}
+		if typ == "agentMessage" {
+			i.Phase = str("phase")
+		}
+		for _, key := range []string{"command", "tool", "query"} {
+			if value := str(key); value != "" {
+				i.Label = string([]rune(value)[:min(160, len([]rune(value)))])
+				break
+			}
+		}
 		switch typ {
 		case "userMessage":
 			var blocks []map[string]json.RawMessage

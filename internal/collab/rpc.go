@@ -462,6 +462,21 @@ func (s *Session) contextWithHistory(ctx context.Context, kind, path string, aft
 	}
 	s.mu.Unlock()
 	if kind == "annotations" {
+		if history.AnnotationID != "" {
+			filtered := []Annotation{}
+			for _, note := range r.Annotations {
+				if note.ID == history.AnnotationID {
+					filtered = append(filtered, note)
+				}
+			}
+			if len(filtered) == 0 {
+				return nil, fmt.Errorf("没有找到当前空间的原批注")
+			}
+			r.Annotations = filtered
+		}
+		if history.Compact {
+			return agentAnnotations(r.ID, r.Annotations, history)
+		}
 		out := map[string]any{"annotations": r.Annotations, "spaceId": r.ID}
 		if r.ExecutionRecord != nil {
 			out["sessionId"], out["executionCwd"] = r.SessionID, r.ExecutionCwd

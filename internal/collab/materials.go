@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"teamcross/internal/materialstore"
+	"teamcross/internal/readview"
 	"teamcross/internal/sharing"
 )
 
@@ -348,17 +349,22 @@ func (s *Session) validateReferencesLocked(refs []MaterialReference) error {
 }
 
 type materialCursor struct {
-	Scope        string `json:"scope"`
-	MaterialID   string `json:"materialId"`
-	Version      int    `json:"version"`
-	Hash         string `json:"hash"`
-	SourceCursor string `json:"sourceCursor,omitempty"`
-	Turn         int    `json:"turn"`
-	Item         int    `json:"item"`
-	Offset       int    `json:"offset"`
+	Read         readview.Options `json:"read,omitempty"`
+	WindowStart  int              `json:"windowStart,omitempty"`
+	WindowEnd    int              `json:"windowEnd,omitempty"`
+	Older        bool             `json:"older,omitempty"`
+	Scope        string           `json:"scope"`
+	MaterialID   string           `json:"materialId"`
+	Version      int              `json:"version"`
+	Hash         string           `json:"hash"`
+	SourceCursor string           `json:"sourceCursor,omitempty"`
+	Turn         int              `json:"turn"`
+	Item         int              `json:"item"`
+	Offset       int              `json:"offset"`
 }
 
 type materialSegment struct {
+	Phase         string `json:"phase,omitempty"`
 	TurnID        string `json:"turnId"`
 	Status        string `json:"status"`
 	ItemID        string `json:"itemId"`
@@ -375,11 +381,17 @@ type materialSegment struct {
 }
 
 type materialOutline struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
+	ID           string `json:"id"`
+	Label        string `json:"label"`
+	Status       string `json:"status,omitempty"`
+	AnswerStatus string `json:"answerStatus,omitempty"`
+	ItemCount    int    `json:"itemCount,omitempty"`
+	ToolCount    int    `json:"toolCount,omitempty"`
 }
 
 type materialReadResponse struct {
+	View                   string            `json:"view,omitempty"`
+	Items                  []agentItemIndex  `json:"items,omitempty"`
 	MaterialID             string            `json:"materialId"`
 	Version                map[string]any    `json:"version"`
 	NextCursor             string            `json:"nextCursor"`
@@ -484,7 +496,7 @@ func segmentNotice(item materialstore.Item, collapsed bool) string {
 
 func newMaterialSegment(turn materialstore.Turn, loaded loadedMaterialItem, text string, start, end int, collapsed bool) materialSegment {
 	segment := materialSegment{
-		TurnID: turn.ID, Status: turn.Status, ItemID: loaded.item.ID, Type: loaded.item.Type,
+		TurnID: turn.ID, Status: turn.Status, ItemID: loaded.item.ID, Type: loaded.item.Type, Phase: loaded.item.Phase,
 		Text: text, StartOffset: start, EndOffset: end, Length: loaded.length,
 		SourceLength: loaded.item.SourceUTF16Length, OmittedLength: loaded.item.OmittedUTF16Length,
 		Notice: segmentNotice(loaded.item, collapsed), Collapsed: collapsed,
@@ -690,6 +702,9 @@ func (s *Session) readMaterial(ctx context.Context, in MaterialRead) (any, error
 		}
 	} else if in.StartOffset != 0 {
 		return nil, fmt.Errorf("startOffset 只能用于按条读取")
+	}
+	if in.Options.Enabled() || cursor.Read.Enabled() {
+		return readAgentPage(s.materialStore.ReadBody, version, manifest, cursor, in.Options, in.TurnID != "", nil)
 	}
 	if cursor.Scope == "item" {
 		return s.readMaterialItem(version, manifest, cursor)

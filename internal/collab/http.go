@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"teamcross/internal/problem"
+	"teamcross/internal/readview"
 	"teamcross/internal/sharing"
 	"teamcross/internal/uilanguage"
 	"time"
@@ -30,7 +31,25 @@ type ReplyInput struct {
 func number(s string) uint64 { v, _ := strconv.ParseUint(s, 10, 64); return v }
 func historyReadFromURL(u *url.URL) HistoryRead {
 	start, _ := strconv.Atoi(u.Query().Get("startOffset"))
+	integer := func(key string) int {
+		value := u.Query().Get(key)
+		if value == "" {
+			return 0
+		}
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return -1
+		}
+		return n
+	}
+	var quote *bool
+	if value := u.Query().Get("includeQuote"); value != "" {
+		b := value != "false"
+		quote = &b
+	}
 	return HistoryRead{
+		Options:      readview.Options{View: u.Query().Get("view"), ToolOutputs: u.Query().Get("toolOutputs"), TurnLimit: integer("turnLimit"), MaxBytes: integer("maxBytes")},
+		AnnotationID: u.Query().Get("annotationId"), Compact: u.Query().Get("compact") == "true", Offset: integer("offset"), IncludeQuote: quote,
 		Cursor: u.Query().Get("cursor"), TurnID: u.Query().Get("turnId"),
 		ItemID: u.Query().Get("itemId"), StartOffset: start,
 	}
@@ -149,8 +168,8 @@ func (a *App) target(ctx context.Context, id, method, path string, input any) (a
 		return map[string]bool{"ok": true}, s.Respond(ctx, "owner", in.ID, in.Result)
 	case "annotations":
 		return s.annotate(input.(Annotation), "发起者")
-	case "annotation-replies":
-		return s.replyAnnotation(ctx, input.(AnnotationReplyInput), "发起者")
+	case "annotation-replies", "annotation-replies?compact=true":
+		return s.replyAnnotationResult(ctx, input.(AnnotationReplyInput), "发起者", strings.HasSuffix(path, "?compact=true"))
 	}
 	return nil, fmt.Errorf("操作不受支持")
 }
@@ -529,7 +548,11 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		if !decodeAnnotationReply(w, r, &in) {
 			return
 		}
-		out, e := a.target(ctx, id, "POST", "annotation-replies", in)
+		endpoint := "annotation-replies"
+		if r.URL.Query().Get("compact") == "true" {
+			endpoint += "?compact=true"
+		}
+		out, e := a.target(ctx, id, "POST", endpoint, in)
 		respond(w, out, e)
 	default:
 		http.NotFound(w, r)

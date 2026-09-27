@@ -150,7 +150,7 @@ func TestAnnotationsCarryStructuredSourceThroughMCP(t *testing.T) {
 	if err != nil || !bytes.Contains(result, []byte(`"side":"old"`)) || !bytes.Contains(result, []byte(`"quote":"removed()"`)) {
 		t.Fatal(string(result), err)
 	}
-	if len(calls) != 2 || calls[0] != "POST /api/collaborations/collaboration/annotations" || calls[1] != "GET /api/collaborations/collaboration/context?kind=annotations" {
+	if len(calls) != 2 || calls[0] != "POST /api/collaborations/collaboration/annotations" || calls[1] != "GET /api/collaborations/collaboration/context?compact=true&kind=annotations" {
 		t.Fatal(calls)
 	}
 }
@@ -179,7 +179,7 @@ func TestPublicationDraftReaderKeepsLargeBodiesOutOfDefaultToolResults(t *testin
 	if len(calls) != 2 || calls[0].Path != "/api/publications/source" || calls[0].Body["compact"] != true {
 		t.Fatal(calls)
 	}
-	if calls[1].Path != "/api/publications/read-draft" || calls[1].Body["includeOutline"] != true || calls[1].Body["draftId"] != "draft" {
+	if calls[1].Path != "/api/publications/read-draft" || calls[1].Body["view"] != "answers" || calls[1].Body["draftId"] != "draft" {
 		t.Fatal(calls[1])
 	}
 }
