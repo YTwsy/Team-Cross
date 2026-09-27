@@ -16,13 +16,13 @@ In this guide, **A** means the host and their Mac, and **B** means one invited p
 
 ## Install and upgrade
 
-Team Cross supports Apple Silicon Macs running macOS 14 or later. See [Install](../README.en.md#install) for the current stable `v0.2.5` DMG, CLI, and Homebrew options. Installed releases do not require Go, Node, or pnpm.
+Team Cross supports Apple Silicon Macs running macOS 14 or later. See [Install](../README.en.md#install) for the current stable `v0.2.6` DMG, CLI, and Homebrew options. Installed releases do not require Go, Node, or pnpm.
 
 The app bundles the full CLI and Core service and does not require Homebrew. The Cask installs both the app and the `teamcross` command; the Formula provides the standalone CLI. The app and CLI packages, including stable and RC Homebrew definitions, occupy the same app or command paths, so choose one installation method. RC packages must be installed explicitly; an ordinary `brew upgrade` does not switch a stable channel to RC.
 
 After installing from a DMG, choose **Command Line Tool…** in the menu bar to install `teamcross`. The default command path is `/usr/local/bin/teamcross`, with system authorization requested when needed. Existing commands installed by Homebrew or another source are not overwritten. Updating the app at the same location makes the command use its new bundled CLI. Removing the command does not prevent you from using the app. If you use a custom shell, make sure the command directory is in your `PATH`.
 
-Quit Team Cross before upgrading or switching channels, then update or uninstall through the original channel. Installation preserves collaboration data and working directories, but `v0.2.5` does not load or migrate old `schema:2` material; that data remains on disk. See the [release notes](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.5) for details.
+Quit Team Cross before upgrading or switching channels, then update or uninstall through the original channel. Installation preserves collaboration data and working directories, but `v0.2.6` does not load or migrate old `schema:2` material; that data remains on disk. See the [release notes](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.6) for details.
 
 To switch from the Formula to the app, stop the service and run either `brew uninstall --formula --force teamcross` or `brew uninstall --formula --force teamcross-rc`, depending on the installed channel, then install the Cask. To switch in the other direction, use `brew uninstall --cask team-cross` or `brew uninstall --cask team-cross@rc`. DMG users should remove the command through the app's menu before removing the app. These uninstall operations preserve collaboration data and working directories.
 
