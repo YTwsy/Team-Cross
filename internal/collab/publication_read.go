@@ -8,6 +8,8 @@ import (
 )
 
 type publicationDraftReadResponse struct {
+	View                   string            `json:"view,omitempty"`
+	Items                  []agentItemIndex  `json:"items,omitempty"`
 	DraftID                string            `json:"draftId"`
 	Hash                   string            `json:"hash"`
 	Title                  string            `json:"title"`
@@ -98,8 +100,19 @@ func (a *App) ReadPublicationDraft(in PublicationDraftRead) (publicationDraftRea
 	version := versionFromManifest(manifest, record.Hash, "", "", 0, nil)
 	version.CreatedAt = record.FrozenAt
 	reader := &Session{materialStore: a.draftStore()}
+	wrap := func(page materialReadResponse) any {
+		return publicationDraftReadResponse{
+			DraftID: in.DraftID, Hash: record.Hash, Title: manifest.Title, Provider: manifest.Provider,
+			SourceID: manifest.SourceID, StartTurnID: manifest.StartTurnID, EndTurnID: manifest.EndTurnID,
+			ReadingStartID: manifest.ReadingStartID, NextCursor: page.NextCursor, Scope: page.Scope,
+			ItemComplete: page.ItemComplete, PageEndsAtTurnBoundary: page.PageEndsAtTurnBoundary,
+			Turns: page.Turns, Segments: page.Segments, View: page.View, Items: page.Items,
+		}
+	}
 	var page materialReadResponse
-	if cursor.Scope == "item" {
+	if in.Options.Enabled() || cursor.Read.Enabled() {
+		page, err = readAgentPage(a.draftStore().ReadBody, version, manifest, cursor, in.Options, in.TurnID != "", wrap)
+	} else if cursor.Scope == "item" {
 		page, err = reader.readMaterialItem(version, manifest, cursor)
 	} else {
 		page, err = reader.readMaterialStream(version, manifest, cursor, in.IncludeOutline && in.Cursor == "")
@@ -107,11 +120,5 @@ func (a *App) ReadPublicationDraft(in PublicationDraftRead) (publicationDraftRea
 	if err != nil {
 		return publicationDraftReadResponse{}, err
 	}
-	return publicationDraftReadResponse{
-		DraftID: in.DraftID, Hash: record.Hash, Title: manifest.Title, Provider: manifest.Provider,
-		SourceID: manifest.SourceID, StartTurnID: manifest.StartTurnID, EndTurnID: manifest.EndTurnID,
-		ReadingStartID: manifest.ReadingStartID, NextCursor: page.NextCursor, Scope: page.Scope,
-		ItemComplete: page.ItemComplete, PageEndsAtTurnBoundary: page.PageEndsAtTurnBoundary,
-		Turns: page.Turns, Segments: page.Segments,
-	}, nil
+	return wrap(page).(publicationDraftReadResponse), nil
 }

@@ -61,6 +61,8 @@ type Turn struct {
 }
 
 type Item struct {
+	Phase              string `json:"phase,omitempty"`
+	Label              string `json:"label,omitempty"`
 	ID                 string `json:"id"`
 	Type               string `json:"type"`
 	Notice             string `json:"notice,omitempty"`
@@ -203,6 +205,9 @@ func finalize(manifest Manifest) (Manifest, string, []byte, error) {
 				return Manifest{}, "", nil, fmt.Errorf("材料消息无效")
 			}
 			seenItems[item.ID] = true
+			if len(item.Phase) > 80 || !utf8.ValidString(item.Phase) || len([]rune(item.Label)) > 160 || !utf8.ValidString(item.Label) {
+				return Manifest{}, "", nil, fmt.Errorf("材料消息阶段或标签无效")
+			}
 			if !slices.Contains(supportedItemTypes, item.Type) {
 				return Manifest{}, "", nil, fmt.Errorf("材料含不支持的内容类型")
 			}

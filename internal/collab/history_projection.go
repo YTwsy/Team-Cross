@@ -9,19 +9,27 @@ import (
 
 	"teamcross/internal/materialstore"
 	"teamcross/internal/nativeclaude"
+	"teamcross/internal/readview"
 )
 
 // HistoryRead keeps the provider's page cursor separate from the segment
 // cursor used inside that page. A pageCursor returned to clients identifies
 // the exact eight-turn source page needed for later item reads.
 type HistoryRead struct {
-	Cursor      string
-	TurnID      string
-	ItemID      string
-	StartOffset int
+	readview.Options
+	AnnotationID string
+	Compact      bool
+	Offset       int
+	IncludeQuote *bool
+	Cursor       string
+	TurnID       string
+	ItemID       string
+	StartOffset  int
 }
 
 type historyReadResponse struct {
+	View                   string            `json:"view,omitempty"`
+	Items                  []agentItemIndex  `json:"items,omitempty"`
 	Thread                 map[string]any    `json:"thread"`
 	ContentHash            string            `json:"contentHash"`
 	PageCursor             string            `json:"pageCursor"`
@@ -126,7 +134,7 @@ func transientHistoryManifest(turns []MaterialTurn) materialstore.Manifest {
 				notice = appendMaterialNotice(notice, fmt.Sprintf("原始内容过长，读取时省略 %d 个 UTF-16 字符；保留头尾", omitted))
 			}
 			turn.Items = append(turn.Items, materialstore.Item{
-				ID: sourceItem.ID, Type: sourceItem.Type, Notice: notice,
+				ID: sourceItem.ID, Type: sourceItem.Type, Phase: sourceItem.Phase, Label: sourceItem.Label, Notice: notice,
 				Body: materialstore.InlineBody(text), SourceUTF16Length: sourceLength, OmittedUTF16Length: omitted,
 			})
 		}
@@ -167,9 +175,25 @@ func (s *Session) readHistory(ctx context.Context, record Record, process Runtim
 	pageCursor := encodeMaterialCursor(base)
 	response := historyReadResponse{Thread: thread, ContentHash: pageHash, PageCursor: pageCursor, Scope: cursor.Scope, SourcePageComplete: len(manifest.Turns) == 0, PageEndsAtTurnBoundary: true}
 	if len(manifest.Turns) == 0 {
+		options := in.Options
+		if cursor.Read.Enabled() {
+			options = cursor.Read
+		}
+		if options.Enabled() {
+			options, err = options.Normalize()
+			if err != nil {
+				return historyReadResponse{}, err
+			}
+			response.Thread, response.View = map[string]any{"id": record.SessionID}, options.View
+			response.Segments = []materialSegment{}
+			base.Read = options
+		}
 		if olderCursor != "" {
 			base.SourceCursor, base.Hash = olderCursor, ""
 			response.NextCursor = encodeMaterialCursor(base)
+		}
+		if options.Enabled() && readview.WireSize(response) > options.MaxBytes {
+			return historyReadResponse{}, fmt.Errorf("历史页面元数据超过 maxBytes")
 		}
 		return response, nil
 	}
@@ -199,11 +223,36 @@ func (s *Session) readHistory(ctx context.Context, record Record, process Runtim
 	} else if in.StartOffset != 0 {
 		return historyReadResponse{}, fmt.Errorf("startOffset 只能用于按条读取")
 	}
+	if in.TurnID != "" {
+		cursor.WindowStart, cursor.WindowEnd, cursor.Older = 0, 0, false
+	}
 
 	readBody := materialBodyReader(func(item materialstore.Item) (string, error) { return item.Body.Text, nil })
 	version := MaterialVersion{Version: 0, Hash: pageHash, Title: "协作上下文", Provider: record.Provider, SourceID: record.SessionID, TurnCount: len(manifest.Turns)}
 	var projected materialReadResponse
-	if cursor.Scope == "item" {
+	if in.Options.Enabled() || cursor.Read.Enabled() {
+		wrap := func(page materialReadResponse) any {
+			out := response
+			out.Thread = map[string]any{"id": record.SessionID}
+			out.View, out.Items = page.View, page.Items
+			out.Scope, out.ItemComplete, out.PageEndsAtTurnBoundary = page.Scope, page.ItemComplete, page.PageEndsAtTurnBoundary
+			out.Turns, out.Segments, out.NextCursor = page.Turns, page.Segments, page.NextCursor
+			out.SourcePageComplete = page.Scope == "stream" && page.NextCursor == ""
+			if out.SourcePageComplete && olderCursor != "" && in.TurnID == "" && (cursor.Older || !cursor.Read.Enabled() || cursor.WindowEnd == 0) {
+				opts := cursor.Read
+				if !opts.Enabled() {
+					opts, _ = in.Options.Normalize()
+				}
+				out.NextCursor = encodeMaterialCursor(materialCursor{Scope: "stream", MaterialID: record.SessionID, SourceCursor: olderCursor, Read: opts})
+			}
+			return out
+		}
+		projected, err = readAgentPage(readBody, version, manifest, cursor, in.Options, in.TurnID != "", wrap)
+		if err != nil {
+			return historyReadResponse{}, err
+		}
+		return wrap(projected).(historyReadResponse), nil
+	} else if cursor.Scope == "item" {
 		projected, err = readMaterialItemWith(readBody, version, manifest, cursor)
 	} else {
 		projected, err = readMaterialStreamWith(readBody, version, manifest, cursor, true)

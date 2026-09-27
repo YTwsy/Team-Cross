@@ -37,6 +37,8 @@ go build -o bin/teamcross ./cmd/teamcross
 
 ## 现有自动化入口
 
+Agent 按需读取、阶段保留、完整 MCP 响应预算和批注精确筛选的固定场景结果见 [2026-09-27 上下文读取验证](agent-context-reading-2026-09-27.md)。
+
 | 文件 | 重点覆盖 |
 | --- | --- |
 | [CI workflow](../../../../.github/workflows/ci.yml) | PR/main 的 Go test/vet、相关 race test、Web check/test/build、嵌入资源一致性和 Darwin arm64 CLI 交叉编译；不运行真实模型或 Tailcat 联网测试 |
@@ -50,6 +52,7 @@ go build -o bin/teamcross ./cmd/teamcross
 | [model_test.go](../../../../internal/collab/model_test.go) | 模型继承、设置更新、拒绝请求、恢复与通知 |
 | [process_test.go](../../../../internal/nativecodex/process_test.go) | 客户端配置与启动不强制模型 |
 | [server_test.go](../../../../internal/mcp/server_test.go) | STDIO 读取不发送输入，保留输入文本与请求 ID |
+| [agent_read_test.go](../../../../internal/collab/agent_read_test.go) / [agent_annotations_test.go](../../../../internal/collab/agent_annotations_test.go) / [read_test.go](../../../../internal/mcp/read_test.go) | 最终答复与工具过滤、目录/记录索引、UTF-16 连续分页、完整封装预算、单条批注与精简状态/回复回执 |
 | [current_test.go](../../../../internal/mcp/current_test.go) / [current_share_test.go](../../../../internal/collab/current_share_test.go) / [source_turn_test.go](../../../../internal/nativecodex/source_turn_test.go) | 原生调用身份、历史落盘等待、固定轮次完成、去重、取消、漂移、中断与重启不重放 |
 | [management_test.go](../../../../internal/collab/management_test.go) / [input_management_test.go](../../../../internal/collab/input_management_test.go) / [collaboration_test.go](../../../../cmd/teamcross/collaboration_test.go) | MCP/CLI 创建与加入、输入归属与 epoch、角色拒绝、邀请失败恢复、同 fork 恢复 |
 | [service_test.go](../../../../internal/service/service_test.go) / [onboarding_test.go](../../../../internal/collab/onboarding_test.go) | 实例身份、控制协议、稳定 opt 路径、邀请预览、Core 心跳与输入申请 |

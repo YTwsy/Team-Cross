@@ -24,7 +24,7 @@
 | `POST /publications/source` | `{provider,sourceId,compact?}`，只在本机冻结来源已结束历史；`compact` 只返回目录和读取提示 |
 | `POST /publications/preview` | `{draftId,title,startTurnId,endTurnId,readingStartId?,compact?}`，生成所选范围的固定预览 |
 | `POST /publications/draft` | `{draftId}`，读取本机冻结草稿；无共享端对应路由 |
-| `POST /publications/read-draft` | `{draftId,turnId?,itemId?,startOffset?,cursor?,includeOutline?}`，按与材料相同的折叠/按条语义读取私有草稿 |
+| `POST /publications/read-draft` | `{draftId,turnId?,itemId?,startOffset?,cursor?,includeOutline?,view?,toolOutputs?,turnLimit?,maxBytes?}`，读取私有草稿，Agent 选项见下文 |
 | `POST /sources/current` | 核对个人 MCP 的原生调用身份，返回来源与当前轮次 |
 | `POST /share-requests/preview` | 预览当前 Session 的本轮完成后分享 |
 | `POST /share-requests` | 幂等登记分享请求，立即返回，不等待本轮结束 |
@@ -48,7 +48,7 @@
 | `POST /collaborations/:id/respond` | `{id,result}` 原生请求回应 |
 | `GET /collaborations/:id/materials` | 材料与版本目录，不含正文 |
 | `POST /collaborations/:id/materials` | `{previewId,previewHash,requestId,materialId?,baseVersion?}`，发布本机已确认预览 |
-| `POST /collaborations/:id/read-material` | `{materialId,version,turnId?,itemId?,startOffset?,cursor?,includeOutline?}`，按正文流或单条范围读取固定版本 |
+| `POST /collaborations/:id/read-material` | `{materialId,version,turnId?,itemId?,startOffset?,cursor?,includeOutline?,view?,toolOutputs?,turnLimit?,maxBytes?}`，按选定视图或单条范围读取固定版本 |
 | `POST /collaborations/:id/publication-status` | `{requestId}`，查询自己的发布结果 |
 | `POST /collaborations/:id/withdraw-material` | `{materialId}`，撤回自己材料的所有版本 |
 | `POST /collaborations/:id/annotations` | `{text,target?,reference?,materials?}` |
@@ -89,12 +89,12 @@
 | `POST /library/state` | `{action:select\|favorite\|visit,reference,enabled?,key?}`；取消可只用 key，`{action:clear}` 清空选择 |
 | `POST /library/read` | 一个资源引用，返回 `{resource,content}`，重新检查当前权限并按需读取 |
 | `POST /library/bundles` | `{references,requestId}`，创建不可变引用组，返回 `{code,references,requestId,createdAt,expiresAt}` |
-| `POST /library/read-selection` | `{code,offset?}`，读取编号中的一页资源，与个人 MCP `read_selection` 对应 |
+| `POST /library/read-selection` | `{code,offset?,compact?}`，读取编号中的一页资源，与个人 MCP `read_selection` 对应 |
 | `POST /library/prepare-send` | `{references}`，检查当前可读且来自同一空间；不创建编号、不发送输入 |
 
 引用为 `{spaceId,kind:material\|annotation\|context,materialId?,version?,annotationId?,target?}`。材料必须指定正整数版本；批注必须指定原批注 ID；上下文可提供已存在的 history/file/changes `AnnotationTarget`，材料不得混用原生定位。`spaceId` 是调用者本机的空间 ID，加入者使用自己的 `joined-…` ID。资源 key 是规范引用 JSON 的 SHA-256 前 16 字节十六进制值，用于界面状态，不授予访问。资源条目带来源 Session、空间、类型、更新时间、收藏/选择/本人参与标记与 `available/offline/withdrawn/unavailable` 状态。
 
-选择最多 32 项。编号为 `TC-` 加 6 个随机字节的无填充 Base32 编码，仅在当前数据目录有效，有效期 7 天，至多保留 256 个未到期编号。同一 `requestId` 与相同引用重试返回同一编号，引用不同拒绝；当前勾选的后续变更不影响编号。`read_selection` 每次最多返回 4 项，更多项通过 `nextOffset` 继续；`offset` 为 0–31 的整数。正文分页继续使用已有 `read_material/read_context`，逐项结果包含明确引用和当前内容或错误，不以失去访问前的批注正文兜底。材料撤回后正文拒绝，仍在授权范围内的历史讨论继续保留。
+选择最多 32 项。编号为 `TC-` 加 6 个随机字节的无填充 Base32 编码，仅在当前数据目录有效，有效期 7 天，至多保留 256 个未到期编号。同一 `requestId` 与相同引用重试返回同一编号，引用不同拒绝；当前勾选的后续变更不影响编号。Web API 默认每次最多返回 4 项；个人 MCP `read_selection` 使用 `compact:true`，每次 1 项，仅返回 `reference/content`，去掉 UI 状态和重复引用全文。材料和历史使用 `answers` 视图，正文预算 20 KiB；批注直接按 ID 读取。更多项通过 `nextOffset` 继续；`offset` 为 0–31 的整数。正文分页继续使用已有 `read_material/read_context`，逐项结果包含明确引用和当前内容或错误，不以失去访问前的批注正文兜底。材料撤回后正文拒绝，仍在授权范围内的历史讨论继续保留。
 
 `library.json` 以 0600 原子保存个人组织状态和读取编号，未收藏、未选择的旧导航元数据优先淘汰，总量上限 1000 条。它不是材料全文缓存；已保存的上下文定位可含当时 quote，但失去访问后不会通过资源库响应返回该片段。列表沿用本机快照和后台远端刷新，具体读取与创建入口重新检查实时状态。所有读取都不启动模型轮次，回复仍使用原空间与原批注身份。产品界面与原生桥边界见 [资源库决策](decisions/resource-library.md)。
 
@@ -156,7 +156,7 @@ TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS/Tailcat 路�
 
 `participantJoined` 独立于在线心跳；`invitationState` 为 `active/expired/revoked`，active 才返回当前链接。`invitationId` 标识当前链接，`invitationReadOnly` 表示链接授予的原始范围；`invitations` 中记录 `joinedCount`，不绑定单个 memberId。默认链接无固定时限，存在期限时才返回 expiresAt。`runtimeState` 为 `running/starting/releasing/released/offline`，`releasePending` 表示共享关闭后仍在等待工作或客户端结束。
 
-`context?kind=history` 从 Provider 每次取得至多 8 轮，再投影为与材料一致的 `{thread,contentHash,pageCursor,nextCursor,scope,sourcePageComplete,pageEndsAtTurnBoundary,turns,segments}`。`thread` 只保留会话 ID、名称、预览、目录、时间、模型与状态等白名单元数据；隐藏推理和未知原生字段不透出。页内按时间正序排列；用户/助手消息完整进入正文流，超过 1500 个 UTF-16 字符的工具输出默认折叠，16000/24000 字符预算、64 段上限和轮边界语义与材料相同。`contentHash` 绑定会话、Provider 页游标及该页完整投影源，可供客户端跳过未变化页面；`pageCursor` 固定该 Provider 页，供之后按条读取。
+未指定 Agent 读取选项的 `context?kind=history` 从 Provider 每次取得至多 8 轮，再投影为与材料一致的 `{thread,contentHash,pageCursor,nextCursor,scope,sourcePageComplete,pageEndsAtTurnBoundary,turns,segments}`。`thread` 只保留会话 ID、名称、预览、目录、时间、模型与状态等白名单元数据；隐藏推理和未知原生字段不透出。页内按时间正序排列；用户/助手消息完整进入正文流，超过 1500 个 UTF-16 字符的工具输出默认折叠，16000/24000 字符预算、64 段上限和轮边界语义与材料相同。`contentHash` 绑定会话、Provider 页游标及该页完整投影源，可供客户端跳过未变化页面；`pageCursor` 固定该 Provider 页，供之后按条读取。
 
 传回 `nextCursor` 到 `cursor` 时，若 `sourcePageComplete:false` 则继续读取同一 Provider 页的剩余正文，否则进入更早的 8 轮。展开单条时传该响应的 `pageCursor + turnId + itemId + startOffset`；返回 `scope:item`，每页最多 16000 个 UTF-16 字符且不跨到下一条。Provider 页发生变化时旧游标明确拒绝，不把不同快照拼接。活跃上下文只复用清单投影、折叠和按条分页算法，不写入材料 CAS，也不把临时页声明为固定发布版本。元数据和分页读取均不创建或执行轮次；会话释放后通过只读控制进程读取，不 `thread/resume`、不重新占用原生写入锁。
 
@@ -229,7 +229,7 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 
 预览在固定草稿中选择连续的 `startTurnId..endTurnId`，每轮包含可导出的用户提问、可见回复和已保存工具过程。`readingStartId` 仅为导航，必须在范围内。WebGUI 对冻结和预览请求传入 `compact:true`；个人 MCP 的 `freeze_source_session` / `preview_publication` 默认也返回小型目录：`{id,hash,frozenAt,title,provider,sourceId,startTurnId,endTurnId,readingStartId?,turnCount,noticeCount,turns,readHint}`，轮次含 `id/status/label/itemCount/noticeCount`。导出说明按带有非空 `notice` 的 item 计数，预览只统计所选范围；正文不内联，WebGUI 通过 `publications/read-draft`、个人 MCP 通过 `read_publication_draft` 按需读取。确认页使用范围预览自己的 `draftId/hash`，不能复用完整来源草稿的游标。隐藏推理不导出；未知内容、未导出的图片/附件与过长项目有明确说明，不凭路径或 URL 额外拉取内容。折叠只是读取投影，完整已保存正文仍属于预览和授权范围。
 
-本机草稿与托管材料都以不可变清单和内容寻址正文保存。清单描述 `turns → items → {id,type,notice,body}`；不超过 4 KiB 且清单累计内联不超过 256 KiB 的正文直接放在 `body.kind=inline`，其他正文使用 `body.kind=blob/hash/byteLength/utf16Length/lineCount`。blob 哈希是原始 UTF-8 字节的 SHA-256；轮次和清单使用带版本域的确定性哈希。材料版本哈希就是清单哈希，展示预览不会改变原文、偏移或哈希。
+本机草稿与托管材料都以不可变清单和内容寻址正文保存。清单描述 `turns → items → {id,type,phase?,label?,notice,body}`；`phase` 原样保留来源的可见消息阶段，`label` 是最多 160 字的命令/工具/查询标识；不超过 4 KiB 且清单累计内联不超过 256 KiB 的正文直接放在 `body.kind=inline`，其他正文使用 `body.kind=blob/hash/byteLength/utf16Length/lineCount`。blob 哈希是原始 UTF-8 字节的 SHA-256；轮次和清单使用带版本域的确定性哈希。材料版本哈希就是清单哈希，展示预览不会改变原文、偏移或哈希。
 
 远端发布使用三个幂等阶段，而不是把全部正文放进一次 JSON POST：
 
@@ -243,12 +243,32 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 
 更新只允许原作者及同一 Provider/来源，`baseVersion` 必须匹配当前版本。新版本保留旧版，不改变已有引用；目录的 `changes` 统计相对上一版新增、变化、移出的轮次。撤回停止空间提供该材料所有版本，不删除原生 Session，无法召回已读取的副本和历史引用。成员被移除后旧材料仍属于空间，但该成员凭据无法继续读写。成员 ID 在同次共享内稳定；结束共享后重新加入是新身份，当前不能用新身份修改旧成员的材料。
 
-目录返回材料作者、标题、版本、清单哈希、轮数、公开起止、建议阅读起点、导出说明数量和预先计算的轮次变化，不返回正文。`read-material` 必须指定正整数版本，并有两种互不串流的读取范围：
+目录返回材料作者、标题、版本、清单哈希、轮数、公开起止、建议阅读起点、导出说明数量和预先计算的轮次变化，不返回正文。`read-material` 必须指定正整数版本。未指定 Agent 读取选项的 Web API 保持两种互不串流的读取范围：
 
 - 正文流省略 `itemId`。用户/助手消息完整进入流；其他类型超过 1500 个 UTF-16 字符时只返回精确前缀，并带 `collapsed:true`、整条 `length`、文字 `notice/readHint`。页面以 16000 为软预算，允许走完当前轮到 24000 的硬上限；只有单轮自身仍超过硬上限或达到 64 段才在轮内续页。`pageEndsAtTurnBoundary` 明确说明页面是否停在轮边界。
 - 按条读取同时传 `turnId + itemId`，可用 `startOffset` 首次定位，此后使用按条 `nextCursor`。每页最多 16000 个 UTF-16 字符，只读取这一条，绝不会溢出到下一条；返回 `scope:item/itemComplete`。这也是展开折叠工具输出和直接定位深处批注的入口。
 
-每段带 `turnId/itemId/type/status/text/notice/startOffset/endOffset/length`；源头因 8 MiB 上限被省略时另有 `sourceLength/omittedLength`。偏移均为已保存正文的 UTF-16 位置。`includeOutline:true` 只在无游标首页返回轮次目录，WebGUI 和 MCP 首页会显式请求，后续页不重复传输。流游标与按条游标都绑定 scope、材料（或草稿）、固定版本和清单哈希，不能跨条、跨版本、跨草稿或跨空间使用。读取到公开末尾就结束，没有“继续读取私人历史”的路径。
+每段带 `turnId/itemId/type/phase?/status/text/notice/startOffset/endOffset/length`；源头因 8 MiB 上限被省略时另有 `sourceLength/omittedLength`。偏移均为已保存正文的 UTF-16 位置。`includeOutline:true` 只在无游标首页返回轮次目录，WebGUI 首页会显式请求，后续页不重复传输；MCP 使用下述 Agent 视图。流游标与按条游标都绑定 scope、材料（或草稿）、固定版本和清单哈希，不能跨条、跨版本、跨草稿或跨空间使用。读取到公开末尾就结束，没有“继续读取私人历史”的路径。
+
+### Agent 按需读取视图
+
+个人 MCP 的 `read_material/read_publication_draft/read_context kind=history`、共享运行时的 `read_material` 和读取编号中的材料/历史默认采用下列契约。未传选项的 Web 读取维持上述完整对话/折叠工具投影。
+
+| 参数 | 行为 |
+| --- | --- |
+| `view=answers`（默认） | 返回所有用户问题与轮内补充，以及明确 `phase=final_answer` 的助手消息；不把最后一条过程发言猜成最终答复 |
+| `view=conversation` | 返回所有可见用户/助手消息，包括 `commentary` 和没有 phase 的消息 |
+| `view=outline` | 只列轮次 ID、label、status、answerStatus、itemCount、toolCount，不读取正文 |
+| `view=items` | 列轮内记录的 `turnId/itemId/type/phase/label/length/notice`，不读取正文；按 `turnId+itemId` 展开所选记录 |
+| `toolOutputs=none`（默认） | 跳过工具正文；独立于 answers/conversation，`preview` 返回最多 1500 UTF-16 字符，`full` 分页全文 |
+| `turnLimit` | 默认最近 3 轮，范围 1–50；页内时间正序，nextCursor 继续当前窗口剩余内容，再进入更早窗口。指定 turnId 则只读该轮 |
+| `maxBytes` | 默认 24576，范围 8192–65536；预算包含整个响应的元数据、游标、JSON 二次转义和预留的 MCP 封装空间 |
+
+指定 `turnId+itemId` 是显式展开请求，独立于视图和工具过滤，只读取该条全文。流和按条游标继承读取选项，不能在续页悄悄改变过滤条件；改变选项应重新用坐标读取。目录与索引也分页。响应只携带当前页轮次状态；`answerStatus=available` 表示有明确最终答复，`pending` 表示轮次尚未结束且没有最终标记，`unidentified` 表示已结束但无法识别最终答复。旧材料或未提供 phase 的来源不会补猜最终标记，必要时使用 conversation/items。
+
+`segments` 保留原始 UTF-16 偏移，不拼接、摘要改写或重新编号消息；`version.hash` 或历史 `contentHash/pageCursor` 保留出处。材料/草稿的 outline、items 和默认工具过滤不加载工具 blob；活跃历史仍从 Provider 获取 8 轮完整源页面，再在 Core 投影，因此减少的是 Agent 接收的上下文，不宣称已减少 Provider 传输成本。读取中的历史页变更仍拒绝旧游标。
+
+分页在完整 JSON 上计算预算，不截断 JSON 字符串；MCP 读取结果还有 64 KiB 封装预算兜底，超限返回明确错误，不能依赖外层悄悄截断。尚未提供分页的 file/changes/events 等大响应可能命中该保护。状态和回复回执不重复长引用；已知空间、材料版本、批注 ID 或 TC 编号时直接读取目标，只在缺少目标时查目录。执行/交接仍需核对输入归属；收到 saved 回执后不要求例行回读，只有结果不明时查询确认。
 
 当前限制为：来源冻结最多 2048 轮 / 32 MiB 原生响应；清单最多 4 MiB、16384 条 item；单 blob 最多 8 MiB；一个版本引用的唯一 blob 最多 32 MiB；空间所有未撤回版本引用的唯一 blob 最多 256 MiB。超过 8 MiB 的单条在发布者 Core 保留头尾，在中间写入明确省略标记并记录原始/省略 UTF-16 长度；不做隐式分块。附件仍不复制。空间记录以 `schema:3` 保存，只含成员、执行、批注和材料版本元数据；旧 `schema:2` 目录原样留在磁盘但不加载。撤回当前只停止授权并从活动配额中移除引用，不承诺立即回收 blob；自动回收仍是后续工作。
 
@@ -288,7 +308,7 @@ CLI 复用个人 MCP 适配：`space`、`freeze`、`publication-preview`、`publ
 
 `context?kind=file` 返回 `{path,text,contentHash}`。`kind=changes` 返回 `{stat,status,diff,contentHash,baseRevision,truncated}`；diff 路径相对执行目录，限制 256 KiB 并在完整行截断，`truncated` 表示只返回部分内容。`baseRevision` 为该次 diff 使用的具体 HEAD，不使用协作创建时的 HEAD 代替。
 
-`context?kind=annotations` 返回 `{annotations,sessionId?,executionCwd?}`，只读空间省略执行字段；本机、LAN 和 Tailcat 路由相同，MCP `read_context` 支持该 kind；`get_collaboration` 同样返回批注。`add_annotation` 支持完整的 `target` 对象。工具描述说明如何用 path、消息 ID 和历史游标读取原文，并提醒旧行属于基准提交。
+`context?kind=annotations` 的 Web API 返回 `{annotations,spaceId,sessionId?,executionCwd?}`，只读空间省略执行字段。`annotationId` 在权限与可见性检查后精确筛选，不存在或不可见时明确报错，不能退回所有批注。本机、LAN 和 Tailcat 路由相同。个人 MCP `read_context kind=annotations` 和运行时 `read_annotations` 使用 `compact:true`：无 ID 时只返回分页摘要（最多 20 项，240 字预览、回复数、是否有引用），以 `nextOffset` 继续；有 ID 时返回该条正文、target 和分页回复。`includeQuote:false` 可省略 quote，响应标记 `quoteOmitted`，此时空 quote 不能当作有效原文锚点。回复分页使用 `nextRead` 中的 `annotationId/offset/includeQuote/maxBytes`，调用者保留本机空间 ID 和 kind；续页不重复长引用。默认预算 24 KiB，过大的单条元数据明确要求增大预算或省略 quote 后按 target 读取，不能静默截断引用。MCP `get_collaboration/list_collaborations` 只返回状态白名单和 `annotationsCount/materialsCount`，不返回讨论、版本目录或邀请 secret；Web 状态 API 继续供界面读取完整信息。`add_annotation` 支持完整的 `target` 对象。工具描述说明如何用 path、消息 ID 和历史游标读取原文，并提醒旧行属于基准提交。
 
 位置和 `contentHash` 是客户端提供的阅读快照，主机检查字段格式、相对路径、范围与片段长度，不将其作为已验证的当前代码事实，也不会保存时改写成新文件的指纹。文件可在编辑批注期间变化；处理前通过 Team Cross 读取 A 上的实际上下文，再核对片段与版本，不能把 A 上路径当成 B 本机同名文件。指纹不同不代表该片段一定变化，但不能据此直接高亮旧位置。消息按稳定 ID 和精确片段判断；未定位时继续保留引用。
 
@@ -300,7 +320,7 @@ CLI 复用个人 MCP 适配：`space`、`freeze`、`publication-preview`、`publ
 
 ### 共享运行时的批注工具
 
-A 的 Codex app-server / Claude worker 通过 `teamcross mcp --data-dir … --runtime-id …` 启动 `teamcross_annotations`。仍只枚举四个工具：`read_annotations`、`reply_to_annotation`、`list_materials` 和 `read_material`。`read_material` 支持流游标及 `turnId/itemId/startOffset` 按条读取；共享运行时不增加私有草稿工具。它们只访问绑定空间，不允许选择其他空间、枚举私人来源、发布材料、读取任意路径或发送模型输入。个人 MCP 另有 `read_publication_draft`。参数校验在 STDIO 和 Core 两端执行。读取批注返回原文引用和全部回复；回复作者由运行时 Provider 决定，为 `Codex` 或 `Claude Code`。
+A 的 Codex app-server / Claude worker 通过 `teamcross mcp --data-dir … --runtime-id …` 启动 `teamcross_annotations`。仍只枚举四个工具：`read_annotations`、`reply_to_annotation`、`list_materials` 和 `read_material`。`read_material` 支持流游标及 `turnId/itemId/startOffset` 按条读取；共享运行时不增加私有草稿工具。它们只访问绑定空间，不允许选择其他空间、枚举私人来源、发布材料、读取任意路径或发送模型输入。个人 MCP 另有 `read_publication_draft`。参数校验在 STDIO 和 Core 两端执行。读取批注使用与个人 MCP 相同的精确筛选、摘要目录和分页回复。个人与运行时 MCP 的回复均返回 `{annotationId,status:"saved",reply}`，只包含本次已保存回复；同一 requestId 重试返回同一回执。`POST annotation-replies?compact=true` 在写入成功后生成该回执，Web 默认仍返回完整 Annotation。回复作者由运行时 Provider 决定，为 `Codex` 或 `Claude Code`。
 
 每个协作保存独立 `annotationToken`，仅通过 A 上的 MCP 环境变量传递；普通状态、远端响应和原生 `config/read` 不暴露凭据。STDIO 每次调用重新读取本机连接地址，只使用协作凭据，不启动 Core、不使用管理 token。创建、明确恢复或重新开启共享时开启批注工具访问，结束共享关闭访问；发起者恢复后即使尚未重新邀请，也可读取。运行时未连接、已释放或 Core 关闭时拒绝访问。成员访问撤销仍由原生入口和共享路由处理。
 
