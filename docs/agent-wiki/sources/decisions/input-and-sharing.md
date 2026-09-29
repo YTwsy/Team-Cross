@@ -1,6 +1,6 @@
 # 输入协调与共享决策
 
-本页描述当前原生执行协作。可复用邀请、逐人成员凭据、输入申请与指定成员交接已实现；独立只读分享、多会话材料与可选执行会话按 [协作空间契约](collaboration-spaces.md) 推进。当前同机三 Core 结果不代表完整空间首版或三台 Mac 验收。
+本页维护邀请与输入协调的取舍；只读空间、多人成员与执行访问的范围由 [协作空间契约](collaboration-spaces.md) 维护。材料发布、阅读与讨论无需模型输入权；有执行时，`writer` 绑定具体成员。同机三 Core 结果不能证明三台 Mac 验收。
 
 ## 一个协调入口
 
@@ -8,7 +8,9 @@
 
 同一协作首轮只保留一个直接客户端。交出或接回输入时关闭旧直接连接；辅助工具仍可按当前状态读取。这个规则约束 Team Cross 入口，不宣称控制了 Codex 的所有外部入口或整个主机的写入。
 
-WebGUI、个人 MCP 和 CLI 共用 Core 的输入动作条件。A 只向已经加入的 B 交出输入；交出与交还等待当前轮结束，A 接回输入不会自动中断轮次。B 持有输入时不能再申请。所有外部输入管理入口要求调用者传入看到的 epoch，不自动取得新版本后重试过时操作。
+WebGUI、个人 MCP 和 CLI 共用 Core 的输入动作条件。发起者向已加入且获准执行的指定成员交出输入；交出与交还等待当前轮结束，发起者接回输入不会自动中断轮次。当前输入者不能再申请。所有外部输入管理入口要求调用者传入看到的 epoch，不自动取得新版本后重试过时操作。
+
+个人 MCP 与 CLI 的申请、取消、交接、接回和交还操作只管理输入状态，不自动发送或中断模型；Core 统一检查角色、成员、忙碌状态与 epoch。CLI 协作详情与服务 `status` 分开，参数见 [个人 MCP 管理入口](../protocol.md#个人-mcp-管理入口)。
 
 网关与工具复用同一个上游控制连接，使原生审批能被展示并由当前输入者回应。不会通过自动在 Provider 输入中附加同事身份来代替输入协调。
 
@@ -41,4 +43,8 @@ Tailcat 依赖 DERP 完成发现和初始连接，能直连时使用点对点 UD
 
 ## 实现与验证
 
-[原生 RPC](../../../../internal/collab/rpc.go) · [共享与生命周期](../../../../internal/collab/network.go) · [邀请与 TLS](../../../../internal/sharing/sharing.go) · [连接适配](../../../../internal/sharing/connection.go) · [Tailcat 适配](../../../../internal/sharing/tailcat.go) · [MCP](../../../../internal/mcp/server.go) · [协作集成测试](../../../../internal/collab/collab_test.go) · [输入与共享任务页](../../wiki/concepts/input-and-sharing.md)
+[原生 RPC](../../../../internal/collab/rpc.go) · [共享与生命周期](../../../../internal/collab/network.go) · [邀请与 TLS](../../../../internal/sharing/sharing.go) · [连接适配](../../../../internal/sharing/connection.go) · [Tailcat 适配](../../../../internal/sharing/tailcat.go) · [MCP](../../../../internal/mcp/server.go)
+
+[协作集成测试](../../../../internal/collab/collab_test.go) 与 [多成员测试](../../../../internal/collab/members_test.go) 覆盖输入归属、逐人去重、并行读取、审批及访问范围；并发变更运行相关 race test。修改邀请或重连时，按 [验证门槛](../validation/test-gates.md) 区分同机 TLS、同机 Tailcat、实机 LAN、跨网络和强制 DERP，不能用同机结果替代真实多机结果。
+
+结束共享后的释放时机见 [目录与生命周期](workspace-and-lifecycle.md#保留与结束)；Core 心跳及字段见 [共享协议](../protocol.md#共享邀请与传输)，App 退出见 [分发与首次体验](../distribution-and-onboarding.md)。Claude 终端与 MCP 的控制能力按 [Claude 接入契约](claude-native-tui.md#传输与输入归属) 检查。

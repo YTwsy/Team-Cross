@@ -30,7 +30,7 @@ The stable definitions `YTwsy/teamcross/teamcross` and `YTwsy/teamcross/team-cro
 
 The current package is ad-hoc signed, without a Developer ID signature or Apple notarization. If macOS blocks the first launch, try opening the app, then follow [Apple's instructions](https://support.apple.com/en-us/102445) to allow it in **System Settings → Privacy & Security**. The build manifest records each package's signing and notarization status.
 
-Reading published material does not require Codex or a local repository. To start a collaboration, operate a shared session directly, or use MCP assistance, follow the interface's instructions for the corresponding Codex or Claude Code client. See [native clients and models (中文)](agent-wiki/wiki/concepts/native-clients-and-models.md) for supported entry points and the [validation index (中文)](agent-wiki/wiki/concepts/validation-gates.md) for actual coverage by version.
+Reading published material does not require Codex or a local repository. To start a collaboration, operate a shared session directly, or use MCP assistance, follow the interface's instructions for the corresponding Codex or Claude Code client. See [native clients and models (中文)](agent-wiki/sources/decisions/native-clients-and-models.md) for supported entry points and the [validation index (中文)](agent-wiki/wiki/concepts/validation-gates.md) for actual coverage by version.
 
 ## Open Team Cross
 

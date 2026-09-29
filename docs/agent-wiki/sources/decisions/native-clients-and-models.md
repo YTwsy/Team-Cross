@@ -14,7 +14,7 @@ Claude 不增加等价的 Desktop 深链接。受限模式由隔离 runtime 中�
 
 个人辅助客户端与目标协作的 Provider 独立。安装、配置检测、普通 TUI 打开与实际调用证据复用本机 Core；具体权限与控制能力仍以目标协作为准。Claude 个人配置和验证边界见 [Claude 个人辅助模式](claude-native-tui.md#个人-claude-code-辅助模式)。
 
-共享运行时自动加载当前协作的批注读取与回复工具，直接客户端无需另开个人辅助会话。该工具集不含发送输入或选择其他协作的能力。Codex 创建和恢复按进程配置接入，Claude 沿用新协作的原生启动配置。详见 [批注工具协议](../protocol.md#共享运行时的批注工具)。
+共享运行时自动加载当前协作的批注读取与回复工具，直接客户端无需另开个人辅助会话；读取与保存回复本身不另起模型轮次。该工具集不含发送输入或选择其他协作的能力。Codex 创建和恢复按进程配置接入，Claude 沿用新协作的原生启动配置；旧 worker 的接入边界见 [批注工具协议](../protocol.md#共享运行时的批注工具)。
 
 ## 本机账户与共享执行
 
@@ -38,4 +38,13 @@ Codex 版本变化时重做原生客户端验收；引入其他 Provider 时单�
 
 ## 实现与验证
 
-[原生进程](../../../../internal/nativecodex/process.go) · [客户端启动](../../../../internal/collab/launch.go) · [本机账户路由](../../../../internal/collab/local_client.go) · [模型继承与通知](../../../../internal/collab/model.go) · [模型回归](../../../../internal/collab/model_test.go) · [客户端任务页](../../wiki/concepts/native-clients-and-models.md)
+| 修改范围 | 入口 |
+| --- | --- |
+| 客户端检测、启动计划与隔离配置 | [launch.go](../../../../internal/collab/launch.go)、[process.go](../../../../internal/nativecodex/process.go) |
+| 个人 Desktop 深链接 | [personal_desktop.go](../../../../internal/collab/personal_desktop.go)；系统打开成功不代表页面或后续对话已同步 |
+| 本机账户、偏好与信任模式 hook 确认 | [local_client.go](../../../../internal/collab/local_client.go)，转发边界见 [批注工具与运行时配置协议](../protocol.md#共享运行时的批注工具) |
+| 模型继承、确认与写入约束 | [model.go](../../../../internal/collab/model.go)、[rpc.go](../../../../internal/collab/rpc.go) |
+| Claude 原生 TUI 与个人辅助配置 | [nativeclaude](../../../../internal/nativeclaude/)、[claude.go](../../../../internal/collab/claude.go)、[mcp.go](../../../../internal/nativeclaude/mcp.go)；按 [Claude 接入契约](claude-native-tui.md) 区分能力，不套用 Codex 的审批、模型设置或 Desktop 语义 |
+| 通用 MCP 安装与客户端状态 | [MCPConnection.tsx](../../../../packages/web/src/components/MCPConnection.tsx)；稳定路径、协议探测和实际调用分别按 [首次体验](../distribution-and-onboarding.md#首次协作) 检查 |
+
+检查 [模型回归](../../../../internal/collab/model_test.go)、[启动配置回归](../../../../internal/nativecodex/process_test.go) 与 [本机登录和输入测试](../../../../internal/collab/collab_test.go)，再按 [验证门槛](../validation/test-gates.md) 选择实际客户端验收。

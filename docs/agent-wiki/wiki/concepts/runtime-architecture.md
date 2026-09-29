@@ -26,7 +26,7 @@ Go Core 负责空间、已发布材料与本机管理；启用执行时，A 的�
 
 修改启动、恢复或并发状态后，按 [验证门槛](validation-gates.md) 完成 Go 测试与相关 race test。
 
-相关任务：[原生客户端](native-clients-and-models.md) · [输入与共享](input-and-sharing.md) · [目录与生命周期](workspace-and-lifecycle.md)
+相关任务：[原生客户端](../../sources/decisions/native-clients-and-models.md) · [输入与共享](../../sources/decisions/input-and-sharing.md) · [目录与生命周期](../../sources/decisions/workspace-and-lifecycle.md)
 
 CLI、App、MCP 现在共用按数据目录发现的后台 Core；默认 serve 在后台运行，调试用 --foreground。实例身份、版本和受控停止见 [分发与首次体验](../../sources/distribution-and-onboarding.md)。
 

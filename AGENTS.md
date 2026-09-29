@@ -4,9 +4,9 @@
 
 ## 进入仓库
 
-1. 读 [README.md](README.md)，了解用户能做什么、如何启动以及当前支持范围。
-2. 读 [Agent Wiki 索引](docs/agent-wiki/wiki/index.md)，按任务选择短页面。
-3. 需要完整依据时，沿短页面进入 `sources/` 和相关代码；产品范围以用户已确认的方案为准，代码和测试说明实际能力。
+1. 遵守本文件的全局约束，按 [Agent Wiki 索引](docs/agent-wiki/wiki/index.md) 定位本次任务相关的来源或代码；已知入口时可直接进入。
+2. 需要跨主题理解时选读对应概念页，再按问题追溯来源；不要求每次依次读完 README、概念页和来源。
+3. 不熟悉产品、启动方式或支持范围时读 [README.md](README.md)。产品范围以用户已确认的方案为准，代码和测试说明实际能力。
 
 ## 产品与工程边界
 
@@ -33,8 +33,8 @@
 
 ## 文档维护
 
-- [Agent Wiki 说明](docs/agent-wiki/README.md) 定义维护流程。`sources/` 保存完整事实、决策与验证契约，`wiki/concepts/` 保存短小的任务上下文，`wiki/index.md` 负责导航。
-- 影响长期判断的改动在同一提交中同步来源与对应短页面，并检查本文件和 README 的入口。
+- [Agent Wiki 说明](docs/agent-wiki/README.md) 定义维护流程。`sources/` 保存完整事实、决策与验证契约，`wiki/index.md` 直接指向来源或代码；需要跨主题导航时才设置 `wiki/concepts/`，不要求来源与概念页一一对应。
+- 影响长期判断时，在同一提交中更新该事实的主要维护位置；只有摘要内容或阅读入口也发生变化时，才同步概念页、索引、本文件或 README。未改变长期知识的小改动不新增文档。
 - [核心词汇](docs/agent-wiki/sources/product-core-and-glossary.md) 负责产品语义，[协议](docs/agent-wiki/sources/protocol.md) 负责字段与路由；短页面不重复维护完整规范。
 - 旧现场与 main 迁移见 [IMPLEMENTATION.md](IMPLEMENTATION.md)。归档材料只供考据，不能把旧产品边界重新当作当前要求。
 - `sources/` 与 `wiki/` 不保存一次性日志、普通 TODO 或未验证猜测；确有接续价值的内容按任务规则记录。凭据和真实邀请 secret 不写入任何文档；未来 compiler 的 `.llmwiki/` 状态保持本地忽略。

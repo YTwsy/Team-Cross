@@ -44,4 +44,4 @@ main 已采用原生协作架构，当前仍处于原型阶段，可以按确认
 
 [用户说明](../../../README.md) · [产品流程](product-flows.md) · [核心词汇](product-core-and-glossary.md) · [架构](architecture.md) · [协议](protocol.md) · [验收导航](../wiki/concepts/validation-gates.md)
 
-产品方向、主要入口或支持范围变化时，先同步本页与核心词汇，再更新相关决策和任务页面。
+产品方向、主要入口或支持范围变化时更新本页；词汇、决策或导航各自在实际内容变化时更新，按 [Wiki 更新流程](../README.md#更新流程) 维护。

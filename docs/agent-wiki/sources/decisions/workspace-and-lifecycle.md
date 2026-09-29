@@ -9,9 +9,11 @@
 | `existing` | 使用来源执行目录，保留当前分支、暂存区和所有现有文件 | 用户选择的是当前现场，不应隐式切分支或替换文件 |
 | `worktree` | 从确认的 HEAD 检出，创建 `codex/collab-<短 ID>`，映射来源子目录 | 与普通 Git worktree 的干净检出行为一致，不额外建立 dirty patch 或未跟踪文件搬运流程 |
 
+原目录创建不改文件，不代表后续 Agent 不能按用户输入修改原目录。来源在仓库子目录时，`executionCwd` 指向该子目录在所选工作目录中的对应位置。
+
 预览绑定来源、完成轮、模式、目录、HEAD 和分支。起点变化后重新确认，不把旧预览当作创建当前状态的授权。原目录中的未提交内容是实时现场，不宣称已经生成它的内容快照。
 
-创建、预览与读取不发送业务 prompt。恢复已有协作使用保存的 `sessionId` 和 `executionCwd`，不再次 fork 或创建 worktree。
+创建、预览与读取不发送业务 prompt。恢复已有协作使用保存的 `sessionId` 和 `executionCwd`，不再次 fork 或创建 worktree。Claude 的零输入 fork、存活 worker 重新绑定与恢复参数限制见 [Claude 单一执行端](claude-native-tui.md#单一执行端)。
 
 个人 MCP 分享当前 Session 时，工具调用属于正在进行的来源轮次，不能同步等这轮完成。采用“核对身份、预览、登记、工具返回、本轮结束后创建”的顺序，保留完整最后答复。预览锁定本轮及 Git/模式/传输；等待期间出现新轮次或起点变化即停止。等待请求可取消，创建开始后保留实际结果；Core 重启不自动重放。身份缺失回到明确选择来源，不把最近会话当作当前会话。字段和状态见 [当前 Session 与延后分享](../protocol.md#当前-session-与延后分享)。
 
@@ -32,6 +34,6 @@
 - [工作目录实现](../../../../internal/workspace/workspace.go) 与 [目录测试](../../../../internal/workspace/workspace_test.go)：原目录前后 Git 状态、四类未提交内容、子目录映射。
 - [创建与恢复](../../../../internal/collab/app.go) 与 [协作测试](../../../../internal/collab/collab_test.go)：新 fork、来源关联、无隐式 prompt、恢复同一 ID。
 - [延后分享](../../../../internal/collab/current_share.go) 与 [请求测试](../../../../internal/collab/current_share_test.go)：身份核对、当前轮完成、起点变化、取消、请求去重与重启不重放。
-- [生命周期与共享](../../../../internal/collab/network.go)：结束访问与重开运行时。
+- [生命周期与共享](../../../../internal/collab/network.go)、[空闲释放](../../../../internal/collab/lifecycle.go)：结束访问、重开运行时与旧连接隔离。
 
-完整字段见 [协议](../protocol.md)，任务入口见 [目录与生命周期](../../wiki/concepts/workspace-and-lifecycle.md)。
+完整字段见 [协议](../protocol.md)，用户动作见 [产品流程](../product-flows.md)。涉及真实原生 fork 时，按 [验证门槛](../validation/test-gates.md) 使用专用 Luna 会话与测试仓库，不在用户已有工作目录写入证明文件。

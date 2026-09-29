@@ -2,7 +2,7 @@
 
 菜单栏协作速览提供平级的“当前协作 / 资源速览”。当前协作显示未结束、未离开的空间并打开详情；资源筛选和选择在视图切换间保留。速览使用单一页面滚动，服务菜单与筛选同列；完整约定见 [资源库与速览](../../sources/decisions/resource-library.md#macos-协作速览)。
 
-WebGUI 提供协作管理、材料阅读与原文讨论；执行交互在对应原生客户端。MCP 让普通本地会话访问已发起或加入的协作。先核对 [产品流程](../../sources/product-flows.md) 与 [协议](../../sources/protocol.md)。
+WebGUI 提供协作管理、材料阅读与原文讨论；执行交互在对应原生客户端。MCP 让普通本地会话访问已发起或加入的协作。按本次修改范围查阅 [产品流程](../../sources/product-flows.md) 或 [协议](../../sources/protocol.md) 的对应章节。
 
 界面语言由本机 Core 共用偏好控制，默认按 macOS 首选语言决定：中文使用简体中文，其余使用英文。菜单栏“语言”和 WebGUI“设置与连接 → 界面语言”手动选择会同步影响两端；会话与用户内容不翻译。实现见 [界面语言](../../sources/product-flows.md#界面语言)、[Web 消息表](../../../../packages/web/src/i18n.ts)、[Core 偏好](../../../../internal/collab/ui_language.go) 与 [App 语言资源](../../../../apps/macos/AppLanguage.swift)。
 
@@ -70,7 +70,7 @@ WebGUI 的材料读取首页显式请求轮次目录；未指定 Agent 视图的
 
 [前端路径测试](../../../../packages/web/src/test/flows.test.tsx) · [MCP 测试](../../../../internal/mcp/server_test.go) · [浏览器与工程门槛](../../sources/validation/test-gates.md)
 
-相关任务：[产品模型](product-model-and-glossary.md) · [输入与共享](input-and-sharing.md) · [原生客户端](native-clients-and-models.md)
+相关任务：[产品模型](product-model-and-glossary.md) · [输入与共享](../../sources/decisions/input-and-sharing.md) · [原生客户端](../../sources/decisions/native-clients-and-models.md)
 
 首次流程支持创建并邀请、App 邀请确认后进入上下文，以及 MCP 配置/协议探测/实际调用分别展示。完整规则见 [分发与首次体验](../../sources/distribution-and-onboarding.md)。
 

@@ -4,11 +4,11 @@ Team Cross 空间保存成员、已发布会话材料与讨论；可独立只读
 
 设计从已有 Session 和会话记录入手，让人的经验和判断能及时加入正在进行的工作，并保留各自的工具。个人资源库也让当前 Agent 按选择接上此前分享或参与的上下文；本机托管、连接方式与设计原因见 [项目简报](../../sources/project-brief.md#设计出发点)。
 
-空间及三人以上流程先读 [协作空间任务页](collaboration-spaces.md) 和 [完整契约](../../sources/decisions/collaboration-spaces.md)；不要把只读材料与可操作 fork 混为同一个对象。
+涉及空间及三人以上流程时，可从 [协作空间任务页](collaboration-spaces.md) 定位，具体范围查 [完整契约](../../sources/decisions/collaboration-spaces.md)；不要把只读材料与可操作 fork 混为同一个对象。
 
-## 先读
+## 按问题查来源
 
-[项目简报](../../sources/project-brief.md) · [完整词汇](../../sources/product-core-and-glossary.md) · [用户流程](../../sources/product-flows.md)
+[项目简报](../../sources/project-brief.md) 解释定位与范围，[完整词汇](../../sources/product-core-and-glossary.md) 定义语义，[用户流程](../../sources/product-flows.md) 描述用户动作；按本次问题选读。
 
 项目许可证为 [GPL-3.0-only](../../../../LICENSE)，适用范围见 [项目简报](../../sources/project-brief.md#开源协议)。
 
@@ -29,6 +29,6 @@ Team Cross 空间保存成员、已发布会话材料与讨论；可独立只读
 
 类型从 [types.go](../../../../internal/collab/types.go) 开始，界面入口在 [App.tsx](../../../../packages/web/src/App.tsx) 和 [页面组件](../../../../packages/web/src/components/)。命名变更应同时检查来源、API 字段、界面文案与 [产品路径测试](../../../../packages/web/src/test/flows.test.tsx)。
 
-相关任务：[目录与生命周期](workspace-and-lifecycle.md) · [WebGUI 与 MCP](webgui-and-mcp.md) · [验证](validation-gates.md)
+相关任务：[目录与生命周期](../../sources/decisions/workspace-and-lifecycle.md) · [WebGUI 与 MCP](webgui-and-mcp.md) · [验证](validation-gates.md)
 
 当前 Provider 包含 Codex 与实验性的 Claude Code 原生 TUI。两者共享协作、目录与输入归属语义；客户端和控制方法支持范围按 [Claude 接入契约](../../sources/decisions/claude-native-tui.md) 区分。

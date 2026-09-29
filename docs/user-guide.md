@@ -30,7 +30,7 @@ App 自带完整 CLI 和 Core，不要求 Homebrew。Cask 同时安装 App 和 `
 
 当前安装包使用 ad-hoc 签名，未经 Developer ID 签名或 Apple 公证。首次打开如果受到系统提示，先尝试打开 App，再按 [Apple 的说明](https://support.apple.com/zh-cn/102445) 在“系统设置 → 隐私与安全性”中允许打开。构建清单记录每个安装包的签名和公证状态。
 
-阅读已发布材料不需要先安装 Codex 或准备本地仓库。发起协作、直接操作或使用 MCP 辅助时，按页面提示使用对应的 Codex 或 Claude Code。客户端接入范围见 [原生客户端与模型](agent-wiki/wiki/concepts/native-clients-and-models.md)，各版本的实际测试范围见 [验收导航](agent-wiki/wiki/concepts/validation-gates.md)。
+阅读已发布材料不需要先安装 Codex 或准备本地仓库。发起协作、直接操作或使用 MCP 辅助时，按页面提示使用对应的 Codex 或 Claude Code。客户端接入范围见 [原生客户端与模型](agent-wiki/sources/decisions/native-clients-and-models.md)，各版本的实际测试范围见 [验收导航](agent-wiki/wiki/concepts/validation-gates.md)。
 
 ## 打开 Team Cross
 

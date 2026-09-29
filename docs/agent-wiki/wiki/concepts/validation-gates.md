@@ -25,4 +25,4 @@ GitHub `CI` workflow 自动执行 Go/Web 与 Homebrew 定义工程门槛；unsig
 
 仅整理文档时检查链接、旧引用、代码路径和索引可达性即可，不重复启动这些运行时。只有证据类别或当前阅读入口变化时，才更新本页与 [任务索引](../index.md)；普通执行记录不要求同步导航。
 
-相关任务：[目录](workspace-and-lifecycle.md) · [原生客户端](native-clients-and-models.md) · [输入与共享](input-and-sharing.md) · [WebGUI/MCP](webgui-and-mcp.md)
+相关任务：[目录](../../sources/decisions/workspace-and-lifecycle.md) · [原生客户端](../../sources/decisions/native-clients-and-models.md) · [输入与共享](../../sources/decisions/input-and-sharing.md) · [WebGUI/MCP](webgui-and-mcp.md)

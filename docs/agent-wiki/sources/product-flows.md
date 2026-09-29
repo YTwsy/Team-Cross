@@ -54,7 +54,7 @@
 
 发起、结束协作均不要求提出问题、生成摘要、收集独立 Evidence 或验证成果。是否提交代码、导出 patch、创建 PR，由用户在自己的开发工具中决定。
 
-流程变更同时更新本页、[产品模型](../wiki/concepts/product-model-and-glossary.md) 和对应的界面或客户端上下文。已完成的客户端组合见 [2026-09-09 验收记录](../tasks/finished_archived/native-collaboration-2026-09-09.md)，不能将流程描述本身当作实测结果。
+用户动作变化时更新本页；只有相关摘要或阅读入口也变化时，才更新概念页或索引，按 [Wiki 更新流程](../README.md#更新流程) 维护。已完成的客户端组合见 [2026-09-09 验收记录](../tasks/finished_archived/native-collaboration-2026-09-09.md)，不能将流程描述本身当作实测结果。
 
 ## 邀请与持续访问
 

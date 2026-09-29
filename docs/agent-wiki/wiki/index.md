@@ -1,6 +1,6 @@
 # Agent Wiki 索引
 
-这里是 Team Cross 当前 Codex 原生协作主线的任务导航。从根目录 [AGENTS.md](../../../AGENTS.md) 和 [README](../../../README.md) 进入后，按修改范围选读；不必每次加载全部来源文档。
+这里是 Team Cross 当前 Codex 原生协作主线的任务导航。遵守根目录 [AGENTS.md](../../../AGENTS.md)，按修改范围直接进入来源或代码；需要跨主题上下文时选读概念页。不熟悉产品或启动方式时再读 [README](../../../README.md)。
 
 面向用户的详细操作见 [使用指南](../../user-guide.md)，本地开发与构建入口见 [开发与构建](../sources/development.md)。
 
@@ -12,9 +12,9 @@
 | 判断产品范围、命名或用户流程 | [产品模型与词汇](concepts/product-model-and-glossary.md) | [协作类型](../../../internal/collab/types.go)、[WebGUI](../../../packages/web/src/) |
 | 修改只读分享、三人以上与多会话材料 | [协作空间](concepts/collaboration-spaces.md) | [空间](../../../internal/collab/spaces.go)、[材料](../../../internal/collab/materials.go)、[MCP](../../../internal/mcp/materials.go) |
 | 调整模块、启动或数据路径 | [运行时架构](concepts/runtime-architecture.md) | [CLI](../../../cmd/teamcross/main.go)、[协作核心](../../../internal/collab/app.go) |
-| 修改原目录、worktree、fork 或恢复 | [目录与生命周期](concepts/workspace-and-lifecycle.md) | [workspace](../../../internal/workspace/)、[app.go](../../../internal/collab/app.go) |
-| 修改 TUI/Desktop、登录、模型或原生接入 | [原生客户端与模型](concepts/native-clients-and-models.md) | [nativecodex](../../../internal/nativecodex/)、[本机路由](../../../internal/collab/local_client.go) |
-| 修改邀请、输入交接、审批或断线处理 | [输入协调与共享](concepts/input-and-sharing.md) | [rpc.go](../../../internal/collab/rpc.go)、[network.go](../../../internal/collab/network.go) |
+| 修改原目录、worktree、fork 或恢复 | [目录与生命周期](../sources/decisions/workspace-and-lifecycle.md) | [workspace](../../../internal/workspace/)、[app.go](../../../internal/collab/app.go) |
+| 修改 TUI/Desktop、登录、模型或原生接入 | [原生客户端与模型](../sources/decisions/native-clients-and-models.md) | [nativecodex](../../../internal/nativecodex/)、[本机路由](../../../internal/collab/local_client.go) |
+| 修改邀请、输入交接、审批或断线处理 | [输入协调与共享](../sources/decisions/input-and-sharing.md) | [rpc.go](../../../internal/collab/rpc.go)、[network.go](../../../internal/collab/network.go) |
 | 修改页面、上下文、批注或辅助工具 | [WebGUI 与本地 MCP](concepts/webgui-and-mcp.md) | [WebGUI](../../../packages/web/src/)、[MCP](../../../internal/mcp/server.go) |
 | 修改资源库、选择清单或菜单栏速览 | [资源库与速览](../sources/decisions/resource-library.md) | [资源库](../../../internal/collab/library.go)、[界面](../../../packages/web/src/components/Library.tsx)、[App](../../../apps/macos/TeamCross.swift) |
 | 选择测试或判断验收结论 | [验证门槛](concepts/validation-gates.md) | [自动化与真实验证入口](../sources/validation/test-gates.md) |
@@ -34,6 +34,6 @@
 
 ## 维护
 
-本索引和短页面引用来源与代码，不另建产品规则。实现影响长期判断时，同步来源和对应短页面；维护方法见 [Agent Wiki 说明](../README.md)。任务文件按需创建，收尾后移入 `docs/agent-wiki/tasks/finished_archived/`，不在本索引追加历史验收清单；具体规则见 [任务记录与历史归档](../README.md#任务记录)。旧原型与已结束任务的归档只用于定向追溯，当前产品范围由有效来源文档与用户已确认的决定确定。
+本索引和概念页引用来源与代码，不另建产品规则。事实变化更新其主要来源，只有摘要内容或导航变化时才更新概念页与本索引；维护方法见 [Agent Wiki 说明](../README.md)。任务文件按需创建，收尾后移入 `docs/agent-wiki/tasks/finished_archived/`，不在本索引追加历史验收清单；具体规则见 [任务记录与历史归档](../README.md#任务记录)。旧原型与已结束任务的归档只用于定向追溯，当前产品范围由有效来源文档与用户已确认的决定确定。
 
 安装和首次体验：[分发与首次体验](../sources/distribution-and-onboarding.md)。

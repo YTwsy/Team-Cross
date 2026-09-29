@@ -124,7 +124,7 @@ Tailcat 建立时允许网络等待，Session 锁在启动期间释放；详情�
 
 ## 维护入口
 
-实现以 [协作核心](../../../internal/collab/)、[原生连接](../../../internal/nativecodex/)、[工作目录](../../../internal/workspace/)、[共享传输](../../../internal/sharing/) 和 [MCP](../../../internal/mcp/) 为准。修改职责或运行时边界时，同步更新本页、相关决策与 [Wiki 索引](../wiki/index.md)。
+实现以 [协作核心](../../../internal/collab/)、[原生连接](../../../internal/nativecodex/)、[工作目录](../../../internal/workspace/)、[共享传输](../../../internal/sharing/) 和 [MCP](../../../internal/mcp/) 为准。职责或运行时边界变化时更新本页；相关决策或导航只在其内容变化时更新，按 [Wiki 更新流程](../README.md#更新流程) 维护。
 
 ## 桌面分发与后台启动
 
