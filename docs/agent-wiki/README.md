@@ -1,60 +1,98 @@
 # Team Cross Agent Wiki
 
-这里是面向 coding agent 的工程知识层，帮助后续任务快速找到产品约束、相关代码和验证方法。当前采用手工维护，沿用 OpenSurge 与 Team Cross 早期 Agent Wiki 的目录组织方式。
+这里组织当前工程知识和按需的任务记录，帮助后续工作找到产品约束、相关代码、验证方法及必要的接续信息。`sources/` 与 `wiki/` 描述当前项目，`tasks/` 保存具体工作的过程与证据；任务记录中的临时判断不作为当前项目约束。
 
-从 [任务索引](wiki/index.md) 开始。面向用户的产品概览与快速开始见根目录 [README](../../README.md)，详细操作见 [使用指南](../user-guide.md)，本地构建与检查见 [开发与验证](../development.md)。
+从 [任务索引](wiki/index.md) 按修改范围选读。产品概览与公共阅读入口见根目录 [README](../../README.md)，用户操作见 [使用指南](../user-guide.md)，本地开发见 [开发与构建](sources/development.md)。
 
 ## 目录与职责
 
 ```text
 docs/agent-wiki/
-  README.md
-  sources/
-    project-brief.md
-    product-core-and-glossary.md
-    product-flows.md
-    architecture.md
-    protocol.md
-    decisions/
-      workspace-and-lifecycle.md
-      native-clients-and-models.md
-      input-and-sharing.md
-    validation/
-      test-gates.md
-  wiki/
-    index.md
-    concepts/
-      ...
+├── README.md                       本维护规则
+├── sources/
+│   ├── development.md              环境、启动与开发调试
+│   ├── architecture.md             架构等当前工程事实
+│   ├── decisions/                  当前决策与取舍
+│   └── validation/test-gates.md    当前验证方法与通过标准
+├── wiki/
+│   ├── index.md                    工程任务导航
+│   └── concepts/                   简短上下文与来源入口
+└── tasks/
+    ├── <task-id>.md                 按需创建的活跃任务记录
+    └── finished_archived/           已结束记录，默认检索排除
 ```
 
-- `sources/` 保存完整的稳定事实：产品范围、流程、架构和协议。每类事实有一个主要维护位置。
-- `sources/decisions/` 记录取舍、原因、影响及何时需要重新评估。
-- `sources/validation/` 保存当前可复用的验证方法、通过标准与结论边界；指定版本的执行报告按 [任务记录与历史归档](../tasks/README.md) 管理。
-- `wiki/concepts/` 提供短小的任务上下文，说明先读什么、改哪里、守住什么、如何验证，并链接回来源和实现。
-- `wiki/index.md` 负责检索与导航；根目录 [AGENTS.md](../../AGENTS.md) 负责首次进入仓库的阅读顺序。
+图中的任务文件只是示例，不需要预先创建。
 
-当前没有启用自动 wiki compiler。目录形状为未来刷新、审查和上下文包工作流保留空间；若接入 compiler，本地状态使用 `.llmwiki/`，该目录已被 Git 忽略。
+- `sources/` 保存完整的当前事实：开发方法、产品范围、流程、架构和协议。每类事实有一个主要维护位置。
+- `sources/decisions/` 记录当前取舍、原因、影响及何时需要重新评估。
+- `sources/validation/` 保存可复用的验证方法、通过标准与结论边界，具体执行结果按 [任务记录](#任务记录) 留存。
+- `wiki/concepts/` 提供短小的任务上下文，说明先读什么、改哪里、守住什么、如何验证，并链接回来源和实现。
+- `wiki/index.md` 负责工程任务导航；根目录 [AGENTS.md](../../AGENTS.md) 负责首次进入仓库的阅读顺序和必要行为规则。
+- `tasks/` 保存本次目标、临时判断、执行观察和未完成事项；归档记录只说明当时版本与环境下的判断。
+
+当前采用手工维护，没有启用自动 wiki compiler；未来 compiler 的本地状态使用已被 Git 忽略的 `.llmwiki/`。
 
 ## 事实来源
 
 用户已确认的产品决策确定目标；代码和测试说明当前实际能力。二者不一致时，应明确记录差异并修正相关实现或说明，不能把计划写成已经验收。
 
-[产品核心与词汇](sources/product-core-and-glossary.md) 负责语义，[产品流程](sources/product-flows.md) 负责用户动作，[架构](sources/architecture.md) 负责职责，[协议](sources/protocol.md) 负责字段与路由。Wiki 只保留任务所需摘要，不另行复制完整协议表。
+[产品核心与词汇](sources/product-core-and-glossary.md) 负责语义，[产品流程](sources/product-flows.md) 负责用户动作，[架构](sources/architecture.md) 负责职责，[协议](sources/protocol.md) 负责字段与路由。短页面只保留任务所需摘要，不另行复制完整规范。
 
-本次恢复的是知识组织方式。当前内容以 main 的 Codex 原生协作为基准；旧 Thread、Round、Evidence、managed Bridge、旧 Claude Bridge 和旧传输方案仍属于历史实现。新的实验性 Claude 原生 TUI 以 [当前接入契约](sources/decisions/claude-native-tui.md) 为准。需要考据时查看 [迁移记录](../../IMPLEMENTATION.md) 指向的归档提交。
+当前内容以 main 的 Codex 原生协作为基准；旧 Thread、Round、Evidence、managed Bridge、旧 Claude Bridge 和旧传输方案属于历史实现。实验性 Claude 原生 TUI 以 [当前接入契约](sources/decisions/claude-native-tui.md) 为准。需要追溯旧现场时，查看 [迁移记录](../../IMPLEMENTATION.md) 指向的归档提交。
 
 ## 更新流程
 
-1. 判断变化是否会影响未来任务的产品或工程判断。
-2. 更新对应来源；涉及新的取舍时补充决策的原因和重新评估条件。
-3. 同步更新关联的短页面，检查任务索引、AGENTS 和 README 的入口。
-4. 按 [验证门槛](sources/validation/test-gates.md) 执行与变更相关的检查，将实际结果与待验收范围分开记录。
-5. 在同一提交中检查相对链接、代码路径和已经移除的引用。
+1. 判断变化是否影响未来任务的产品或工程判断；有影响时更新对应来源，涉及新的取舍时记录原因和重新评估条件。
+2. 上下文或阅读入口变化时，同步关联短页面与任务索引，并检查 AGENTS 和 README 的入口。
+3. 按 [验证门槛](sources/validation/test-gates.md) 执行适用检查，将实际结果与未覆盖范围分开记录。
+4. 在同一提交中检查相对链接、代码路径和旧引用。
 
-这些更新随开发分支中的代码推进，不集中拖到合入时。修复既有行为、样式微调等未改变长期知识的工作，不必为每个 fix 新增决策、概念页或任务文件。
+确定下来的长期知识随开发分支中的代码推进，不集中拖到合入时。恢复既有行为、样式微调等未改变长期知识的工作，不必新增决策或概念页。
 
-Markdown 默认使用简体中文；API、命令、协议字段和代码标识符保持英文。实际验证结果注明日期、版本、环境和未覆盖范围，按需保存在任务记录中；收尾后移入 `docs/tasks/finished_archived/`。已有单份报告可直接按原文件名归档，不强制补目录与 README。
+Markdown 默认使用简体中文；API、命令、协议字段和代码标识符保持英文。`sources/` 与 `wiki/` 不堆积一次性日志、普通 TODO 或未验证猜测；这些内容确有接续价值时，放进任务记录并明确其状态。凭据和真实邀请 secret 不写入任何文档。文档整理本身不需要启动 Codex、调用模型或打开测试客户端。
 
-Wiki 索引和概念页聚焦当前知识，不持续追加历史报告清单。当前来源可以保留必要的历史证据链接，但归档不作为默认阅读材料，也不自动证明后续版本通过。普通搜索通过仓库根目录 `.ignore` 排除归档，具体追溯方法见 [任务记录规则](../tasks/README.md)。
+## 任务记录
 
-一次性日志、临时命令输出、普通 TODO、未验证猜测、账户凭据和真实邀请 secret 不进入 Wiki。文档整理本身不需要启动 Codex、调用模型或打开测试客户端。
+默认不创建任务文件。能在当前对话与代码差异中讲清楚的小改动，在提交或 PR 中简要说明改动与实际检查即可。记录形式取决于中断接续、交接和调查复杂度；验证力度仍按变更风险与验证门槛决定。
+
+| 情况 | 记录方式 |
+| --- | --- |
+| 状态栏折叠、局部布局或文案调整 | 通常无需任务文件，保留必要检查与交付说明 |
+| 跨会话推进，需要保留当前判断和下一步 | 一份 `tasks/<task-id>.md` 即可 |
+| 多方案调查或多环境验收，单文件已不便阅读 | 使用 `tasks/<task-id>/README.md`，按需拆出 `validation.md` 等材料 |
+
+以上路径相对于本 Agent Wiki 目录。这些形式不是每个任务必填的模板。若已有任务系统维护负责人、完成状态和下一步，任务文件只补充必要的调查或证据，不独立维护另一套状态。
+
+实际验证写明日期、被测提交、环境、检查、结果、证据位置与未覆盖项；包含未提交改动时明确说明。重要外部证据要有明确的保存位置，单独留下本机临时路径不等于已长期保存。大型日志和临时产物不直接堆入文档。
+
+### 收尾与归档
+
+1. 确认仍然有效的设计与验证要求已进入当前来源；尚需推进的问题留在活跃任务或当前限制说明中。
+2. 保留本次实际结果、版本、环境和未覆盖项。归档表示这一轮工作或记录已收尾，不表示所有场景均已通过。
+3. 将已有任务文件或目录移到 `tasks/finished_archived/`，修复外部引用与内部相对链接，并随文档改动提交到 Git。
+
+归档保留当时的判断与证据，不随新实现改写成当前结论。已有单份验收报告可以按原文件名直接归档，不必补建任务目录或 README，也不把整份执行报告搬进 `sources/validation/`。
+
+## 检索边界
+
+普通开发优先读取当前来源、短页面和相关代码，活跃任务只按本次工作需要选读；任务目录位于 Agent Wiki 内也不意味着要批量加载。Wiki 索引与短页面不持续追加历史报告清单。
+
+仓库根目录的 `.ignore` 将 `docs/agent-wiki/tasks/finished_archived/` 和 `docs/releases/` 排除出普通 `rg` 与 `rg --files`。这些文件继续由 Git 跟踪，不加入 `.gitignore`。发布说明是具体版本的变更与交付记录，不作为当前功能规范；发布流水线按指定路径读取它们。
+
+编写发布说明、比较版本、追溯回归，或当前资料不足以解释具体问题时，可以定向读取必要的历史材料。从仓库根目录运行：
+
+```sh
+# 当前工程知识。
+rg -n -- '关键词' docs/agent-wiki/sources docs/agent-wiki/wiki
+
+# 追溯具体任务的历史证据。
+rg --no-ignore -n -- '关键词' docs/agent-wiki/tasks/finished_archived
+
+# 编写发布说明或比较具体版本。
+rg --no-ignore -n -- '关键词' docs/releases
+```
+
+当前文档和发布说明可以保留必要的历史证据链接；沿链接读取前明确要追溯的问题，核对记录版本与当前实现，不递归展开所有引用，也不把旧版本通过结果当作本次验证。
+
+`.ignore` 是默认检索规则，不是访问权限。直接读取、其他搜索工具或覆盖过滤的参数仍可访问这些目录；全文索引需要单独排除历史归档与发布说明。

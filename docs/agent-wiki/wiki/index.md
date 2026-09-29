@@ -2,12 +2,13 @@
 
 这里是 Team Cross 当前 Codex 原生协作主线的任务导航。从根目录 [AGENTS.md](../../../AGENTS.md) 和 [README](../../../README.md) 进入后，按修改范围选读；不必每次加载全部来源文档。
 
-面向用户的详细操作见 [使用指南](../../user-guide.md)，本地开发与构建入口见 [开发与验证](../../development.md)。
+面向用户的详细操作见 [使用指南](../../user-guide.md)，本地开发与构建入口见 [开发与构建](../sources/development.md)。
 
 ## 按任务阅读
 
 | 当前任务 | 优先阅读 | 主要实现 |
 | --- | --- | --- |
+| 搭建环境、本地开发或构建 | [开发与构建](../sources/development.md) | [Makefile](../../../Makefile)、[工具链要求](../../../package.json) |
 | 判断产品范围、命名或用户流程 | [产品模型与词汇](concepts/product-model-and-glossary.md) | [协作类型](../../../internal/collab/types.go)、[WebGUI](../../../packages/web/src/) |
 | 修改只读分享、三人以上与多会话材料 | [协作空间](concepts/collaboration-spaces.md) | [空间](../../../internal/collab/spaces.go)、[材料](../../../internal/collab/materials.go)、[MCP](../../../internal/mcp/materials.go) |
 | 调整模块、启动或数据路径 | [运行时架构](concepts/runtime-architecture.md) | [CLI](../../../cmd/teamcross/main.go)、[协作核心](../../../internal/collab/app.go) |
@@ -22,9 +23,7 @@
 ## 完整事实来源
 
 - [个人资源库与资源速览决策](../sources/decisions/resource-library.md)：本机索引、固定引用编号、个人/共享入口、设置保留和菜单栏取舍。
-
 - [只读分享与多人协作空间](../sources/decisions/collaboration-spaces.md)：用户确认的空间组织方式、设计基线、已实现范围与限制；具体测试证据见对应验收记录。
-
 - [项目简报](../sources/project-brief.md)：定位、支持范围与主要边界。
 - [核心模型与词汇](../sources/product-core-and-glossary.md)、[产品流程](../sources/product-flows.md)：产品语义与用户动作。
 - [架构](../sources/architecture.md)、[协议](../sources/protocol.md)：完整职责、数据流、字段与路由。
@@ -35,6 +34,6 @@
 
 ## 维护
 
-本索引和短页面引用来源与代码，不另建产品规则。实现影响长期判断时，同步来源和对应短页面；维护方法见 [Agent Wiki 说明](../README.md)。任务文件按需创建，收尾后移入 `docs/tasks/finished_archived/`，不在本索引追加历史验收清单；具体规则见 [任务记录与历史归档](../../tasks/README.md)。旧原型与已结束任务的归档只用于定向追溯，当前产品范围由有效来源文档与用户已确认的决定确定。
+本索引和短页面引用来源与代码，不另建产品规则。实现影响长期判断时，同步来源和对应短页面；维护方法见 [Agent Wiki 说明](../README.md)。任务文件按需创建，收尾后移入 `docs/agent-wiki/tasks/finished_archived/`，不在本索引追加历史验收清单；具体规则见 [任务记录与历史归档](../README.md#任务记录)。旧原型与已结束任务的归档只用于定向追溯，当前产品范围由有效来源文档与用户已确认的决定确定。
 
 安装和首次体验：[分发与首次体验](../sources/distribution-and-onboarding.md)。

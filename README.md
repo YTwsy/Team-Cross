@@ -6,7 +6,7 @@ Team Cross 是 macOS 上围绕 Coding Agent 会话展开的开源本地协作工
 
 继续使用熟悉的终端和原生客户端，也可以打开 WebGUI 查看共同上下文。协作空间与共享执行托管在发起者的 Mac，个人 Agent 通过 MCP 按需参与，各自保留自己的会话、模型与本地上下文。
 
-[交互演示](https://teamcross.pages.dev/) · [下载 v0.2.6 正式版](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.6) · [使用指南](docs/user-guide.md) · [文档导航](docs/README.md)
+[交互演示](https://teamcross.pages.dev/) · [下载 v0.2.6 正式版](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.6) · [使用指南](docs/user-guide.md) · [工程文档](docs/agent-wiki/wiki/index.md)
 
 <img width="2400" height="1500" alt="Team Cross" src="https://github.com/user-attachments/assets/ca8316f5-f7a3-441f-a2a9-317822355187" />
 
@@ -153,6 +153,5 @@ make build
 ```
 
 - [使用指南](docs/user-guide.md)：安装升级、CLI / MCP、阅读批注、输入交接与恢复。
-- [开发与验证](docs/development.md)：本地开发、构建安装包、工程检查与真实模型测试入口。
-- [Agent Wiki 索引](docs/agent-wiki/wiki/index.md)：产品决策、架构、协议与分版本验收记录；参与开发先读 [AGENTS.md](AGENTS.md)。
-- [文档导航](docs/README.md)：按使用场景查找资料。
+- [开发与构建](docs/agent-wiki/sources/development.md)：环境准备、源码调试、本地安装包与验证入口。
+- [Agent Wiki 索引](docs/agent-wiki/wiki/index.md)：当前产品决策、架构、协议与验证要求；参与开发先读 [AGENTS.md](AGENTS.md)。

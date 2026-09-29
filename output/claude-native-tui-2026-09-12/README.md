@@ -2,7 +2,7 @@
 
 日期：2026-09-12。分支：`Codex/feature/claude-native-tui`。
 
-[正式验收记录](../../docs/tasks/finished_archived/claude-native-tui-2026-09-12.md) 描述环境、检查结果与边界；[可重复运行的实测脚本](../../scripts/verify-claude-native.py) 需要新建专用测试目录。
+[正式验收记录](../../docs/agent-wiki/tasks/finished_archived/claude-native-tui-2026-09-12.md) 描述环境、检查结果与边界；[可重复运行的实测脚本](../../scripts/verify-claude-native.py) 需要新建专用测试目录。
 
 ## 真实执行摘要
 

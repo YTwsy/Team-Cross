@@ -92,6 +92,6 @@ MCP 配置保存稳定 opt/App 绝对路径。通过 Cask 命令链接调用时�
 
 相关来源：[产品流程](product-flows.md) · [架构](architecture.md) · [协议](protocol.md) · [输入协调](decisions/input-and-sharing.md)。
 
-具体版本的实际结果与未覆盖项按 [任务记录规则](../../tasks/README.md) 保存，发布说明可以引用对应记录；本页不累积逐版验收清单。历史开发包的共存设计不作为当前分发规则。
+具体版本的实际结果与未覆盖项按 [任务记录规则](../README.md#任务记录) 保存，发布说明可以引用对应记录；本页不累积逐版验收清单。历史开发包的共存设计不作为当前分发规则。
 
 外部规范：[Apple 自定义 URL Scheme](https://developer.apple.com/documentation/xcode/defining-a-custom-url-scheme-for-your-app) · [Homebrew Cask Cookbook](https://docs.brew.sh/Cask-Cookbook)。

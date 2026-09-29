@@ -6,7 +6,7 @@ Team Cross is an open source collaboration tool for coding agent sessions on mac
 
 Keep using your familiar terminal and native clients, with an optional WebGUI for shared context. Collaboration spaces and shared execution are hosted on the initiator's Mac. Each person's agent participates through MCP on request, keeping its own session, model, and local context.
 
-[Interactive demo](https://teamcross.pages.dev/en) · [Download v0.2.6](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.6) · [User guide](docs/user-guide.en.md) · [Documentation index (中文)](docs/README.md)
+[Interactive demo](https://teamcross.pages.dev/en) · [Download v0.2.6](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.6) · [User guide](docs/user-guide.en.md) · [Engineering docs (中文)](docs/agent-wiki/wiki/index.md)
 
 <img width="2400" height="1500" alt="Team Cross: share session context, discuss with teammates, and hand over input when needed" src="docs/images/concept-en.png" />
 
@@ -153,6 +153,5 @@ make build
 ```
 
 - [User guide](docs/user-guide.en.md): installation, upgrades, CLI and MCP, reading and annotations, input handoffs, and resuming work.
-- [Development and validation (中文)](docs/development.md): local development, packaging, engineering checks, and real-model test entry points.
-- [Agent Wiki index (中文)](docs/agent-wiki/wiki/index.md): product decisions, architecture, protocol, and validation records by version. Read [AGENTS.md (中文)](AGENTS.md) before contributing.
-- [Documentation index (中文)](docs/README.md): find documents by use case.
+- [Development and builds (中文)](docs/agent-wiki/sources/development.md): environment setup, local development, packaging, and validation entry points.
+- [Agent Wiki index (中文)](docs/agent-wiki/wiki/index.md): current product decisions, architecture, protocol, and validation requirements. Read [AGENTS.md (中文)](AGENTS.md) before contributing.

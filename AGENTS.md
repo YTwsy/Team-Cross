@@ -8,20 +8,6 @@
 2. 读 [Agent Wiki 索引](docs/agent-wiki/wiki/index.md)，按任务选择短页面。
 3. 需要完整依据时，沿短页面进入 `sources/` 和相关代码；产品范围以用户已确认的方案为准，代码和测试说明实际能力。
 
-| 当前任务 | 优先阅读 |
-| --- | --- |
-| 产品范围、命名、用户流程 | [产品模型与词汇](docs/agent-wiki/wiki/concepts/product-model-and-glossary.md) |
-| 独立只读分享、三人以上、多会话材料 | [协作空间](docs/agent-wiki/wiki/concepts/collaboration-spaces.md)（已确认目标，分阶段实现中） |
-| 模块、启动、数据路径 | [运行时架构](docs/agent-wiki/wiki/concepts/runtime-architecture.md) |
-| Git、worktree、fork、恢复与结束 | [目录与生命周期](docs/agent-wiki/wiki/concepts/workspace-and-lifecycle.md) |
-| TUI/Desktop、登录、模型与原生接入 | [原生客户端与模型](docs/agent-wiki/wiki/concepts/native-clients-and-models.md) |
-| 邀请、输入交接、审批、断线与共享 | [输入协调与共享](docs/agent-wiki/wiki/concepts/input-and-sharing.md) |
-| 页面、上下文、批注与辅助工具 | [WebGUI 与本地 MCP](docs/agent-wiki/wiki/concepts/webgui-and-mcp.md) |
-| 选择测试与判断验收结论 | [验证门槛](docs/agent-wiki/wiki/concepts/validation-gates.md) |
-| 安装、CLI 入口、App 与 Homebrew 分发 | [分发与首次体验](docs/agent-wiki/sources/distribution-and-onboarding.md) |
-
-完整说明：[产品流程](docs/agent-wiki/sources/product-flows.md) · [架构](docs/agent-wiki/sources/architecture.md) · [协议](docs/agent-wiki/sources/protocol.md)。
-
 ## 产品与工程边界
 
 - 空间托管参与者、已发布材料和讨论，可独立只读分享且支持三人及以上。只有启用共同执行才创建新的原生 fork；原目录保留 Git 现场，新 worktree 从选定 HEAD 检出。结构与范围遵守 [协作空间契约](docs/agent-wiki/sources/decisions/collaboration-spaces.md)。
@@ -41,7 +27,7 @@
 
 按 [验证契约](docs/agent-wiki/sources/validation/test-gates.md) 选择检查。产品代码的工程门槛包括 Go test/vet、相关 race test 和 Web check/test/build；修改前端后更新 `internal/webassets/dist`，进行真实浏览器与截图复核。
 
-仅修改文档时检查相对链接、代码路径、旧引用、索引可达性和 `git diff --check`，无需重新启动模型或测试客户端。`sources/validation/` 维护验证要求；实际执行结果按 [任务记录规则](docs/tasks/README.md) 留存，不将旧验收结果自动推广到后续版本。
+仅修改文档时检查相对链接、代码路径、旧引用、索引可达性和 `git diff --check`，无需重新启动模型或测试客户端。`sources/validation/` 维护验证要求；实际执行结果按 [任务记录规则](docs/agent-wiki/README.md#任务记录) 留存，不将旧验收结果自动推广到后续版本。
 
 验证后关闭本次启动的测试客户端、Core、app-server、浏览器页面及其测试辅助进程；先核对 PID、父子关系或测试目录，不按程序名批量终止用户的 Codex 或浏览器。
 
@@ -51,12 +37,10 @@
 - 影响长期判断的改动在同一提交中同步来源与对应短页面，并检查本文件和 README 的入口。
 - [核心词汇](docs/agent-wiki/sources/product-core-and-glossary.md) 负责产品语义，[协议](docs/agent-wiki/sources/protocol.md) 负责字段与路由；短页面不重复维护完整规范。
 - 旧现场与 main 迁移见 [IMPLEMENTATION.md](IMPLEMENTATION.md)。归档材料只供考据，不能把旧产品边界重新当作当前要求。
-- 不把一次性日志、普通 TODO、未验证猜测、凭据或真实邀请 secret 写入 Wiki；未来 compiler 的 `.llmwiki/` 状态保持本地忽略。
+- `sources/` 与 `wiki/` 不保存一次性日志、普通 TODO 或未验证猜测；确有接续价值的内容按任务规则记录。凭据和真实邀请 secret 不写入任何文档；未来 compiler 的 `.llmwiki/` 状态保持本地忽略。
 
-## 任务记录与归档检索
+## 任务记录与检索
 
-- 默认不创建任务文件；小改动在对话、提交或 PR 中说明改动与必要检查即可。需要跨会话接续、交接或较多调查记录时，按 [任务记录规则](docs/tasks/README.md) 先用单文件，内容较多再拆目录。
-- 开发中及时把确定下来的长期知识更新到本分支的来源与短页面。收尾后，已有任务文件或目录移入 `docs/tasks/finished_archived/`；仍需推进的问题保留在活跃任务或当前限制中。
-- `docs/tasks/finished_archived/` 是历史区。普通检索遵守根目录 `.ignore`，不默认列举、批量读取或将归档作为当前任务的上下文入口；Wiki 索引和短页面不追加历史报告清单。
-- 用户要求追溯历史，或当前资料无法解释具体问题时，可定向读取相关归档。需要覆盖过滤时，将 `rg --no-ignore` 限定到该目录或具体任务，不为普通检索关闭整个仓库的过滤。
-- 当前文档中的历史证据链接按需读取。归档只说明对应版本与环境的判断，使用前核对当前代码与有效文档；
+- 默认不创建任务文件；跨会话接续或交接需要记录时，按 [任务记录规则](docs/agent-wiki/README.md#任务记录) 在 `docs/agent-wiki/tasks/` 先用单文件，内容较多再拆目录。活跃任务只按本次工作需要选读。
+- 普通检索遵守根目录 `.ignore`，不默认列举、批量读取 `docs/agent-wiki/tasks/finished_archived/` 和 `docs/releases/`；它们不作为当前功能规范，Wiki 索引不追加历史报告清单。
+- 编写发布说明、比较版本、追溯回归或当前资料不足时，可定向读取相关历史。`rg --no-ignore` 只限定到相关目录或文件；不递归展开历史证据链接，使用前核对记录版本与当前实现。
