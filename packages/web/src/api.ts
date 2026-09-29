@@ -1,5 +1,6 @@
 import { language, serviceText, t, tr } from "./i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { apiFetch } from "./platform";
 export class APIError extends Error {
   constructor(
     message: string,
@@ -20,7 +21,7 @@ export async function api<T>(
 ): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`/api/${path}`, {
+    res = await apiFetch(`/api/${path}`, {
       method: body === undefined ? "GET" : "POST",
       headers:
         body === undefined ? undefined : { "Content-Type": "application/json" },

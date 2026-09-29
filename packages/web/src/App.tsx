@@ -1,3 +1,4 @@
+import { storageKey } from "./platform";
 import {
   languageInfo,
   setLanguageInfo,
@@ -47,7 +48,7 @@ function AppShell() {
     };
   }, []);
   const [theme, setTheme] = useState<Theme>(() => {
-    const t = localStorage.getItem("teamcross.theme.v1");
+    const t = localStorage.getItem(storageKey("teamcross.theme.v1"));
     return t === "light" || t === "dark" ? t : "system";
   });
   useEffect(() => {
@@ -65,7 +66,7 @@ function AppShell() {
         theme === "system" ? (media.matches ? "dark" : "light") : theme;
     };
     apply();
-    localStorage.setItem("teamcross.theme.v1", theme);
+    localStorage.setItem(storageKey("teamcross.theme.v1"), theme);
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, [theme]);

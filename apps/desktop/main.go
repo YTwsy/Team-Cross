@@ -1,7 +1,10 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -9,13 +12,17 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 	"teamcross/apps/desktop/internal/coreclient"
+	"teamcross/apps/desktop/internal/desktopactions"
 	"teamcross/apps/desktop/internal/desktopserver"
+	"teamcross/apps/desktop/internal/native"
 	"teamcross/apps/desktop/internal/previewassets"
 	"teamcross/internal/service"
+	"teamcross/internal/webassets"
 )
 
 func main() {
 	data := flag.String("data-dir", "", "Existing isolated Core discovery directory (required)")
+	probe := flag.Bool("probe", false, "Show the transport diagnostic page instead of the main UI")
 	flag.Parse()
 	if *data == "" {
 		log.Fatal("Desktop Preview requires an isolated --data-dir")
@@ -36,20 +43,43 @@ func main() {
 	if err != nil {
 		log.Fatal("Cannot initialise the Core client")
 	}
-	assets, err := desktopserver.New(previewassets.FS, client)
+	var files fs.FS
+	files, err = fs.Sub(webassets.Dist, "dist")
+	if *probe {
+		files = previewassets.FS
+	}
 	if err != nil {
 		log.Fatal("Cannot load desktop resources")
 	}
-	app := application.New(application.Options{
+	var app *application.App
+	actions := desktopactions.New(func(text string) bool {
+		var copied bool
+		application.InvokeSync(func() { copied = app.Clipboard.SetText(text) })
+		return copied
+	})
+	scope := sha256.Sum256([]byte(directory))
+	assets, err := desktopserver.New(files, client, actions, hex.EncodeToString(scope[:]))
+	if err != nil {
+		log.Fatal("Cannot load desktop resources")
+	}
+	app = application.New(application.Options{
 		Name:        "Team Cross Desktop Preview",
-		Description: "Team Cross isolated desktop transport preview",
+		Description: "Team Cross desktop preview",
 		Assets:      application.AssetOptions{Handler: assets, DisableLogging: true},
 	})
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name: "main", Title: "Team Cross Desktop Preview", URL: "/",
-		Width: 1024, Height: 780, MinWidth: 640, MinHeight: 540,
+		Width: 1400, Height: 900, MinWidth: 960, MinHeight: 640, Hidden: true,
 	})
 	show := func() { window.Show(); window.Focus() }
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		if !native.Configure(window) {
+			log.Print("Cannot configure the desktop window")
+			app.Quit()
+			return
+		}
+		show()
+	})
 	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
 		event.Cancel()
 		window.Hide()

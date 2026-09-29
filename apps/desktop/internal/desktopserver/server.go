@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
+	"html"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -17,11 +18,12 @@ const Header = "X-TeamCross-Desktop"
 type Server struct {
 	assets     http.Handler
 	api        http.Handler
+	actions    http.Handler
 	index      []byte
 	capability string
 }
 
-func New(assets fs.FS, api http.Handler) (*Server, error) {
+func New(assets fs.FS, api http.Handler, actions http.Handler, storageScope string) (*Server, error) {
 	index, err := fs.ReadFile(assets, "index.html")
 	if err != nil {
 		return nil, err
@@ -31,22 +33,30 @@ func New(assets fs.FS, api http.Handler) (*Server, error) {
 		return nil, err
 	}
 	capability := hex.EncodeToString(nonce[:])
-	index = bytes.Replace(index, []byte("</head>"), []byte(`<meta name="teamcross-desktop" content="`+capability+`"></head>`), 1)
-	return &Server{http.FileServer(http.FS(assets)), api, index, capability}, nil
+	index = bytes.Replace(index, []byte("</head>"), []byte(`<meta name="teamcross-desktop" content="`+capability+`"><meta name="teamcross-storage-scope" content="`+html.EscapeString(storageScope)+`"></head>`), 1)
+	return &Server{http.FileServer(http.FS(assets)), api, actions, index, capability}, nil
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'none'; base-uri 'none'")
-	if strings.HasPrefix(r.URL.Path, "/api/") {
+	if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/desktop/") {
 		origin := r.Header.Get("Origin")
 		if subtle.ConstantTimeCompare([]byte(r.Header.Get(Header)), []byte(s.capability)) != 1 ||
 			(origin != "" && origin != "null" && origin != "wails://localhost") {
 			http.Error(w, "desktop request rejected", http.StatusForbidden)
 			return
 		}
-		s.api.ServeHTTP(w, r)
+		if strings.HasPrefix(r.URL.Path, "/desktop/") {
+			if s.actions == nil {
+				http.NotFound(w, r)
+				return
+			}
+			s.actions.ServeHTTP(w, r)
+		} else {
+			s.api.ServeHTTP(w, r)
+		}
 		return
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {

@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -94,14 +95,29 @@ func (c *Client) discover(ctx context.Context) (service.Connection, error) {
 	return connection, nil
 }
 
-// Allowed is intentionally small in the transport preview. Expanding the main
-// UI routes is an explicit change; control and runtime endpoints never qualify.
+var collaborationPath = regexp.MustCompile(`^/api/collaborations/[A-Za-z0-9-]+(?:/([a-z-]+))?$`)
+
+// Allowed mirrors the WebGUI surface, not Core control or runtime-only APIs.
 func Allowed(method, path string) bool {
 	switch path {
-	case "/api/ui-language":
+	case "/api/ui-language", "/api/collaborations":
 		return method == http.MethodGet || method == http.MethodPost
-	case "/api/info", "/api/collaborations":
+	case "/api/info", "/api/sources", "/api/library":
 		return method == http.MethodGet
+	case "/api/settings", "/api/mcp/setup", "/api/mcp/probe", "/api/preview", "/api/spaces", "/api/join", "/api/invitations/preview",
+		"/api/publications/source", "/api/publications/preview", "/api/publications/draft", "/api/publications/read-draft",
+		"/api/library/state", "/api/library/read", "/api/library/bundles", "/api/library/prepare-send", "/api/library/read-selection":
+		return method == http.MethodPost
+	}
+	if match := collaborationPath.FindStringSubmatch(path); match != nil {
+		switch match[1] {
+		case "", "context":
+			return method == http.MethodGet
+		case "materials":
+			return method == http.MethodGet || method == http.MethodPost
+		case "read-material", "withdraw-material", "publication-status", "action", "invitations", "revoke-invitation", "remove-member", "execution-access", "personal-desktop", "open", "assist", "rpc", "respond", "annotations", "annotation-replies":
+			return method == http.MethodPost
+		}
 	}
 	return false
 }

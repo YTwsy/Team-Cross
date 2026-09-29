@@ -23,6 +23,7 @@ def main():
     args = parser.parse_args()
     if os.uname().sysname != 'Darwin':
         parser.error('desktop bundles require macOS')
+    run('pnpm', '--filter', '@teamcross/web', 'build')
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     output = (args.output or ROOT / 'bin/desktop-preview' / stamp).resolve()
     output.mkdir(parents=True, exist_ok=False)

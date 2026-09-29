@@ -1,3 +1,4 @@
+import { storageKey } from "../platform";
 import { serviceText, t, tr } from "../i18n";
 import { useEffect, useState } from "react";
 import { api, errorText, useResource } from "../api";
@@ -19,19 +20,19 @@ export function Clients({
   const [mode, setMode] = useState<"direct" | "assist">(() =>
     collaboration.hasExecution === false ||
     initial === "assist" ||
-    localStorage.getItem("teamcross.clientMode") === "assist"
+    localStorage.getItem(storageKey("teamcross.clientMode")) === "assist"
       ? "assist"
       : "direct",
   );
   useEffect(() => {
-    localStorage.setItem("teamcross.clientMode", mode);
+    localStorage.setItem(storageKey("teamcross.clientMode"), mode);
   }, [mode]);
   const info = useResource<Info>("info", 10000);
   const [preferred, setPreferred] = useState(
-    () => localStorage.getItem("teamcross.client.v1") || "tui",
+    () => localStorage.getItem(storageKey("teamcross.client.v1")) || "tui",
   );
   const [assistProvider, setAssistProvider] = useState<Provider>(() => {
-    const saved = localStorage.getItem("teamcross.assistProvider");
+    const saved = localStorage.getItem(storageKey("teamcross.assistProvider"));
     return saved === "claude" || saved === "codex"
       ? saved
       : collaboration.provider === "claude"
@@ -67,7 +68,7 @@ export function Clients({
       );
       setPlan(result);
       if (launch) {
-        localStorage.setItem("teamcross.client.v1", client);
+        localStorage.setItem(storageKey("teamcross.client.v1"), client);
         setPreferred(client);
       }
     } catch (e) {
@@ -132,7 +133,10 @@ export function Clients({
           provider={assistProvider}
           onProviderChange={(provider) => {
             setAssistProvider(provider);
-            localStorage.setItem("teamcross.assistProvider", provider);
+            localStorage.setItem(
+              storageKey("teamcross.assistProvider"),
+              provider,
+            );
             setPlan(undefined);
             setError("");
           }}

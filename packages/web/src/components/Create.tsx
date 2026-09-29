@@ -1,3 +1,4 @@
+import { storageKey } from "../platform";
 import { t, tr } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import { api, errorText, useResource } from "../api";
@@ -106,7 +107,10 @@ export function Create({
         requestId: requestId.current,
       });
       if (!spaceId) {
-        sessionStorage.setItem(`teamcross.transport.${c.id}`, shareTransport);
+        sessionStorage.setItem(
+          storageKey(`teamcross.transport.${c.id}`),
+          shareTransport,
+        );
         try {
           await api(`collaborations/${c.id}/action`, {
             action: "share",
@@ -114,9 +118,12 @@ export function Create({
             epoch: c.epoch,
           });
         } catch (e) {
-          sessionStorage.setItem(`teamcross.create.${c.id}`, errorText(e));
+          sessionStorage.setItem(
+            storageKey(`teamcross.create.${c.id}`),
+            errorText(e),
+          );
         }
-        sessionStorage.setItem(`teamcross.invite.${c.id}`, "1");
+        sessionStorage.setItem(storageKey(`teamcross.invite.${c.id}`), "1");
       }
       location.hash = `/collaborations/${c.id}`;
     } catch (e) {
