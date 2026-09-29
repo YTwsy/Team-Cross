@@ -13,6 +13,12 @@ test:
 dev:
 	go run ./cmd/teamcross serve --foreground --dev-web http://127.0.0.1:5173
 
+.PHONY: desktop-build desktop-test
+desktop-build:
+	python3 scripts/build-desktop-app.py
+desktop-test:
+	cd apps/desktop && go test -race ./internal/...
+
 .PHONY: release verify-release verify-homebrew verify-app-instance
 VERSION ?= 0.2.6-dev
 release:

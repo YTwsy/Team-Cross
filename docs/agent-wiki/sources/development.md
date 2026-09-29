@@ -21,6 +21,8 @@ pnpm --filter @teamcross/web dev
 
 ## 本地安装包
 
+`Next` 的 Wails 桌面增量通过独立 module 构建：`make desktop-test` 运行原生请求边界的 race test，`make desktop-build` 生成隔离 Preview。它尚未替换下述正式 App 构建；环境、fixture 与产物位置见 [桌面开发说明](../../../apps/desktop/README.md)。
+
 ```sh
 # 生成本地 CLI、App、DMG、校验文件和 tap 定义；不上传产物。
 make release

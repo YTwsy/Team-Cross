@@ -19,6 +19,7 @@
 | 修改资源库、选择清单或菜单栏速览 | [资源库与速览](../sources/decisions/resource-library.md) | [资源库](../../../internal/collab/library.go)、[界面](../../../packages/web/src/components/Library.tsx)、[App](../../../apps/macos/TeamCross.swift) |
 | 选择测试或判断验收结论 | [验证门槛](concepts/validation-gates.md) | [自动化与真实验证入口](../sources/validation/test-gates.md) |
 | 安装、App 外壳与首次体验 | [分发与首次体验](../sources/distribution-and-onboarding.md) | [公共启动器](../../../internal/service/service.go)、[App](../../../apps/macos/TeamCross.swift)、[构建](../../../scripts/build-release.py) |
+| 实施 `Next` 的 Wails 桌面迁移 | [桌面边界](../sources/decisions/desktop-host.md)、[迁移进度](../tasks/desktop-wails-migration.md) | [独立桌面 module](../../../apps/desktop/)、[WebGUI](../../../packages/web/src/)、[Core 启动器](../../../internal/service/service.go) |
 
 ## 完整事实来源
 
