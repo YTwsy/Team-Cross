@@ -8,9 +8,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
+	"teamcross/apps/desktop/internal/appinstance"
 	"teamcross/apps/desktop/internal/coreclient"
 	"teamcross/apps/desktop/internal/desktopactions"
 	"teamcross/apps/desktop/internal/desktopserver"
@@ -38,6 +40,42 @@ func main() {
 	production, err := service.Normalize(filepath.Join(home, "Library", "Application Support", "Team Cross Next"))
 	if err != nil || directory == production {
 		log.Fatal("Desktop Preview cannot use the installed Core directory")
+	}
+	instance, err := appinstance.New(directory)
+	if err != nil {
+		log.Fatal("Cannot open desktop instance lock")
+	}
+	defer instance.Close()
+	showRequests := make(chan struct{}, 32)
+	receive := func(request appinstance.Request) bool {
+		// Invitation delivery is introduced separately from the shell protocol.
+		if len(request.URLs) != 0 {
+			return false
+		}
+		select {
+		case showRequests <- struct{}{}:
+			return true
+		default:
+			return false
+		}
+	}
+	request := appinstance.NewRequest(nil)
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		primary, err := instance.Claim(receive)
+		if err != nil {
+			log.Fatal("Cannot claim desktop instance")
+		}
+		if primary {
+			break
+		}
+		if instance.Forward(request) {
+			return
+		}
+		if time.Now().After(deadline) {
+			log.Fatal("The existing desktop is not responding; reopen it after it recovers")
+		}
+		time.Sleep(150 * time.Millisecond)
 	}
 	client, err := coreclient.New(directory)
 	if err != nil {
@@ -79,6 +117,11 @@ func main() {
 			return
 		}
 		show()
+		go func() {
+			for range showRequests {
+				show()
+			}
+		}()
 	})
 	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
 		event.Cancel()
