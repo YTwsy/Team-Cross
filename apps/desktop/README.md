@@ -35,6 +35,8 @@ fixture 只接受空目录或它自己创建的标记目录，不读取用户会
 
 关闭窗口会隐藏；Dock reopen 或 `⌘1` 重新显示。`⌘Q` 只退出这个隔离预览。窗口只加载内嵌页面，点击 HTTP(S) 外链交给系统浏览器，拒绝其他导航与新 WebView；浏览器入口继续使用普通 Web 能力。正式 App 的停止服务与退出行为仍以现有分发契约为准。
 
+同一用户、同一规范化数据目录只有一个外壳，符号链接别名和多份 App 副本会转交给已有窗口，保留当前路由和草稿。`app.lock` 独立于 Core 锁，不随退出删除；已有外壳暂时无响应时最多等待 15 秒，不启动重复外壳。转交回执只确认入队，同一请求 ID 在 10 分钟内去重，最多缓存 512 项。当前只转交显示窗口请求；邀请 URL 接收与暂存尚未接入，因此不确认接收邀请批次。
+
 原生转发只接受明确允许的路径/方法，核对发现文件与 Core 的实例、PID、协议、版本和提交。普通 API 不携带控制 token，重定向、HTML、未知路径和控制路由不会转发给页面；Core 不兼容或离线返回结构化错误。所有请求都使用新连接，写入不会自动重放，WebView 取消请求会关闭上游读取。
 
 相关：[桌面边界](../../docs/agent-wiki/sources/decisions/desktop-host.md)、[迁移计划](../../docs/agent-wiki/tasks/desktop-wails-migration.md)、[验证契约](../../docs/agent-wiki/sources/validation/test-gates.md)。

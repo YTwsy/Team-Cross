@@ -135,7 +135,7 @@ macOS 特别检查：窗口失去前景、被遮挡、最小化和关闭是不�
 
 ## 分阶段落地与通过标准
 
-P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（`42435af`）。P1 的主窗口增量复用 React 页面并补原生复制与偏好隔离；实际检查与未覆盖项保存在 [P1 验证记录](../sources/validation/desktop-main-window-2026-09-30.md)。按功能继续拆 PR，不把主窗口可用等同于菜单栏、邀请或安装迁移完成。
+P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（`42435af`）。P1 主窗口由 [PR #32](https://github.com/YTwsy/Team-Cross/pull/32) 合入（`6977845`），复用 React 页面并补原生复制与偏好隔离；实际检查与未覆盖项保存在 [P1 验证记录](../sources/validation/desktop-main-window-2026-09-30.md)。P2 拆分为单实例锁/显示窗口转交、邀请 URL/确认队列两批；前者检查见 [P2a 验证记录](../sources/validation/desktop-instance-2026-09-30.md)。按功能继续拆 PR，不把主窗口可用等同于菜单栏、邀请或安装迁移完成。
 
 每个阶段应形成可独立构建、可验证的增量。下面是建议实施顺序，不是已经执行的任务清单。
 
