@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Team Cross Desktop Preview</title><link rel="stylesheet" href="/preview.css"></head>
+<body><main>
+<p class="eyebrow">TEAM CROSS · DESKTOP PREVIEW</p>
+<h1>连接本机协作服务</h1>
+<p>Connect to your isolated Core. This preview keeps its window and draft when the service reconnects.</p>
+<section aria-live="polite"><span id="connection">正在读取连接状态 / Connecting…</span><pre id="result"></pre></section>
+<label for="draft">重连时保留的草稿 / Draft preserved during reconnect</label>
+<textarea id="draft" rows="4" placeholder="在这里输入，然后重启测试服务 / Type here, then restart the fixture"></textarea>
+<div class="actions"><button id="refresh">重新读取 / Refresh</button><button id="save">保存中文界面偏好 / Save Chinese preference</button></div>
+<p class="hint">仅连接启动参数指定的测试目录。退出此预览不会停止服务。</p>
+</main><script type="module" src="/preview.js"></script></body></html>

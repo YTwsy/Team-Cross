@@ -154,4 +154,5 @@ make build
 
 - [使用指南](docs/user-guide.md)：安装升级、CLI / MCP、阅读批注、输入交接与恢复。
 - [开发与构建](docs/agent-wiki/sources/development.md)：环境准备、源码调试、本地安装包与验证入口。
+- [Wails 桌面预览开发](apps/desktop/README.md)：`Next` 上的隔离桌面迁移增量，尚未替换正式 App。
 - [Agent Wiki 索引](docs/agent-wiki/wiki/index.md)：当前产品决策、架构、协议与验证要求；参与开发先读 [AGENTS.md](AGENTS.md)。

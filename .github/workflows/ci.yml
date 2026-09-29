@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - Next
   pull_request:
     branches:
       - main
+      - Next
 
 permissions:
   contents: read
@@ -99,3 +101,28 @@ jobs:
           GOARCH: arm64
           CGO_ENABLED: "0"
         run: go build -trimpath -o "${RUNNER_TEMP}/teamcross-darwin-arm64" ./cmd/teamcross
+
+  desktop:
+    name: macOS desktop preview
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: apps/desktop/go.mod
+          cache-dependency-path: |
+            go.sum
+            apps/desktop/go.sum
+      - name: Test native transport boundaries
+        run: make desktop-test
+      - name: Vet desktop host
+        working-directory: apps/desktop
+        run: go vet ./...
+      - name: Build and inspect isolated preview
+        run: python3 scripts/build-desktop-app.py --output "${RUNNER_TEMP}/teamcross-desktop"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: teamcross-desktop-preview
+          path: ${{ runner.temp }}/teamcross-desktop
+          retention-days: 7
