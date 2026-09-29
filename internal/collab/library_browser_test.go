@@ -2,6 +2,7 @@ package collab
 
 import (
 	"context"
+	"encoding/json"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"teamcross/internal/buildinfo"
+	"teamcross/internal/service"
 	"teamcross/internal/webassets"
 )
 
@@ -75,9 +78,40 @@ func TestLibraryBrowserFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := httptest.NewServer(a.Handler(http.FileServer(http.FS(assets))))
+	// Also expose private discovery so the identical fixture can be read from
+	// the bundled desktop UI. Only this test process can author the connection.
+	var connection service.Connection
+	public := a.Handler(http.FileServer(http.FS(assets)))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := os.Stat(filepath.Join(dir, "offline")); err == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			json.NewEncoder(w).Encode(map[string]string{"error": "本机服务连接已中断", "code": "core_unreachable"})
+			return
+		}
+		if r.URL.Path == "/api/control/status" {
+			if r.Method != "GET" || r.Header.Get("Authorization") != "Bearer "+connection.Token || r.Header.Get("Origin") != "" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			status := service.Status{Connection: connection, Running: true}
+			status.Token = ""
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(status)
+			return
+		}
+		public.ServeHTTP(w, r)
+	}))
 	defer server.Close()
-	manifest := map[string]string{"url": server.URL + "/#/library", "api": server.URL, "dataDir": a.Config.DataDir, "id": main.record.ID}
+	directory, err := service.Normalize(a.Config.DataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection = service.Connection{URL: server.URL, PID: os.Getpid(), Instance: uuid.NewString(), Token: uuid.NewString(), Version: buildinfo.Version, Commit: buildinfo.Commit, Protocol: buildinfo.ControlProtocol, DataDir: directory}
+	if err := service.Save(directory, connection); err != nil {
+		t.Fatal(err)
+	}
+	manifest := map[string]string{"url": server.URL + "/#/library", "api": server.URL, "dataDir": directory, "id": main.record.ID}
 	if err = writeJSONFile(filepath.Join(dir, "fixture.json"), manifest); err != nil {
 		t.Fatal(err)
 	}

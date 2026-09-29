@@ -1,4 +1,5 @@
 import { serviceText, t } from "../i18n";
+import { copyText } from "../platform";
 import {
   useEffect,
   useLayoutEffect,
@@ -239,7 +240,7 @@ export function Copy({
         title={copied ? undefined : ariaLabel}
         onClick={async () => {
           try {
-            await navigator.clipboard.writeText(text);
+            await copyText(text);
             setCopied(true);
             setError("");
           } catch (e) {

@@ -1,3 +1,4 @@
+import { storageKey } from "../platform";
 import { formatDate, serviceText, t, tr } from "../i18n";
 import {
   transportName,
@@ -101,22 +102,27 @@ export function Detail({ id }: { id: string }) {
   const c = resource.data;
   const [modal, setModal] = useState<
     "clients" | "assist" | "invite" | "end" | null
-  >(() => (sessionStorage.getItem(`teamcross.invite.${id}`) ? "invite" : null));
+  >(() =>
+    sessionStorage.getItem(storageKey(`teamcross.invite.${id}`))
+      ? "invite"
+      : null,
+  );
   const [busy, setBusy] = useState("");
   const [shareTransport, setShareTransport] = useState<ShareTransport>(() =>
-    sessionStorage.getItem(`teamcross.transport.${id}`) === "tailcat"
+    sessionStorage.getItem(storageKey(`teamcross.transport.${id}`)) ===
+    "tailcat"
       ? "tailcat"
       : "lan",
   );
   const [personalOpenNote, setPersonalOpenNote] = useState("");
   const [error, setError] = useState(
-    () => sessionStorage.getItem(`teamcross.create.${id}`) || "",
+    () => sessionStorage.getItem(storageKey(`teamcross.create.${id}`)) || "",
   );
   const actionSerial = useRef(0);
   useEffect(() => {
-    sessionStorage.removeItem(`teamcross.create.${id}`);
-    sessionStorage.removeItem(`teamcross.invite.${id}`);
-    sessionStorage.removeItem(`teamcross.transport.${id}`);
+    sessionStorage.removeItem(storageKey(`teamcross.create.${id}`));
+    sessionStorage.removeItem(storageKey(`teamcross.invite.${id}`));
+    sessionStorage.removeItem(storageKey(`teamcross.transport.${id}`));
     setPersonalOpenNote("");
   }, [id]);
   useEffect(() => {

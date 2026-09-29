@@ -1,3 +1,4 @@
+import { storageKey } from "../platform";
 import { formatDate, t, tr } from "../i18n";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, errorText, useResource } from "../api";
@@ -730,7 +731,10 @@ export function StartSpace() {
               embedded
               onStageChange={setPublicationStage}
               onPublished={(_, id) => {
-                sessionStorage.setItem(`teamcross.invite.${id}`, "1");
+                sessionStorage.setItem(
+                  storageKey(`teamcross.invite.${id}`),
+                  "1",
+                );
                 location.hash = `/collaborations/${id}`;
               }}
             />

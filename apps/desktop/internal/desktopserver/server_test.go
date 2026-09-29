@@ -10,13 +10,13 @@ import (
 
 func TestPrivateAssetTransport(t *testing.T) {
 	calls := 0
-	server, err := New(fstest.MapFS{"index.html": {Data: []byte("<html><head></head><body>fixture</body></html>")}}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; w.WriteHeader(204) }))
+	server, err := New(fstest.MapFS{"index.html": {Data: []byte("<html><head></head><body>fixture</body></html>")}}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; w.WriteHeader(204) }), nil, "isolated-directory")
 	if err != nil {
 		t.Fatal(err)
 	}
 	index := httptest.NewRecorder()
 	server.ServeHTTP(index, httptest.NewRequest("GET", "/", nil))
-	if !strings.Contains(index.Body.String(), server.capability) || index.Header().Get("Content-Security-Policy") == "" || index.Header().Get("Cache-Control") != "no-store" {
+	if !strings.Contains(index.Body.String(), server.capability) || !strings.Contains(index.Body.String(), `name="teamcross-storage-scope" content="isolated-directory"`) || index.Header().Get("Content-Security-Policy") == "" || index.Header().Get("Cache-Control") != "no-store" {
 		t.Fatal(index)
 	}
 	for _, tc := range []struct {
@@ -39,7 +39,7 @@ func TestPrivateAssetTransport(t *testing.T) {
 	if calls != 3 {
 		t.Fatal(calls)
 	}
-	second, _ := New(fstest.MapFS{"index.html": {Data: []byte("<head></head>")}}, http.NotFoundHandler())
+	second, _ := New(fstest.MapFS{"index.html": {Data: []byte("<head></head>")}}, http.NotFoundHandler(), nil, "second-directory")
 	if second.capability == server.capability {
 		t.Fatal("reused capability")
 	}
@@ -47,5 +47,29 @@ func TestPrivateAssetTransport(t *testing.T) {
 	server.ServeHTTP(post, httptest.NewRequest("POST", "/", nil))
 	if post.Code != 405 {
 		t.Fatal(post.Code)
+	}
+}
+
+func TestNativeActionsRequirePrivateCapability(t *testing.T) {
+	calls := 0
+	server, _ := New(fstest.MapFS{"index.html": {Data: []byte("<head></head>")}}, http.NotFoundHandler(), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.WriteHeader(204)
+	}), "test")
+	for _, proof := range []string{"", "wrong", server.capability} {
+		r := httptest.NewRequest("POST", "/desktop/clipboard", strings.NewReader(`{"text":"hello"}`))
+		r.Header.Set(Header, proof)
+		w := httptest.NewRecorder()
+		server.ServeHTTP(w, r)
+		want := 403
+		if proof == server.capability {
+			want = 204
+		}
+		if w.Code != want {
+			t.Fatal(w.Code)
+		}
+	}
+	if calls != 1 {
+		t.Fatal(calls)
 	}
 }

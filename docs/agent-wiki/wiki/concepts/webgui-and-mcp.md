@@ -4,6 +4,8 @@
 
 WebGUI 提供协作管理、材料阅读与原文讨论；执行交互在对应原生客户端。MCP 让普通本地会话访问已发起或加入的协作。按本次修改范围查阅 [产品流程](../../sources/product-flows.md) 或 [协议](../../sources/protocol.md) 的对应章节。
 
+`Next` 的 Wails 主窗口复用这些页面，通过 [platform.ts](../../../../packages/web/src/platform.ts) 适配原生转发和剪贴板。Core token 不进入页面；桌面偏好按数据目录隔离，失联时保留当前树与草稿，恢复不重放写入。原生窗口边界与当前阶段见 [桌面外壳](../../sources/decisions/desktop-host.md)。
+
 界面语言由本机 Core 共用偏好控制，默认按 macOS 首选语言决定：中文使用简体中文，其余使用英文。菜单栏“语言”和 WebGUI“设置与连接 → 界面语言”手动选择会同步影响两端；会话与用户内容不翻译。实现见 [界面语言](../../sources/product-flows.md#界面语言)、[Web 消息表](../../../../packages/web/src/i18n.ts)、[Core 偏好](../../../../internal/collab/ui_language.go) 与 [App 语言资源](../../../../apps/macos/AppLanguage.swift)。
 
 新增 Web 文案用 `t` / `tr` 并补 [英文消息表](../../../../packages/web/src/en.json)；翻译必须在组件渲染或函数调用时执行，不要在模块顶层计算。`pnpm --filter @teamcross/web check` 会检查遗漏文案、占位符和模块顶层翻译。动态的服务提示只按产品消息处理，不能翻译会话正文或用户内容。

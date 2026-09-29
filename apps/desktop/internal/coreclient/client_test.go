@@ -100,6 +100,39 @@ func TestRelayRejectsControlAndUnknownRoutesBeforeDiscovery(t *testing.T) {
 	}
 }
 
+func TestWebGUIReadsAndWritesUseExistingCoreRoutes(t *testing.T) {
+	var calls []string
+	client, _, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method+" "+r.URL.RequestURI())
+		io.WriteString(w, `{"ok":true}`)
+	})
+	for _, tc := range []struct{ method, path string }{
+		{"GET", "/api/sources?provider=codex&cursor=next"},
+		{"POST", "/api/publications/read-draft"},
+		{"POST", "/api/spaces"},
+		{"GET", "/api/collaborations/test-id/materials"},
+		{"POST", "/api/collaborations/test-id/materials"},
+		{"POST", "/api/collaborations/test-id/annotations"},
+		{"POST", "/api/collaborations/test-id/annotation-replies"},
+		{"GET", "/api/collaborations/test-id/context?kind=history"},
+		{"POST", "/api/library/read-selection"},
+		{"POST", "/api/invitations/preview"},
+		{"POST", "/api/collaborations/test-id/open"},
+	} {
+		if w := request(client, tc.method, tc.path, strings.NewReader(`{}`)); w.Code != 200 {
+			t.Fatal(tc, w.Code)
+		}
+		if got := calls[len(calls)-1]; got != tc.method+" "+tc.path {
+			t.Fatal(got)
+		}
+	}
+	for _, path := range []string{"/api/collaborations/id/control", "/api/collaborations/id/rpc/extra", "/api/collaborations/id/../../control/stop", "/api/collaborations/id%2Fother/materials"} {
+		if w := request(client, "POST", path, nil); w.Code != 404 {
+			t.Fatal(path, w.Code)
+		}
+	}
+}
+
 func TestDiscoveryRejectsMismatchWithoutSendingBusinessRequest(t *testing.T) {
 	for _, change := range []string{"url", "directory", "instance", "pid", "protocol", "version", "commit", "permissions", "size"} {
 		t.Run(change, func(t *testing.T) {
