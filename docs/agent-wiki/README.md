@@ -21,7 +21,6 @@ docs/agent-wiki/
       input-and-sharing.md
     validation/
       test-gates.md
-      native-collaboration-2026-09-09.md
   wiki/
     index.md
     concepts/
@@ -30,7 +29,7 @@ docs/agent-wiki/
 
 - `sources/` 保存完整的稳定事实：产品范围、流程、架构和协议。每类事实有一个主要维护位置。
 - `sources/decisions/` 记录取舍、原因、影响及何时需要重新评估。
-- `sources/validation/` 区分持续维护的验证门槛与指定日期、版本的实际验收记录。
+- `sources/validation/` 保存当前可复用的验证方法、通过标准与结论边界；指定版本的执行报告按 [任务记录与历史归档](../tasks/README.md) 管理。
 - `wiki/concepts/` 提供短小的任务上下文，说明先读什么、改哪里、守住什么、如何验证，并链接回来源和实现。
 - `wiki/index.md` 负责检索与导航；根目录 [AGENTS.md](../../AGENTS.md) 负责首次进入仓库的阅读顺序。
 
@@ -52,6 +51,10 @@ docs/agent-wiki/
 4. 按 [验证门槛](sources/validation/test-gates.md) 执行与变更相关的检查，将实际结果与待验收范围分开记录。
 5. 在同一提交中检查相对链接、代码路径和已经移除的引用。
 
-Markdown 默认使用简体中文；API、命令、协议字段和代码标识符保持英文。验收记录需注明日期、版本与环境，后续验收新增记录，不把旧结果自动推广到新版本。
+这些更新随开发分支中的代码推进，不集中拖到合入时。修复既有行为、样式微调等未改变长期知识的工作，不必为每个 fix 新增决策、概念页或任务文件。
+
+Markdown 默认使用简体中文；API、命令、协议字段和代码标识符保持英文。实际验证结果注明日期、版本、环境和未覆盖范围，按需保存在任务记录中；收尾后移入 `docs/tasks/finished_archived/`。已有单份报告可直接按原文件名归档，不强制补目录与 README。
+
+Wiki 索引和概念页聚焦当前知识，不持续追加历史报告清单。当前来源可以保留必要的历史证据链接，但归档不作为默认阅读材料，也不自动证明后续版本通过。普通搜索通过仓库根目录 `.ignore` 排除归档，具体追溯方法见 [任务记录规则](../tasks/README.md)。
 
 一次性日志、临时命令输出、普通 TODO、未验证猜测、账户凭据和真实邀请 secret 不进入 Wiki。文档整理本身不需要启动 Codex、调用模型或打开测试客户端。

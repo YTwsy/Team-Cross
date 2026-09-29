@@ -13,7 +13,8 @@
 | 模块职责、数据路径与原生接入 | [架构](agent-wiki/sources/architecture.md) |
 | API、邀请、原生 RPC 与 MCP | [协议](agent-wiki/sources/protocol.md) |
 | 修改后应验证什么 | [验证门槛](agent-wiki/sources/validation/test-gates.md) |
-| 各版本工程、浏览器与原生客户端的验证范围 | [验收导航](agent-wiki/wiki/concepts/validation-gates.md) |
+| 判断工程、浏览器与原生客户端证据的边界 | [验证导航](agent-wiki/wiki/concepts/validation-gates.md) |
+| 按需记录任务、收尾归档或追溯历史 | [任务记录与历史归档](tasks/README.md) |
 | 旧现场归档与 main 迁移 | [迁移记录](../IMPLEMENTATION.md) |
 
 文档结构沿用 `sources/` 与 `wiki/` 分层。内容描述当前 Codex 原生协作主线；旧原型历史通过 Git 和迁移记录追溯。

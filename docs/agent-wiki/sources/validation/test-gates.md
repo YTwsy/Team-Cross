@@ -1,6 +1,6 @@
 # 验证门槛
 
-本页说明变更后应运行什么，以及每种检查能支持什么结论。指定版本的实际结果见 [2026-09-10 安装验收](onboarding-macos-2026-09-10.md) 与 [2026-09-09 原生协作验收](native-collaboration-2026-09-09.md)，这些记录不是后续提交自动通过的证明。
+本页维护当前可复用的验证方法、通过标准与结论边界。具体任务选择适用检查，实际结果按 [任务记录规则](../../../tasks/README.md) 留存；历史报告不能证明后续提交自动通过。
 
 ## 按变更选择检查
 
@@ -37,8 +37,6 @@ go build -o bin/teamcross ./cmd/teamcross
 
 ## 现有自动化入口
 
-Agent 按需读取、阶段保留、完整 MCP 响应预算和批注精确筛选的固定场景结果见 [2026-09-27 上下文读取验证](agent-context-reading-2026-09-27.md)。
-
 | 文件 | 重点覆盖 |
 | --- | --- |
 | [CI workflow](../../../../.github/workflows/ci.yml) | PR/main 的 Go test/vet、相关 race test、Web check/test/build、嵌入资源一致性和 Darwin arm64 CLI 交叉编译；不运行真实模型或 Tailcat 联网测试 |
@@ -64,10 +62,6 @@ Agent 按需读取、阶段保留、完整 MCP 响应预算和批注精确筛选
 | [library_test.go](../../../../internal/collab/library_test.go) / [library.test.tsx](../../../../packages/web/src/test/library.test.tsx) | 固定引用选择、读取编号、个人/共享访问隔离、撤回、并发更新、内联入口和设置导航保留；[独立浏览器 fixture](../../../../internal/collab/library_browser_test.go) 使用合成内容与真实 Core/存储 |
 | [annotation_reply_test.go](../../../../internal/collab/annotation_reply_test.go) / [runtime_test.go](../../../../internal/mcp/runtime_test.go) / [annotations.test.tsx](../../../../packages/web/src/test/annotations.test.tsx) | 单层回复、去重、并发快照、访问撤销、受限运行时工具、内嵌草稿与键盘保存 |
 
-GitHub 托管 `macos-15` arm64 完整候选、正式版本号路径、`v0.1.6-rc.1`/`v0.1.6-rc.2` 发布、受保护 Homebrew tap、来源提交、校验值、attestation 与未覆盖边界见 [2026-09-15 GitHub CI、unsigned 发布与 v0.1.6-rc.1/v0.1.6-rc.2 验证](github-ci-release-2026-09-15.md)。
-
-`v0.1.6-rc.3` 的 App 图标非透明范围、旧式 ICNS 打包、公开资产、tag provenance、Homebrew RC 与尚未完成的真实 macOS 26 显示验收见 [2026-09-16 App 图标与 v0.1.6-rc.3 发布验证](app-icon-release-v0.1.6-rc.3-2026-09-16.md)。
-
 ## 真实模型和客户端
 
 个人 MCP 当前 Session 分享与 CLI 接力使用 [verify-agent-cli.py](../../../../scripts/verify-agent-cli.py)，每次选择新的空测试目录：
@@ -82,7 +76,7 @@ python3 scripts/verify-agent-cli.py \
 
 另以 `--provider claude --claude-bin /absolute/path/to/claude` 使用新的 fixture 重跑；Claude 要求已配置的本机 CliProxyAPI 路由，默认只读 `~/.claude/settings.json` 的授权用于内存转发，证据不保存真实密钥。两者限定 Luna，使用专用个人配置和会话；Codex fixture 仅为本次获授权的 `share_current_session` 设置[单工具批准](https://learn.chatgpt.com/docs/extend/mcp)，Claude 使用精确工具 allowlist，不修改用户个人 MCP 权限。
 
-检查实际个人 MCP 的来源身份、登记后本轮完成、新 fork 包含最后 assistant 答复、CLI 无浏览器加入、批注/回复、非输入者拒绝、申请/交接/交还/接回、直接 TUI 连接、工具任务与重复 requestId、结束后同 fork 恢复。Claude 在首次输入持久化 fork 后核对完整历史。脚本退出精确关闭自身 Core、PTY 与测试 daemon，保留证据。它是同机两个 Core 的 loopback TLS 验证，不证明两台 Mac、Tailcat 或 Desktop；结果见 [2026-09-16 验证](agent-cli-collaboration-2026-09-16.md)。
+检查实际个人 MCP 的来源身份、登记后本轮完成、新 fork 包含最后 assistant 答复、CLI 无浏览器加入、批注/回复、非输入者拒绝、申请/交接/交还/接回、直接 TUI 连接、工具任务与重复 requestId、结束后同 fork 恢复。Claude 在首次输入持久化 fork 后核对完整历史。脚本退出精确关闭自身 Core、PTY 与测试 daemon，保留证据。它是同机两个 Core 的 loopback TLS 验证，不证明两台 Mac、Tailcat 或 Desktop。
 
 [TestLiveCodex](../../../../internal/collab/live_test.go) 默认跳过。显式选择一个新的专用测试目录后运行：
 
@@ -100,7 +94,7 @@ TEAMCROSS_LIVE_EXISTING_FIXTURE=/private/tmp/teamcross-fresh-fixture \
   go test ./internal/collab -run '^TestLiveNativeHandoff$' -v -count=1 -timeout=1m
 ```
 
-该检查只接受 `TestLiveCodex` 生成的专用 manifest，不能指向普通用户会话。当前邀请与释放结果见 [2026-09-10 验收](membership-and-release-2026-09-10.md)。
+该检查只接受 `TestLiveCodex` 生成的专用 manifest，不能指向普通用户会话。
 
 原目录与新 worktree 分别覆盖直接 TUI、直接 Desktop、辅助 TUI、辅助 Desktop，共八种组合。实测核对执行主机、目录、fork、读写结果、审批、输入交接、并行辅助、客户端切换、重连、邀请失效和结束访问。
 
@@ -131,7 +125,7 @@ TEAMCROSS_TEST_TAILCAT=1 \
 
 完成后关闭本次启动的专用 Desktop/TUI、Core、app-server、浏览器页面及其测试辅助进程。先确认 PID、父子关系或测试数据目录，再退出对应实例；保留用户正在使用的 Codex 和其他浏览器内容，不按程序名批量终止。测试会话、仓库和验收材料按本次约定保留。
 
-新增实际验收记录应注明日期、版本、环境、执行的检查及未覆盖范围；同步 [验收导航](../../wiki/concepts/validation-gates.md)。
+验证结果可先在提交或 PR 中简要说明；需要详细记录时，按 [任务记录规则](../../../tasks/README.md) 写明日期、版本、环境、执行的检查及未覆盖范围，收尾后归档。新增一份执行记录不要求更新 Wiki 索引或短页面。
 
 ## Claude 原生 TUI
 
@@ -178,12 +172,10 @@ python3 scripts/verify-annotations.py \
 
 脚本通过直接 TUI 读取只有批注与人工回复中才有的标记，再回复原批注，并验证结束共享后恢复同一会话仍能读取。真实模型只使用 Luna，Claude 沿用本页的 loopback guard；Codex 使用专用配置和已有登录凭据，不修改个人配置。检查继承的个人 MCP 被禁用；只接受本次批注工具对应的确认，不跳过所有审批。
 
-`--keep-preview-seconds` 可暂留 fixture 供 WebGUI / 专用 Desktop 检查；写入 fixture 的 `finish-preview` 可提前结束。Desktop 须另外确认窗口内的实际读取与回复，进程启动或网关连接不等价于完成验收。当前结果见 [2026-09-13 批注验证](annotations-2026-09-13.md)。
+`--keep-preview-seconds` 可暂留 fixture 供 WebGUI / 专用 Desktop 检查；写入 fixture 的 `finish-preview` 可提前结束。Desktop 须另外确认窗口内的实际读取与回复，进程启动或网关连接不等价于完成验收。
 
 ## 信任模式
 
 为上面的 `verify-annotations.py` 增加 `--runtime-mode trusted`，分别为 Codex 和 Claude 使用新的专用 fixture。脚本继承测试 home 的只读个人 MCP 和无副作用标记 hook，并确认原生 TUI 实际读取工具返回值、执行 hook、读写批注、结束和同 ID 恢复。Codex 另核对主机权限 profile 与原生 hook 审阅写回 A；允许原生插件加载，不调用无关个人工具。Claude 的临时 home 与 Luna guard 保持隔离。默认参数仍验证受限模式的个人 MCP 隔离。
 
 可信执行不等于跳过原生确认；脚本只能确认可见的专用测试 hook 和批注工具。新配置或插件可能延长客户端启动时间，必须等原生历史实际呈现再发送输入。Claude 结束应等待精确 worker 退出，保留个人 daemon 及其他 job；普通主机环境和沙箱的进程身份探测能力分别记录。浏览器、电脑控制、组织策略、第三方登录与专用 Desktop 窗口需要各自的实际验收，不能由继承配置测试直接推断。
-
-当前真实结果、版本和未覆盖范围见 [2026-09-16 信任模式验收](trusted-runtime-2026-09-16.md)。

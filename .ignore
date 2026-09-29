@@ -1,0 +1,2 @@
+# Historical task records stay in Git, but are excluded from default searches.
+/docs/tasks/finished_archived/

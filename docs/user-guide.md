@@ -111,7 +111,7 @@ teamcross share --provider codex --source <来源UUID> --workspace existing \
 
 也可以告诉已接入 MCP 的个人 Agent：“把当前 Session 分享出去，使用原目录、受限模式和局域网。”工具先核对原生客户端传来的当前会话身份、预览现场，再登记分享请求；**本轮答复结束后** Core 才创建 fork 和邀请，使 fork 包含本轮完整对话。Agent 先返回请求 ID，下一轮通过 `get_share_request` 查询，成功后用 `create_invitation` 取回邀请。登记成功不等于邀请已生成，不要让 Agent 在同一轮循环等待自己结束。
 
-终端可用 `teamcross share-status --id <请求ID> --json` 查询，或用 `teamcross cancel-share --id <请求ID>` 取消尚在等待的请求。已开始创建则保留实际结果；来源轮次或 Git 起点变化时停止，不自动换成新起点。Core 停止后未完成请求标记为中断，不在重启后自动创建。无法核对原生调用身份的客户端仍可走上面的明确来源流程，不能用“最近会话”替代“当前会话”。具体版本证据见 [个人 Agent 与 CLI 验证](agent-wiki/sources/validation/agent-cli-collaboration-2026-09-16.md)。
+终端可用 `teamcross share-status --id <请求ID> --json` 查询，或用 `teamcross cancel-share --id <请求ID>` 取消尚在等待的请求。已开始创建则保留实际结果；来源轮次或 Git 起点变化时停止，不自动换成新起点。Core 停止后未完成请求标记为中断，不在重启后自动创建。无法核对原生调用身份的客户端仍可走上面的明确来源流程，不能用“最近会话”替代“当前会话”。具体版本证据见 [个人 Agent 与 CLI 验证](tasks/finished_archived/agent-cli-collaboration-2026-09-16.md)。
 
 `create` 只创建协作，`invite --id <协作ID> --transport lan|tailcat` 只生成或取回当前可复用链接；`share` 顺序完成两者。邀请失败返回已创建的协作及恢复提示，后续只运行 `invite`，不换 requestId 重新创建。相同 requestId 的创建重试复用原协作；结果不明时先查询 `collaborations --id <requestId>`。邀请链接与邀请码供用户自行转交，不自动发送给同事。
 
@@ -134,7 +134,7 @@ teamcross join 'tcx3.…'
 - **局域网：** 双方需要处于可互访的同一局域网；连接不依赖 Tailcat 公共服务。
 - **Tailcat（实验性）：** 双方无需 Tailscale 账户，也不安装系统 TUN。Tailcat 通过 DERP 完成发现和初始连接，条件允许时使用点对点 UDP，否则可继续经 DERP 中继；可达性和质量依赖双方网络及所用 DERP。Tailcat 地址、预共享密钥、Team Cross 邀请 secret 和 TLS 指纹一起包含在邀请码中，因此邀请码应按秘密处理。
 
-两种方式复用相同的链接加入、独立成员凭据、TLS 1.3 与 SPKI 指纹校验；不会先尝试局域网再暗中回退 Tailcat。当前同机实网测试已经覆盖 Tailcat 建链、加入、成员重连和直接客户端 WebSocket 桥接，但不等于两台 Mac、不同网络或强制 DERP 中继已经验收；完整范围见 [Tailcat 验收记录](agent-wiki/sources/validation/tailcat-transport-2026-09-15.md)。
+两种方式复用相同的链接加入、独立成员凭据、TLS 1.3 与 SPKI 指纹校验；不会先尝试局域网再暗中回退 Tailcat。当前同机实网测试已经覆盖 Tailcat 建链、加入、成员重连和直接客户端 WebSocket 桥接，但不等于两台 Mac、不同网络或强制 DERP 中继已经验收；完整范围见 [Tailcat 验收记录](tasks/finished_archived/tailcat-transport-2026-09-15.md)。
 
 只读空间的成员可以阅读、发布材料和参与讨论。空间启用执行并向你开放执行访问后，还可以选择以下入口：
 
@@ -153,7 +153,7 @@ teamcross join 'tcx3.…'
 
 Claude 协作通过原生 `--fork-session` 创建新会话。信任模式直接由 Claude 在个人配置目录管理新 fork；受限模式在发生首次业务输入并持久化后，由 Team Cross 只把这个新 fork 的单个 transcript 发布到 A 当前个人 Claude home 的 `projects`，它会像普通原生 fork 一样出现在 Claude Code CLI/TUI `/resume`，结束共享后可从个人历史继续。零输入 fork 可能尚未落盘，也不保证释放后可恢复；Team Cross 不把这个情况当成创建失败。受限模式下，每次协作使用独立 `claude-runtime` 作为 worker 配置目录，其中只放所选来源的逐字节快照、本次 fork、受限 settings、MCP、认证快照、daemon/job 和所有权状态；不会把整个个人 `projects` 暴露给协作 worker。Team Cross 不自行构造 Provider JSONL，也不把个人设置、插件、已有历史或认证文件作为写入目标；受限模式下，Team Cross 在个人 history 中只新增用户明确创建的 fork；信任模式的原生工具可能依授权修改个人资源。B 的直接 TUI 不保存 A 的 Provider 历史，Claude Desktop、Web 与 Cloud 的历史也不在本功能范围。旧独立 `claude-home` 协作不迁移，需要重新创建。
 
-WebGUI 与辅助工具可查看已持久化的上下文、添加批注，并在空闲时发送文本。Claude 的补充、中断、审批与模型选择目前需要在原生 TUI 中操作；共享 worker 内置当前协作的批注读取与回复工具。信任模式在邀请者原生配置目录中创建和运行新 fork，复用个人 MCP、插件、hooks、权限及可用工具；受限模式继续关闭这些扩展。Claude Desktop 仍未接入，Claude 权限机制不等同于 Codex 的 OS 权限隔离。Claude 使用 A 的 API 路由；OAuth / Keychain 登录流程尚未验收。详见 [Claude 接入契约](agent-wiki/sources/decisions/claude-native-tui.md) 与 [2026-09-14 个人 CLI/TUI 历史验收](agent-wiki/sources/validation/claude-personal-history-2026-09-14.md)；[2026-09-12 实测记录](agent-wiki/sources/validation/claude-native-tui-2026-09-12.md)属于切换前的旧实现。
+WebGUI 与辅助工具可查看已持久化的上下文、添加批注，并在空闲时发送文本。Claude 的补充、中断、审批与模型选择目前需要在原生 TUI 中操作；共享 worker 内置当前协作的批注读取与回复工具。信任模式在邀请者原生配置目录中创建和运行新 fork，复用个人 MCP、插件、hooks、权限及可用工具；受限模式继续关闭这些扩展。Claude Desktop 仍未接入，Claude 权限机制不等同于 Codex 的 OS 权限隔离。Claude 使用 A 的 API 路由；OAuth / Keychain 登录流程尚未验收。详见 [Claude 接入契约](agent-wiki/sources/decisions/claude-native-tui.md) 与 [2026-09-14 个人 CLI/TUI 历史验收](tasks/finished_archived/claude-personal-history-2026-09-14.md)；[2026-09-12 实测记录](tasks/finished_archived/claude-native-tui-2026-09-12.md)属于切换前的旧实现。
 
 ## 模型与推理强度
 
@@ -172,7 +172,7 @@ claude mcp add --transport stdio --scope user teamcross -- /absolute/path/to/tea
 
 若使用自定义数据目录，在 `mcp` 后追加 `--data-dir /absolute/path`。配置使用稳定的 Homebrew `opt` 路径或已安装 App 内的绝对路径。Codex TUI 和 Desktop 共用配置；Claude 写入个人 user 范围配置，已有客户端请在 `/mcp` 中重新连接或重新打开。设置页分别显示配置、协议探测，以及 Codex / Claude 各自的实际工具调用证据；MCP 握手不启动 Core，首次工具调用可无浏览器启动 Core。
 
-个人 Claude 与 Codex 复用同一套 Team Cross 工具，可以辅助任一 Provider 的协作；实际写入能力取决于目标协作及当前输入归属。个人对话与模型调用在本机，发往共享会话的任务在 A 执行。对应结果见 [个人 Claude MCP 验收](agent-wiki/sources/validation/claude-assist-2026-09-12.md)。项目同名配置、显式禁用或组织策略可能影响工具加载，页面检测不覆盖其他目录。
+个人 Claude 与 Codex 复用同一套 Team Cross 工具，可以辅助任一 Provider 的协作；实际写入能力取决于目标协作及当前输入归属。个人对话与模型调用在本机，发往共享会话的任务在 A 执行。对应结果见 [个人 Claude MCP 验收](tasks/finished_archived/claude-assist-2026-09-12.md)。项目同名配置、显式禁用或组织策略可能影响工具加载，页面检测不覆盖其他目录。
 
 可以告诉自己的客户端：“使用 Team Cross 列出协作，查看这次协作的上下文和当前状态。”
 

@@ -41,7 +41,7 @@ TEAMCROSS_LIVE_DIR=/private/tmp/teamcross-fresh-fixture \
   go test ./internal/collab -run '^TestLiveCodex$' -v -count=1 -timeout=7m
 ```
 
-2026-09-10 的安装、首次体验、TUI 与未完成项目见 [2026-09-10 验收记录](agent-wiki/sources/validation/onboarding-macos-2026-09-10.md)；早期 Desktop 证据见 [2026-09-09 原生协作记录](agent-wiki/sources/validation/native-collaboration-2026-09-09.md)，不自动视为后续版本通过。后续修改按 [验证门槛](agent-wiki/sources/validation/test-gates.md) 选择检查。原生 Desktop 指定 WebSocket 入口属于当前本机版本的实验接口，不等同于公开稳定的远程产品合同。
+2026-09-10 的安装、首次体验、TUI 与未完成项目见 [2026-09-10 验收记录](tasks/finished_archived/onboarding-macos-2026-09-10.md)；早期 Desktop 证据见 [2026-09-09 原生协作记录](tasks/finished_archived/native-collaboration-2026-09-09.md)，不自动视为后续版本通过。后续修改按 [验证门槛](agent-wiki/sources/validation/test-gates.md) 选择检查。原生 Desktop 指定 WebSocket 入口属于当前本机版本的实验接口，不等同于公开稳定的远程产品合同。
 
 工程知识按 `sources/` 与 `wiki/` 分层维护。首次进入仓库先读 [AGENTS.md](../AGENTS.md) 和 [Agent Wiki 索引](agent-wiki/wiki/index.md)，完整导航见 [文档入口](README.md)。各日期、版本的结果集中在 [验收导航](agent-wiki/wiki/concepts/validation-gates.md)，不把旧结果推广为当前版本通过。
 

@@ -18,7 +18,7 @@
 
 ## 代码与检查
 
-现有入口：[types.go](../../../../internal/collab/types.go)、[sharing.go](../../../../internal/sharing/sharing.go)、[network.go](../../../../internal/collab/network.go)、[MCP](../../../../internal/mcp/server.go)、[WebGUI](../../../../packages/web/src/components/)。`Record` 的 `execution` 可空；范围冻结、固定版本、多份材料、原文批注和回复附件均独立于执行。启用执行保留链接、成员及内容；主机按成员开放新增执行访问，输入另行交接。只读空间无邀请或无人加入也可关闭，持久化关闭状态后可重新开放。实际边界见 [材料验证](../../sources/validation/materials-2026-09-18.md) 与 [多成员基础验证](../../sources/validation/multi-member-2026-09-18.md)。
+现有入口：[types.go](../../../../internal/collab/types.go)、[sharing.go](../../../../internal/sharing/sharing.go)、[network.go](../../../../internal/collab/network.go)、[MCP](../../../../internal/mcp/server.go)、[WebGUI](../../../../packages/web/src/components/)。`Record` 的 `execution` 可空；范围冻结、固定版本、多份材料、原文批注和回复附件均独立于执行。启用执行保留链接、成员及内容；主机按成员开放新增执行访问，输入另行交接。只读空间无邀请或无人加入也可关闭，持久化关闭状态后可重新开放。实际边界见 [材料验证](../../../tasks/finished_archived/materials-2026-09-18.md) 与 [多成员基础验证](../../../tasks/finished_archived/multi-member-2026-09-18.md)。
 
 材料读取使用 `list_materials/read_material`，不得沿 sourceId 读取未公开的原生历史。正文以不可变清单和空间内内容寻址 blob 保存，空间记录只留版本元数据；远端发布先协商清单，再逐个上传缺失 blob，最后幂等提交。协商只复用当前作者从自己未撤回版本可证明拥有的正文，不能探测其他作者或撤回内容。
 

@@ -41,7 +41,7 @@
 
 按 [验证契约](docs/agent-wiki/sources/validation/test-gates.md) 选择检查。产品代码的工程门槛包括 Go test/vet、相关 race test 和 Web check/test/build；修改前端后更新 `internal/webassets/dist`，进行真实浏览器与截图复核。
 
-仅修改文档时检查相对链接、代码路径、旧引用、索引可达性和 `git diff --check`，无需重新启动模型或测试客户端。实际验证日期、版本与环境保存在 `sources/validation/` 的对应记录中，不将旧验收结果自动推广到后续版本。
+仅修改文档时检查相对链接、代码路径、旧引用、索引可达性和 `git diff --check`，无需重新启动模型或测试客户端。`sources/validation/` 维护验证要求；实际执行结果按 [任务记录规则](docs/tasks/README.md) 留存，不将旧验收结果自动推广到后续版本。
 
 验证后关闭本次启动的测试客户端、Core、app-server、浏览器页面及其测试辅助进程；先核对 PID、父子关系或测试目录，不按程序名批量终止用户的 Codex 或浏览器。
 
@@ -52,3 +52,11 @@
 - [核心词汇](docs/agent-wiki/sources/product-core-and-glossary.md) 负责产品语义，[协议](docs/agent-wiki/sources/protocol.md) 负责字段与路由；短页面不重复维护完整规范。
 - 旧现场与 main 迁移见 [IMPLEMENTATION.md](IMPLEMENTATION.md)。归档材料只供考据，不能把旧产品边界重新当作当前要求。
 - 不把一次性日志、普通 TODO、未验证猜测、凭据或真实邀请 secret 写入 Wiki；未来 compiler 的 `.llmwiki/` 状态保持本地忽略。
+
+## 任务记录与归档检索
+
+- 默认不创建任务文件；小改动在对话、提交或 PR 中说明改动与必要检查即可。需要跨会话接续、交接或较多调查记录时，按 [任务记录规则](docs/tasks/README.md) 先用单文件，内容较多再拆目录。
+- 开发中及时把确定下来的长期知识更新到本分支的来源与短页面。收尾后，已有任务文件或目录移入 `docs/tasks/finished_archived/`；仍需推进的问题保留在活跃任务或当前限制中。
+- `docs/tasks/finished_archived/` 是历史区。普通检索遵守根目录 `.ignore`，不默认列举、批量读取或将归档作为当前任务的上下文入口；Wiki 索引和短页面不追加历史报告清单。
+- 用户要求追溯历史，或当前资料无法解释具体问题时，可定向读取相关归档。需要覆盖过滤时，将 `rg --no-ignore` 限定到该目录或具体任务，不为普通检索关闭整个仓库的过滤。
+- 当前文档中的历史证据链接按需读取。归档只说明对应版本与环境的判断，使用前核对当前代码与有效文档；未来全文或向量索引也应默认排除归档区。

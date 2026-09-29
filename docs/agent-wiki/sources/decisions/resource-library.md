@@ -38,4 +38,4 @@ App 使用同源 `WKWebView` 呈现速览，原生桥只允许打开经过校验
 
 首版不提供团队公共文件库、全文离线副本、自动同步私人 Session 或任意个人 Session 的自动输入绑定。只有能够可靠核对目标 Session 和所属用户时，才考虑进一步免除最后一次粘贴。资源量增大时再评估索引分页与全文搜索；当前收藏和导航元数据有数量界限，协议细节统一见 [资源库接口](../protocol.md#个人资源库)。
 
-实现入口：[Core](../../../../internal/collab/library.go)、[个人 MCP](../../../../internal/mcp/library.go)、[WebGUI](../../../../packages/web/src/components/Library.tsx)、[原生速览](../../../../apps/macos/TeamCross.swift)。实际验证与未覆盖项见 [2026-09-22 记录](../validation/resource-library-2026-09-22.md)。
+实现入口：[Core](../../../../internal/collab/library.go)、[个人 MCP](../../../../internal/mcp/library.go)、[WebGUI](../../../../packages/web/src/components/Library.tsx)、[原生速览](../../../../apps/macos/TeamCross.swift)。实际验证与未覆盖项见 [2026-09-22 记录](../../../tasks/finished_archived/resource-library-2026-09-22.md)。

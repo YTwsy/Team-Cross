@@ -34,6 +34,6 @@
 
 回归必须覆盖默认受限、无效模式、预览与创建模式不一致、重试不改变模式、同 ID 恢复、工具配置继承、权限设置的输入归属、配置过滤和结束访问。Claude 另验证默认配置位置、原生环境变量、个人配置不被 Team Cross 改写、精确 job 停止且个人 daemon 保留。真实验证只使用专用会话和 `gpt-5.6-luna`，与浏览器截图、实际 Desktop/电脑控制验收分开记录。
 
-本次实测见 [2026-09-16 信任模式验收](../validation/trusted-runtime-2026-09-16.md)。
+历史实测见 [2026-09-16 信任模式验收](../../../tasks/finished_archived/trusted-runtime-2026-09-16.md)，仅说明对应版本与环境的结果。
 
 实现：[运行时模式](../../../../internal/runtimeconfig/mode.go) · [Codex](../../../../internal/nativecodex/process.go) · [Claude](../../../../internal/nativeclaude/process.go) · [协作创建与恢复](../../../../internal/collab/app.go) · [协议](../protocol.md)。

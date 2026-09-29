@@ -86,18 +86,12 @@ MCP 配置保存稳定 opt/App 绝对路径。通过 Cask 命令链接调用时�
 
 ## 检查与相关规范
 
-[安装验证](../../../scripts/verify-release.py) 验证校验文件、DMG 挂载/安装、CLI/App 版本一致与实例复用，并调用 [App 副本验证](../../../scripts/verify-app-instance.py)。后者从两个临时 App 副本通过真实 macOS 启动/URL/退出事件验证外壳去重、请求确认、卡住后的恢复及 Core 保留；邀请 helper 使用测试内容，Core 使用包内真实二进制，不打开浏览器或调用模型。[生命周期验证](../../../scripts/verify-lifecycle.py) 验证 Core 并发启动、符号链接路径、端口冲突、鉴权停止、MCP 延迟启动、崩溃恢复及数据保留。工程、真实客户端、浏览器和清理门槛继续按 [验证契约](validation/test-gates.md)。[2026-09-15 GitHub CI、unsigned 发布与 v0.1.6-rc.1/v0.1.6-rc.2 验证](validation/github-ci-release-2026-09-15.md) 已确认对应 `macos-15` arm64 托管 runner 的图形登录会话能完成 App 副本检查，并记录公开 Release、来源证明、受保护 tap PR 与公共 Homebrew 安装复核；[2026-09-16 App 图标与 v0.1.6-rc.3 发布验证](validation/app-icon-release-v0.1.6-rc.3-2026-09-16.md) 进一步记录该候选的图标非透明范围、ICNS 打包、公开产物、provenance 与 Homebrew RC。证据只对应各记录中的提交、runner 与主机，后续基础设施失败不能静默跳过或沿用旧结论。同机或托管 runner 不能证明真实 macOS 26 图标显示、两台 Mac LAN、跨网络 Tailcat 或强制 DERP，未使用 Developer ID 的产物不能证明公证或 Gatekeeper 首次批准通过。
+[安装验证](../../../scripts/verify-release.py) 验证校验文件、DMG 挂载/安装、CLI/App 版本一致与实例复用，并调用 [App 副本验证](../../../scripts/verify-app-instance.py)。后者从两个临时 App 副本通过真实 macOS 启动/URL/退出事件验证外壳去重、请求确认、卡住后的恢复及 Core 保留；邀请 helper 使用测试内容，Core 使用包内真实二进制，不打开浏览器或调用模型。[生命周期验证](../../../scripts/verify-lifecycle.py) 验证 Core 并发启动、符号链接路径、端口冲突、鉴权停止、MCP 延迟启动、崩溃恢复及数据保留。工程、真实客户端、浏览器和清理门槛继续按 [验证契约](validation/test-gates.md)。
+
+证据只对应各记录中的提交、runner 与主机，后续基础设施失败不能静默跳过或沿用旧结论。同机或托管 runner 不能证明真实 macOS 26 图标显示、两台 Mac LAN、跨网络 Tailcat 或强制 DERP，未使用 Developer ID 的产物不能证明公证或 Gatekeeper 首次批准通过。
 
 相关来源：[产品流程](product-flows.md) · [架构](architecture.md) · [协议](protocol.md) · [输入协调](decisions/input-and-sharing.md)。
 
-本轮实际证据与未完成项见 [2026-09-11 v0.1.1 验收](validation/distribution-v0.1.1-2026-09-11.md)；[2026-09-10 验收](validation/onboarding-macos-2026-09-10.md) 保留为当时的开发包记录，其共存设计不再是当前分发规则。外部规范：[Apple 自定义 URL Scheme](https://developer.apple.com/documentation/xcode/defining-a-custom-url-scheme-for-your-app) · [Homebrew Cask Cookbook](https://docs.brew.sh/Cask-Cookbook)。
+具体版本的实际结果与未覆盖项按 [任务记录规则](../../tasks/README.md) 保存，发布说明可以引用对应记录；本页不累积逐版验收清单。历史开发包的共存设计不作为当前分发规则。
 
-`v0.1.7-rc.1` 的信任模式 PR、公开产物、来源证明、Homebrew RC 及检查登记竞态恢复见 [2026-09-16 发布验证](validation/release-v0.1.7-rc.1-2026-09-16.md)。
-
-`v0.2.1` 正式版的 release commit/tag、arm64 资产、checksum/provenance、稳定 Homebrew PR 与公共安装 smoke 见 [2026-09-21 发布验证](validation/release-v0.2.1-2026-09-21.md)。
-
-`v0.2.2` 正式版的 release commit/tag、arm64 资产、checksum/provenance、稳定 Homebrew PR 与公共安装 smoke 见 [2026-09-23 发布验证](validation/release-v0.2.2-2026-09-23.md)。
-
-`v0.2.3` 正式版的 release commit/tag、arm64 资产、checksum/provenance、稳定 Homebrew PR 与公共安装 smoke 见 [2026-09-23 发布验证](validation/release-v0.2.3-2026-09-23.md)。
-
-`v0.2.4` 正式版的 main 修复提交、annotated tag、arm64 资产与来源证明、稳定 Homebrew PR 和公共安装 smoke 见 [2026-09-23 发布验证](validation/release-v0.2.4-2026-09-23.md)。
+外部规范：[Apple 自定义 URL Scheme](https://developer.apple.com/documentation/xcode/defining-a-custom-url-scheme-for-your-app) · [Homebrew Cask Cookbook](https://docs.brew.sh/Cask-Cookbook)。
