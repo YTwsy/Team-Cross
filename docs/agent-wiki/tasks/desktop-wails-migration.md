@@ -1,6 +1,6 @@
 # Next：WebGUI 迁移到 Wails 桌面端
 
-状态：用户已确认 Wails v3 + React + 独立 Go Core，并授权按关键功能通过 PR 合入 `Next`，较大功能拆成多个 PR。当前开始 P0：隔离原生请求通道预览；完整主窗口、菜单栏和安装切换仍待后续增量。稳定边界已进入 [桌面契约](../sources/decisions/desktop-host.md)。
+状态：用户已确认 Wails v3 + React + 独立 Go Core，并授权按关键功能通过 PR 合入 `Next`，较大功能拆成多个 PR。P0 请求通道、P1 主窗口、P2 单实例/原生邀请传输及 P3 显式退出已分别合入。当前推进速览与原生菜单；邀请事件仍在 Draft PR #35，可见性/主题与安装切换尚未完成。稳定边界已进入 [桌面契约](../sources/decisions/desktop-host.md)。
 
 调查日期：2026-09-30。Team Cross 基线为 `9abee024a415c1ee115224cf1d5776b2cdce165a`；本地 `Next` 直接从该提交创建。OpenSurge 参考为本次更新并读取的 `origin/Next`：`d968c88bf0558df2517c623d694d5a802c1beb6c`。没有切换或修改 OpenSurge 的工作区。
 
@@ -138,6 +138,17 @@ macOS 特别检查：窗口失去前景、被遮挡、最小化和关闭是不�
 P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（`42435af`）。P1 主窗口由 [PR #32](https://github.com/YTwsy/Team-Cross/pull/32) 合入（`6977845`），复用 React 页面并补原生复制与偏好隔离；实际检查与未覆盖项保存在 [P1 验证记录](../sources/validation/desktop-main-window-2026-09-30.md)。P2 拆分为单实例锁/显示窗口转交、邀请 URL/确认队列两批；前者检查见 [P2a 验证记录](../sources/validation/desktop-instance-2026-09-30.md)。按功能继续拆 PR，不把主窗口可用等同于菜单栏、邀请或安装迁移完成。
 
 每个阶段应形成可独立构建、可验证的增量。下面是建议实施顺序，不是已经执行的任务清单。
+
+### P3b 速览与原生菜单（2026-09-30）
+
+退出功能已经由 [PR #36](https://github.com/YTwsy/Team-Cross/pull/36) 合入 Next（`69816ceb415b33d8b069eea99bfd77b958e70794`）；两项 CI 成功。速览增量在 `codex/next/desktop-quick-look` 独立推进。
+
+- 复用 `QuickLook`，提供单个保留状态的速览窗口、固定浮窗、关闭隐藏、已知协作/材料定位和原生服务菜单。`⌘1` 只恢复主窗口，`⌘2` 开关速览；全局 `⌃⌥T` 仅在注册成功时显示标记。窗口请求有界排队，固定路径/路由校验拒绝任意 URL、脚本和 pending 邀请导航。
+- 原生菜单读取真实 Core 状态与共享语言；语言写入仍是一次公共 API 操作。共享 React 不加载 Wails JS runtime，因此原生定位、固定状态与刷新改用受导航 guard 保护的 WKWebView 通知。服务菜单使用窗口内原生 NSMenu，避免依赖状态栏按钮的程序化菜单跟踪。
+- 工程检查：根 Go test/vet 与七个相关 race package、桌面 internal race/vet、Web check（751 消息）/test（11 文件、132 项）/production build 通过。嵌入资源已更新。窄桥接回归覆盖路径/路由拒绝、队列不可用反馈、公共语言写入不带控制 token、丢失响应不重放；React 复核包含监听器清理、原生/浏览器回退和可访问按钮状态。
+- 真实 AppKit/WKWebView 与浏览器使用 `TestLibraryBrowserFixture` 的合成会话和实际 HTTP/材料存储，没有真实模型输入。实测固定状态反馈、资源筛选和选择、材料 key/协作 ID 定位、隐藏恢复、主窗口关闭后固定速览保留，以及 `⌘1` 恢复中文 emoji 批注草稿。原生菜单切换 en 后主窗口、速览、浏览器均更新；浏览器切回 zh-CN 后原生页面/标题同步。菜单显示活动协作数 1，最终候选从服务菜单打开主窗口设置成功。另验证 Core 失联时的语言错误提示、重复 `⌘Q` 不叠加弹窗，以及确认提示后原页面可继续使用。
+- 构建候选保留在 `bin/desktop-preview/p3-quick-final-candidate-20260930/`，清单基于 `69816ce` 加本轮源码、dirty=true，arm64、ad-hoc、未公证。前两组修复构建保留供追溯；原生与浏览器截图在实施会话中复核。一次 fixture 因遗漏 `go test -timeout` 在 10 分钟后到期，随后改用明确 30 分钟外层时限的新 fixture，README 同步修正命令。最终 fixture 通过（907.70 秒），其 Go 临时数据目录随后自动回收；外壳对缺失目录的退出探测保持失败关闭，因此核对最终测试 App 的精确二进制路径后终止该实例。所有本轮测试 App/Core 与浏览器页已关闭。
+- 自动化已确认热键注册成功，但向另一个应用投递按键没有产生可核验的全局触发；菜单栏图标鼠标点按与物理全局热键保留为安装验收项目，不能把 `⌘2` 的成功替代该项。主窗口与速览的主题同步、隐藏/遮挡轮询调度、Core 启动、命令行安装入口和正式安装切换继续由后续 PR 完成。邀请 PR #35 的原生 Apple Event 验证仍未完成。
 
 ### P3a 显式退出与 Core 停止（2026-09-30）
 

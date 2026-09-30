@@ -12,6 +12,11 @@ import (
 // Core owns this preference. Read it for native errors even when Core is
 // unreachable; never write a separate desktop language setting.
 func localLanguage(directory string) string {
+	_, resolved := localLanguagePreference(directory)
+	return resolved
+}
+
+func localLanguagePreference(directory string) (string, string) {
 	var settings struct {
 		UILanguage string `json:"uiLanguage"`
 	}
@@ -19,5 +24,6 @@ func localLanguage(directory string) string {
 		defer f.Close()
 		_ = json.NewDecoder(io.LimitReader(f, 1<<20)).Decode(&settings)
 	}
-	return uilanguage.Resolve(uilanguage.Mode(settings.UILanguage))
+	mode := uilanguage.Mode(settings.UILanguage)
+	return mode, uilanguage.Resolve(mode)
 }
