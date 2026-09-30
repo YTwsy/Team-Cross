@@ -139,6 +139,14 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 每个阶段应形成可独立构建、可验证的增量。下面是建议实施顺序，不是已经执行的任务清单。
 
+### P3g 显式恢复本机服务（2026-09-30）
+
+`codex/next/desktop-core-reconnect` 增加原生“启动或连接本机服务”：Core 被关闭或首次启动失败后，可以从保留的外壳恢复；后台页面读取不会自动启动服务。保持现有主窗口、路由和草稿；已运行实例被复用，不重放业务写入。连接后仍经过桌面的严格身份/构建检查。
+
+- 桌面 internal race/vet 与 arm64/ad-hoc 构建通过；构建复用根 Go/Web 已通过的同一业务实现，Web production build 与资源一致性通过。候选保留在 `bin/desktop-preview/p3-core-reconnect-20260930/`，基于 `986a23a` 加本批源码，dirty=true、未公证。
+- 真实 AppKit + 独立 Core、空 Provider home：加入页保留“服务恢复草稿 🧪 · 不提交”，精确停止 Core PID 51567 后，速览显示失联且菜单显示已停止；点击恢复后 Core 变为 PID 51901、端口从 55518 换到 55808，主窗口仍在 `/#/join`，草稿完整保留，速览恢复读取。再次点击连接复用同一 PID/实例，没有重复启动。
+- 中文与 emoji 使用粘贴验证，不将其视为物理输入法组合验收。最终 Cmd-Q 后 App/Core 均退出，保留文件未变化；没有提交邀请或调用模型，截图已在实施会话复核。
+
 ### P3f 原生命令行工具菜单（2026-09-30）
 
 `codex/next/desktop-cli-tools` 接入命令状态、安装和移除，复用现有 `cliinstall`，命令写入只在用户选择后发生。权限不足才请求系统授权，授权命令只允许 App helper 的两种 launcher 操作，路径保持字面量。语言/CLI 弹窗与退出、邀请处理串行，不给 renderer 新增执行接口。
@@ -148,6 +156,8 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 - 未触发实际管理员授权，未写系统命令目录；测试外部命令和保留文件留在隔离目录，没有模型输入。系统授权/签名公证仍需安装阶段单独验收。
 
 ### P3e 启动与退出竞态（2026-09-30）
+
+已由 [PR #40](https://github.com/YTwsy/Team-Cross/pull/40) 合入 Next（`b0bc5f8`），两项 CI 成功。
 
 邀请接入后，Core Ensure 尚未返回时直接退出外壳可能留下稍后启动的 Core。本批在 `codex/next/desktop-startup-quit` 让退出等待启动完成：未持锁只结束外壳；持锁实例沿用已有精确停止与取消契约。共享启动器在取消/超时时先回收本次启动的 foreground helper，等待退出后才释放启动锁，已取消请求不创建进程。
 

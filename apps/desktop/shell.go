@@ -65,6 +65,7 @@ func newDesktopShell(app *application.App, main, quick *application.WebviewWindo
 	s.add(serviceMenu, "打开资源库", "Open Library", func() { s.showMain("/library") })
 	s.add(serviceMenu, "加入协作…", "Join a Collaboration…", func() { s.showMain("/join") })
 	s.add(serviceMenu, "诊断与设置", "Diagnostics and Settings", func() { s.showMain("/settings") })
+	s.add(serviceMenu, "启动或连接本机服务", "Start or Connect Local Service", func() { go s.ensureCore() })
 	s.add(serviceMenu, "命令行工具…", "Command Line Tools…", func() { go s.commandLineTools() })
 	language := serviceMenu.AddSubmenu("Language")
 	s.labels = append(s.labels, menuLabel{serviceMenu.FindByLabel("Language"), "语言", "Language"})
