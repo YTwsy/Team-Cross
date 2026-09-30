@@ -47,13 +47,15 @@ See [installation and upgrades](docs/user-guide.en.md#install-and-upgrade) for c
 
 ## Get started
 
-Open the menu bar app, or run:
+Open the Team Cross app, or run:
 
 ```sh
 teamcross
 ```
 
 Both `teamcross` and `teamcross serve` start or reuse the local service, open the browser, and return control to the terminal. The host must keep Team Cross running so teammates can connect. Closing the browser does not stop the service.
+
+Packages built from this branch use a Wails desktop main window and retain the menu bar quick view. The `v0.2.6` downloads and public Homebrew channels above refer to the published release; changes on `Next` do not update those channels. Closing a desktop window hides it; `⌘1` restores the main window and `⌘2` toggles quick view. `⌘Q` stops the local service, asking for confirmation when collaborations are active.
 
 The menu bar and WebGUI follow this Mac's preferred language by default: Chinese uses Simplified Chinese, and other languages use English. Choose **Follow System**, **Simplified Chinese**, or **English** from the menu bar's language menu or **Settings and Connections → Interface language** in the WebGUI. A manual choice applies to both interfaces on this Mac. Session text, user input, and protocol fields are not translated.
 
@@ -144,7 +146,7 @@ We are also exploring ways for the agent on the host machine to invite a person 
 
 ## Development and documentation
 
-Building from source requires Go 1.27.1+, Node 24+, and pnpm. Building the app also requires macOS Command Line Tools and Swift.
+Building from source requires Go 1.27.1+, Node 24+, and pnpm. Building the Wails app also requires macOS Command Line Tools and CGO; the CLI remains pure Go.
 
 ```sh
 pnpm install
@@ -154,4 +156,5 @@ make build
 
 - [User guide](docs/user-guide.en.md): installation, upgrades, CLI and MCP, reading and annotations, input handoffs, and resuming work.
 - [Development and builds (中文)](docs/agent-wiki/sources/development.md): environment setup, local development, packaging, and validation entry points.
+- [Wails desktop development (中文)](apps/desktop/README.md): main window, isolated Preview, default DMG builds, and installation checks.
 - [Agent Wiki index (中文)](docs/agent-wiki/wiki/index.md): current product decisions, architecture, protocol, and validation requirements. Read [AGENTS.md (中文)](AGENTS.md) before contributing.

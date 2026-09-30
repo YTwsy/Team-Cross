@@ -34,7 +34,7 @@ Reading published material does not require Codex or a local repository. To star
 
 ## Open Team Cross
 
-Open the menu bar app, or run:
+Open the Team Cross app, or run:
 
 ```sh
 teamcross serve
@@ -43,6 +43,8 @@ teamcross serve
 Both `teamcross` and `teamcross serve` start or reuse the background service, open the browser, and return control to the terminal. You do not need to pass a collaboration repository; the selected source session determines the execution directory. Opening Team Cross again does not create another Core. Closing the browser or terminal does not stop the service.
 
 Copies of the current app running under the same user and data directory also share one menu bar entry. Opening another copy forwards its page-opening or invitation-preview request to the existing app. The second copy exits without stopping the collaboration service. Follow the installation instructions and quit the old app before upgrading.
+
+Builds from `Next` use a Wails desktop main window with a menu bar quick view; the published version is the one linked above. Closing a desktop window hides it. `⌘1` or Dock reopen restores the main window, and `⌘2` toggles quick view. Explicit quit stops the local Core and asks for confirmation when collaborations are active. The main window, quick view, and browser share language and system/light/dark preferences.
 
 The default data directory is `~/Library/Application Support/Team Cross Next`. Only one Core runs for a given user and normalized data directory. If the default port `43210` is occupied, Team Cross selects an available port; use the address printed at startup. A conflict with an explicitly supplied `--listen` address is an error. Advanced options include `--data-dir`, `--no-open`, `--codex-bin`, `--claude-bin`, and `--desktop-app`. The `--repo` option only affects local assistant context; it does not select the shared repository.
 

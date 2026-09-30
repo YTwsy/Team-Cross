@@ -47,13 +47,15 @@ Team Cross 是 macOS 上围绕 Coding Agent 会话展开的开源本地协作工
 
 ## 开始使用
 
-打开菜单栏 App，或在终端运行：
+打开 Team Cross App，或在终端运行：
 
 ```sh
 teamcross
 ```
 
 `teamcross` 与 `teamcross serve` 都会启动或复用本地服务，打开浏览器后返回终端。发起者需保持 Team Cross 运行，供同事连接；关闭浏览器不会停止服务。
+
+本分支的源码安装包使用 Wails 桌面主窗口，菜单栏保留协作速览；上方 `v0.2.6` 下载和公共 Homebrew 渠道对应已发布版本，不会随 `Next` 源码改动自动升级。关闭桌面窗口只隐藏，`⌘1` 恢复主窗口，`⌘2` 开关速览；`⌘Q` 停止本机服务，有活动协作时先确认。
 
 菜单栏和 WebGUI 默认跟随这台 Mac 的首选语言：中文显示简体中文，其他语言显示英文。可从菜单栏“语言”或 WebGUI“设置与连接 → 界面语言”选择跟随系统、简体中文或 English；选择会同时作用于本机两套界面。会话原文、用户输入和协议字段不会被翻译。
 
@@ -144,7 +146,7 @@ WebGUI 是可选入口。个人 Codex TUI/Desktop 或 Claude Code TUI 可以通�
 
 ## 开发与文档
 
-从源码开发需要 Go 1.27.1+、Node 24+ 和 pnpm；构建 App 还需要 macOS Command Line Tools / Swift。
+从源码开发需要 Go 1.27.1+、Node 24+ 和 pnpm；Wails App 构建还需要 macOS Command Line Tools 与 CGO，CLI 保持纯 Go。
 
 ```sh
 pnpm install
@@ -154,5 +156,5 @@ make build
 
 - [使用指南](docs/user-guide.md)：安装升级、CLI / MCP、阅读批注、输入交接与恢复。
 - [开发与构建](docs/agent-wiki/sources/development.md)：环境准备、源码调试、本地安装包与验证入口。
-- [Wails 桌面预览开发](apps/desktop/README.md)：`Next` 上的隔离桌面迁移增量，尚未替换正式 App。
+- [Wails 桌面开发](apps/desktop/README.md)：主窗口、隔离 Preview、默认 DMG 构建与安装验证。
 - [Agent Wiki 索引](docs/agent-wiki/wiki/index.md)：当前产品决策、架构、协议与验证要求；参与开发先读 [AGENTS.md](AGENTS.md)。

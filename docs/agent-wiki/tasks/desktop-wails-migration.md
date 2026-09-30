@@ -139,6 +139,12 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 每个阶段应形成可独立构建、可验证的增量。下面是建议实施顺序，不是已经执行的任务清单。
 
+### P4c 默认安装外壳切换候选（2026-09-30）
+
+`codex/next/desktop-default-install` 将默认发行构建改为 Wails，Swift 仅以显式参数保留为升级参照；更新中英文入口说明、开发/架构/分发来源，以及 release workflow 的桌面 module 门槛和外壳 metadata 检查。没有改变 `origin/main` 发布来源规则，也不创建 tag/Release 或公共 tap 更新。
+
+这是等待原生安装验收的候选分支，不表示已合入 Next。先完成可复核的构建和包检查，再补旧 Swift 原生退出、同路径 Wails 接管、双副本、生产 URL 投递与物理菜单栏/热键/输入法证据。现有自动结果不足以关闭这些门槛，默认切换 PR 在完成前保持草稿。
+
 ### P4b 包安装与升级验证（2026-09-30）
 
 `codex/next/desktop-install-verification` 更新验证入口：Wails 包不再进入依赖 Swift helper 调用方式的原生 fixture；安装脚本明确报告原生验收须独立进行，Swift 默认原有 fixture 保留。新增 Swift→Wails 包升级脚本与 macOS CI 检查，没有变更默认外壳。

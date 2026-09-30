@@ -1,10 +1,10 @@
 # 分发与首次体验
 
-`Next` 的 Wails 安装候选可显式使用 `build-release.py --desktop-host wails`；默认发行外壳尚未切换。候选保留生产 App/CLI/数据身份，`verify-desktop-bundle.py` 单独检查 DMG 内容与 App/CLI 构建一致性，原生升级验收另行进行。当前范围见 [桌面契约](decisions/desktop-host.md)。
+`Next` 默认由 `build-release.py` 构建 Wails 安装包，保留生产 App/CLI/数据身份。`--desktop-host swift` 仅保留为升级参照；公共发布仍按下述 `origin/main` 规则进行。桌面行为与凭据边界见 [桌面契约](decisions/desktop-host.md)。
 
 ## 安装产物与边界
 
-首版 Apple Silicon、macOS 14+。Swift/AppKit 菜单栏外壳复用 Go Core 和浏览器 WebGUI。CLI 包含 WebGUI 与 STDIO MCP，安装用户不需要 Go/Node/pnpm。Codex 按参与方式另行使用；B 查看上下文无需 Codex 或本地仓库。
+首版 Apple Silicon、macOS 14+。Wails v3/AppKit 外壳内嵌 React 主窗口与协作速览，通过原生 HTTP 转发连接独立 Go Core；浏览器复用同一 WebGUI。CLI 包含 WebGUI 与 STDIO MCP，安装用户不需要 Go/Node/pnpm。Codex 按参与方式另行使用；B 查看上下文无需 Codex 或本地仓库。
 
 `make release` 调用 [构建脚本](../../../scripts/build-release.py)，在 `dist/release/<版本>/` 生成 CLI tar.gz、App、DMG、SHA256SUMS、release.json 和对应渠道的独立 tap 内容。App 的 helper 位于 `Contents/Resources/teamcross`。稳定版使用 `teamcross` / `team-cross`，RC 使用 `teamcross-rc` / `team-cross@rc`；Cask 安装 App 并用 `binary` 注册内置 CLI，Formula 提供独立 CLI。四种定义都会占用同一个 App 或 `teamcross` 命令，通过成功安装收据双向互斥；Core 仍按数据目录共享，包管理互斥不改变服务发现协议。
 
@@ -12,7 +12,7 @@ App 图标只使用 [AppIcon.png](../../../apps/macos/Assets/AppIcon.png) 生成
 
 首个公开版本使用 `v0.1.1`，发布标题为 `Team Cross v0.1.1`。发布来源为核对过的干净提交；本地构建脚本只生成产物，不发布网络内容。先使 `YTwsy/Team-Cross` Release 产物可下载并核对校验值，再发布 `YTwsy/homebrew-teamcross` 中对应的配方。生成的下载 URL 不代表已经发布，实际状态以 GitHub 为准。本地安装测试使用临时 tap、临时 Homebrew 前缀和应用目录。
 
-GitHub 上的 `CI` workflow 对指向 `main` 的 PR 和 `main` push 运行 Go test/vet、相关 race test、Web check/test/build、嵌入资源一致性和 Darwin arm64 CLI 交叉编译。所有 Tailcat 联网用例默认跳过，不把公共 DERP 可用性变成普通 PR 的外部硬依赖。
+GitHub 上的 `CI` workflow 对指向 `main`/`Next` 的 PR 和对应分支 push 运行 Go test/vet、相关 race test、Web check/test/build、嵌入资源一致性和 Darwin arm64 CLI 交叉编译。macOS 另运行桌面 module 的 race/vet、Preview/DMG 构建与包安装/升级检查。所有 Tailcat 联网用例默认跳过，不把公共 DERP 可用性变成普通 PR 的外部硬依赖。
 
 `Unsigned macOS release` workflow 接受 `X.Y.Z` 与 `X.Y.Z-rc.N`：手动触发时从可到达 `origin/main` 的所选提交构建、验证、attest 并保存 14 天 workflow artifact，不创建 Release；推送同版本 annotated tag 时使用同一构建链，并在全部检查完成后创建不可覆盖的 GitHub Release。RC 标记为 Pre-release，正式版本标记为 Latest。tag 版本是发布版本的唯一输入，发布构建不使用 Makefile 或脚本的开发默认值。自动门槛依次包括：
 
@@ -34,8 +34,8 @@ Homebrew 发布是同一 tag 流程中位于 GitHub Release 之后的受保护�
 make release
 make verify-release
 make verify-homebrew
-# 单独检查真实菜单栏 App 的跨副本启动，需要 macOS 图形登录会话：
-make verify-app-instance
+# Wails 包检查；原生窗口、邀请与升级另按验证契约操作：
+make verify-desktop-bundle
 # 在干净 checkout 构建候选版本；产物目录已有清单时需另选输出目录：
 make release VERSION=0.1.1
 make verify-release VERSION=0.1.1
@@ -48,7 +48,7 @@ python3 scripts/build-release.py --version 0.1.1 --sign-identity 'Developer ID A
 
 ## 命令入口的归属
 
-DMG 安装者在菜单栏“命令行工具…”安装或移除启动器，默认位置为 `/usr/local/bin/teamcross`。只有安装或移除该入口可能需要系统授权；Core、MCP 和协作执行不提权。启动器用绝对路径调用 App 内的 CLI，保持参数原样传递。相关代码为 [cliinstall](../../../internal/cliinstall/cliinstall.go) 与 [App 菜单](../../../apps/macos/TeamCross.swift)。
+DMG 安装者在菜单栏“命令行工具…”安装或移除启动器，默认位置为 `/usr/local/bin/teamcross`。只有安装或移除该入口可能需要系统授权；Core、MCP 和协作执行不提权。启动器用绝对路径调用 App 内的 CLI，保持参数原样传递。相关代码为 [cliinstall](../../../internal/cliinstall/cliinstall.go) 与 [App 菜单](../../../apps/desktop/command_tools.go)。
 
 `cli-status` 检查命令路径、来源、入口归属和 PATH；`install-cli`、`uninstall-cli` 不启动 Core。高级用户可用 `--cli-dir /absolute/bin` 指定目录，测试必须使用隔离目录。Finder 不继承终端 PATH，因此另外检查常见 Homebrew 命令位置。已有 Cask 指向当前 App 的链接可直接使用，不再注册第二个入口；其他可执行文件、符号链接、被修改的启动器均报告冲突。
 
@@ -58,27 +58,27 @@ Formula 与 Cask 均检查稳定版和 RC 另一渠道的成功安装收据，�
 
 ## 启动、发现与退出
 
-菜单栏左键打开协作速览，`Control + Option + T` 注册成功时可全局呼出；“当前协作”和“资源速览”平级切换，可固定成浮窗，完整材料阅读在 WebGUI 打开。列表随页面统一滚动，筛选行的“服务与设置”与右键图标保留原有服务状态、设置、CLI 管理与退出入口。速览仍经公共启动器发现同一 Core，选择状态与浏览器共用；原生桥仅开放经过同源与路由校验的打开、固定和菜单动作。详见 [资源库决策](decisions/resource-library.md)。
+菜单栏左键打开协作速览，`Control + Option + T` 注册成功时可全局呼出；“当前协作”和“资源速览”平级切换，可固定成浮窗，完整材料阅读在桌面主窗口打开。列表随页面统一滚动，筛选行的“服务与设置”与右键图标保留原有服务状态、设置、CLI 管理与退出入口。主窗口和速览复用同一原生请求转发器，选择状态与浏览器共用；原生桥仅开放经过资源能力与路由校验的固定操作。详见 [资源库决策](decisions/resource-library.md)。
 
-[service](../../../internal/service/service.go) 是 CLI、MCP 和 App 共用的生命周期入口。`teamcross` / `serve` 默认后台启动并打开页面；`serve --foreground` 用于开发。`join` 自动确保服务，`mcp` 仅在实际工具调用时启动服务且不打开浏览器。App 通过同一 helper 的 JSON 命令操作服务，不维护另一套协作实现。
+[service](../../../internal/service/service.go) 是 CLI、MCP 和 App 共用的生命周期入口。`teamcross` / `serve` 默认后台启动并打开页面；`serve --foreground` 用于开发。`join` 自动确保服务，`mcp` 仅在实际工具调用时启动服务且不打开浏览器。App 使用同一启动器指定内置 CLI helper 启动 Core，再经原生端验证后的本机 HTTP 读取与操作；不维护另一套协作实现。
 
 数据目录规范化（含符号链接），`start.lock` 串行化并发启动，`core.lock` 覆盖完整服务生命周期。 启动被取消或超时时，在释放启动锁前结束并等待本次新建的 foreground helper：先发 SIGTERM，3 秒未结束才精确终止该 PID；不按名称结束其他 Core，不清理数据。已取消的请求不再创建进程。`connection.json` 以 0600 原子写入实例身份、PID、URL、版本、控制协议、数据目录与本机控制 token。健康检查不启动 Codex，核对身份与协议后才复用；连接失效可启动新实例，不兼容或身份不匹配则报告处理入口。
 
-菜单栏外壳在创建图标之前，由 [AppInstance](../../../apps/macos/AppInstance.swift) 取得同一规范化数据目录的 `app.lock`。它与 `core.lock` 独立；锁文件不删除，文件描述符不传给 helper。不同数据目录可以保留独立 App，路径别名不能绕过去重。
+桌面外壳在显示窗口、创建图标和注册热键之前，由 [appinstance](../../../apps/desktop/internal/appinstance/) 取得同一规范化数据目录的 `app.lock`。它与 `core.lock` 独立；锁文件不删除，文件描述符不传给 helper。不同数据目录可以保留独立 App，路径别名不能绕过去重。
 
 取得锁的 App 建立按本机用户与数据目录区分的 [CFMessagePort](https://developer.apple.com/documentation/CoreFoundation/CFMessagePort) 接收入口。后来的副本将首页或 `teamcross://join` 请求直接交给已有 App，不广播或落盘邀请。接收方对请求 ID 去重并回复入队确认；确认不表示已加入协作，邀请仍进入原有预览流程。客户端忙时排队处理，通信暂时不可用时有界重试；超时提示用户使用已有入口，不创建第二个图标，也不停止 Core。
 
-副本转交完成和启动失败使用仅退出外壳的路径；只有用户对主 App 执行“退出 Team Cross”才进入原有停止服务流程。异常退出后系统释放外壳锁，下次启动可重新取得锁并复用存活的 Core。Finder 再次打开已有 App 时处理 reopen 事件，正常打开协作空间。旧版 App 不具备此协调协议，升级前仍需先退出旧外壳；新版本不按名称强制结束未知旧进程。
+副本转交完成和启动失败使用仅退出外壳的路径；只有用户对主 App 执行“退出 Team Cross”才进入原有停止服务流程。异常退出后系统释放外壳锁，下次启动可重新取得锁并复用存活的 Core。Finder 再次打开已有 App 时处理 reopen 事件，恢复保留的主窗口与页面。Wails 与具备该协议的 Swift 外壳使用相同 IPC 身份；更旧版本可能不支持。升级仍需先退出旧 App/Core，新版本不按名称强制结束未知进程。
 
 默认 43210 占用时回退到动态 loopback 端口；显式端口冲突不回退。控制 API 必须使用本机 token，拒绝浏览器 Origin；不凭陈旧 PID 或程序名终止进程。`status --json` 查询状态；`doctor --json` 检查客户端和 MCP；`stop` 对活动协作要求 `--force`，并等待生命周期锁释放。
 
-浏览器和终端关闭不影响 Core。App“退出 Team Cross”停止本机服务，活动协作先确认；B 退出只断开 B，A 的运行时不随之停止。Core 停止保留 fork、目录、代码和加入记录；恢复与邀请失效继续遵循既有生命周期规则。不自动重放模型写入，也不自动恢复已撤销的共享。
+浏览器、终端及桌面窗口关闭不影响 Core；关闭桌面窗口只隐藏，`⌘1`/Dock 恢复，`⌘2` 开关速览。App“退出 Team Cross”停止本机服务，活动协作先确认；B 退出只断开 B，A 的运行时不随之停止。Core 停止保留 fork、目录、代码和加入记录；恢复与邀请失效继续遵循既有生命周期规则。不自动重放模型写入，也不自动恢复已撤销的共享。
 
 ## 首次协作
 
 首次协作可先分享材料讨论，也可创建带执行的空间；来源选择、创建与邀请失败后的处理见 [产品流程](product-flows.md)，成员与执行权限见 [协作空间契约](decisions/collaboration-spaces.md)。本节维护邀请在本机的打开方式与客户端就绪检查。启动不要求 `--repo`；此高级参数只设置本机辅助上下文。
 
-邀请同时给出 `teamcross://join?invite=…`、原始 `tcx3.` 内容及安装指引。App 将邀请经带本机凭据的接口暂存，浏览器只携带随机 pending ID。暂存最多 32 项、10 分钟，仍受原邀请期限约束。邀请声明的名称、主机和 `lan|tailcat` 在预览显示，实际加入使用相同 TLS pin 验证；预览只做本地格式和版本校验，不联系远端、不启动模型。Tailcat 邀请还包含其地址及预共享密钥，安装指引和页面明确提醒用户把整份邀请码视为秘密。
+邀请同时给出 `teamcross://join?invite=…`、原始 `tcx3.` 内容及安装指引。App 将邀请经带本机凭据的接口暂存，独立桌面确认窗口只携带随机 pending ID，主窗口保留路由与草稿；显式 CLI 的浏览器预览沿用同一 pending 机制。暂存最多 32 项、10 分钟，仍受原邀请期限约束。邀请声明的名称、主机和 `lan|tailcat` 在预览显示，实际加入使用相同 TLS pin 验证；预览只做本地格式和版本校验，不联系远端、不启动模型。Tailcat 邀请还包含其地址及预共享密钥，安装指引和页面明确提醒用户把整份邀请码视为秘密。
 
 加入后进入所获授权的空间上下文；页面关闭不停止本机 Core 的在线心跳。多人参与、成员资格与执行访问按 [协作空间契约](decisions/collaboration-spaces.md) 判断，申请和交接按 [输入协调](decisions/input-and-sharing.md) 处理；心跳周期、在线窗口与请求字段统一维护在 [共享协议](protocol.md#共享邀请与传输)。
 

@@ -120,6 +120,8 @@ jobs:
           pnpm --filter @teamcross/web test
           pnpm --filter @teamcross/web build
           git diff --exit-code -- internal/webassets/dist
+          make desktop-test
+          (cd apps/desktop && go vet ./...)
 
       - name: Build unsigned release
         id: package
@@ -161,6 +163,8 @@ jobs:
               "dirty": False,
               "architecture": "arm64",
               "minimumMacOS": "14.0",
+              "desktopHost": "wails",
+              "wails": "v3.0.0-beta.26",
               "developerIDSigned": False,
               "notarized": False,
           }
@@ -241,6 +245,8 @@ jobs:
               raise SystemExit("downloaded release manifest does not match the tag source")
           if manifest.get("dirty") or manifest.get("developerIDSigned") or manifest.get("notarized"):
               raise SystemExit("downloaded release is not the expected clean unsigned build")
+          if manifest.get("desktopHost") != "wails" or manifest.get("wails") != "v3.0.0-beta.26":
+              raise SystemExit("downloaded release does not contain the expected Wails host")
           PY
 
       - name: Validate release notes

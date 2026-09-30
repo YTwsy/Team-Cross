@@ -2,7 +2,7 @@
 
 `Next` 的独立 Wails v3 module，精确锁定 `v3.0.0-beta.26`。根 module 的 Core/CLI 不依赖 Wails；桌面使用 Go 1.27.1+、macOS Command Line Tools 和系统 WKWebView。
 
-当前增量内嵌现有 React 主窗口与协作速览，复用协作空间、材料发布/阅读、批注、资源库和设置流程。请求通过原生端连接隔离 Core，复制通过固定的原生剪贴板接口，Web Storage 按规范化数据目录隔离。预览要求显式隔离目录（`--data-dir` 或 `TEAMCROSS_DATA_DIR`），拒绝默认生产目录；只有持锁实例通过内置 CLI helper 确保隔离 Core，`--connect-only` 可禁止启动。仅注册测试邀请 scheme `teamcross-desktop-preview://`，正式 `teamcross://` 与安装切换继续按迁移计划实现。显式退出会停止对应的隔离 Core，活动协作先确认。
+桌面外壳内嵌现有 React 主窗口与协作速览，复用协作空间、材料发布/阅读、批注、资源库和设置流程。请求通过原生端连接独立 Core，复制通过固定的原生剪贴板接口，Web Storage 按规范化数据目录隔离。预览要求显式隔离目录（`--data-dir` 或 `TEAMCROSS_DATA_DIR`），拒绝默认生产目录；只有持锁实例通过内置 CLI helper 确保隔离 Core，`--connect-only` 可禁止启动。Preview 仅注册测试邀请 scheme `teamcross-desktop-preview://`；默认安装包的 release profile 注册既有 `teamcross://`。显式退出会停止对应的隔离 Core，活动协作先确认。
 
 菜单栏左键、`⌘2` 与注册成功后的全局 `⌃⌥T` 开关速览。右键或速览中的“服务与设置”在速览内打开原生服务菜单；该入口也适用于菜单栏拥挤的屏幕。菜单显示轻量 Core 状态，并通过同一 Core 偏好 API 更改语言。热键注册被系统拒绝时不占用其他应用的快捷键，也不显示已注册标记。速览未固定时失焦收起，固定后保持浮窗；隐藏、固定切换和重新展示复用同一页面。点击协作或材料在已有主窗口中定位，`⌘1` 仅显示主窗口并保留当前路由和草稿。
 
@@ -55,10 +55,10 @@ App 事件循环先接收冷启动邀请，再争用外壳锁；菜单栏、速�
 
 相关：[桌面边界](../../docs/agent-wiki/sources/decisions/desktop-host.md)、[迁移计划](../../docs/agent-wiki/tasks/desktop-wails-migration.md)、[验证契约](../../docs/agent-wiki/sources/validation/test-gates.md)。
 
-## 正式身份的安装候选
+## 正式身份的安装包
 
-`python3 scripts/build-release.py --desktop-host wails --version 0.2.6-dev.wails --output dist/desktop-candidate/0.2.6-dev.wails` 构建 Wails App、DMG、独立 CLI 和本地 Homebrew 定义。正式 profile 保留 `io.github.ytwsy.teamcross`、`Contents/MacOS/TeamCross`、`Contents/Resources/teamcross`、`teamcross://` 与 `~/Library/Application Support/Team Cross Next`；提供 Dock 主窗口，关闭仍隐藏。通过 `--data-dir` 或 `TEAMCROSS_DATA_DIR` 可指定隔离目录。
+`make release` 或 `python3 scripts/build-release.py --version 0.2.6-dev.wails --output dist/desktop-candidate/0.2.6-dev.wails` 构建 Wails App、DMG、独立 CLI 和本地 Homebrew 定义。正式 profile 保留 `io.github.ytwsy.teamcross`、`Contents/MacOS/TeamCross`、`Contents/Resources/teamcross`、`teamcross://` 与 `~/Library/Application Support/Team Cross Next`；提供 Dock 主窗口，关闭仍隐藏。通过 `--data-dir` 或 `TEAMCROSS_DATA_DIR` 可指定隔离目录。
 
 Profile 由编译器固定，不能用运行参数将 Preview 变成正式 App。`TeamCross --version` 只打印 App 的 JSON 构建信息，不启动 UI/Core，可核对其与内置 CLI 的版本、提交和协议。CLI 构建仍为纯 Go，CGO 仅用于 Wails 外壳。
 
-`python3 scripts/verify-desktop-bundle.py <candidate-output>` 检查 App/DMG/CLI 校验和、生产元数据、签名完整性与版本一致性，并挂载只读 DMG 复核内容；不注册邀请处理器、不打开 GUI，也不使用用户数据。原生安装、升级与 URL 验收须另外完成。当前 `build-release.py` 默认仍为 Swift，只有显式 `--desktop-host wails` 产生该候选；默认切换在后续验收 PR 中完成，不在此增量发布。
+`python3 scripts/verify-desktop-bundle.py <candidate-output>` 检查 App/DMG/CLI 校验和、生产元数据、签名完整性与版本一致性，并挂载只读 DMG 复核内容；不注册邀请处理器、不打开 GUI，也不使用用户数据。原生安装、升级与 URL 验收须另外完成。`verify-release.py` 检查非 UI 安装与 CLI 生命周期，`verify-desktop-upgrade.py <Swift 输出> <Wails 输出>` 检查包替换后的 CLI/MCP 路径和数据；原生检查遵循安装契约。`build-release.py` 默认 Wails，`--desktop-host swift` 仅保留为升级参照；这些本地构建不发布网络产物。

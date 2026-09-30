@@ -16,7 +16,7 @@ Go Core 负责空间、已发布材料与本机管理；启用执行时，A 的�
 
 ## 修改时守住的边界
 
-`Next` 的独立 Wails 预览已内嵌完整 React 主窗口；外壳通过本机 HTTP 连接 Core，不持有业务运行时，也未替换正式 Swift App。[桌面边界](../../sources/decisions/desktop-host.md) 维护凭据、资源传输、重连与生命周期要求。
+`Next` 默认安装包使用独立 module 的 Wails 外壳，内嵌 React 主窗口与速览；通过本机 HTTP 连接 Core，不持有业务运行时。隔离 Preview 使用同一实现，公共渠道不会因源码切换而自动更新。[桌面边界](../../sources/decisions/desktop-host.md) 维护凭据、资源传输、重连与生命周期要求。
 
 读取来源可以按需启动控制进程，但不得发送业务 prompt。创建执行使用原生 fork，恢复使用已保存会话 ID；创建只读空间仅保存空间记录。共享开放时客户端断开保留已有运行时；共享结束且执行、审批、请求和直接连接清空后，关闭此协作的 app-server 释放原生锁。只读历史不恢复该会话，显式恢复继续同一 ID。两者都不删除会话或目录。
 
@@ -32,9 +32,9 @@ Go Core 负责空间、已发布材料与本机管理；启用执行时，A 的�
 
 CLI、App、MCP 现在共用按数据目录发现的后台 Core；默认 serve 在后台运行，调试用 --foreground。实例身份、版本和受控停止见 [分发与首次体验](../../sources/distribution-and-onboarding.md)。
 
-菜单栏 App 另由 [AppInstance](../../../../apps/macos/AppInstance.swift) 在创建图标前取得 `app.lock`，向同一用户、同一数据目录的已有外壳转交页面或邀请请求。第二份外壳退出不能调用 Core 停止；接收确认只表示请求已入队。修改时运行真实 App 副本回归，不用 CLI 的 Core 复用结果代替外壳验证。
+桌面 App 另由 [appinstance](../../../../apps/desktop/internal/appinstance/) 在显示窗口、创建图标及注册热键前取得 `app.lock`，向同一用户、同一数据目录的已有外壳转交页面或邀请请求。第二份外壳退出不能调用 Core 停止；接收确认只表示请求已入队。修改时运行真实 App 副本回归，不用 CLI 的 Core 复用结果代替外壳验证。
 
-Wails Preview 的 [单实例模块](../../../../apps/desktop/internal/appinstance/) 沿用上述锁、CFMessagePort 名称和回执格式，当前已转交显示窗口请求；邀请批次尚未开放。详见 [桌面边界](../../sources/decisions/desktop-host.md)。
+Wails 的单实例模块沿用 Swift 的锁、CFMessagePort 名称和回执格式，支持显示窗口和邀请批次转交。邀请进入独立确认窗口，只预览、不自动加入；确认入队与完成加入是不同状态。详见 [桌面边界](../../sources/decisions/desktop-host.md)。
 
 分发使用 App 内置 CLI：Cask 注册其命令，DMG 由菜单栏安装启动器，Formula 提供互斥的独立安装。命令安装仅维护自身入口，不启动或提权 Core；设置页区分磁盘安装版本与运行版本。修改命令归属时先读上述来源与 `internal/cliinstall`，不要在 Homebrew 之外覆盖其链接。
 

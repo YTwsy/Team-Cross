@@ -34,6 +34,7 @@ flowchart LR
 
 - `internal/workspace`：Git 预览、干净 worktree、子目录映射、文件读取。
 - `internal/nativecodex`：启动和初始化独立 app-server，通过一个长期 WebSocket 进行 RPC、事件及 server request 分发。
+- `apps/desktop`：独立 Wails module，内嵌 React 主窗口与速览，管理原生窗口/菜单/邀请和受限 HTTP 转发；Core 与 CLI 不导入 Wails。
 - `internal/collab`：协作记录、原生协议网关、输入协调、邀请与加入、TUI/Desktop 启动、HTTP 管理接口。
 - `internal/materialstore`：确定性清单、SHA-256 blob、不可变原子写入及内容校验；授权仍由 `internal/collab` 的空间或私有草稿引用决定。
 - `internal/sharing`：`tcx3` 邀请、临时 TLS listener、指纹绑定，以及 LAN / Tailcat 服务端与客户端连接适配。Tailcat 只把虚拟 TCP 443 交给同一 TLS/HTTP 网关。

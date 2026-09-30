@@ -22,7 +22,7 @@ p.add_argument('--base-url', help='Release asset base URL; no upload is performe
 p.add_argument('--sign-identity', help='Developer ID Application identity')
 p.add_argument('--notary-profile', help='Existing notarytool keychain profile; requires signing')
 p.add_argument('--skip-web', action='store_true')
-p.add_argument('--desktop-host', choices=('swift', 'wails'), default='swift', help='App shell; Wails is an explicit migration candidate until installation validation completes')
+p.add_argument('--desktop-host', choices=('swift', 'wails'), default='wails', help='App shell (default: Wails); Swift is retained for upgrade-reference builds')
 a = p.parse_args()
 if not re.fullmatch(r'\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?', a.version): p.error('Invalid version')
 if a.notary_profile and not a.sign_identity: p.error('Notarization requires --sign-identity')
