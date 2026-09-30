@@ -1,6 +1,6 @@
 # Next：WebGUI 迁移到 Wails 桌面端
 
-状态：用户已确认 Wails v3 + React + 独立 Go Core，并授权按关键功能通过 PR 合入 `Next`，较大功能拆成多个 PR。P0 请求通道、P1 主窗口、P2 单实例/原生邀请传输及 P3 显式退出、速览与原生菜单、可见性调度已分别合入。邀请事件已在 PR #35 补齐本机人工验收并合入（`4e9d024`）；共享主题、启动/退出配合、原生命令行入口与显式服务恢复均已合入；当前推进安装候选与旧版升级验收。稳定边界已进入 [桌面契约](../sources/decisions/desktop-host.md)。
+状态：用户已确认 Wails v3 + React + 独立 Go Core，并授权按关键功能通过 PR 合入 `Next`，较大功能拆成多个 PR。P0 请求通道、P1 主窗口、P2 单实例/原生邀请传输及 P3 显式退出、速览与原生菜单、可见性调度已分别合入。邀请事件已在 PR #35 补齐本机人工验收并合入（`4e9d024`）；共享主题、启动/退出配合、原生命令行入口与显式服务恢复均已合入；安装候选和包升级检查已合入；默认外壳切换在草稿 PR #45，等待原生安装验收。稳定边界已进入 [桌面契约](../sources/decisions/desktop-host.md)。
 
 调查日期：2026-09-30。Team Cross 基线为 `9abee024a415c1ee115224cf1d5776b2cdce165a`；本地 `Next` 直接从该提交创建。OpenSurge 参考为本次更新并读取的 `origin/Next`：`d968c88bf0558df2517c623d694d5a802c1beb6c`。没有切换或修改 OpenSurge 的工作区。
 
@@ -143,9 +143,15 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 `codex/next/desktop-default-install` 将默认发行构建改为 Wails，Swift 仅以显式参数保留为升级参照；更新中英文入口说明、开发/架构/分发来源，以及 release workflow 的桌面 module 门槛和外壳 metadata 检查。没有改变 `origin/main` 发布来源规则，也不创建 tag/Release 或公共 tap 更新。
 
-这是等待原生安装验收的候选分支，不表示已合入 Next。先完成可复核的构建和包检查，再补旧 Swift 原生退出、同路径 Wails 接管、双副本、生产 URL 投递与物理菜单栏/热键/输入法证据。现有自动结果不足以关闭这些门槛，默认切换 PR 在完成前保持草稿。
+[PR #45](https://github.com/YTwsy/Team-Cross/pull/45) 是等待原生安装验收的草稿，不表示已合入 Next。先完成可复核的构建和包检查，再补旧 Swift 原生退出、同路径 Wails 接管、双副本、生产 URL 投递与物理菜单栏/热键/输入法证据。现有自动结果不足以关闭这些门槛，默认切换 PR 在完成前保持草稿。
+
+- 干净提交 `23fac4aea127a43658bba5f32dc3731cfddaf4e5` 经默认 `make release VERSION=0.2.6-dev.wails-p4c` 构建，产物在 `dist/release/0.2.6-dev.wails-p4c/`，buildNumber 163、dirty=false、arm64/macOS 14+、Wails beta.26、ad-hoc、未公证。DMG SHA-256 为 `4fe52511461d91dcbd9dbecdda817b9f51871e5ae9754ca41141170800342bd6`；CLI 为 `215b3821d78d2539532239df19787914055916dd2b26e775f80a6e8b06ac5ee1`。
+- 默认构建的 DMG/App/CLI 检查、CLI 生命周期、Swift 包升级与 MCP 握手、隔离 Homebrew 安装/升级/互斥/卸载检查通过。最初并行运行两个 DMG 使用者导致挂载资源争用并残留未挂载设备；按精确候选路径确认 `/dev/disk4` 属于本轮后卸载，串行重跑通过。不同安装检查应串行使用同一 DMG，不把该次失败计为通过。
+- 本 PR 只改默认构建、CI/workflow 和文档，没有新的业务 Go/React 改动；Homebrew renderer 10 项、Python 语法、194 个相对链接、diff check 通过。自动脚本启动的 Core 均已回收；保留等待人工退出的独立 Swift 原生升级 fixture，其自动打开的测试浏览器页已关闭；不使用用户数据或会话。
 
 ### P4b 包安装与升级验证（2026-09-30）
+
+已由 [PR #44](https://github.com/YTwsy/Team-Cross/pull/44) 合入 Next（`1a41d1e`），Go/Web 与 macOS 两项 CI 成功。
 
 `codex/next/desktop-install-verification` 更新验证入口：Wails 包不再进入依赖 Swift helper 调用方式的原生 fixture；安装脚本明确报告原生验收须独立进行，Swift 默认原有 fixture 保留。新增 Swift→Wails 包升级脚本与 macOS CI 检查，没有变更默认外壳。
 
