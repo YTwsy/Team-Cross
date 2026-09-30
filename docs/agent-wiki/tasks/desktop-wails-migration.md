@@ -139,6 +139,18 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 每个阶段应形成可独立构建、可验证的增量。下面是建议实施顺序，不是已经执行的任务清单。
 
+### P3a 显式退出与 Core 停止（2026-09-30）
+
+邀请事件候选保存在 [Draft PR #35](https://github.com/YTwsy/Team-Cross/pull/35)，两项 CI 已通过，实际 Apple Event 仍待人工验证；该轮隔离 App、Core 和浏览器已关闭。退出功能从 Next 独立开发于 `codex/next/desktop-core-lifecycle`，不以邀请事件检查为前提。
+
+- 原生状态接口移除控制 token；缺失 discovery 且 Core 锁空闲，或确认进程已死亡且锁空闲时，才能当作服务停止。存活但失联、启动中或身份不兼容继续显示错误。
+- 退出协调器只处理一次请求；活动协作显示共享语言的原生确认，默认取消。取消和失败保留页面；处理期间拒绝新的单实例转交回执。确认后重新验证同一实例，发送一次 stop，等待 Core 锁释放；不重试丢失响应的写入。无活动协作使用 force=false，保留 Core 对新活动协作的竞态保护。
+- 本地根 Go test/vet、七个相关 package 的 race、桌面 internal race/vet、Web check（750 消息）/test（11 文件、130 项）/build 通过，嵌入资源无差异。新增回归覆盖确认期间实例变化、取消/重复退出、停止超时/响应丢失、锁释放等待、启动中/失联/已崩溃区分与锁符号链接拒绝。
+- 真实 WKWebView + AppKit 检查使用空 provider home 与隔离 Core。Core PID `77315` 有一个只读共享空间：中文确认默认取消，取消后同一 PID/实例和中文 emoji 草稿保留；将同一 Core 偏好改为 en 后，原生确认改为英文。确认后 Core 与 App 均退出，空间目录和 `user-owned.txt` 保留。没有模型输入。
+- 最终代码构建在 `bin/desktop-preview/p3-quit-final/`，清单为 `08b1576` 加候选源码、dirty=true，arm64、ad-hoc、未公证。另一隔离 Core PID `79362` 的 discovery 构建信息被测试性改为不匹配：退出错误使用已保存的英文偏好，重复 Cmd-Q 不叠加处理，原 Core 继续运行；恢复原 metadata 并关闭提示后，无活动协作的退出成功，App/Core 进程均消失。该检查的原生截图已在实施会话中复核。
+
+本轮所有测试 App/Core 已关闭，未删除测试空间或用户文件。菜单栏、速览/固定/热键、可见性调度和安装切换仍需后续增量；本段不代表 P3/P4 整体完成。
+
 ### P2b 原生邀请传输增量（2026-09-30）
 
 邀请接入继续拆分：先提供原生专用 `coreclient.StageInvitation`，再接入 Apple Event、确认队列与桌面窗口。该方法沿用私有 discovery 的目录、PID、instance、协议和构建身份验证，将邀请放在 authenticated `POST /api/invitations/pending` 的 JSON body 中，只返回经 UUID 格式检查的 pending ID。普通 React API 转发仍拒绝此私有路由。

@@ -52,19 +52,22 @@ func New(directory string) (*Client, error) {
 	}}, nil
 }
 
-func (c *Client) discover(ctx context.Context) (service.Connection, error) {
+func (c *Client) probe(ctx context.Context) (service.Status, error) {
 	var connection service.Connection
 	f, err := os.Open(filepath.Join(c.directory, "connection.json"))
 	if err != nil {
-		return connection, errConnection
+		if os.IsNotExist(err) {
+			return service.Status{}, errMissing
+		}
+		return service.Status{}, errConnection
 	}
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil || !info.Mode().IsRegular() || info.Size() > 16<<10 || info.Mode().Perm()&0077 != 0 {
-		return connection, errConnection
+		return service.Status{}, errConnection
 	}
 	if json.NewDecoder(io.LimitReader(f, 16<<10)).Decode(&connection) != nil {
-		return connection, errConnection
+		return service.Status{}, errConnection
 	}
 	u, err := url.Parse(connection.URL)
 	if err != nil || u.Scheme != "http" || u.Hostname() != "127.0.0.1" || u.Port() == "" ||
@@ -72,27 +75,33 @@ func (c *Client) discover(ctx context.Context) (service.Connection, error) {
 		connection.DataDir != c.directory || connection.PID <= 0 || connection.Instance == "" ||
 		connection.Token == "" || strings.ContainsAny(connection.Token, "\r\n") ||
 		connection.Protocol != buildinfo.ControlProtocol || connection.Version != buildinfo.Version || connection.Commit != buildinfo.Commit {
-		return connection, errConnection
+		return service.Status{}, errConnection
 	}
 	probe, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(probe, http.MethodGet, connection.URL+"/api/control/status", nil)
 	if err != nil {
-		return connection, errConnection
+		return service.Status{}, errConnection
 	}
 	req.Header.Set("Authorization", "Bearer "+connection.Token)
 	res, err := c.http.Do(req)
 	if err != nil {
-		return connection, errConnection
+		return service.Status{Connection: connection}, errUnreachable
 	}
 	defer res.Body.Close()
 	var status service.Status
 	if res.StatusCode != http.StatusOK || json.NewDecoder(io.LimitReader(res.Body, 16<<10)).Decode(&status) != nil ||
 		!status.Running || status.URL != connection.URL || status.PID != connection.PID || status.Instance != connection.Instance ||
 		status.DataDir != connection.DataDir || status.Protocol != connection.Protocol || status.Version != connection.Version || status.Commit != connection.Commit {
-		return connection, errConnection
+		return service.Status{}, errConnection
 	}
-	return connection, nil
+	status.Token = connection.Token
+	return status, nil
+}
+
+func (c *Client) discover(ctx context.Context) (service.Connection, error) {
+	status, err := c.probe(ctx)
+	return status.Connection, err
 }
 
 var collaborationPath = regexp.MustCompile(`^/api/collaborations/[A-Za-z0-9-]+(?:/([a-z-]+))?$`)
