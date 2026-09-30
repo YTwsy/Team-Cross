@@ -80,7 +80,9 @@ describe("shared theme preference", () => {
       expect(screen.getByRole("status")).toHaveTextContent("dark"),
     );
     expect(posts).toBe(2);
-    expect(document.documentElement.dataset.theme).toBe("dark");
+    await waitFor(() =>
+      expect(document.documentElement.dataset.theme).toBe("dark"),
+    );
   });
   it("does not let a stale read overwrite a newer confirmed write", async () => {
     let read: ((r: Response) => void) | undefined;
