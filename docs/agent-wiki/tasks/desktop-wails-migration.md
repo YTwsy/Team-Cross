@@ -1,6 +1,6 @@
 # Next：WebGUI 迁移到 Wails 桌面端
 
-状态：用户已确认 Wails v3 + React + 独立 Go Core，并授权按关键功能通过 PR 合入 `Next`，较大功能拆成多个 PR。P0 请求通道、P1 主窗口、P2 单实例/原生邀请传输及 P3 显式退出、速览与原生菜单、可见性调度已分别合入。邀请事件已在 PR #35 补齐本机人工验收并合入（`4e9d024`）；当前完成共享主题增量，继续处理启动/退出配合、命令行入口与安装切换。稳定边界已进入 [桌面契约](../sources/decisions/desktop-host.md)。
+状态：用户已确认 Wails v3 + React + 独立 Go Core，并授权按关键功能通过 PR 合入 `Next`，较大功能拆成多个 PR。P0 请求通道、P1 主窗口、P2 单实例/原生邀请传输及 P3 显式退出、速览与原生菜单、可见性调度已分别合入。邀请事件已在 PR #35 补齐本机人工验收并合入（`4e9d024`）；共享主题、启动/退出配合、原生命令行入口与显式服务恢复均已合入；当前推进安装候选与旧版升级验收。稳定边界已进入 [桌面契约](../sources/decisions/desktop-host.md)。
 
 调查日期：2026-09-30。Team Cross 基线为 `9abee024a415c1ee115224cf1d5776b2cdce165a`；本地 `Next` 直接从该提交创建。OpenSurge 参考为本次更新并读取的 `origin/Next`：`d968c88bf0558df2517c623d694d5a802c1beb6c`。没有切换或修改 OpenSurge 的工作区。
 
@@ -139,7 +139,19 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 每个阶段应形成可独立构建、可验证的增量。下面是建议实施顺序，不是已经执行的任务清单。
 
+### P4a Wails 安装候选构建（2026-09-30）
+
+`codex/next/desktop-release-candidate` 增加编译固定的 release profile，以及显式 `build-release.py --desktop-host wails` 构建路径。保留生产 Bundle ID、主程序和内置 CLI 路径、邀请协议及既有数据目录；正常 Dock 主窗口取代仅菜单栏身份。默认发行构建暂留 Swift，待原生升级验收后再切换。
+
+- 产物 `dist/release/0.2.6-dev.wails-p4a/` 基于 `8fd4901` 加本批源码，dirty=true，arm64/macOS 14+、Wails beta.26、ad-hoc、未公证。`verify-desktop-bundle.py` 通过本地 App 与只读 DMG 内 App 的签名完整性、元数据、版本/提交/协议，独立 CLI tar 字节一致性及 SHA256SUMS。
+- 实际内置 CLI 的 `verify-lifecycle.py` 通过并发/路径别名复用、端口回退与冲突、停止鉴权、MCP 懒启动、异常退出恢复和数据保留；没有模型输入。桌面 internal race/vet、数据目录 profile 回归、Homebrew renderer 的 10 项测试通过。
+- 将产物复制到含空格的隔离 Applications 目录，为测试副本使用独立 Bundle ID、移除协议注册并指定空 Provider home/独立数据目录。真实 WKWebView 显示正式标题 Team Cross，设置页 App/Core 版本一致，关闭后 Cmd-1 保留设置路由；Cmd-Q 后 App/Core 退出。截图已在实施会话复核；生产 scheme 的文件存在性不代表实际系统 URL 投递通过。
+- 根 Go test/vet、七个相关 race package、Web check（752 消息）/139 项测试/build 通过，嵌入资源一致。Preview 共享构建器回归通过，`--version` 报告 preview profile，未指定目录时在创建 App/Core 前退出。
+- macOS CI 新增相同候选构建和无 GUI 包检查。未安装到系统 Applications、未改用户命令/MCP 配置、未发布 tag/Release 或 Homebrew tap。Swift→Wails 实际升级、双副本及安装渠道验证继续在后续 PR 完成。
+
 ### P3g 显式恢复本机服务（2026-09-30）
+
+已由 [PR #42](https://github.com/YTwsy/Team-Cross/pull/42) 合入 Next（`df08ec8`），两项 CI 成功。
 
 `codex/next/desktop-core-reconnect` 增加原生“启动或连接本机服务”：Core 被关闭或首次启动失败后，可以从保留的外壳恢复；后台页面读取不会自动启动服务。保持现有主窗口、路由和草稿；已运行实例被复用，不重放业务写入。连接后仍经过桌面的严格身份/构建检查。
 
@@ -148,6 +160,8 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 - 中文与 emoji 使用粘贴验证，不将其视为物理输入法组合验收。最终 Cmd-Q 后 App/Core 均退出，保留文件未变化；没有提交邀请或调用模型，截图已在实施会话复核。
 
 ### P3f 原生命令行工具菜单（2026-09-30）
+
+已由 [PR #41](https://github.com/YTwsy/Team-Cross/pull/41) 合入 Next（`c41a1c5`），更新至已合入的启动退出基线后，两项 CI 成功。
 
 `codex/next/desktop-cli-tools` 接入命令状态、安装和移除，复用现有 `cliinstall`，命令写入只在用户选择后发生。权限不足才请求系统授权，授权命令只允许 App helper 的两种 launcher 操作，路径保持字面量。语言/CLI 弹窗与退出、邀请处理串行，不给 renderer 新增执行接口。
 

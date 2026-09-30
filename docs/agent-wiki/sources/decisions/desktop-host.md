@@ -13,7 +13,9 @@
 
 ## 当前实现范围
 
-当前 [预览入口](../../../../apps/desktop/main.go) 显示与浏览器共用的完整 React 页面，要求显式隔离 `--data-dir` 或 `TEAMCROSS_DATA_DIR`，拒绝默认生产数据目录。只有持锁实例通过内置 CLI helper 确保该目录的独立 Core；`--connect-only` 用于不允许启动的 fixture。显式退出按下述规则停止对应实例；不注册生产邀请协议，尚未替换 Swift App 或正式安装包。`--probe` 保留最小请求通道诊断页。
+默认 Preview [入口](../../../../apps/desktop/main.go) 显示与浏览器共用的完整 React 页面，要求显式隔离 `--data-dir` 或 `TEAMCROSS_DATA_DIR`，拒绝默认生产数据目录。只有持锁实例通过内置 CLI helper 确保该目录的独立 Core；`--connect-only` 用于不允许启动的 fixture。显式退出按下述规则停止对应实例；不注册生产邀请协议，尚未替换 Swift App 或正式安装包。`--probe` 保留最小请求通道诊断页。
+
+同一入口另有编译固定的 `release` profile，由 `build-release.py --desktop-host wails` 显式构建安装候选。它保留生产 Bundle ID、主程序/CLI 相对路径、数据目录与邀请 scheme，使用正常 Dock 主窗口；`--version` 只输出构建 metadata，便于无 UI 核对。Preview 仍拒绝生产目录与路径别名，profile 不接受运行时切换。当前默认发行构建仍是 Swift，待安装验收后再切换；候选构建不等于已经发布或安装。
 
 [platform.ts](../../../../packages/web/src/platform.ts) 集中处理首次语言读取、业务请求、复制和窗口操作。Core 路由按方法与路径列明，控制及运行时专用入口继续不可达。剪贴板与窗口操作只提供固定的 `/desktop/clipboard`、`/desktop/open`、`/desktop/pin`、`/desktop/menu` POST，使用同一资源能力验证；打开路由限制为已知页面、材料 key 与协作 ID，拒绝任意 URL、脚本或邀请参数。外链仅允许内嵌主页面中主动点击的 HTTP(S) 导航，交给系统浏览器，不新建 WebView 或加载远程页面。
 
