@@ -4,6 +4,12 @@
 
 static const char guardKey;
 
+void setTeamCrossAppearance(void *pointer, int mode) {
+    NSWindow *window = (__bridge NSWindow *)pointer;
+    window.appearance = mode == 1 ? [NSAppearance appearanceNamed:NSAppearanceNameAqua] :
+        mode == 2 ? [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua] : nil;
+}
+
 void presentTeamCrossWindow(void *pointer) {
     NSWindow *window = (__bridge NSWindow *)pointer;
     [NSApp unhideWithoutActivation];

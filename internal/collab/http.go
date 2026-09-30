@@ -221,6 +221,31 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 	case "info":
 		respond(w, a.Info(ctx), nil)
 		return
+	case "ui-theme":
+		if r.Method == "GET" {
+			respond(w, map[string]string{"mode": a.UITheme()}, nil)
+			return
+		}
+		if r.Method != "POST" {
+			http.NotFound(w, r)
+			return
+		}
+		var in struct {
+			Mode string `json:"mode"`
+		}
+		if !decode(w, r, &in) {
+			return
+		}
+		if !validUITheme(in.Mode) {
+			respond(w, nil, problem.New("invalid_ui_theme", "界面主题无效", "请选择跟随系统、浅色或深色"))
+			return
+		}
+		if err := a.SetUITheme(in.Mode); err != nil {
+			respond(w, nil, err)
+			return
+		}
+		respond(w, map[string]string{"mode": in.Mode}, nil)
+		return
 	case "ui-language":
 		if r.Method == "GET" {
 			mode, resolved := a.UILanguage()
@@ -259,6 +284,7 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		}
 		a.mu.Lock()
 		in.UILanguage = a.settings.UILanguage
+		in.UITheme = a.settings.UITheme
 		e := writeJSONFile(filepath.Join(a.Config.DataDir, "settings.json"), in)
 		if e == nil {
 			a.settings = in

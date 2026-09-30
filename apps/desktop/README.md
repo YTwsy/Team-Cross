@@ -2,13 +2,15 @@
 
 `Next` 的独立 Wails v3 module，精确锁定 `v3.0.0-beta.26`。根 module 的 Core/CLI 不依赖 Wails；桌面使用 Go 1.27.1+、macOS Command Line Tools 和系统 WKWebView。
 
-当前增量内嵌现有 React 主窗口与协作速览，复用协作空间、材料发布/阅读、批注、资源库和设置流程。请求通过原生端连接隔离 Core，复制通过固定的原生剪贴板接口，Web Storage 按规范化数据目录隔离。预览要求显式隔离目录（`--data-dir` 或 `TEAMCROSS_DATA_DIR`），拒绝默认生产目录；只有持锁实例通过内置 CLI helper 确保隔离 Core，`--connect-only` 可禁止启动。仅注册测试邀请 scheme `teamcross-desktop-preview://`，正式 `teamcross://`、主题同步与安装切换继续按迁移计划实现。显式退出会停止对应的隔离 Core，活动协作先确认。
+当前增量内嵌现有 React 主窗口与协作速览，复用协作空间、材料发布/阅读、批注、资源库和设置流程。请求通过原生端连接隔离 Core，复制通过固定的原生剪贴板接口，Web Storage 按规范化数据目录隔离。预览要求显式隔离目录（`--data-dir` 或 `TEAMCROSS_DATA_DIR`），拒绝默认生产目录；只有持锁实例通过内置 CLI helper 确保隔离 Core，`--connect-only` 可禁止启动。仅注册测试邀请 scheme `teamcross-desktop-preview://`，正式 `teamcross://` 与安装切换继续按迁移计划实现。显式退出会停止对应的隔离 Core，活动协作先确认。
 
 菜单栏左键、`⌘2` 与注册成功后的全局 `⌃⌥T` 开关速览。右键或速览中的“服务与设置”在速览内打开原生服务菜单；该入口也适用于菜单栏拥挤的屏幕。菜单显示轻量 Core 状态，并通过同一 Core 偏好 API 更改语言。热键注册被系统拒绝时不占用其他应用的快捷键，也不显示已注册标记。速览未固定时失焦收起，固定后保持浮窗；隐藏、固定切换和重新展示复用同一页面。点击协作或材料在已有主窗口中定位，`⌘1` 仅显示主窗口并保留当前路由和草稿。
 
 桌面窗口操作只有 `/desktop/open`、`/desktop/pin`、`/desktop/menu` 和剪贴板入口，受同一资源能力校验；打开路由另有固定白名单。共享 React 不加载 Wails 的 JavaScript runtime，原生到页面的定位、固定状态与刷新通知由受保护的 WKWebView 小型适配传递。业务动作仍由 Core API 处理。
 
 页面读取结合 DOM 可见性与 AppKit 的隐藏、最小化和完全遮挡状态调度；可见但失焦的窗口继续更新。隐藏时取消正在进行的页面 GET 并停止后续轮询，重新显示立即读取，保留 React 页面、草稿与选择。原生菜单的轻量状态检查和 Core 自身生命周期不受页面可见性影响；业务写入不由此取消或重放。
+
+主窗口、速览与 WebGUI 共用 Core 保存的主题偏好，原生标题栏也跟随系统/浅色/深色选择。页面只应用已确认的保存结果；离线保留缓存外观，失败显示提示。浏览器或旧窗口的本地缓存不会自动覆盖 Core 偏好。
 
 ```sh
 make desktop-test

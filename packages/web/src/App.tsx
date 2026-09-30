@@ -1,4 +1,3 @@
-import { storageKey } from "./platform";
 import {
   languageInfo,
   setLanguageInfo,
@@ -13,12 +12,13 @@ import { StartSpace } from "./components/Publisher";
 import { Create } from "./components/Create";
 import { Detail } from "./components/Detail";
 import { Join } from "./components/Join";
-import { Settings, type Theme } from "./components/Settings";
-import { Icon } from "./components/ui";
+import { Settings } from "./components/Settings";
+import { ErrorBox, Icon } from "./components/ui";
 import { LibraryProvider } from "./library";
 import { Library, SelectionTray } from "./components/Library";
 import { QuickLook } from "./components/QuickLook";
 import { watchVisibleRefresh } from "./visibility";
+import { useTheme } from "./theme";
 export default function App() {
   return (
     <LibraryProvider>
@@ -43,10 +43,12 @@ function AppShell() {
     };
     return watchVisibleRefresh(refresh, 5000, false);
   }, []);
-  const [theme, setTheme] = useState<Theme>(() => {
-    const t = localStorage.getItem(storageKey("teamcross.theme.v1"));
-    return t === "light" || t === "dark" ? t : "system";
-  });
+  const {
+    theme,
+    setTheme,
+    working: themeWorking,
+    error: themeError,
+  } = useTheme();
   useEffect(() => {
     const handler = () => {
       setRoute(location.hash.slice(1) || "/");
@@ -55,17 +57,6 @@ function AppShell() {
     window.addEventListener("hashchange", handler);
     return () => window.removeEventListener("hashchange", handler);
   }, []);
-  useEffect(() => {
-    const media = matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => {
-      document.documentElement.dataset.theme =
-        theme === "system" ? (media.matches ? "dark" : "light") : theme;
-    };
-    apply();
-    localStorage.setItem(storageKey("teamcross.theme.v1"), theme);
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, [theme]);
   useEffect(() => {
     const timer = setTimeout(
       () =>
@@ -98,6 +89,7 @@ function AppShell() {
       <Settings
         theme={theme}
         setTheme={setTheme}
+        themeWorking={themeWorking}
         uiLanguage={uiLanguage}
         onLanguageChange={adoptLanguage}
       />
@@ -171,6 +163,7 @@ function AppShell() {
           </div>
           <button
             className="theme-toggle"
+            disabled={themeWorking}
             onClick={() =>
               setTheme(
                 theme === "system"
@@ -211,6 +204,7 @@ function AppShell() {
           </div>
         )}
         <div className="page" key={route}>
+          <ErrorBox message={themeError} />
           {page}
         </div>
         <SelectionTray />

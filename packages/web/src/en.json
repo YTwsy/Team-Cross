@@ -879,5 +879,9 @@
   "Claude Code：": "Claude Code: ",
   "检测到其他安装的命令：{0}。切换前请通过原安装渠道处理。": "A command from another installation was found: {0}. Use the original installation method before switching.",
   "Team Cross 工具协议：{0}。": "Team Cross tool protocol: {0}.",
-  "{0} 客户端：{1}。": "{0} client: {1}."
+  "{0} 客户端：{1}。": "{0} client: {1}.",
+  "主题更改尚未确认，请查看当前设置后重试。": "The theme change was not confirmed. Check the current setting before trying again.",
+  "主题在这台 Mac 的主窗口、速览与 WebGUI 之间同步。": "The theme is shared by the main window, Quick View, and WebGUI on this Mac.",
+  "界面主题无效": "Invalid interface theme",
+  "请选择跟随系统、浅色或深色": "Choose System, Light, or Dark"
 }

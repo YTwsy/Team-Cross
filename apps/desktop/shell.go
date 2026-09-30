@@ -35,6 +35,7 @@ type desktopShell struct {
 	commands           chan windowCommand
 	pinned             bool
 	menuOpen           bool
+	theme              string
 	labels             []menuLabel
 	status, quickEntry *application.MenuItem
 	languages          map[string]*application.MenuItem
@@ -203,7 +204,21 @@ func (s *desktopShell) refresh(ctx context.Context) {
 	if err == nil && status.Running {
 		mode, resolved = status.UILanguage, status.ResolvedLanguage
 	}
-	application.InvokeSync(func() { s.updateMenu(status, err, mode, resolved) })
+	theme := localPreferences(s.directory).UITheme
+	if theme != "light" && theme != "dark" {
+		theme = "system"
+	}
+	application.InvokeSync(func() {
+		s.updateMenu(status, err, mode, resolved)
+		if theme != s.theme {
+			s.theme = theme
+			for _, window := range s.app.Window.GetAll() {
+				if webview, ok := window.(*application.WebviewWindow); ok {
+					native.SetAppearance(webview, theme)
+				}
+			}
+		}
+	})
 }
 
 func (s *desktopShell) updateMenu(status service.Status, err error, mode, resolved string) {
