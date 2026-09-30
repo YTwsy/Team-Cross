@@ -56,6 +56,7 @@ go build -o bin/teamcross ./cmd/teamcross
 | [management_test.go](../../../../internal/collab/management_test.go) / [input_management_test.go](../../../../internal/collab/input_management_test.go) / [collaboration_test.go](../../../../cmd/teamcross/collaboration_test.go) | MCP/CLI 创建与加入、输入归属与 epoch、角色拒绝、邀请失败恢复、同 fork 恢复 |
 | [service_test.go](../../../../internal/service/service_test.go) / [onboarding_test.go](../../../../internal/collab/onboarding_test.go) | 实例身份、控制协议、稳定 opt 路径、邀请预览、Core 心跳与输入申请 |
 | [cliinstall_test.go](../../../../internal/cliinstall/cliinstall_test.go) | 参数与带引号路径、未知命令保护、并发安装、重复移除和 App 更新后的命令行为 |
+| [verify-desktop-bundle.py](../../../../scripts/verify-desktop-bundle.py) | Wails 候选 App/DMG/CLI 的校验和、签名完整性、生产元数据及构建一致性；只读挂载 DMG，不启动 GUI，不代替原生升级/邀请/安装验收 |
 | [verify-release.py](../../../../scripts/verify-release.py) / [verify-homebrew.py](../../../../scripts/verify-homebrew.py) | CLI/App/DMG、App 命令安装、稳定/RC 独立 Homebrew 定义、临时前缀安装、同渠道双向互斥、升级与卸载；`--public` 另要求通过公开 Release URL 安装 |
 | [verify-app-instance.py](../../../../scripts/verify-app-instance.py) | 两个真实 App 副本与 macOS URL/退出事件；隔离 Core、请求去重、路径别名、无响应与异常退出恢复；测试邀请不联系远端或调用模型 |
 | [flows.test.tsx](../../../../packages/web/src/test/flows.test.tsx) | 首页、创建、邀请失败、输入交接状态与模型显示 |

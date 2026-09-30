@@ -1,5 +1,7 @@
 # 分发与首次体验
 
+`Next` 的 Wails 安装候选可显式使用 `build-release.py --desktop-host wails`；默认发行外壳尚未切换。候选保留生产 App/CLI/数据身份，`verify-desktop-bundle.py` 单独检查 DMG 内容与 App/CLI 构建一致性，原生升级验收另行进行。当前范围见 [桌面契约](decisions/desktop-host.md)。
+
 ## 安装产物与边界
 
 首版 Apple Silicon、macOS 14+。Swift/AppKit 菜单栏外壳复用 Go Core 和浏览器 WebGUI。CLI 包含 WebGUI 与 STDIO MCP，安装用户不需要 Go/Node/pnpm。Codex 按参与方式另行使用；B 查看上下文无需 Codex 或本地仓库。

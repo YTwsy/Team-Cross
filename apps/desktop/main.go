@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
+	"teamcross/apps/desktop/internal/appconfig"
 	"teamcross/apps/desktop/internal/appinstance"
 	"teamcross/apps/desktop/internal/coreclient"
 	"teamcross/apps/desktop/internal/desktopactions"
@@ -23,32 +25,34 @@ import (
 	"teamcross/apps/desktop/internal/lifecycle"
 	"teamcross/apps/desktop/internal/native"
 	"teamcross/apps/desktop/internal/previewassets"
+	"teamcross/internal/buildinfo"
 	"teamcross/internal/service"
 	"teamcross/internal/uilanguage"
 	"teamcross/internal/webassets"
 )
 
+var buildProfile = "preview"
+
 func main() {
-	data := flag.String("data-dir", os.Getenv("TEAMCROSS_DATA_DIR"), "Isolated Core directory (required; also TEAMCROSS_DATA_DIR)")
+	data := flag.String("data-dir", os.Getenv("TEAMCROSS_DATA_DIR"), "Core directory (also TEAMCROSS_DATA_DIR; Preview requires isolation)")
+	version := flag.Bool("version", false, "Print desktop build metadata as JSON without starting the App")
 	probe := flag.Bool("probe", false, "Show the transport diagnostic page instead of the main UI")
 	connectOnly := flag.Bool("connect-only", false, "Connect to an existing test Core without starting one")
 	leaveCore := flag.Bool("leave-core-running", false, "Diagnostic fixture mode: quit only the shell")
 	flag.Parse()
-	if *data == "" {
-		log.Fatal("Desktop Preview requires an isolated --data-dir")
-	}
-	directory, err := service.Normalize(*data)
-	if err != nil {
-		log.Fatal("Cannot resolve the test directory")
+	if *version {
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"version": buildinfo.Version, "commit": buildinfo.Commit, "protocol": buildinfo.ControlProtocol, "desktopHost": "wails", "profile": buildProfile})
+		return
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		log.Fatal("Cannot resolve the home directory")
 	}
-	production, err := service.Normalize(filepath.Join(home, "Library", "Application Support", "Team Cross Next"))
-	if err != nil || directory == production {
-		log.Fatal("Desktop Preview cannot use the installed Core directory")
+	config, err := appconfig.Resolve(buildProfile, *data, home)
+	if err != nil {
+		log.Fatal(err)
 	}
+	directory := config.Directory
 	instance, err := appinstance.New(directory)
 	if err != nil {
 		log.Fatal("Cannot open desktop instance lock")
@@ -102,8 +106,8 @@ func main() {
 		log.Fatal("Cannot load desktop resources")
 	}
 	app = application.New(application.Options{
-		Name:        "Team Cross Desktop Preview",
-		Description: "Team Cross desktop preview",
+		Name:        config.Name,
+		Description: "Team Cross desktop",
 		Assets:      application.AssetOptions{Handler: assets, DisableLogging: true},
 		ShouldQuit: func() bool {
 			if allowQuit.Load() || *leaveCore {
@@ -117,7 +121,7 @@ func main() {
 		},
 	})
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name: "main", Title: "Team Cross Desktop Preview", URL: "/",
+		Name: "main", Title: config.Name, URL: "/",
 		Width: 1400, Height: 900, MinWidth: 960, MinHeight: 640, Hidden: true,
 	})
 	quick := app.Window.NewWithOptions(application.WebviewWindowOptions{
@@ -304,6 +308,6 @@ func main() {
 		}
 	})
 	if err := app.Run(); err != nil {
-		log.Fatal("Desktop Preview could not start")
+		log.Fatal("Team Cross desktop could not start")
 	}
 }

@@ -2,6 +2,7 @@
 """Build local artifacts; publishing is intentionally a separate operation."""
 import argparse, hashlib, json, os, pathlib, plistlib, re, shutil, subprocess, tarfile, tempfile
 from homebrew_release import render_bundle
+from desktop_build import build_shell, WAILS_VERSION
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 def run(*args, **kw): subprocess.run(args, cwd=ROOT, check=True, **kw)
 def digest(p): return hashlib.sha256(p.read_bytes()).hexdigest()
@@ -21,6 +22,7 @@ p.add_argument('--base-url', help='Release asset base URL; no upload is performe
 p.add_argument('--sign-identity', help='Developer ID Application identity')
 p.add_argument('--notary-profile', help='Existing notarytool keychain profile; requires signing')
 p.add_argument('--skip-web', action='store_true')
+p.add_argument('--desktop-host', choices=('swift', 'wails'), default='swift', help='App shell; Wails is an explicit migration candidate until installation validation completes')
 a = p.parse_args()
 if not re.fullmatch(r'\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?', a.version): p.error('Invalid version')
 if a.notary_profile and not a.sign_identity: p.error('Notarization requires --sign-identity')
@@ -46,12 +48,18 @@ with tempfile.TemporaryDirectory(prefix='teamcross-package-') as temp:
     mac.mkdir(parents=True); resources.mkdir()
     build_app_icon(ROOT/'apps/macos/Assets/AppIcon.png',resources/'TeamCross.icns',stage)
     run('go','build','-trimpath','-ldflags',f'-s -w -X teamcross/internal/buildinfo.Version={a.version} -X teamcross/internal/buildinfo.Commit={commit}', '-o',str(resources/'teamcross'),'./cmd/teamcross',env=env)
-    run('xcrun','swiftc','-O','-target','arm64-apple-macosx14.0','-module-cache-path',str(ROOT/'bin/swift-cache'),str(ROOT/'apps/macos/AppLanguage.swift'),str(ROOT/'apps/macos/AppInstance.swift'),str(ROOT/'apps/macos/TeamCross.swift'),'-o',str(mac/'TeamCross'),env=env)
+    if a.desktop_host == 'wails':
+        build_shell(mac/'TeamCross', a.version, commit, 'release', env)
+    else:
+        run('xcrun','swiftc','-O','-target','arm64-apple-macosx14.0','-module-cache-path',str(ROOT/'bin/swift-cache'),str(ROOT/'apps/macos/AppLanguage.swift'),str(ROOT/'apps/macos/AppInstance.swift'),str(ROOT/'apps/macos/TeamCross.swift'),'-o',str(mac/'TeamCross'),env=env)
     for language in ('zh-Hans','en'):
         localized=resources/(language+'.lproj');localized.mkdir()
         for name in ('Localizable.strings','InfoPlist.strings'):
             shutil.copy2(ROOT/'apps/macos/Localizations'/(language+'.lproj')/name,localized/name)
     info=plistlib.loads((ROOT/'apps/macos/Info.plist').read_bytes());info['CFBundleShortVersionString']=a.version.split('-')[0].split('+')[0];info['CFBundleVersion']=build_number;info['TeamCrossVersion']=a.version
+    info['TeamCrossDesktopHost'] = a.desktop_host
+    if a.desktop_host == 'wails':
+        info['LSUIElement'] = False
     (app/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
     identity=a.sign_identity or '-'
     for binary in (resources/'teamcross',mac/'TeamCross'):
@@ -91,5 +99,5 @@ with tempfile.TemporaryDirectory(prefix='teamcross-package-') as temp:
         notarized=bool(a.notary_profile),
     )
     (out/'SHA256SUMS').write_text(''.join(f'{digest(f)}  {f.name}\n' for f in [cli,dmg]))
-    (out/'release.json').write_text(json.dumps(dict(version=a.version,commit=commit,buildNumber=build_number,dirty=dirty,architecture='arm64',minimumMacOS='14.0',developerIDSigned=bool(a.sign_identity),notarized=bool(a.notary_profile),artifacts={f.name:digest(f) for f in [cli,dmg]}),indent=2)+'\n')
+    (out/'release.json').write_text(json.dumps(dict(version=a.version,commit=commit,buildNumber=build_number,dirty=dirty,architecture='arm64',minimumMacOS='14.0',desktopHost=a.desktop_host,wails=WAILS_VERSION if a.desktop_host == 'wails' else None,developerIDSigned=bool(a.sign_identity),notarized=bool(a.notary_profile),artifacts={f.name:digest(f) for f in [cli,dmg]}),indent=2)+'\n')
 print(out)
