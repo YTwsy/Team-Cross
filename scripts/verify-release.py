@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
-"""Verify checksums, mounted DMG installation, CLI/App parity and service reuse."""
+"""Verify mounted installation, CLI ownership and Core reuse.
+
+Native App/URL acceptance is a separate gate; the Swift helper-driven App fixture
+does not describe the Wails host's direct Core transport.
+"""
 import argparse, hashlib, json, os, pathlib, plistlib, shutil, subprocess, tempfile
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-p=argparse.ArgumentParser();p.add_argument('release');a=p.parse_args();release=pathlib.Path(a.release).resolve();manifest=json.loads((release/'release.json').read_text())
+p=argparse.ArgumentParser();p.add_argument('release');p.add_argument('--package-only',action='store_true',help='Do not run the Swift-specific native App fixture');a=p.parse_args();release=pathlib.Path(a.release).resolve();manifest=json.loads((release/'release.json').read_text())
 def run(*args,**kw): return subprocess.run(args,check=True,**kw)
+if manifest.get('desktopHost') == 'wails':
+    run('python3',str(ROOT/'scripts/verify-desktop-bundle.py'),str(release))
 for name,sha in manifest['artifacts'].items(): assert hashlib.sha256((release/name).read_bytes()).hexdigest()==sha,name
 checksums={name:sha for sha,name in (line.split(maxsplit=1) for line in (release/'SHA256SUMS').read_text().splitlines())}
 assert checksums==manifest['artifacts']
@@ -25,8 +31,11 @@ with tempfile.TemporaryDirectory(prefix='teamcross-install-') as temp:
         iconset=root/'installed-app-icon.iconset';run('iconutil','-c','iconset',str(icon),'-o',str(iconset));assert (iconset/'icon_512x512@2x.png').is_file()
         run('codesign','--verify','--deep','--strict',str(installed))
         helper=installed/'Contents/Resources/teamcross';assert json.loads(subprocess.check_output([str(helper),'version','--json'],text=True))==version
-        run('python3',str(ROOT/'scripts/verify-app-instance.py'),str(installed))
+        native_checked=manifest.get('desktopHost','swift')=='swift' and not a.package_only
+        if native_checked: run('python3',str(ROOT/'scripts/verify-app-instance.py'),str(installed))
         commands=root/'terminal commands';cliEnv=os.environ.copy();cliEnv['PATH']=str(commands)+':/usr/bin:/bin'
+        for key,name in [('CODEX_HOME','empty-codex'),('CLAUDE_CONFIG_DIR','empty-claude')]:
+            directory=root/name;directory.mkdir();cliEnv[key]=str(directory)
         def install_call(action):
             return json.loads(subprocess.check_output([str(helper),action,'--cli-dir',str(commands),'--json'],env=cliEnv,text=True,timeout=15))
         status=install_call('install-cli');assert status['installed'] and status['pathReady']
@@ -37,7 +46,7 @@ with tempfile.TemporaryDirectory(prefix='teamcross-install-') as temp:
         result=subprocess.run([str(helper),'install-cli','--cli-dir',str(commands),'--json'],env=cliEnv,text=True,capture_output=True)
         assert result.returncode!=0 and foreign.read_text()=='user-owned\n'
         data=root/'shared-data'
-        def call(path,*args): return subprocess.check_output([str(path),*args,'--data-dir',str(data)],text=True)
+        def call(path,*args): return subprocess.check_output([str(path),*args,'--data-dir',str(data)],env=cliEnv,text=True)
         try:
             first=json.loads(call(binary,'serve','--no-open','--json'))['service']
             second=json.loads(call(helper,'serve','--no-open','--json'))['service'];assert first['pid']==second['pid']
@@ -46,4 +55,4 @@ with tempfile.TemporaryDirectory(prefix='teamcross-install-') as temp:
         finally: run(str(helper),'stop','--force','--data-dir',str(data),stdout=subprocess.DEVNULL)
     finally:
         if mounted: run('hdiutil','detach',str(mount),stdout=subprocess.DEVNULL)
-print(json.dumps({'checksums':True,'dmgInstall':True,'appIcon':True,'appSignatureIntegrity':True,'cliAppVersionParity':True,'appSingleInstance':True,'appCLIInstallAndRemove':True,'existingCommandPreserved':True,'compatibleCoreReuse':True,'publicInstallation':False}))
+print(json.dumps({'checksums':True,'dmgInstall':True,'appIcon':True,'appSignatureIntegrity':True,'cliAppVersionParity':True,'nativeAppAcceptance':'swift-fixture' if native_checked else 'required-separately','appCLIInstallAndRemove':True,'existingCommandPreserved':True,'compatibleCoreReuse':True,'publicInstallation':False}))

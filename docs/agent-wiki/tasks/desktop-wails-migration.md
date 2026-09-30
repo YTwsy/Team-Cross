@@ -139,7 +139,17 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 每个阶段应形成可独立构建、可验证的增量。下面是建议实施顺序，不是已经执行的任务清单。
 
+### P4b 包安装与升级验证（2026-09-30）
+
+`codex/next/desktop-install-verification` 更新验证入口：Wails 包不再进入依赖 Swift helper 调用方式的原生 fixture；安装脚本明确报告原生验收须独立进行，Swift 默认原有 fixture 保留。新增 Swift→Wails 包升级脚本与 macOS CI 检查，没有变更默认外壳。
+
+- 对 `dist/release/0.2.6-dev.wails-p4a/` 执行 Wails 包、完整非 UI 安装/CLI 生命周期与隔离 Homebrew 检查通过。Formula/Cask 的安装、两个顺序互斥、升级后命令指向、稳定 MCP 路径及卸载数据保留通过；Cask quarantine 保留，没有把包管理结果视为首次启动批准。
+- Swift 参照 `dist/release/0.2.6-dev.swift-upgrade/` 来自 `28c22e0` 的同次 Next 源码，clean、arm64/ad-hoc、未公证；不是此前公开版本的升级证据。`verify-release.py --package-only` 通过。不同版本参照与 Wails 候选在含空格的临时安装路径中完成旧 Core 停止、App 替换、新 Core 启动，原 CLI launcher 字节不变并读到新版本；MCP 路径不变且实际 initialize/tools-list 握手成功，语言设置和测试文件保留，移除 CLI 未停止新 Core。
+- 自动脚本没有启动 GUI、调用模型或写用户配置，测试 Core 在 finally 内精确关闭。原生升级 fixture 位于 `/private/tmp/teamcross-desktop-upgrade-20260930/`，用独立 Bundle ID、无 URL 注册、空 Provider home 和专用命令目录启动了 Swift App `60285` / Core `60292`；真实退出、替换后窗口和双副本检查仍在进行，不能将上述脚本结果视为 P4 完成。
+
 ### P4a Wails 安装候选构建（2026-09-30）
+
+已由 [PR #43](https://github.com/YTwsy/Team-Cross/pull/43) 合入 Next；两项 CI 成功，其中 macOS 实际构建并检查 Wails DMG。
 
 `codex/next/desktop-release-candidate` 增加编译固定的 release profile，以及显式 `build-release.py --desktop-host wails` 构建路径。保留生产 Bundle ID、主程序和内置 CLI 路径、邀请协议及既有数据目录；正常 Dock 主窗口取代仅菜单栏身份。默认发行构建暂留 Swift，待原生升级验收后再切换。
 

@@ -16,7 +16,8 @@
 | 原生协议、客户端启动或账户路由 | 除协议测试外，使用专门会话实测对应 TUI/Desktop；分别验证登录、历史、输入、审批和 A 上执行 |
 | 模型与推理设置 | 来源继承、客户端选择、失败不更新显示、通知、恢复与写入归属；真实调用仅使用 Luna |
 | WebGUI | 类型检查（含中英消息完整性检查）、交互测试、production build，更新嵌入式资源，并进行实际浏览器和截图复核 |
-| 菜单栏 App 启动、转交或退出 | Swift 检查和构建；在图形登录会话执行真实双副本并发、数据目录别名、邀请转交与确认重试、无响应恢复、独立目录、异常退出后复用 Core、显式退出停止服务 |
+| 桌面 App 启动、转交或退出 | 对应外壳检查和构建；在图形登录会话执行真实双副本并发、数据目录别名、邀请转交与确认重试、无响应恢复、独立目录、异常退出后复用 Core、显式退出停止服务 |
+| 桌面安装或升级 | 下列包与原生安装检查均适用；不能用 CLI 启停或包内元数据替代原生 App、URL 和窗口证据 |
 
 ## 工程命令
 
@@ -57,12 +58,27 @@ go build -o bin/teamcross ./cmd/teamcross
 | [service_test.go](../../../../internal/service/service_test.go) / [onboarding_test.go](../../../../internal/collab/onboarding_test.go) | 实例身份、控制协议、稳定 opt 路径、邀请预览、Core 心跳与输入申请 |
 | [cliinstall_test.go](../../../../internal/cliinstall/cliinstall_test.go) | 参数与带引号路径、未知命令保护、并发安装、重复移除和 App 更新后的命令行为 |
 | [verify-desktop-bundle.py](../../../../scripts/verify-desktop-bundle.py) | Wails 候选 App/DMG/CLI 的校验和、签名完整性、生产元数据及构建一致性；只读挂载 DMG，不启动 GUI，不代替原生升级/邀请/安装验收 |
-| [verify-release.py](../../../../scripts/verify-release.py) / [verify-homebrew.py](../../../../scripts/verify-homebrew.py) | CLI/App/DMG、App 命令安装、稳定/RC 独立 Homebrew 定义、临时前缀安装、同渠道双向互斥、升级与卸载；`--public` 另要求通过公开 Release URL 安装 |
-| [verify-app-instance.py](../../../../scripts/verify-app-instance.py) | 两个真实 App 副本与 macOS URL/退出事件；隔离 Core、请求去重、路径别名、无响应与异常退出恢复；测试邀请不联系远端或调用模型 |
+| [verify-release.py](../../../../scripts/verify-release.py) / [verify-homebrew.py](../../../../scripts/verify-homebrew.py) | CLI/App/DMG、App 命令安装、稳定/RC 独立 Homebrew 定义、临时前缀安装、同渠道双向互斥、升级与卸载；Wails 输出明确要求独立原生验收，Swift 默认额外调用旧 App fixture，`--package-only` 可单独检查包；`--public` 另要求通过公开 Release URL 安装 |
+| [verify-desktop-upgrade.py](../../../../scripts/verify-desktop-upgrade.py) | 不同版本 Swift/Wails 包在含空格的临时路径替换；旧 Core 停止后升级，原 CLI launcher 不变、稳定 MCP 路径与真实握手、偏好/文件保留、移除 CLI 不停止 Core；不启动 GUI |
+| [verify-app-instance.py](../../../../scripts/verify-app-instance.py) | Swift 专用的两个真实 App 副本与 macOS URL/退出事件；隔离 Core、请求去重、路径别名、无响应与异常退出恢复。其 helper 截获不适用于 Wails 直接转发，输入 Wails 包时明确拒绝 |
 | [flows.test.tsx](../../../../packages/web/src/test/flows.test.tsx) | 首页、创建、邀请失败、输入交接状态与模型显示 |
 | [reading-scroll.test.tsx](../../../../packages/web/src/test/reading-scroll.test.tsx) | 整页阅读的段落恢复、吸顶高度变化、标签与显式批注定位、隐藏阅读器、成员折叠与焦点保护 |
 | [library_test.go](../../../../internal/collab/library_test.go) / [library.test.tsx](../../../../packages/web/src/test/library.test.tsx) | 固定引用选择、读取编号、个人/共享访问隔离、撤回、并发更新、内联入口和设置导航保留；[独立浏览器 fixture](../../../../internal/collab/library_browser_test.go) 使用合成内容与真实 Core/存储 |
 | [annotation_reply_test.go](../../../../internal/collab/annotation_reply_test.go) / [runtime_test.go](../../../../internal/mcp/runtime_test.go) / [annotations.test.tsx](../../../../packages/web/src/test/annotations.test.tsx) | 单层回复、去重、并发快照、访问撤销、受限运行时工具、内嵌草稿与键盘保存 |
+
+## Wails 安装与升级
+
+先构建不同版本的 Swift 参照和 Wails 候选，运行 `verify-desktop-bundle.py <Wails 输出>`、`verify-release.py <Wails 输出>`、`verify-desktop-upgrade.py <Swift 输出> <Wails 输出>` 和 `verify-homebrew.py <Wails 输出>`。CI 的 Swift 参照来自同次源码，只证明外壳及包布局兼容；要宣称某个已发布版本升级成功，必须另外使用该版本的真实产物。
+
+原生检查使用隔离 Applications 路径、数据目录和空 Provider home，保留一份已知文件及偏好。测试副本用独立 Bundle ID；普通窗口检查移除 URL 注册，正式 scheme 投递单独安排并在结束后恢复测试前的处理器。不要启动用户会话或修改个人 MCP 配置。
+
+1. 启动旧 Swift App，确认真实 Core 和菜单可用。由原生退出入口结束，核对该 App/Core 均消失、锁释放、数据保留；尚未停止时不替换正在使用的安装目录。
+2. 将同一路径替换为 Wails，验证从该路径启动新 App/Core、读取旧数据/偏好、主窗口和速览、关闭恢复与 Dock/reopen。原 CLI launcher 的内容和 MCP command 路径应不变，实际版本与候选一致。
+3. 运行第二份 Wails App，使用同一目录的符号链接别名，确认转交后只有一个持锁外壳与一个 Core，原窗口路由/草稿保留；独立目录允许独立实例，第二份退出不能停止首份 Core。
+4. 单独观察冷/热启动邀请的实际 Apple Event：先预览，只有明确确认才加入；取消保留主窗口草稿。检查生产 scheme 的 plist 不能代替系统投递。
+5. 实测菜单栏左右键、从其他 App 触发 `⌃⌥T`、固定浮窗、中文输入法组合与 emoji、键盘导航及深浅主题。`⌘2`、粘贴或快捷键注册成功不替代物理全局按键和输入法证据。
+
+每轮记录构建提交、dirty/签名状态、数据/副本范围、App/Core PID/实例及实际观察；截图在任务记录中指明保存位置或会话内复核方式。关闭本轮测试 App、Core 和浏览器页，保留需要接续的 fixture。未覆盖项必须明确列出，不能由自动包检查的成功推导为原生安装已完成。
 
 ## 真实模型和客户端
 
