@@ -5,7 +5,7 @@ import {
   type LanguageInfo,
   type LanguageMode,
 } from "../i18n";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, errorText, useResource } from "../api";
 import { type Info, type Provider } from "../types";
 import { ErrorBox, Icon, Loading, PageHeading } from "./ui";
@@ -32,11 +32,12 @@ export function Settings({
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [languageBusy, setLanguageBusy] = useState(false);
+  const edited = useRef({ binary: false, claude: false, desktop: false });
   useEffect(() => {
     if (info.data) {
-      setBinary(info.data.binary || "");
-      setClaudeBinary(info.data.claudeBinary || "");
-      setDesktop(info.data.desktopApp || "");
+      if (!edited.current.binary) setBinary(info.data.binary || "");
+      if (!edited.current.claude) setClaudeBinary(info.data.claudeBinary || "");
+      if (!edited.current.desktop) setDesktop(info.data.desktopApp || "");
     }
   }, [info.data]);
   async function save() {
@@ -207,7 +208,10 @@ export function Settings({
                 {t("Codex CLI 路径") + " "}
                 <input
                   value={binary}
-                  onChange={(e) => setBinary(e.target.value)}
+                  onChange={(e) => {
+                    edited.current.binary = true;
+                    setBinary(e.target.value);
+                  }}
                   placeholder={t("自动检测")}
                 />
                 <small>
@@ -219,7 +223,10 @@ export function Settings({
                 {t("Codex Desktop 应用") + " "}
                 <input
                   value={desktop}
-                  onChange={(e) => setDesktop(e.target.value)}
+                  onChange={(e) => {
+                    edited.current.desktop = true;
+                    setDesktop(e.target.value);
+                  }}
                   placeholder="/Applications/ChatGPT.app"
                 />
                 <small>{t("直接操作会使用独立的数据目录启动专用实例。")}</small>
@@ -228,7 +235,10 @@ export function Settings({
                 {t("Claude Code CLI 路径") + " "}
                 <input
                   value={claudeBinary}
-                  onChange={(e) => setClaudeBinary(e.target.value)}
+                  onChange={(e) => {
+                    edited.current.claude = true;
+                    setClaudeBinary(e.target.value);
+                  }}
                   placeholder={t("自动检测")}
                 />
                 <small>

@@ -1,6 +1,6 @@
 # Next：WebGUI 迁移到 Wails 桌面端
 
-状态：用户已确认 Wails v3 + React + 独立 Go Core，并授权按关键功能通过 PR 合入 `Next`，较大功能拆成多个 PR。当前开始 P0：隔离原生请求通道预览；完整主窗口、菜单栏和安装切换仍待后续增量。稳定边界已进入 [桌面契约](../sources/decisions/desktop-host.md)。
+状态：用户已确认 Wails v3 + React + 独立 Go Core，并授权按关键功能通过 PR 合入 `Next`，较大功能拆成多个 PR。P0 请求通道、P1 主窗口、P2 单实例/原生邀请传输及 P3 显式退出、速览与原生菜单、可见性调度已分别合入。邀请事件已在 PR #35 补齐本机人工验收；主题同步与安装切换继续按后续增量推进。稳定边界已进入 [桌面契约](../sources/decisions/desktop-host.md)。
 
 调查日期：2026-09-30。Team Cross 基线为 `9abee024a415c1ee115224cf1d5776b2cdce165a`；本地 `Next` 直接从该提交创建。OpenSurge 参考为本次更新并读取的 `origin/Next`：`d968c88bf0558df2517c623d694d5a802c1beb6c`。没有切换或修改 OpenSurge 的工作区。
 
@@ -139,6 +139,39 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 每个阶段应形成可独立构建、可验证的增量。下面是建议实施顺序，不是已经执行的任务清单。
 
+### P3c 窗口可见性与读取调度（2026-09-30）
+
+本批从 Next `16fc541` 继续，在 `codex/next/desktop-visibility` 将页面资源、资源库和语言后台读取统一调度。AppKit 补充隐藏、最小化、完全遮挡和 App 隐藏状态；可见但失焦继续读取。隐藏时取消 GET 与定时器，恢复后立即读取，不卸载 React；原生轻量状态与 Core 生命周期继续独立运行。
+
+- 根 Go test/vet、七个相关 race package、桌面 internal race/vet 通过；Web check（751 消息）、12 文件 136 项测试、production build 通过，嵌入资源已更新。回归覆盖原生初始隐藏、DOM 可见性、失焦、重复可见事件、慢读取不重叠、取消旧请求不复活定时器、隐藏恢复时保留数据与草稿。
+- 本机 arm64/ad-hoc Preview 基于 `c550e23` 加候选源码，dirty=true，保留在 `bin/desktop-preview/p3-visibility-20260930/`。使用合成会话 fixture，真实 WKWebView 和 HTTP；fixture 在 463.02 秒结束并通过，没有模型调用。
+- 通过 fixture 的 `reads.json` 核对每组 6 秒窗口：主窗口关闭、最小化，以及另一独立测试 App 全屏覆盖时，`/api/library` 和 `/api/ui-language` 增量均为 0，原生 `/api/control/status` 仍增加 1；可见但失焦时页面读取继续。仅隐藏速览时，它的 `/api/collaborations` 不再增加，主窗口语言/资源库继续读取。计数只证明本次行为，不是性能基准。
+- 自动化读取已隐藏 App 的状态会重新唤起它，因此隐藏期间改为观察 Finder 状态并从 fixture 文件采样；未将工具引起的重新显示误判为后台轮询。恢复最小化和关闭窗口后保留加入页与未提交输入，速览开关正常。浏览器材料阅读和原生首页截图已复核。合入前再补设置表单的逐字段编辑保护，避免诊断刷新覆盖已编辑路径；增加焦点刷新回归测试，浏览器另检查中文 emoji 路径输入与截图，该表单没有提交保存。
+- 全屏覆盖用的第二个空目录 App 正常退出。fixture 完成后，核对第一个测试 App 的精确二进制路径并终止它；测试 Core 和浏览器页已关闭，数据与构建证据保留。物理全局热键、菜单栏鼠标、邀请 Apple Event 和正式安装切换仍是后续验收，不由本次可见性计数替代。
+
+### P3b 速览与原生菜单（2026-09-30）
+
+退出功能已经由 [PR #36](https://github.com/YTwsy/Team-Cross/pull/36) 合入 Next（`69816ceb415b33d8b069eea99bfd77b958e70794`）；两项 CI 成功。速览增量已由 [PR #37](https://github.com/YTwsy/Team-Cross/pull/37) 合入 Next（`16fc54107dbfa6c85dc078c8657d83bd26d49dec`），两项 CI 成功。
+
+- 复用 `QuickLook`，提供单个保留状态的速览窗口、固定浮窗、关闭隐藏、已知协作/材料定位和原生服务菜单。`⌘1` 只恢复主窗口，`⌘2` 开关速览；全局 `⌃⌥T` 仅在注册成功时显示标记。窗口请求有界排队，固定路径/路由校验拒绝任意 URL、脚本和 pending 邀请导航。
+- 原生菜单读取真实 Core 状态与共享语言；语言写入仍是一次公共 API 操作。共享 React 不加载 Wails JS runtime，因此原生定位、固定状态与刷新改用受导航 guard 保护的 WKWebView 通知。服务菜单使用窗口内原生 NSMenu，避免依赖状态栏按钮的程序化菜单跟踪。
+- 工程检查：根 Go test/vet 与七个相关 race package、桌面 internal race/vet、Web check（751 消息）/test（11 文件、132 项）/production build 通过。嵌入资源已更新。窄桥接回归覆盖路径/路由拒绝、队列不可用反馈、公共语言写入不带控制 token、丢失响应不重放；React 复核包含监听器清理、原生/浏览器回退和可访问按钮状态。
+- 真实 AppKit/WKWebView 与浏览器使用 `TestLibraryBrowserFixture` 的合成会话和实际 HTTP/材料存储，没有真实模型输入。实测固定状态反馈、资源筛选和选择、材料 key/协作 ID 定位、隐藏恢复、主窗口关闭后固定速览保留，以及 `⌘1` 恢复中文 emoji 批注草稿。原生菜单切换 en 后主窗口、速览、浏览器均更新；浏览器切回 zh-CN 后原生页面/标题同步。菜单显示活动协作数 1，最终候选从服务菜单打开主窗口设置成功。另验证 Core 失联时的语言错误提示、重复 `⌘Q` 不叠加弹窗，以及确认提示后原页面可继续使用。
+- 构建候选保留在 `bin/desktop-preview/p3-quick-final-candidate-20260930/`，清单基于 `69816ce` 加本轮源码、dirty=true，arm64、ad-hoc、未公证。前两组修复构建保留供追溯；原生与浏览器截图在实施会话中复核。一次 fixture 因遗漏 `go test -timeout` 在 10 分钟后到期，随后改用明确 30 分钟外层时限的新 fixture，README 同步修正命令。最终 fixture 通过（907.70 秒），其 Go 临时数据目录随后自动回收；外壳对缺失目录的退出探测保持失败关闭，因此核对最终测试 App 的精确二进制路径后终止该实例。所有本轮测试 App/Core 与浏览器页已关闭。
+- 自动化已确认热键注册成功，但向另一个应用投递按键没有产生可核验的全局触发；菜单栏图标鼠标点按与物理全局热键保留为安装验收项目，不能把 `⌘2` 的成功替代该项。主窗口与速览的主题同步、隐藏/遮挡轮询调度、Core 启动、命令行安装入口和正式安装切换继续由后续 PR 完成。邀请 PR #35 的原生 Apple Event 验证仍未完成。
+
+### P3a 显式退出与 Core 停止（2026-09-30）
+
+邀请事件候选保存在 [Draft PR #35](https://github.com/YTwsy/Team-Cross/pull/35)，两项 CI 已通过，实际 Apple Event 仍待人工验证；该轮隔离 App、Core 和浏览器已关闭。退出功能从 Next 独立开发于 `codex/next/desktop-core-lifecycle`，不以邀请事件检查为前提。
+
+- 原生状态接口移除控制 token；缺失 discovery 且 Core 锁空闲，或确认进程已死亡且锁空闲时，才能当作服务停止。存活但失联、启动中或身份不兼容继续显示错误。
+- 退出协调器只处理一次请求；活动协作显示共享语言的原生确认，默认取消。取消和失败保留页面；处理期间拒绝新的单实例转交回执。确认后重新验证同一实例，发送一次 stop，等待 Core 锁释放；不重试丢失响应的写入。无活动协作使用 force=false，保留 Core 对新活动协作的竞态保护。
+- 本地根 Go test/vet、七个相关 package 的 race、桌面 internal race/vet、Web check（750 消息）/test（11 文件、130 项）/build 通过，嵌入资源无差异。新增回归覆盖确认期间实例变化、取消/重复退出、停止超时/响应丢失、锁释放等待、启动中/失联/已崩溃区分与锁符号链接拒绝。
+- 真实 WKWebView + AppKit 检查使用空 provider home 与隔离 Core。Core PID `77315` 有一个只读共享空间：中文确认默认取消，取消后同一 PID/实例和中文 emoji 草稿保留；将同一 Core 偏好改为 en 后，原生确认改为英文。确认后 Core 与 App 均退出，空间目录和 `user-owned.txt` 保留。没有模型输入。
+- 最终代码构建在 `bin/desktop-preview/p3-quit-final/`，清单为 `08b1576` 加候选源码、dirty=true，arm64、ad-hoc、未公证。另一隔离 Core PID `79362` 的 discovery 构建信息被测试性改为不匹配：退出错误使用已保存的英文偏好，重复 Cmd-Q 不叠加处理，原 Core 继续运行；恢复原 metadata 并关闭提示后，无活动协作的退出成功，App/Core 进程均消失。该检查的原生截图已在实施会话中复核。
+
+本轮所有测试 App/Core 已关闭，未删除测试空间或用户文件。菜单栏、速览/固定/热键、可见性调度和安装切换仍需后续增量；本段不代表 P3/P4 整体完成。
+
 ### P2b 原生邀请传输增量（2026-09-30）
 
 邀请接入继续拆分：先提供原生专用 `coreclient.StageInvitation`，再接入 Apple Event、确认队列与桌面窗口。该方法沿用私有 discovery 的目录、PID、instance、协议和构建身份验证，将邀请放在 authenticated `POST /api/invitations/pending` 的 JSON body 中，只返回经 UUID 格式检查的 pending ID。普通 React API 转发仍拒绝此私有路由。
@@ -147,7 +180,7 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 本批根 Go test/vet、桌面 module 的 test/race/vet，以及 Web check（750 条消息）/test（11 文件、130 项）/build 通过；Web 嵌入资源未变化。macOS arm64 Preview 与内置 CLI 构建及 ad-hoc 签名验证通过，产物在 `bin/desktop-preview/p2b-invitation-transport/`，清单记录 `8edc927` 加本批源码、`dirty: true`。本批没有修改页面或窗口行为，未新增真实 UI 验收；已通过的原生协议测试包含 Swift/Wails 消息端口互通。
 
-### P2b 启动事件与确认窗口候选（2026-09-30）
+### P2b 启动事件与确认窗口（2026-09-30）
 
 原生传输已由 [PR #34](https://github.com/YTwsy/Team-Cross/pull/34) 合入 Next（`08b1576`）。后续候选位于 `codex/next/desktop-invitations`：将争用锁和转交移入 App 事件循环之后，隐藏主窗口至持锁；接受测试 scheme 的邀请事件，内存队列最多 32 项邀请/批次、固定请求 ID、10 分钟期限，忙于弹窗/处理批次也不延长期限。持锁实例可通过内置 helper 确保隔离 Core；暂存成功后用 pending ID 创建独立确认窗口。
 
@@ -155,9 +188,17 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 - 两轮 arm64 Preview、内置 CLI、架构与 ad-hoc 签名构建通过，最新产物在 `bin/desktop-preview/p2b-invitations-validation-v2/`。清单记录 `08b1576` 加候选源码、`dirty: true`，未签名公证或生产安装。
 - 使用独立 App 身份和 `LSEnvironment` 指定空测试目录及空 provider home，真实启动 Core PID `68284`、实例 `e22e4489-4211-4bc8-a8da-f74b01148150`；第二份独立 App 副本转交并退出，进程核对只剩原外壳和原 Core，身份未变化。主窗口中文草稿保留；Preview `Cmd-Q` 后 Core 仍运行，随后通过该目录的内置 CLI stop 精确关闭。
 - 合成会话 fixture 增加另一个只读 owner 的实际 pinned-TLS 邀请、本机邀请测试页和仅记录 method/path 的观察文件；修正 fixture 暂存接口与 discovery 使用同一私有 token。没有模型输入。
-- 实际 Apple Event/冷启动邀请、独立确认窗口、预览不自动加入及确认后加入仍未验证。浏览器自动化拒绝自定义 scheme 导航，并明确禁止改用其他浏览器或间接调用绕过；未执行绕过。已向用户提供隔离测试页请求一次人工点击，候选保持待验收，不能以工程 CI 或队列单元测试替代这个原生事件证据。
+- 最初的自动化未获得实际 Apple Event 证据。浏览器自动化拒绝自定义 scheme 导航，并明确禁止改用其他浏览器或间接调用绕过；未执行绕过。同日人工点击的补充结果如下，工程 CI 或队列单元测试仍不能替代原生事件验收。
 
-该候选尚未合入 Next；等待原生事件检查时，后续菜单栏、生命周期与安装切换仍可独立推进。若 fixture 已结束，重新创建新的明确测试目录，不能把过期页面或旧结果当作本次事件成功。
+人工验收与 Next 整合（2026-09-30，北京时间 17:04–17:18）：
+
+- 对 PR #35 的精确提交 `a18edaa8c96d6f5d702ebf2c79339c9b10e33849` 使用独立本地检出、测试 App 身份、空 provider home 和实际 Core fixture。冷启动基线为 App 0 个、暂存/预览/加入请求各 0 次；用户点击本机邀请页后打开 App，并明确点击确认加入。原生窗口观察到“桌面邀请确认验证”的协作详情、2 名成员和 1 次加入请求。
+- 新一轮隔离 fixture 的热启动基线为 App 1 个、三类请求各 0 次。人工点击邀请后，独立确认窗口显示对应空间与只读范围，暂存 1 次、预览 1 次、加入 0 次；关闭确认窗口后主窗口仍在 `/#/join`，`PR35 热启动草稿 🧪` 完整保留，加入仍为 0、App 仍为 1 个。
+- 用户认可结果并明确要求合并。冷启动第一次预览与确认之间没有单独截取请求计数；热启动验收到取消与草稿保留，没有再执行一次热启动确认加入。来源会话是合成内容，HTTP/Core/存储/pinned-TLS 加入走实际实现；没有模型输入，也不是两台 Mac 或正式安装切换证据。
+- 与 Next 后续退出、速览和可见性实现整合时，继续在事件循环内争用所有权；只有持锁实例创建菜单、速览快捷键并确保隔离 Core。第二份外壳退出不调用 Core stop；处理退出时拒绝新转交，已入队请求等待退出协调结束。fixture 同时保留邀请路由观察与页面 GET 计数。
+- 本轮人工验收结束后已关闭精确测试 App、Core 和本机测试页服务，恢复原先的测试 scheme handler。验收记录不含邀请 secret 或控制凭据。
+
+fixture 到期后必须重建，不把过期页面或既有结果推广到新版本。正式协议注册、物理菜单栏/全局热键及安装切换仍按各自契约验收。
 
 | 阶段 | 交付 | 进入下一阶段的证据 |
 | --- | --- | --- |

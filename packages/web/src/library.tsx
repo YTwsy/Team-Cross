@@ -11,6 +11,8 @@ import {
 import { api, errorText } from "./api";
 import type { AnnotationTarget } from "./types";
 import { Icon } from "./components/ui";
+import { windowAction } from "./platform";
+import { watchVisibleRefresh } from "./visibility";
 
 export type LibraryReference = {
   spaceId: string;
@@ -110,31 +112,31 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [working, setWorking] = useState(false);
   const revision = useRef(0),
     pending = useRef(false);
-  const refresh = useCallback((options?: { reorder?: boolean }) => {
-    if (pending.current) return;
-    const version = ++revision.current;
-    void api<LibraryView>("library")
-      .then((next) => {
-        if (version !== revision.current) return;
-        if (!Array.isArray(next.resources) || !Array.isArray(next.selection))
-          throw new Error(t("资源库暂不可用，请更新本机服务后重试。"));
-        setData((previous) =>
-          options?.reorder ? next : keepResourceOrder(previous, next),
-        );
-        setError("");
-      })
-      .catch((e) => {
-        if (version === revision.current) setError(errorText(e));
-      });
-  }, []);
+  const refresh = useCallback(
+    async (options?: { reorder?: boolean; signal?: AbortSignal }) => {
+      if (pending.current) return;
+      const version = ++revision.current;
+      await api<LibraryView>("library", undefined, options?.signal)
+        .then((next) => {
+          if (version !== revision.current || options?.signal?.aborted) return;
+          if (!Array.isArray(next.resources) || !Array.isArray(next.selection))
+            throw new Error(t("资源库暂不可用，请更新本机服务后重试。"));
+          setData((previous) =>
+            options?.reorder ? next : keepResourceOrder(previous, next),
+          );
+          setError("");
+        })
+        .catch((e) => {
+          if (version === revision.current && !options?.signal?.aborted)
+            setError(errorText(e));
+        });
+    },
+    [],
+  );
   useEffect(() => {
-    const synchronize = () => refresh();
-    synchronize();
-    const timer = setInterval(synchronize, 5000);
-    window.addEventListener("focus", synchronize);
+    const stop = watchVisibleRefresh((signal) => refresh({ signal }), 5000);
     return () => {
-      clearInterval(timer);
-      window.removeEventListener("focus", synchronize);
+      stop();
       revision.current++;
     };
   }, [refresh]);
@@ -251,20 +253,6 @@ export const availabilityLabel = (r: LibraryResource) =>
     unavailable: t("访问已结束"),
   })[r.availability];
 
-// Only the native wrapper defines this narrow bridge; normal WebGUI uses links.
-declare global {
-  interface Window {
-    webkit?: {
-      messageHandlers?: {
-        teamcross?: {
-          postMessage: (body: { action: string; route?: string }) => void;
-        };
-      };
-    };
-  }
-}
 export function openFullLibrary(route = "/library") {
-  const bridge = window.webkit?.messageHandlers?.teamcross;
-  if (bridge) bridge.postMessage({ action: "open", route });
-  else location.hash = route;
+  windowAction("open", route);
 }

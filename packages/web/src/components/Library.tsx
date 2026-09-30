@@ -1,6 +1,7 @@
 import { formatDate, t, tr } from "../i18n";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, errorText, useResource } from "../api";
+import { hasNativeWindows } from "../platform";
 import {
   availabilityLabel,
   libraryGroupKey,
@@ -894,7 +895,7 @@ function SelectionEntry({
               className="text-link"
               href="#/settings"
               onClick={(e) => {
-                if (window.webkit?.messageHandlers?.teamcross) {
+                if (hasNativeWindows()) {
                   e.preventDefault();
                   openFullLibrary("/settings");
                 }

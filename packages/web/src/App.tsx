@@ -18,6 +18,7 @@ import { Icon } from "./components/ui";
 import { LibraryProvider } from "./library";
 import { Library, SelectionTray } from "./components/Library";
 import { QuickLook } from "./components/QuickLook";
+import { watchVisibleRefresh } from "./visibility";
 export default function App() {
   return (
     <LibraryProvider>
@@ -32,20 +33,15 @@ function AppShell() {
     if (setLanguageInfo(next)) setUILanguage(languageInfo());
   }
   useEffect(() => {
-    let mounted = true;
-    const refresh = async () => {
+    const refresh = async (signal: AbortSignal) => {
       try {
-        const next = await api<LanguageInfo>("ui-language");
-        if (mounted) adoptLanguage(next);
+        const next = await api<LanguageInfo>("ui-language", undefined, signal);
+        if (!signal.aborted) adoptLanguage(next);
       } catch {
         // Keep the last confirmed language while the local Core is unavailable.
       }
     };
-    const interval = setInterval(() => void refresh(), 5000);
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
+    return watchVisibleRefresh(refresh, 5000, false);
   }, []);
   const [theme, setTheme] = useState<Theme>(() => {
     const t = localStorage.getItem(storageKey("teamcross.theme.v1"));

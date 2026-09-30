@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiFetch, copyText, storageKey } from "../platform";
+import {
+  apiFetch,
+  copyText,
+  hasNativeWindows,
+  storageKey,
+  windowAction,
+} from "../platform";
 
 function desktop(scope = "directory-a") {
   for (const [name, content] of [
@@ -20,6 +26,46 @@ afterEach(() => {
 });
 
 describe("shared browser and desktop transport", () => {
+  it("routes desktop window actions through fixed native endpoints", async () => {
+    desktop();
+    const legacy = vi.fn();
+    vi.stubGlobal("webkit", {
+      messageHandlers: { teamcross: { postMessage: legacy } },
+    });
+    const fetch = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetch);
+    expect(hasNativeWindows()).toBe(true);
+    windowAction("open", "/library");
+    windowAction("pin");
+    windowAction("menu");
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/desktop/open",
+      "/desktop/pin",
+      "/desktop/menu",
+    ]);
+    expect(fetch.mock.calls[0]?.[1]).toEqual({
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-TeamCross-Desktop": "private-resource-proof",
+      },
+      body: JSON.stringify({ route: "/library" }),
+    });
+    expect(legacy).not.toHaveBeenCalled();
+  });
+  it("reports a lost window-action response without replay", async () => {
+    desktop();
+    const fetch = vi.fn().mockRejectedValue(new TypeError("response lost"));
+    vi.stubGlobal("fetch", fetch);
+    const error = vi.fn();
+    window.addEventListener("teamcross-window-error", error);
+    windowAction("pin");
+    await vi.waitFor(() => expect(error).toHaveBeenCalledOnce());
+    expect((error.mock.calls[0]?.[0] as CustomEvent).detail).toBe(true);
+    expect(fetch).toHaveBeenCalledOnce();
+    window.removeEventListener("teamcross-window-error", error);
+  });
   it("keeps browser requests and storage unchanged", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response("{}"));
     vi.stubGlobal("fetch", fetch);

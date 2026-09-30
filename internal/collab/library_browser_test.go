@@ -103,12 +103,19 @@ func TestLibraryBrowserFixture(t *testing.T) {
 		previewURL = "teamcross-desktop-preview://join?invite=" + invitation
 	}
 	var observations sync.Mutex
+	var readsMu sync.Mutex
+	reads := make(map[string]int)
 	public := a.Handler(http.FileServer(http.FS(assets)))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/desktop-fixture/invitation" {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			io.WriteString(w, `<!doctype html><meta charset="utf-8"><title>Desktop invitation fixture</title><a href="`+html.EscapeString(previewURL)+`">打开桌面测试邀请</a>`)
 			return
+		}
+		if r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/api/") {
+			readsMu.Lock()
+			reads[r.URL.Path]++
+			readsMu.Unlock()
 		}
 		if _, err := os.Stat(filepath.Join(dir, "offline")); err == nil {
 			w.Header().Set("Content-Type", "application/json")
@@ -121,7 +128,8 @@ func TestLibraryBrowserFixture(t *testing.T) {
 				w.WriteHeader(http.StatusForbidden)
 				return
 			}
-			status := service.Status{Connection: connection, Running: true}
+			mode, resolved := a.UILanguage()
+			status := service.Status{Connection: connection, Running: true, Active: a.Active(), UILanguage: mode, ResolvedLanguage: resolved}
 			status.Token = ""
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(status)
@@ -161,6 +169,12 @@ func TestLibraryBrowserFixture(t *testing.T) {
 		case <-timeout.C:
 			t.Fatal("browser fixture expired")
 		case <-tick.C:
+			readsMu.Lock()
+			err = writeJSONFile(filepath.Join(dir, "reads.json"), reads)
+			readsMu.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
 			if _, err = os.Stat(filepath.Join(dir, "finish")); err == nil {
 				return
 			}

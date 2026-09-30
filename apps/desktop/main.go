@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -19,9 +20,11 @@ import (
 	"teamcross/apps/desktop/internal/desktopactions"
 	"teamcross/apps/desktop/internal/desktopserver"
 	"teamcross/apps/desktop/internal/launchqueue"
+	"teamcross/apps/desktop/internal/lifecycle"
 	"teamcross/apps/desktop/internal/native"
 	"teamcross/apps/desktop/internal/previewassets"
 	"teamcross/internal/service"
+	"teamcross/internal/uilanguage"
 	"teamcross/internal/webassets"
 )
 
@@ -29,6 +32,7 @@ func main() {
 	data := flag.String("data-dir", os.Getenv("TEAMCROSS_DATA_DIR"), "Isolated Core directory (required; also TEAMCROSS_DATA_DIR)")
 	probe := flag.Bool("probe", false, "Show the transport diagnostic page instead of the main UI")
 	connectOnly := flag.Bool("connect-only", false, "Connect to an existing test Core without starting one")
+	leaveCore := flag.Bool("leave-core-running", false, "Diagnostic fixture mode: quit only the shell")
 	flag.Parse()
 	if *data == "" {
 		log.Fatal("Desktop Preview requires an isolated --data-dir")
@@ -50,6 +54,7 @@ func main() {
 		log.Fatal("Cannot open desktop instance lock")
 	}
 	defer instance.Close()
+	quit := &lifecycle.Quit{}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	inbox := &launchqueue.Queue{}
@@ -69,10 +74,19 @@ func main() {
 		log.Fatal("Cannot load desktop resources")
 	}
 	var app *application.App
-	actions := desktopactions.New(func(text string) bool {
+	var shell atomic.Pointer[desktopShell]
+	var ready, allowQuit atomic.Bool
+	enqueue := func(action, route string) bool {
+		host := shell.Load()
+		return host != nil && host.Enqueue(action, route)
+	}
+	actions := desktopactions.New(desktopactions.Actions{Clipboard: func(text string) bool {
 		var copied bool
 		application.InvokeSync(func() { copied = app.Clipboard.SetText(text) })
 		return copied
+	}, Open: func(route string) bool { return enqueue("open", route) },
+		Pin:  func() bool { return enqueue("pin", "") },
+		Menu: func() bool { return enqueue("menu", "") },
 	})
 	scope := sha256.Sum256([]byte(directory))
 	assets, err := desktopserver.New(files, client, actions, hex.EncodeToString(scope[:]))
@@ -83,12 +97,65 @@ func main() {
 		Name:        "Team Cross Desktop Preview",
 		Description: "Team Cross desktop preview",
 		Assets:      application.AssetOptions{Handler: assets, DisableLogging: true},
+		ShouldQuit: func() bool {
+			if !ready.Load() || allowQuit.Load() || *leaveCore {
+				return true
+			}
+			if host := shell.Load(); host != nil && host.languageBusy.Load() {
+				return false
+			}
+			quit.Request()
+			return false
+		},
 	})
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name: "main", Title: "Team Cross Desktop Preview", URL: "/",
 		Width: 1400, Height: 900, MinWidth: 960, MinHeight: 640, Hidden: true,
 	})
-	show := func() { window.Show(); window.Focus() }
+	quick := app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name: "quick", Title: "Team Cross · Quick View", URL: "/#/library/quick",
+		Width: 470, Height: 650, MinWidth: 420, MinHeight: 440, Hidden: true, HideOnEscape: true,
+	})
+	show := func() {
+		application.InvokeSync(func() {
+			if host := shell.Load(); host != nil {
+				host.showMain("")
+			}
+		})
+	}
+	quit.Core = client
+	quit.Confirm = func(status service.Status) bool {
+		show()
+		choice := make(chan bool, 1)
+		zh := status.ResolvedLanguage == uilanguage.Chinese
+		title, message := "Stop Core and quit?", fmt.Sprintf("This disconnects %d active collaborations on this Mac. Hosted runtimes stop; sessions, code and working directories are preserved.", status.Active)
+		stop, cancel := "Stop and Quit", "Cancel"
+		if zh {
+			title = "停止本机服务并退出？"
+			message = fmt.Sprintf("将断开本机的 %d 个活动协作。发起的运行时会停止，参与的协作只断开本机连接。会话、代码和工作目录都会保留。", status.Active)
+			stop, cancel = "停止并退出", "取消"
+		}
+		dialog := app.Dialog.Question().SetTitle(title).SetMessage(message).AttachToWindow(window)
+		dialog.AddButton(stop).OnClick(func() { choice <- true })
+		dialog.AddButton(cancel).SetAsCancel().SetAsDefault().OnClick(func() { choice <- false })
+		dialog.Show()
+		return <-choice
+	}
+	quit.Failed = func(error) {
+		show()
+		message := "Core could not confirm shutdown. Check its status and try again. Your window remains open."
+		button := "OK"
+		if localLanguage(directory) == uilanguage.Chinese {
+			message = "本机服务尚未确认停止。请检查服务状态后重试；窗口和未提交内容继续保留。"
+			button = "知道了"
+		}
+		closed := make(chan struct{})
+		dialog := app.Dialog.Error().SetTitle("Team Cross").SetMessage(message).AttachToWindow(window)
+		dialog.AddButton(button).SetAsDefault().OnClick(func() { close(closed) })
+		dialog.Show()
+		<-closed
+	}
+	quit.Finished = func() { allowQuit.Store(true); app.Quit() }
 	message := func(text string) {
 		dialog := app.Dialog.Error().SetTitle("Team Cross").SetMessage(text)
 		if primary.Load() {
@@ -102,12 +169,16 @@ func main() {
 		if !ok {
 			return
 		}
+		if quit.Busy() {
+			message("正在退出，请取消退出或稍后重新打开邀请。 / Quitting. Cancel quit or reopen the invitation later.")
+			return
+		}
 		if !inbox.Add(appinstance.NewRequest([]string{invitation}), time.Now()) {
 			message("待确认邀请过多，请先处理已打开的邀请。 / Too many pending invitations. Handle the existing invitations first.")
 		}
 	})
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
-		if !native.Configure(window) {
+		if !native.Configure(window) || !native.Configure(quick) {
 			log.Print("Cannot configure the desktop window")
 			app.Quit()
 			return
@@ -119,7 +190,9 @@ func main() {
 			time.Sleep(300 * time.Millisecond)
 			deadline := time.Now().Add(15 * time.Second)
 			for !primary.Load() {
-				owner, err := instance.Claim(func(request appinstance.Request) bool { return inbox.Add(request, time.Now()) })
+				owner, err := instance.Claim(func(request appinstance.Request) bool {
+					return !quit.Busy() && inbox.Add(request, time.Now())
+				})
 				if err != nil {
 					message("无法建立桌面通信入口。 / Cannot establish desktop communication.")
 					app.Quit()
@@ -156,7 +229,19 @@ func main() {
 					message("本机服务启动失败，请检查设置。 / Core could not start. Check the settings.")
 				}
 			}
+			// Install menus and global shortcuts only in the owning shell. Publish
+			// it atomically because native HTTP actions already have an event loop.
+			application.InvokeSync(func() {
+				host := newDesktopShell(app, window, quick, client, directory, quit.Busy)
+				host.Start(ctx)
+				shell.Store(host)
+				ready.Store(true)
+			})
 			for ctx.Err() == nil {
+				if quit.Busy() {
+					time.Sleep(100 * time.Millisecond)
+					continue
+				}
 				request, ok := inbox.Front(time.Now())
 				if !ok {
 					time.Sleep(100 * time.Millisecond)
@@ -194,24 +279,13 @@ func main() {
 	})
 	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
 		event.Cancel()
-		window.Hide()
+		application.InvokeSync(func() { window.Hide() })
 	})
 	app.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen, func(*application.ApplicationEvent) {
 		if primary.Load() {
 			show()
 		}
 	})
-	menu := app.Menu.New()
-	menu.AddRole(application.AppMenu)
-	menu.AddRole(application.EditMenu)
-	view := menu.AddSubmenu("窗口 / Window")
-	view.Add("显示窗口 / Show Window").SetAccelerator("CmdOrCtrl+1").OnClick(func(*application.Context) {
-		if primary.Load() {
-			show()
-		}
-	})
-	menu.AddRole(application.WindowMenu)
-	app.Menu.Set(menu)
 	if err := app.Run(); err != nil {
 		log.Fatal("Desktop Preview could not start")
 	}
