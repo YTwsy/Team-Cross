@@ -212,8 +212,11 @@ func (s *desktopShell) refresh(ctx context.Context) {
 		s.updateMenu(status, err, mode, resolved)
 		if theme != s.theme {
 			s.theme = theme
-			native.SetAppearance(s.main, theme)
-			native.SetAppearance(s.quick, theme)
+			for _, window := range s.app.Window.GetAll() {
+				if webview, ok := window.(*application.WebviewWindow); ok {
+					native.SetAppearance(webview, theme)
+				}
+			}
 		}
 	})
 }

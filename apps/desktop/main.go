@@ -270,8 +270,8 @@ func main() {
 						confirmation.Close()
 						continue
 					}
-					confirmation.Show()
-					confirmation.Focus()
+					native.SetAppearance(confirmation, localPreferences(directory).UITheme)
+					native.Present(confirmation)
 				}
 				inbox.Done(request.ID)
 			}
