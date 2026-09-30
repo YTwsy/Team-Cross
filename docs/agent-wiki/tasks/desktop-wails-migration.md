@@ -143,10 +143,10 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 本批从 Next `16fc541` 继续，在 `codex/next/desktop-visibility` 将页面资源、资源库和语言后台读取统一调度。AppKit 补充隐藏、最小化、完全遮挡和 App 隐藏状态；可见但失焦继续读取。隐藏时取消 GET 与定时器，恢复后立即读取，不卸载 React；原生轻量状态与 Core 生命周期继续独立运行。
 
-- 根 Go test/vet、七个相关 race package、桌面 internal race/vet 通过；Web check（751 消息）、12 文件 135 项测试、production build 通过，嵌入资源已更新。回归覆盖原生初始隐藏、DOM 可见性、失焦、重复可见事件、慢读取不重叠、取消旧请求不复活定时器、隐藏恢复时保留数据与草稿。
+- 根 Go test/vet、七个相关 race package、桌面 internal race/vet 通过；Web check（751 消息）、12 文件 136 项测试、production build 通过，嵌入资源已更新。回归覆盖原生初始隐藏、DOM 可见性、失焦、重复可见事件、慢读取不重叠、取消旧请求不复活定时器、隐藏恢复时保留数据与草稿。
 - 本机 arm64/ad-hoc Preview 基于 `c550e23` 加候选源码，dirty=true，保留在 `bin/desktop-preview/p3-visibility-20260930/`。使用合成会话 fixture，真实 WKWebView 和 HTTP；fixture 在 463.02 秒结束并通过，没有模型调用。
 - 通过 fixture 的 `reads.json` 核对每组 6 秒窗口：主窗口关闭、最小化，以及另一独立测试 App 全屏覆盖时，`/api/library` 和 `/api/ui-language` 增量均为 0，原生 `/api/control/status` 仍增加 1；可见但失焦时页面读取继续。仅隐藏速览时，它的 `/api/collaborations` 不再增加，主窗口语言/资源库继续读取。计数只证明本次行为，不是性能基准。
-- 自动化读取已隐藏 App 的状态会重新唤起它，因此隐藏期间改为观察 Finder 状态并从 fixture 文件采样；未将工具引起的重新显示误判为后台轮询。恢复最小化和关闭窗口后保留加入页与未提交输入，速览开关正常。浏览器材料阅读和原生首页截图已复核。
+- 自动化读取已隐藏 App 的状态会重新唤起它，因此隐藏期间改为观察 Finder 状态并从 fixture 文件采样；未将工具引起的重新显示误判为后台轮询。恢复最小化和关闭窗口后保留加入页与未提交输入，速览开关正常。浏览器材料阅读和原生首页截图已复核。合入前再补设置表单的逐字段编辑保护，避免诊断刷新覆盖已编辑路径；增加焦点刷新回归测试，浏览器另检查中文 emoji 路径输入与截图，该表单没有提交保存。
 - 全屏覆盖用的第二个空目录 App 正常退出。fixture 完成后，核对第一个测试 App 的精确二进制路径并终止它；测试 Core 和浏览器页已关闭，数据与构建证据保留。物理全局热键、菜单栏鼠标、邀请 Apple Event 和正式安装切换仍是后续验收，不由本次可见性计数替代。
 
 ### P3b 速览与原生菜单（2026-09-30）
