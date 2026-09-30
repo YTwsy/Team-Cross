@@ -31,7 +31,7 @@ type desktopShell struct {
 	directory          string
 	busy               func() bool
 	ready              atomic.Bool
-	languageBusy       atomic.Bool
+	operationBusy      atomic.Bool
 	commands           chan windowCommand
 	pinned             bool
 	menuOpen           bool
@@ -65,6 +65,7 @@ func newDesktopShell(app *application.App, main, quick *application.WebviewWindo
 	s.add(serviceMenu, "打开资源库", "Open Library", func() { s.showMain("/library") })
 	s.add(serviceMenu, "加入协作…", "Join a Collaboration…", func() { s.showMain("/join") })
 	s.add(serviceMenu, "诊断与设置", "Diagnostics and Settings", func() { s.showMain("/settings") })
+	s.add(serviceMenu, "命令行工具…", "Command Line Tools…", func() { go s.commandLineTools() })
 	language := serviceMenu.AddSubmenu("Language")
 	s.labels = append(s.labels, menuLabel{serviceMenu.FindByLabel("Language"), "语言", "Language"})
 	for _, choice := range []struct{ mode, zh, en string }{{"auto", "跟随系统", "Follow System"}, {"zh-CN", "简体中文", "Simplified Chinese"}, {"en", "English", "English"}} {
@@ -94,7 +95,7 @@ func newDesktopShell(app *application.App, main, quick *application.WebviewWindo
 
 func (s *desktopShell) add(menu *application.Menu, zh, en string, action func()) *application.MenuItem {
 	item := menu.Add(en).OnClick(func(*application.Context) {
-		if !s.busy() {
+		if !s.busy() && !s.operationBusy.Load() {
 			application.InvokeSync(action)
 		}
 	})
@@ -103,7 +104,7 @@ func (s *desktopShell) add(menu *application.Menu, zh, en string, action func())
 }
 
 func (s *desktopShell) Enqueue(action, route string) bool {
-	if !s.ready.Load() || s.busy() || s.languageBusy.Load() {
+	if !s.ready.Load() || s.busy() || s.operationBusy.Load() {
 		return false
 	}
 	if action == "open" && !desktopactions.ValidRoute(route) {
@@ -235,7 +236,7 @@ func (s *desktopShell) updateMenu(status service.Status, err error, mode, resolv
 	}
 	for choice, item := range s.languages {
 		item.SetChecked(choice == mode)
-		item.SetEnabled(!s.languageBusy.Load() && !s.busy())
+		item.SetEnabled(!s.operationBusy.Load() && !s.busy())
 	}
 	text, title := "Core unavailable · Open settings", "Team Cross · Quick View"
 	if zh {
@@ -259,10 +260,10 @@ func (s *desktopShell) updateMenu(status service.Status, err error, mode, resolv
 }
 
 func (s *desktopShell) setLanguage(mode string) {
-	if s.busy() || !s.languageBusy.CompareAndSwap(false, true) {
+	if s.busy() || !s.operationBusy.CompareAndSwap(false, true) {
 		return
 	}
-	defer s.languageBusy.Store(false)
+	defer s.operationBusy.Store(false)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := s.client.SetLanguage(ctx, mode)
