@@ -60,7 +60,7 @@ Formula 与 Cask 均检查稳定版和 RC 另一渠道的成功安装收据，�
 
 [service](../../../internal/service/service.go) 是 CLI、MCP 和 App 共用的生命周期入口。`teamcross` / `serve` 默认后台启动并打开页面；`serve --foreground` 用于开发。`join` 自动确保服务，`mcp` 仅在实际工具调用时启动服务且不打开浏览器。App 通过同一 helper 的 JSON 命令操作服务，不维护另一套协作实现。
 
-数据目录规范化（含符号链接），`start.lock` 串行化并发启动，`core.lock` 覆盖完整服务生命周期。`connection.json` 以 0600 原子写入实例身份、PID、URL、版本、控制协议、数据目录与本机控制 token。健康检查不启动 Codex，核对身份与协议后才复用；连接失效可启动新实例，不兼容或身份不匹配则报告处理入口。
+数据目录规范化（含符号链接），`start.lock` 串行化并发启动，`core.lock` 覆盖完整服务生命周期。 启动被取消或超时时，在释放启动锁前结束并等待本次新建的 foreground helper：先发 SIGTERM，3 秒未结束才精确终止该 PID；不按名称结束其他 Core，不清理数据。已取消的请求不再创建进程。`connection.json` 以 0600 原子写入实例身份、PID、URL、版本、控制协议、数据目录与本机控制 token。健康检查不启动 Codex，核对身份与协议后才复用；连接失效可启动新实例，不兼容或身份不匹配则报告处理入口。
 
 菜单栏外壳在创建图标之前，由 [AppInstance](../../../apps/macos/AppInstance.swift) 取得同一规范化数据目录的 `app.lock`。它与 `core.lock` 独立；锁文件不删除，文件描述符不传给 helper。不同数据目录可以保留独立 App，路径别名不能绕过去重。
 

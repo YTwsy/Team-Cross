@@ -75,7 +75,15 @@ func main() {
 	}
 	var app *application.App
 	var shell atomic.Pointer[desktopShell]
-	var ready, allowQuit atomic.Bool
+	var allowQuit atomic.Bool
+	startup := &lifecycle.Startup{Quit: func() {
+		if primary.Load() {
+			quit.Request()
+		} else {
+			allowQuit.Store(true)
+			app.Quit()
+		}
+	}}
 	enqueue := func(action, route string) bool {
 		host := shell.Load()
 		return host != nil && host.Enqueue(action, route)
@@ -98,13 +106,13 @@ func main() {
 		Description: "Team Cross desktop preview",
 		Assets:      application.AssetOptions{Handler: assets, DisableLogging: true},
 		ShouldQuit: func() bool {
-			if !ready.Load() || allowQuit.Load() || *leaveCore {
+			if allowQuit.Load() || *leaveCore {
 				return true
 			}
 			if host := shell.Load(); host != nil && host.languageBusy.Load() {
 				return false
 			}
-			quit.Request()
+			startup.RequestQuit()
 			return false
 		},
 	})
@@ -169,7 +177,7 @@ func main() {
 		if !ok {
 			return
 		}
-		if quit.Busy() {
+		if startup.Quitting() || quit.Busy() {
 			message("正在退出，请取消退出或稍后重新打开邀请。 / Quitting. Cancel quit or reopen the invitation later.")
 			return
 		}
@@ -180,6 +188,7 @@ func main() {
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		if !native.Configure(window) || !native.Configure(quick) {
 			log.Print("Cannot configure the desktop window")
+			startup.Finish()
 			app.Quit()
 			return
 		}
@@ -190,11 +199,16 @@ func main() {
 			time.Sleep(300 * time.Millisecond)
 			deadline := time.Now().Add(15 * time.Second)
 			for !primary.Load() {
+				if startup.Quitting() {
+					startup.Finish()
+					return
+				}
 				owner, err := instance.Claim(func(request appinstance.Request) bool {
-					return !quit.Busy() && inbox.Add(request, time.Now())
+					return !startup.Quitting() && !quit.Busy() && inbox.Add(request, time.Now())
 				})
 				if err != nil {
 					message("无法建立桌面通信入口。 / Cannot establish desktop communication.")
+					startup.Finish()
 					app.Quit()
 					return
 				}
@@ -208,24 +222,26 @@ func main() {
 				if _, ok := inbox.Front(time.Now()); !ok {
 					time.Sleep(300 * time.Millisecond)
 					if _, ok := inbox.Front(time.Now()); !ok {
+						startup.Finish()
 						app.Quit()
 						return
 					}
 				}
 				if time.Now().After(deadline) {
 					message("已有桌面未响应，请在其恢复后重新打开邀请。 / The existing desktop is not responding. Reopen the invitation after it recovers.")
+					startup.Finish()
 					app.Quit()
 					return
 				}
 				time.Sleep(150 * time.Millisecond)
 			}
-			if !*connectOnly {
+			if !*connectOnly && !startup.Quitting() {
 				executable, err := os.Executable()
 				if err == nil {
 					helper := filepath.Join(filepath.Dir(executable), "..", "Resources", "teamcross")
 					_, err = service.Ensure(ctx, directory, helper, nil)
 				}
-				if err != nil {
+				if err != nil && !startup.Quitting() {
 					message("本机服务启动失败，请检查设置。 / Core could not start. Check the settings.")
 				}
 			}
@@ -235,8 +251,8 @@ func main() {
 				host := newDesktopShell(app, window, quick, client, directory, quit.Busy)
 				host.Start(ctx)
 				shell.Store(host)
-				ready.Store(true)
 			})
+			startup.Finish()
 			for ctx.Err() == nil {
 				if quit.Busy() {
 					time.Sleep(100 * time.Millisecond)
