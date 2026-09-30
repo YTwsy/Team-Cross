@@ -147,7 +147,16 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 - 干净提交 `23fac4aea127a43658bba5f32dc3731cfddaf4e5` 经默认 `make release VERSION=0.2.6-dev.wails-p4c` 构建，产物在 `dist/release/0.2.6-dev.wails-p4c/`，buildNumber 163、dirty=false、arm64/macOS 14+、Wails beta.26、ad-hoc、未公证。DMG SHA-256 为 `4fe52511461d91dcbd9dbecdda817b9f51871e5ae9754ca41141170800342bd6`；CLI 为 `215b3821d78d2539532239df19787914055916dd2b26e775f80a6e8b06ac5ee1`。
 - 默认构建的 DMG/App/CLI 检查、CLI 生命周期、Swift 包升级与 MCP 握手、隔离 Homebrew 安装/升级/互斥/卸载检查通过。最初并行运行两个 DMG 使用者导致挂载资源争用并残留未挂载设备；按精确候选路径确认 `/dev/disk4` 属于本轮后卸载，串行重跑通过。不同安装检查应串行使用同一 DMG，不把该次失败计为通过。
-- 本 PR 只改默认构建、CI/workflow 和文档，没有新的业务 Go/React 改动；Homebrew renderer 10 项、Python 语法、194 个相对链接、diff check 通过。自动脚本启动的 Core 均已回收；保留等待人工退出的独立 Swift 原生升级 fixture，其自动打开的测试浏览器页已关闭；不使用用户数据或会话。
+- 本 PR 只改默认构建、CI/workflow 和文档，没有新的业务 Go/React 改动；Homebrew renderer 10 项、Python 语法、194 个相对链接、diff check 通过。`3b13252` 的 [CI 36708330968](https://github.com/YTwsy/Team-Cross/actions/runs/36708330968) 两项成功，macOS 实际检查默认 Wails DMG、非 UI 安装与 Swift 包升级。该提交相对候选构建源只增加验证记录。
+
+原生升级补充验收：
+
+- 用户从原生入口退出隔离 Swift App 后，核对旧 App `60285` / Core `60292` 均消失，`app.lock`、`core.lock`、`start.lock` 可取得，旧设置、测试文件和 CLI launcher 字节未变化。旧 App 保存在 fixture 的 `Previous Swift.app`，从只读挂载的上述 Wails DMG 复制到原来的 `Applications with spaces/Team Cross.app`。测试副本使用独立 Bundle ID、移除 URL 注册，并通过 `LSEnvironment` 固定隔离数据目录、空 Provider home 和命令目录；只重签测试副本的元数据，包内主程序与 helper 未改。
+- 真实 Wails App `73680` 启动 Core `73691`，实例 `ff9abe3f-dcdc-4a38-a41e-d200deffbc0e`，实际版本 `0.2.6-dev.wails-p4c` / `23fac4a`。设置页正确保留 English / Dark，App/Core 版本一致；原 CLI launcher 与 MCP command 路径不变，实际 MCP initialize / tools-list 成功，Core 实例不变。`preserved.txt` 内容保留。原生截图在实施会话内复核。
+- 同一数据目录的符号链接别名用于第二份独立 App 副本。首份主窗口关闭、固定速览保留时，启动第二份后恢复首份设置页及未保存的中文 emoji 草稿；进程核对只有首份 App/Core，PID 与实例不变。第二份快速退出使 UI 捕获工具超时，成功结论来自首份窗口状态和进程核对，未将捕获超时当作失败或成功证据。
+- 另一个独立数据目录实际启动独立 App 及 Core `74783`（实例 `f47d4394-c852-4d69-8d85-174b841ffd84`），使用默认中文/系统主题，与首份偏好隔离。通过原生 Cmd-Q 退出后，该 App/Core 均消失，首份 Core 继续运行，独立保留文件未变。
+- 已检查固定速览、主窗口关闭保留与 Cmd-1 恢复；用户补充实际中文输入法、物理全局热键及菜单栏左右键均正常。随后原生页面核对草稿为“升级验证草稿 · 中文输入正常 🔟”。用户同时发现 Dock 恢复主窗口会重新显示已关闭的速览，因此该项判为失败；根因是 Wails beta.26 默认 reopen listener 与本地 listener 并发，前者显示全部隐藏窗口。候选改为 event hook 先取消默认分发，再由持锁实例恢复主窗口；根 Go test/vet、七个相关 race package、桌面 internal race/vet、Web check（752 条消息）/139 项测试/build 通过，嵌入资源未变化；修复后的真实 Dock 复测与生产 scheme 系统投递仍待完成。
+- fixture 位于 `/private/tmp/teamcross-desktop-upgrade-20260930/`，旧候选已从原生 Cmd-Q 退出，准备换入修复版。生产 URL 测试使用独立副本和空目录，用户已允许临时切换协议处理器并在结束后恢复；尚未发送测试邀请。没有调用模型、启动用户会话或修改生产数据/个人 MCP 配置。
 
 ### P4b 包安装与升级验证（2026-09-30）
 
