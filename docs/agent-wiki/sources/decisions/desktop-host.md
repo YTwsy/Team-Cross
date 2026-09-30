@@ -13,7 +13,7 @@
 
 ## 当前实现范围
 
-当前 [预览入口](../../../../apps/desktop/main.go) 显示与浏览器共用的完整 React 页面，要求显式隔离 `--data-dir`，拒绝默认生产数据目录。它不启动/停止 Core，不注册生产邀请协议，尚未替换 Swift App 或正式安装包。`--probe` 保留最小请求通道诊断页。
+当前 [预览入口](../../../../apps/desktop/main.go) 显示与浏览器共用的完整 React 页面，要求显式隔离 `--data-dir` 或 `TEAMCROSS_DATA_DIR`，拒绝默认生产数据目录。只有持锁实例通过内置 CLI helper 确保该目录的独立 Core；`--connect-only` 用于不允许启动的 fixture。它不停止 Core、不注册生产邀请协议，尚未替换 Swift App 或正式安装包。`--probe` 保留最小请求通道诊断页。
 
 [platform.ts](../../../../packages/web/src/platform.ts) 集中处理首次语言读取、业务请求和复制。Core 路由按方法与路径列明，控制及运行时专用入口继续不可达；剪贴板只有固定的 `/desktop/clipboard` POST，使用同一资源能力验证。外链仅允许内嵌主页面中主动点击的 HTTP(S) 导航，交给系统浏览器，不新建 WebView 或加载远程页面。
 
@@ -21,10 +21,10 @@
 
 预览的关闭窗口只隐藏，Dock 或菜单重新打开保留页面，退出只结束外壳。正式迁移必须延续现有“停止本机服务并退出”契约，活动协作先确认；第二个外壳转交后退出不能停止 Core。
 
-[appinstance](../../../../apps/desktop/internal/appinstance/) 保留 Swift 的 `app.lock` 与 CFMessagePort 身份算法（用户 ID + 规范化数据目录）、版本 1 请求及入队回执。获取锁前不创建 Wails 窗口；第二份外壳带固定请求 ID 有界重试，收据成功后只退出自身。锁文件保留，崩溃由系统释放锁与 IPC；独立数据目录使用独立身份。回调仅入队，原生 UI 在队列外处理，避免等待 AppKit 弹窗才返回回执。
+[appinstance](../../../../apps/desktop/internal/appinstance/) 保留 Swift 的 `app.lock` 与 CFMessagePort 身份算法（用户 ID + 规范化数据目录）、版本 1 请求及入队回执。启动事件循环可初始化隐藏窗口，但持锁前不显示主窗口或启动 Core；第二份外壳带固定请求 ID 有界重试，收据成功后只退出自身。锁文件保留，崩溃由系统释放锁与 IPC；独立数据目录使用独立身份。回调仅入队，原生 UI 在队列外处理，避免等待 AppKit 弹窗才返回回执。
 
 通信名称必须使用与 Swift 相同的 Foundation 路径表示；例如 Foundation 的 `/tmp` 与 Go 的 `/private/tmp` 可指向同一目录，却产生不同哈希。锁和 Core 发现仍按 `service.Normalize` 的规范化路径处理。双向旧 Swift 互通由真实实现回归覆盖。
 
-当前单实例增量只接受显示窗口请求，邀请批次返回未接受；URL Apple Event、邀请暂存/过期及加入确认仍由后续 PR 完成。不能把 IPC 请求结构包含 URL 字段当作邀请流程已经可用，也不能把同机副本回归推广为正式安装切换验收。
+显示窗口与邀请转交使用有界内存队列；最多 32 项邀请/批次，生命周期 10 分钟。Preview 的测试 scheme 在原生端归一为既有 `teamcross://join` IPC 契约，不注册生产 scheme。私有邀请暂存方法经过 Core 身份探测，只返回经过格式检查的 pending ID；普通 React API 仍无法访问 private staging 路由。邀请确认使用独立窗口，主窗口保留路由和草稿；Core 重启后暂存失效，不重新入队或自动加入。实现与实际 Apple Event 验证是不同证据，具体检查状态保存在迁移任务；同机副本回归也不能推广为正式安装切换验收。
 
 构建与隔离 fixture 使用方法见 [桌面 README](../../../../apps/desktop/README.md)。基础模块和网络边界测试不能代替真实 WKWebView、菜单栏、邀请、原生客户端和安装验收。生产范围继续为 Apple Silicon/macOS 14+。

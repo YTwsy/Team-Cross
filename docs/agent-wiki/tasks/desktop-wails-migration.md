@@ -147,6 +147,18 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 本批根 Go test/vet、桌面 module 的 test/race/vet，以及 Web check（750 条消息）/test（11 文件、130 项）/build 通过；Web 嵌入资源未变化。macOS arm64 Preview 与内置 CLI 构建及 ad-hoc 签名验证通过，产物在 `bin/desktop-preview/p2b-invitation-transport/`，清单记录 `8edc927` 加本批源码、`dirty: true`。本批没有修改页面或窗口行为，未新增真实 UI 验收；已通过的原生协议测试包含 Swift/Wails 消息端口互通。
 
+### P2b 启动事件与确认窗口候选（2026-09-30）
+
+原生传输已由 [PR #34](https://github.com/YTwsy/Team-Cross/pull/34) 合入 Next（`08b1576`）。后续候选位于 `codex/next/desktop-invitations`：将争用锁和转交移入 App 事件循环之后，隐藏主窗口至持锁；接受测试 scheme 的邀请事件，内存队列最多 32 项邀请/批次、固定请求 ID、10 分钟期限，忙于弹窗/处理批次也不延长期限。持锁实例可通过内置 helper 确保隔离 Core；暂存成功后用 pending ID 创建独立确认窗口。
+
+- 根 Go test/vet、相关 collab/service/sharing race、桌面全部 internal race/vet 通过；Web check（750 条消息）、11 文件/130 测试和 production build 通过，嵌入资源未变化。
+- 两轮 arm64 Preview、内置 CLI、架构与 ad-hoc 签名构建通过，最新产物在 `bin/desktop-preview/p2b-invitations-validation-v2/`。清单记录 `08b1576` 加候选源码、`dirty: true`，未签名公证或生产安装。
+- 使用独立 App 身份和 `LSEnvironment` 指定空测试目录及空 provider home，真实启动 Core PID `68284`、实例 `e22e4489-4211-4bc8-a8da-f74b01148150`；第二份独立 App 副本转交并退出，进程核对只剩原外壳和原 Core，身份未变化。主窗口中文草稿保留；Preview `Cmd-Q` 后 Core 仍运行，随后通过该目录的内置 CLI stop 精确关闭。
+- 合成会话 fixture 增加另一个只读 owner 的实际 pinned-TLS 邀请、本机邀请测试页和仅记录 method/path 的观察文件；修正 fixture 暂存接口与 discovery 使用同一私有 token。没有模型输入。
+- 实际 Apple Event/冷启动邀请、独立确认窗口、预览不自动加入及确认后加入仍未验证。浏览器自动化拒绝自定义 scheme 导航，并明确禁止改用其他浏览器或间接调用绕过；未执行绕过。已向用户提供隔离测试页请求一次人工点击，候选保持待验收，不能以工程 CI 或队列单元测试替代这个原生事件证据。
+
+该候选尚未合入 Next；等待原生事件检查时，后续菜单栏、生命周期与安装切换仍可独立推进。若 fixture 已结束，重新创建新的明确测试目录，不能把过期页面或旧结果当作本次事件成功。
+
 | 阶段 | 交付 | 进入下一阶段的证据 |
 | --- | --- | --- |
 | P0：技术验证与构建基础 | 独立 Wails module、锁定版本、Preview App、内嵌资源、受限转发、合成 Core fixture；为 `Next` 增加工程 CI | 在真实 macOS 图形会话打开窗口；GET/POST、取消、来源限制和禁止控制路由通过；根 Go 工程门槛不依赖 GUI 库 |

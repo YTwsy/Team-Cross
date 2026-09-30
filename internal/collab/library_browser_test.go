@@ -3,11 +3,15 @@ package collab
 import (
 	"context"
 	"encoding/json"
+	"html"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -81,8 +85,31 @@ func TestLibraryBrowserFixture(t *testing.T) {
 	// Also expose private discovery so the identical fixture can be read from
 	// the bundled desktop UI. Only this test process can author the connection.
 	var connection service.Connection
+	a.Token = uuid.NewString()
+	// A separate loopback owner provides a real pinned-TLS join without model
+	// input. The invitation is exposed only by a dedicated local test page.
+	owner, _, _ := fixture(t)
+	invited, err := owner.CreateSpace(ctx, SpaceInput{RequestID: uuid.NewString(), Title: "桌面邀请确认验证"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = invited.Action(ctx, "share"); err != nil {
+		t.Fatal(err)
+	}
+	invitation := invited.view()["invitation"].(string)
+	previewURL := strings.Replace(invitation, "teamcross://", "teamcross-desktop-preview://", 1)
+	// The API invitation is a token; format the App URL if needed.
+	if !strings.HasPrefix(previewURL, "teamcross-desktop-preview://") {
+		previewURL = "teamcross-desktop-preview://join?invite=" + invitation
+	}
+	var observations sync.Mutex
 	public := a.Handler(http.FileServer(http.FS(assets)))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/desktop-fixture/invitation" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			io.WriteString(w, `<!doctype html><meta charset="utf-8"><title>Desktop invitation fixture</title><a href="`+html.EscapeString(previewURL)+`">打开桌面测试邀请</a>`)
+			return
+		}
 		if _, err := os.Stat(filepath.Join(dir, "offline")); err == nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -100,6 +127,15 @@ func TestLibraryBrowserFixture(t *testing.T) {
 			json.NewEncoder(w).Encode(status)
 			return
 		}
+		if r.Method == "POST" && (r.URL.Path == "/api/invitations/pending" || r.URL.Path == "/api/invitations/preview" || r.URL.Path == "/api/join") {
+			observations.Lock()
+			file, err := os.OpenFile(filepath.Join(dir, "invitation-requests.jsonl"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+			if err == nil {
+				json.NewEncoder(file).Encode(map[string]string{"method": r.Method, "path": r.URL.Path})
+				file.Close()
+			}
+			observations.Unlock()
+		}
 		public.ServeHTTP(w, r)
 	}))
 	defer server.Close()
@@ -107,11 +143,11 @@ func TestLibraryBrowserFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	connection = service.Connection{URL: server.URL, PID: os.Getpid(), Instance: uuid.NewString(), Token: uuid.NewString(), Version: buildinfo.Version, Commit: buildinfo.Commit, Protocol: buildinfo.ControlProtocol, DataDir: directory}
+	connection = service.Connection{URL: server.URL, PID: os.Getpid(), Instance: uuid.NewString(), Token: a.Token, Version: buildinfo.Version, Commit: buildinfo.Commit, Protocol: buildinfo.ControlProtocol, DataDir: directory}
 	if err := service.Save(directory, connection); err != nil {
 		t.Fatal(err)
 	}
-	manifest := map[string]string{"url": server.URL + "/#/library", "api": server.URL, "dataDir": directory, "id": main.record.ID}
+	manifest := map[string]string{"url": server.URL + "/#/library", "api": server.URL, "dataDir": directory, "id": main.record.ID, "invitePage": server.URL + "/desktop-fixture/invitation"}
 	if err = writeJSONFile(filepath.Join(dir, "fixture.json"), manifest); err != nil {
 		t.Fatal(err)
 	}
