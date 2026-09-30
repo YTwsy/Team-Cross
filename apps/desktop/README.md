@@ -2,7 +2,7 @@
 
 `Next` 的独立 Wails v3 module，精确锁定 `v3.0.0-beta.26`。根 module 的 Core/CLI 不依赖 Wails；桌面使用 Go 1.27.1+、macOS Command Line Tools 和系统 WKWebView。
 
-当前增量内嵌现有 React 主窗口与协作速览，复用协作空间、材料发布/阅读、批注、资源库和设置流程。请求通过原生端连接隔离 Core，复制通过固定的原生剪贴板接口，Web Storage 按规范化数据目录隔离。邀请转交、主题同步与正式安装切换按迁移计划逐步实现。预览要求显式隔离目录（`--data-dir` 或 `TEAMCROSS_DATA_DIR`），拒绝默认生产目录；不启动 Core 或注册 URL scheme。显式退出会停止对应的隔离 Core，活动协作先确认。
+当前增量内嵌现有 React 主窗口与协作速览，复用协作空间、材料发布/阅读、批注、资源库和设置流程。请求通过原生端连接隔离 Core，复制通过固定的原生剪贴板接口，Web Storage 按规范化数据目录隔离。预览要求显式隔离目录（`--data-dir` 或 `TEAMCROSS_DATA_DIR`），拒绝默认生产目录；只有持锁实例通过内置 CLI helper 确保隔离 Core，`--connect-only` 可禁止启动。仅注册测试邀请 scheme `teamcross-desktop-preview://`，正式 `teamcross://`、主题同步与安装切换继续按迁移计划实现。显式退出会停止对应的隔离 Core，活动协作先确认。
 
 菜单栏左键、`⌘2` 与注册成功后的全局 `⌃⌥T` 开关速览。右键或速览中的“服务与设置”在速览内打开原生服务菜单；该入口也适用于菜单栏拥挤的屏幕。菜单显示轻量 Core 状态，并通过同一 Core 偏好 API 更改语言。热键注册被系统拒绝时不占用其他应用的快捷键，也不显示已注册标记。速览未固定时失焦收起，固定后保持浮窗；隐藏、固定切换和重新展示复用同一页面。点击协作或材料在已有主窗口中定位，`⌘1` 仅显示主窗口并保留当前路由和草稿。
 
@@ -26,7 +26,7 @@ TEAMCROSS_LIBRARY_BROWSER_DIR=/private/tmp/teamcross-desktop-library \
   ./internal/collab
 ```
 
-从 `fixture.json` 读取 `dataDir`，传给 App 的 `--data-dir`。fixture 的原生会话是合成数据，HTTP、发布、材料存储与批注走实际 Core 实现，不调用模型；浏览器用同一清单的 `url`。创建 `offline` 文件可模拟失联，移走此文件后恢复读取；创建 `finish` 文件会关闭 fixture 和临时服务。不要对生产数据使用这些测试开关。
+从 `fixture.json` 读取 `dataDir`，传给 App 的 `--data-dir`。fixture 的原生会话是合成数据，HTTP、发布、材料存储与批注走实际 Core 实现，不调用模型；浏览器用同一清单的 `url`。`invitePage` 提供本机测试邀请，来自另一个独立 fixture owner，只读分享与加入使用实际 pinned-TLS 实现。`invitation-requests.jsonl` 仅记录暂存、预览和加入的路由，不记录邀请 body 或控制凭据。创建 `offline` 文件可模拟失联，移走此文件后恢复读取；创建 `finish` 文件会关闭 fixture 和临时服务。不要对生产数据使用这些测试开关。
 
 先选择一个新的 fixture 目录，再用构建输出中的实际路径运行：
 
@@ -34,7 +34,7 @@ TEAMCROSS_LIBRARY_BROWSER_DIR=/private/tmp/teamcross-desktop-library \
 python3 scripts/desktop-smoke-service.py /private/tmp/teamcross-desktop-fixture \
   --manifest '/absolute/output/desktop-build.json'
 '/absolute/output/Team Cross Desktop Preview.app/Contents/MacOS/TeamCrossDesktop' \
-  --data-dir /private/tmp/teamcross-desktop-fixture --probe --leave-core-running
+  --data-dir /private/tmp/teamcross-desktop-fixture --connect-only --probe --leave-core-running
 ```
 
 fixture 只接受空目录或它自己创建的标记目录，不读取用户会话或调用模型。`connection.json` 使用随机凭据和 0600 权限；观察文件 `writes.jsonl` 不记录凭据。停止并重新运行同一 fixture 会改变端口和实例，页面可直接重新读取，草稿不重新挂载。在 fixture 目录创建 `drop-write-response` 文件后，保存偏好会接受写入但丢弃响应，用 `writes.jsonl` 验证没有自动重放。
@@ -43,7 +43,9 @@ fixture 只接受空目录或它自己创建的标记目录，不读取用户会
 
 窗口只加载内嵌页面，点击 HTTP(S) 外链交给系统浏览器，拒绝其他导航与新 WebView；浏览器入口继续使用普通 Web 能力。
 
-同一用户、同一规范化数据目录只有一个外壳，符号链接别名和多份 App 副本会转交给已有窗口，保留当前路由和草稿。`app.lock` 独立于 Core 锁，不随退出删除；已有外壳暂时无响应时最多等待 15 秒，不启动重复外壳。转交回执只确认入队，同一请求 ID 在 10 分钟内去重，最多缓存 512 项。当前只转交显示窗口请求；邀请 URL 接收与暂存尚未接入，因此不确认接收邀请批次。
+同一用户、同一规范化数据目录只有一个外壳，符号链接别名和多份 App 副本会转交给已有窗口，保留当前路由和草稿。`app.lock` 独立于 Core 锁，不随退出删除；已有外壳暂时无响应时最多等待 15 秒，不启动重复外壳。转交回执只确认入队，同一请求 ID 在 10 分钟内去重，最多缓存 512 项。
+
+App 事件循环先接收冷启动邀请，再争用外壳锁；菜单栏、速览快捷键与 Core 启动只由持锁实例初始化。第二份外壳保留原请求 ID 转交并退出自身。待转交队列仅存在内存，最多 32 个邀请/批次，10 分钟后过期。原生端将邀请暂存于 Core，只用 pending ID 打开独立确认窗口，不覆盖主窗口路由或草稿；展示预览后仍需用户明确加入。Core 重启不会重建暂存邀请或重放加入。Apple Event、独立确认窗口及安装路径的实际验收范围见迁移任务，不从构建成功推定已通过。
 
 原生转发只接受明确允许的路径/方法，核对发现文件与 Core 的实例、PID、协议、版本和提交。普通 API 不携带控制 token，重定向、HTML、未知路径和控制路由不会转发给页面；Core 不兼容或离线返回结构化错误。所有请求都使用新连接，写入不会自动重放，WebView 取消请求会关闭上游读取。
 
