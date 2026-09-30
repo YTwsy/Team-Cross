@@ -109,7 +109,7 @@ var collaborationPath = regexp.MustCompile(`^/api/collaborations/[A-Za-z0-9-]+(?
 // Allowed mirrors the WebGUI surface, not Core control or runtime-only APIs.
 func Allowed(method, path string) bool {
 	switch path {
-	case "/api/ui-language", "/api/collaborations":
+	case "/api/ui-language", "/api/ui-theme", "/api/collaborations":
 		return method == http.MethodGet || method == http.MethodPost
 	case "/api/info", "/api/sources", "/api/library":
 		return method == http.MethodGet

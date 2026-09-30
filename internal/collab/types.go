@@ -248,6 +248,7 @@ type Settings struct {
 	Binary       string `json:"binary"`
 	DesktopApp   string `json:"desktopApp"`
 	UILanguage   string `json:"uiLanguage,omitempty"`
+	UITheme      string `json:"uiTheme,omitempty"`
 }
 type App struct {
 	libraryMu     sync.Mutex

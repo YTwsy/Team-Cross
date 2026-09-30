@@ -11,7 +11,9 @@
 | 方法与路径 | 含义 |
 | --- | --- |
 | `GET /info` | 客户端位置、版本、主机、MCP 配置状态 |
-| `POST /settings` | 保存 `binary`、`desktopApp`、`claudeBinary` |
+| `POST /settings` | 保存 `binary`、`desktopApp`、`claudeBinary`；保留独立的界面语言与主题偏好 |
+| `GET/POST /ui-language` | 本机界面语言；POST `{mode:auto|zh-CN|en}`，返回 `{mode,resolved}` |
+| `GET/POST /ui-theme` | 本机共享主题；POST `{mode:system|light|dark}`，返回已保存的 `{mode}`，默认 `system` |
 | `POST /mcp/setup` | `{provider:codex|claude}` 写入个人 MCP 配置，省略默认 Codex（稳定 opt/App 路径） |
 | `POST /mcp/probe` | 运行独立 STDIO 握手与工具枚举探测，不启动模型 |
 | `POST /mcp/observed` | 本机凭据保护，`{provider:codex|claude}` 分别记录实际工具调用时间；未知客户端不记入 |

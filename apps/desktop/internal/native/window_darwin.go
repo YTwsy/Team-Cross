@@ -10,6 +10,7 @@ bool configureTeamCrossWindow(void *window);
 void *teamCrossTrayIcon(int *length);
 void teamCrossWindowScript(void *window, const char *script);
 void presentTeamCrossWindow(void *window);
+void setTeamCrossAppearance(void *window, int mode);
 */
 import "C"
 
@@ -46,6 +47,17 @@ func Refresh(window *application.WebviewWindow) {
 func Present(window *application.WebviewWindow) {
 	window.Show()
 	application.InvokeSync(func() { C.presentTeamCrossWindow(window.NativeWindow()) })
+}
+
+func SetAppearance(window *application.WebviewWindow, mode string) {
+	value := C.int(0)
+	if mode == "light" {
+		value = 1
+	}
+	if mode == "dark" {
+		value = 2
+	}
+	application.InvokeSync(func() { C.setTeamCrossAppearance(window.NativeWindow(), value) })
 }
 
 func Configure(window *application.WebviewWindow) bool {

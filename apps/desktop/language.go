@@ -17,13 +17,21 @@ func localLanguage(directory string) string {
 }
 
 func localLanguagePreference(directory string) (string, string) {
-	var settings struct {
-		UILanguage string `json:"uiLanguage"`
-	}
+	settings := localPreferences(directory)
+	mode := uilanguage.Mode(settings.UILanguage)
+	return mode, uilanguage.Resolve(mode)
+}
+
+type preferences struct {
+	UILanguage string `json:"uiLanguage"`
+	UITheme    string `json:"uiTheme"`
+}
+
+func localPreferences(directory string) preferences {
+	var settings preferences
 	if f, err := os.Open(filepath.Join(directory, "settings.json")); err == nil {
 		defer f.Close()
 		_ = json.NewDecoder(io.LimitReader(f, 1<<20)).Decode(&settings)
 	}
-	mode := uilanguage.Mode(settings.UILanguage)
-	return mode, uilanguage.Resolve(mode)
+	return settings
 }

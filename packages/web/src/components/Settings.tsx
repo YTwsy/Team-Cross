@@ -9,16 +9,18 @@ import { useEffect, useRef, useState } from "react";
 import { api, errorText, useResource } from "../api";
 import { type Info, type Provider } from "../types";
 import { ErrorBox, Icon, Loading, PageHeading } from "./ui";
-export type Theme = "system" | "light" | "dark";
+import type { Theme } from "../theme";
 import { MCPConnection } from "./MCPConnection";
 export function Settings({
   theme,
   setTheme,
+  themeWorking = false,
   uiLanguage,
   onLanguageChange,
 }: {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  themeWorking?: boolean;
   uiLanguage: LanguageInfo;
   onLanguageChange: (language: LanguageInfo) => void;
 }) {
@@ -154,7 +156,7 @@ export function Settings({
         <section className="panel settings-section">
           <div>
             <h2>{t("外观")}</h2>
-            <p>{t("选择适合你的工作环境。")}</p>
+            <p>{t("主题在这台 Mac 的主窗口、速览与 WebGUI 之间同步。")}</p>
           </div>
           <div className="theme-options">
             {(["system", "light", "dark"] as Theme[]).map((value) => (
@@ -162,6 +164,7 @@ export function Settings({
                 key={value}
                 className={`theme-card ${theme === value ? "selected" : ""}`}
                 aria-pressed={theme === value}
+                disabled={themeWorking}
                 onClick={() => setTheme(value)}
               >
                 <span className={`theme-preview ${value}`}>
