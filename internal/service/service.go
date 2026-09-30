@@ -201,6 +201,9 @@ func Ensure(ctx context.Context, data, executable string, args []string) (Status
 			return Status{}, e
 		}
 	}
+	if err := ctx.Err(); err != nil {
+		return Status{}, err
+	}
 	if executable == "" {
 		executable, e = os.Executable()
 		if e != nil {
@@ -231,6 +234,16 @@ func Ensure(ctx context.Context, data, executable string, args []string) (Status
 		case e := <-exited:
 			return Status{}, fmt.Errorf("服务未能启动 (%v)，请查看 %s", e, filepath.Join(data, "core.log"))
 		case <-ctx.Done():
+			// Only this call's foreground helper is ours to terminate. Keep the
+			// startup lock until it has exited, so a delayed bootstrap cannot
+			// appear after a caller has already handled the failed start/quit.
+			_ = cmd.Process.Signal(syscall.SIGTERM)
+			select {
+			case <-exited:
+			case <-time.After(3 * time.Second):
+				_ = cmd.Process.Kill()
+				<-exited
+			}
 			return Status{}, fmt.Errorf("服务启动超时，请查看 %s", filepath.Join(data, "core.log"))
 		case <-time.After(100 * time.Millisecond):
 		}

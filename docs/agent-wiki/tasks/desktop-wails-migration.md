@@ -139,6 +139,15 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 每个阶段应形成可独立构建、可验证的增量。下面是建议实施顺序，不是已经执行的任务清单。
 
+### P3e 启动与退出竞态（2026-09-30）
+
+邀请接入后，Core Ensure 尚未返回时直接退出外壳可能留下稍后启动的 Core。本批在 `codex/next/desktop-startup-quit` 让退出等待启动完成：未持锁只结束外壳；持锁实例沿用已有精确停止与取消契约。共享启动器在取消/超时时先回收本次启动的 foreground helper，等待退出后才释放启动锁，已取消请求不创建进程。
+
+- 回归覆盖启动等待期间多次退出合并、取消后再次退出、启动完成与退出请求并发 1000 组、取消后真实子进程消失及启动锁释放。根 Go test/vet、七个相关 race package、桌面 internal race/vet、Web check（752 消息）、139 项测试及 production build 通过。
+- arm64/ad-hoc 候选 `bin/desktop-preview/p3-startup-final-20260930/` 基于 `8216cc0` 加本批源码，dirty=true，未公证。隔离目录与空 Provider home 中用延迟 wrapper 启动实际内置 Core：按 Cmd-Q 时 helper PID 44969 尚未放行，外壳保留；放行后 Core 真实启动，随后 App PID 44954 和 Core/helper 均退出，`preserved.txt` 保留。
+- 同一隔离 App 第二轮让 helper 一直等待：到启动超时后 helper PID 46415 已消失且从未放行，App 显示启动失败，关闭提示后 Cmd-Q 正常退出。两轮测试 App/Core 均已关闭，无模型输入，未触碰生产目录。
+- 主题 PR #39 的首轮 CI 在 theme effect 尚未应用时立即断言 DOM，已改为等待外观 effect；本地 Web 全量通过后单独推送原主题 PR，未把本批生命周期改动混入。
+
 ### P3d 共享主题（2026-09-30）
 
 `codex/next/desktop-theme` 将系统/浅色/深色偏好持久化到 Core；主窗口、速览、邀请确认窗口与 WebGUI 读取同一偏好，原生标题栏也同步。页面缓存仅供首次/离线绘制，不导入 Core；写入等待确认、失败不自动重放，迟到的 GET 不覆盖新写入。通用设置保存保留主题与语言，避免旧表单覆盖。
