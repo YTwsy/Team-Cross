@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -81,8 +83,15 @@ func TestLibraryBrowserFixture(t *testing.T) {
 	// Also expose private discovery so the identical fixture can be read from
 	// the bundled desktop UI. Only this test process can author the connection.
 	var connection service.Connection
+	var readsMu sync.Mutex
+	reads := make(map[string]int)
 	public := a.Handler(http.FileServer(http.FS(assets)))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/api/") {
+			readsMu.Lock()
+			reads[r.URL.Path]++
+			readsMu.Unlock()
+		}
 		if _, err := os.Stat(filepath.Join(dir, "offline")); err == nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -126,6 +135,12 @@ func TestLibraryBrowserFixture(t *testing.T) {
 		case <-timeout.C:
 			t.Fatal("browser fixture expired")
 		case <-tick.C:
+			readsMu.Lock()
+			err = writeJSONFile(filepath.Join(dir, "reads.json"), reads)
+			readsMu.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
 			if _, err = os.Stat(filepath.Join(dir, "finish")); err == nil {
 				return
 			}

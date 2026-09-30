@@ -353,6 +353,27 @@ describe("个人 Claude Code 辅助模式", () => {
   });
 });
 describe("产品路径", () => {
+  it("窗口恢复刷新诊断时保留未保存的设置输入", async () => {
+    mockFetch(() => ({
+      binary: "/old/codex",
+      claudeBinary: "/old/claude",
+      desktopApp: "/old/Desktop.app",
+    }));
+    render(
+      <Settings
+        theme="light"
+        setTheme={() => {}}
+        uiLanguage={{ mode: "auto", resolved: "zh-CN" }}
+        onLanguageChange={() => {}}
+      />,
+    );
+    const input = await screen.findByDisplayValue("/old/codex");
+    fireEvent.change(input, { target: { value: "/new/codex 草稿" } });
+    const previous = calls.length;
+    fireEvent.focus(window);
+    await waitFor(() => expect(calls.length).toBeGreaterThan(previous));
+    expect(input).toHaveValue("/new/codex 草稿");
+  });
   it("安装版本变化时保留运行版本并提示重启，不自动停止服务", async () => {
     mockFetch(() => ({
       version: "0.1.1",

@@ -9,6 +9,7 @@ package native
 bool configureTeamCrossWindow(void *window);
 void *teamCrossTrayIcon(int *length);
 void teamCrossWindowScript(void *window, const char *script);
+void presentTeamCrossWindow(void *window);
 */
 import "C"
 
@@ -39,6 +40,12 @@ func SetPinned(window *application.WebviewWindow, pinned bool) {
 
 func Refresh(window *application.WebviewWindow) {
 	windowScript(window, "window.dispatchEvent(new Event('focus'))")
+}
+
+// Present is only used by explicit open/reopen actions, never background reads.
+func Present(window *application.WebviewWindow) {
+	window.Show()
+	application.InvokeSync(func() { C.presentTeamCrossWindow(window.NativeWindow()) })
 }
 
 func Configure(window *application.WebviewWindow) bool {

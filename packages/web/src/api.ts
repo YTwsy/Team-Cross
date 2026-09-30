@@ -1,6 +1,7 @@
 import { language, serviceText, t, tr } from "./i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "./platform";
+import { watchVisibleRefresh } from "./visibility";
 export class APIError extends Error {
   constructor(
     message: string,
@@ -76,31 +77,22 @@ export function useResource<T>(
       setData(undefined);
       lastPath.current = path;
     }
-    const abort = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
     setLoading(true);
-    async function load() {
+    async function load(signal: AbortSignal) {
       try {
-        const next = await api<T>(path!, undefined, abort.signal);
-        if (!abort.signal.aborted) {
+        const next = await api<T>(path!, undefined, signal);
+        if (!signal.aborted) {
           setData(next);
           setDataPath(path!);
           setError("");
         }
       } catch (e) {
-        if (!abort.signal.aborted) setError(errorText(e));
+        if (!signal.aborted) setError(errorText(e));
       } finally {
-        if (!abort.signal.aborted) {
-          setLoading(false);
-          if (interval) timer = setTimeout(load, interval);
-        }
+        if (!signal.aborted) setLoading(false);
       }
     }
-    void load();
-    return () => {
-      abort.abort();
-      clearTimeout(timer);
-    };
+    return watchVisibleRefresh(load, interval);
   }, [path, interval, revision, refreshKey]);
   return { data, dataPath, error, loading, reload, setData };
 }

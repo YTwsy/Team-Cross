@@ -179,8 +179,7 @@ func (s *desktopShell) showMain(route string) {
 	if !s.pinned {
 		s.quick.Hide()
 	}
-	s.main.Show()
-	s.main.Focus()
+	native.Present(s.main)
 }
 
 func (s *desktopShell) toggleQuick() {
@@ -192,8 +191,7 @@ func (s *desktopShell) toggleQuick() {
 		_ = s.tray.PositionWindow(s.quick, 8)
 		s.quick.SetAlwaysOnTop(false)
 	}
-	s.quick.Show()
-	s.quick.Focus()
+	native.Present(s.quick)
 	native.Refresh(s.quick)
 }
 

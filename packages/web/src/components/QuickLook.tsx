@@ -100,11 +100,6 @@ function CurrentCollaborations({ hidden }: { hidden: boolean }) {
     5000,
   );
   const [filter, setFilter] = useState("all");
-  useEffect(() => {
-    if (hidden) return;
-    window.addEventListener("focus", reload);
-    return () => window.removeEventListener("focus", reload);
-  }, [hidden, reload]);
   const items = (data || []).filter(
     (c) =>
       c.state !== "ended" &&
