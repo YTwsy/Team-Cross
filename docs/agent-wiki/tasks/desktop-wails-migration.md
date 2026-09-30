@@ -155,8 +155,15 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 - 真实 Wails App `73680` 启动 Core `73691`，实例 `ff9abe3f-dcdc-4a38-a41e-d200deffbc0e`，实际版本 `0.2.6-dev.wails-p4c` / `23fac4a`。设置页正确保留 English / Dark，App/Core 版本一致；原 CLI launcher 与 MCP command 路径不变，实际 MCP initialize / tools-list 成功，Core 实例不变。`preserved.txt` 内容保留。原生截图在实施会话内复核。
 - 同一数据目录的符号链接别名用于第二份独立 App 副本。首份主窗口关闭、固定速览保留时，启动第二份后恢复首份设置页及未保存的中文 emoji 草稿；进程核对只有首份 App/Core，PID 与实例不变。第二份快速退出使 UI 捕获工具超时，成功结论来自首份窗口状态和进程核对，未将捕获超时当作失败或成功证据。
 - 另一个独立数据目录实际启动独立 App 及 Core `74783`（实例 `f47d4394-c852-4d69-8d85-174b841ffd84`），使用默认中文/系统主题，与首份偏好隔离。通过原生 Cmd-Q 退出后，该 App/Core 均消失，首份 Core 继续运行，独立保留文件未变。
-- 已检查固定速览、主窗口关闭保留与 Cmd-1 恢复；用户补充实际中文输入法、物理全局热键及菜单栏左右键均正常。随后原生页面核对草稿为“升级验证草稿 · 中文输入正常 🔟”。用户同时发现 Dock 恢复主窗口会重新显示已关闭的速览，因此该项判为失败；根因是 Wails beta.26 默认 reopen listener 与本地 listener 并发，前者显示全部隐藏窗口。候选改为 event hook 先取消默认分发，再由持锁实例恢复主窗口；根 Go test/vet、七个相关 race package、桌面 internal race/vet、Web check（752 条消息）/139 项测试/build 通过，嵌入资源未变化；修复后的真实 Dock 复测与生产 scheme 系统投递仍待完成。
-- fixture 位于 `/private/tmp/teamcross-desktop-upgrade-20260930/`，旧候选已从原生 Cmd-Q 退出，准备换入修复版。生产 URL 测试使用独立副本和空目录，用户已允许临时切换协议处理器并在结束后恢复；尚未发送测试邀请。没有调用模型、启动用户会话或修改生产数据/个人 MCP 配置。
+- 已检查固定速览、主窗口关闭保留与 Cmd-1 恢复；用户补充实际中文输入法、物理全局热键及菜单栏左右键均正常。随后原生页面核对草稿为“升级验证草稿 · 中文输入正常 🔟”。用户同时发现 Dock 恢复主窗口会重新显示已关闭的速览，因此该项判为失败；根因是 Wails beta.26 默认 reopen listener 与本地 listener 并发，前者显示全部隐藏窗口。候选改为 event hook 先取消默认分发，再由持锁实例恢复主窗口；根 Go test/vet、七个相关 race package、桌面 internal race/vet、Web check（752 条消息）/139 项测试/build 通过，嵌入资源未变化；修复后的真实 Dock 复测见下，生产 scheme 系统投递继续单独验收。
+- fixture 位于 `/private/tmp/teamcross-desktop-upgrade-20260930/`，旧候选已从原生 Cmd-Q 退出。生产 URL 测试使用独立副本和空目录，用户已允许临时切换协议处理器并在结束后恢复。没有调用模型、启动用户会话或修改生产数据/个人 MCP 配置。
+
+修复候选 `0.2.6-dev.wails-p4c-r2`：
+
+- 从干净提交 `395c036f4484228d029909bd5df61d01a26db10a` 构建，buildNumber 165、arm64/macOS 14+、ad-hoc、未公证；产物保留在 `dist/release/0.2.6-dev.wails-p4c-r2/`。DMG SHA-256 为 `b049a2eb91b959c6a2f30ec0d0f868be2f4e98103054dc6929a55500a6f7c128`，CLI 为 `5cc556790f757f75379098a2552117f0a79438266bc1bad10b71284e22a00eac`。本地 bundle、非 UI release/CLI 生命周期、Swift 包升级及 Homebrew 检查串行通过；[CI 36712473393](https://github.com/YTwsy/Team-Cross/actions/runs/36712473393) 的 Go/Web 与 macOS 两项成功。
+- 换入同一隔离安装路径后，实际 Core `78409` / 实例 `fd6653d2-0560-4f67-a5d9-a2628f401086` 报告 r2 版本和上述提交。用户按“打开再关闭速览、关闭主窗口、点击 Dock”复测，确认只恢复主窗口、速览保持关闭、草稿保留；随后原生 AX 核对仍在 `/#/join`，内容为“Dock 修复复测 · 草稿保留 🧪”。从原生 Cmd-Q 退出后，Core `78409` 已停止。
+- 正式 URL 夹具最初位于 `/private/tmp/teamcross-desktop-production-url-20260930/`，LaunchServices 标记该 App `launch-disabled / in-temp-dir`；系统偏好写入不等于有效处理器改变，核对失败后先恢复原处理器。将同一测试副本放到工作区 `bin/desktop-validation/production-url/`，数据及空 Provider home 仍在原临时目录，再注册后 CoreServices 返回实际默认处理器 `io.github.ytwsy.teamcross.productionurl.fixture.p4c`。测试前处理器 `io.github.ytwsy.teamcross` 已记录，结束须恢复并注销测试副本。冷启动基线是 URL App 0 个、接收方 Core 0 个，邀请由用户在本机页面手动点击。
+- 用户手动点击正式 `teamcross://` 邀请后，App `84007` 与实际内置 Core `84016` 启动（实例 `6b58d082-1a24-4503-8432-1ca1934fe49c`，r2 / `395c036`）。原生窗口显示“桌面邀请确认验证”的只读预览，页面 URL 只有 pending UUID；此时接收方 `/api/collaborations` 返回空列表。随后点击原生窗口的“确认加入并查看上下文”，接收方变为 1 个只读空间，页面显示 2 名成员。来源是合成空间，接收方是安装候选内的真实 Core，实际 pinned-TLS 加入，没有模型输入。热启动取消另用新建的第二个合成空间，避免已加入空间的复用掩盖误加入。
 
 ### P4b 包安装与升级验证（2026-09-30）
 
