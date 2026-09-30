@@ -4,6 +4,14 @@
 
 static const char guardKey;
 
+void presentTeamCrossWindow(void *pointer) {
+    NSWindow *window = (__bridge NSWindow *)pointer;
+    [NSApp unhideWithoutActivation];
+    if (window.isMiniaturized) [window deminiaturize:nil];
+    [NSApp activate];
+    [window makeKeyAndOrderFront:nil];
+}
+
 void *teamCrossTrayIcon(int *length) {
     NSImage *image = [NSImage imageWithSystemSymbolName:@"person.2.fill" accessibilityDescription:@"Team Cross"];
     image.size = NSMakeSize(18, 18);
@@ -31,9 +39,21 @@ static WKWebView *findWebView(NSView *view) {
 @property (weak) id<WKUIDelegate> ui;
 @property BOOL loaded;
 @property NSMutableArray<NSString *> *pendingScripts;
+@property (weak) WKWebView *webView;
+- (void)publishVisibility:(NSNotification *)notification;
 @end
 
 @implementation TeamCrossWebGuard
+- (void)publishVisibility:(NSNotification *)notification {
+    if (!self.loaded) return;
+    NSWindow *window = self.webView.window;
+    BOOL visible = window.isVisible && !window.isMiniaturized && !NSApp.isHidden && (window.occlusionState & NSWindowOcclusionStateVisible);
+    NSString *script = [NSString stringWithFormat:@"if(document.documentElement.dataset.teamcrossVisible!=='%@'){document.documentElement.dataset.teamcrossVisible='%@';document.dispatchEvent(new Event('teamcross-visibility'));}", visible ? @"true" : @"false", visible ? @"true" : @"false"];
+    [self.webView evaluateJavaScript:script completionHandler:nil];
+}
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+}
 - (void)webView:(WKWebView *)webView didStartProvisionalNavigation:(WKNavigation *)navigation {
     self.loaded = NO;
     if ([self.navigation respondsToSelector:_cmd]) [self.navigation webView:webView didStartProvisionalNavigation:navigation];
@@ -42,6 +62,7 @@ static WKWebView *findWebView(NSView *view) {
     self.loaded = YES;
     for (NSString *script in self.pendingScripts) [webView evaluateJavaScript:script completionHandler:nil];
     [self.pendingScripts removeAllObjects];
+    [self publishVisibility:nil];
     if ([self.navigation respondsToSelector:_cmd]) [self.navigation webView:webView didFinishNavigation:navigation];
 }
 - (BOOL)respondsToSelector:(SEL)selector {
@@ -77,11 +98,19 @@ bool configureTeamCrossWindow(void *pointer) {
     if (!web) return false;
     if (objc_getAssociatedObject(web, &guardKey)) return true;
     TeamCrossWebGuard *guard = [TeamCrossWebGuard new];
+    guard.webView = web;
     guard.pendingScripts = [NSMutableArray new];
     guard.loaded = !web.loading && internalURL(web.URL);
     guard.navigation = web.navigationDelegate; guard.ui = web.UIDelegate;
     objc_setAssociatedObject(web, &guardKey, guard, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     web.navigationDelegate = guard; web.UIDelegate = guard;
+    for (NSNotificationName name in @[NSWindowDidChangeOcclusionStateNotification, NSWindowDidMiniaturizeNotification, NSWindowDidDeminiaturizeNotification]) {
+        [NSNotificationCenter.defaultCenter addObserver:guard selector:@selector(publishVisibility:) name:name object:window];
+    }
+    for (NSNotificationName name in @[NSApplicationDidHideNotification, NSApplicationDidUnhideNotification]) {
+        [NSNotificationCenter.defaultCenter addObserver:guard selector:@selector(publishVisibility:) name:name object:NSApp];
+    }
+    [guard publishVisibility:nil];
     return true;
 }
 
