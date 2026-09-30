@@ -94,7 +94,8 @@ func TestLibraryBrowserFixture(t *testing.T) {
 				w.WriteHeader(http.StatusForbidden)
 				return
 			}
-			status := service.Status{Connection: connection, Running: true}
+			mode, resolved := a.UILanguage()
+			status := service.Status{Connection: connection, Running: true, Active: a.Active(), UILanguage: mode, ResolvedLanguage: resolved}
 			status.Token = ""
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(status)

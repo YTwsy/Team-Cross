@@ -11,6 +11,7 @@ import {
 import { api, errorText } from "./api";
 import type { AnnotationTarget } from "./types";
 import { Icon } from "./components/ui";
+import { windowAction } from "./platform";
 
 export type LibraryReference = {
   spaceId: string;
@@ -251,20 +252,6 @@ export const availabilityLabel = (r: LibraryResource) =>
     unavailable: t("访问已结束"),
   })[r.availability];
 
-// Only the native wrapper defines this narrow bridge; normal WebGUI uses links.
-declare global {
-  interface Window {
-    webkit?: {
-      messageHandlers?: {
-        teamcross?: {
-          postMessage: (body: { action: string; route?: string }) => void;
-        };
-      };
-    };
-  }
-}
 export function openFullLibrary(route = "/library") {
-  const bridge = window.webkit?.messageHandlers?.teamcross;
-  if (bridge) bridge.postMessage({ action: "open", route });
-  else location.hash = route;
+  windowAction("open", route);
 }

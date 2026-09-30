@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
@@ -96,11 +97,15 @@ func main() {
 		log.Fatal("Cannot load desktop resources")
 	}
 	var app *application.App
+	var shell *desktopShell
 	var ready, allowQuit atomic.Bool
-	actions := desktopactions.New(func(text string) bool {
+	actions := desktopactions.New(desktopactions.Actions{Clipboard: func(text string) bool {
 		var copied bool
 		application.InvokeSync(func() { copied = app.Clipboard.SetText(text) })
 		return copied
+	}, Open: func(route string) bool { return shell != nil && shell.Enqueue("open", route) },
+		Pin:  func() bool { return shell != nil && shell.Enqueue("pin", "") },
+		Menu: func() bool { return shell != nil && shell.Enqueue("menu", "") },
 	})
 	scope := sha256.Sum256([]byte(directory))
 	assets, err := desktopserver.New(files, client, actions, hex.EncodeToString(scope[:]))
@@ -115,6 +120,9 @@ func main() {
 			if !ready.Load() || allowQuit.Load() || *leaveCore {
 				return true
 			}
+			if shell != nil && shell.languageBusy.Load() {
+				return false
+			}
 			quit.Request()
 			return false
 		},
@@ -123,7 +131,14 @@ func main() {
 		Name: "main", Title: "Team Cross Desktop Preview", URL: "/",
 		Width: 1400, Height: 900, MinWidth: 960, MinHeight: 640, Hidden: true,
 	})
-	show := func() { window.Show(); window.Focus() }
+	quick := app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name: "quick", Title: "Team Cross · Quick View", URL: "/#/library/quick",
+		Width: 470, Height: 650, MinWidth: 420, MinHeight: 440, Hidden: true, HideOnEscape: true,
+	})
+	shell = newDesktopShell(app, window, quick, client, directory, quit.Busy)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	show := func() { application.InvokeSync(func() { shell.showMain("") }) }
 	quit.Core = client
 	quit.Confirm = func(status service.Status) bool {
 		show()
@@ -158,12 +173,13 @@ func main() {
 	}
 	quit.Finished = func() { allowQuit.Store(true); app.Quit() }
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
-		if !native.Configure(window) {
+		if !native.Configure(window) || !native.Configure(quick) {
 			log.Print("Cannot configure the desktop window")
 			app.Quit()
 			return
 		}
 		ready.Store(true)
+		shell.Start(ctx)
 		show()
 		go func() {
 			for range showRequests {
@@ -173,16 +189,9 @@ func main() {
 	})
 	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
 		event.Cancel()
-		window.Hide()
+		application.InvokeSync(func() { window.Hide() })
 	})
 	app.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen, func(*application.ApplicationEvent) { show() })
-	menu := app.Menu.New()
-	menu.AddRole(application.AppMenu)
-	menu.AddRole(application.EditMenu)
-	view := menu.AddSubmenu("窗口 / Window")
-	view.Add("显示窗口 / Show Window").SetAccelerator("CmdOrCtrl+1").OnClick(func(*application.Context) { show() })
-	menu.AddRole(application.WindowMenu)
-	app.Menu.Set(menu)
 	if err := app.Run(); err != nil {
 		log.Fatal("Desktop Preview could not start")
 	}

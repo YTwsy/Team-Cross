@@ -2,16 +2,16 @@ import { useEffect, useState } from "react";
 import { useResource } from "../api";
 import { t, tr } from "../i18n";
 import { openFullLibrary } from "../library";
+import { hasNativeWindows, windowAction } from "../platform";
 import { type Collaboration, projectName, relativeTime } from "../types";
 import { Library, SelectionTray } from "./Library";
 import { Badge, Empty, ErrorBox, Icon, Loading } from "./ui";
 
 function QuickServiceMenu() {
-  const bridge = window.webkit?.messageHandlers?.teamcross;
-  return bridge ? (
+  return hasNativeWindows() ? (
     <button
       className="quick-service-menu text-link"
-      onClick={() => bridge.postMessage({ action: "menu" })}
+      onClick={() => windowAction("menu")}
     >
       {t("服务与设置")}
     </button>
@@ -23,24 +23,31 @@ export function QuickLook() {
     "collaborations",
   );
   const [pinned, setPinned] = useState(false);
-  const bridge = window.webkit?.messageHandlers?.teamcross;
+  const [hostError, setHostError] = useState(false);
+  const native = hasNativeWindows();
   useEffect(() => {
     const pin = (event: Event) =>
       setPinned(!!(event as CustomEvent<boolean>).detail);
+    const error = (event: Event) =>
+      setHostError(!!(event as CustomEvent<boolean>).detail);
     window.addEventListener("teamcross-pinned", pin);
-    return () => window.removeEventListener("teamcross-pinned", pin);
+    window.addEventListener("teamcross-window-error", error);
+    return () => {
+      window.removeEventListener("teamcross-pinned", pin);
+      window.removeEventListener("teamcross-window-error", error);
+    };
   }, []);
   return (
     <main className="quick-shell">
       <header className="quick-heading">
         <span className="eyebrow">TEAM CROSS</span>
         <div className="library-header-actions">
-          {bridge && (
+          {native && (
             <button
               className="icon-button"
               aria-label={pinned ? t("取消固定浮窗") : t("固定为浮窗")}
               aria-pressed={pinned}
-              onClick={() => bridge.postMessage({ action: "pin" })}
+              onClick={() => windowAction("pin")}
             >
               <Icon name="pin" size={17} />
             </button>
@@ -56,6 +63,7 @@ export function QuickLook() {
           </button>
         </div>
       </header>
+      <ErrorBox message={hostError ? t("桌面操作未完成，请重试。") : ""} />
       <nav className="quick-sections" aria-label={t("速览视图")}>
         {(
           [
