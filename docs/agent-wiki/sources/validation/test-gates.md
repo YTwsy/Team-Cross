@@ -68,7 +68,7 @@ go build -o bin/teamcross ./cmd/teamcross
 
 ## Wails 安装与升级
 
-先构建不同版本的 Swift 参照和 Wails 候选，运行 `verify-desktop-bundle.py <Wails 输出>`、`verify-release.py <Wails 输出>`、`verify-desktop-upgrade.py <Swift 输出> <Wails 输出>` 和 `verify-homebrew.py <Wails 输出>`。CI 的 Swift 参照来自同次源码，只证明外壳及包布局兼容；要宣称某个已发布版本升级成功，必须另外使用该版本的真实产物。
+先构建不同版本的 Swift 参照和 Wails 候选，运行 `verify-desktop-bundle.py <Wails 输出>`、`verify-release.py <Wails 输出>`、`verify-desktop-upgrade.py <Swift 输出> <Wails 输出>` 和 `verify-homebrew.py <Wails 输出>`。同一 DMG 的安装检查必须串行，避免挂载设备争用；失败时先核对本次候选路径及设备，再清理自己创建的挂载。CI 的 Swift 参照来自同次源码，只证明外壳及包布局兼容；要宣称某个已发布版本升级成功，必须另外使用该版本的真实产物。
 
 原生检查使用隔离 Applications 路径、数据目录和空 Provider home，保留一份已知文件及偏好。测试副本用独立 Bundle ID；普通窗口检查移除 URL 注册，正式 scheme 投递单独安排并在结束后恢复测试前的处理器。不要启动用户会话或修改个人 MCP 配置。
 

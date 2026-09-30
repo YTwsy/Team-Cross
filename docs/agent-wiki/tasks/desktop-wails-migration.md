@@ -1,6 +1,6 @@
 # Next：WebGUI 迁移到 Wails 桌面端
 
-状态：用户已确认 Wails v3 + React + 独立 Go Core，并授权按关键功能通过 PR 合入 `Next`，较大功能拆成多个 PR。P0 请求通道、P1 主窗口、P2 单实例/原生邀请传输及 P3 显式退出、速览与原生菜单、可见性调度已分别合入。邀请事件已在 PR #35 补齐本机人工验收并合入（`4e9d024`）；共享主题、启动/退出配合、原生命令行入口与显式服务恢复均已合入；当前推进安装候选与旧版升级验收。稳定边界已进入 [桌面契约](../sources/decisions/desktop-host.md)。
+状态：用户已确认 Wails v3 + React + 独立 Go Core，并授权按关键功能通过 PR 合入 `Next`，较大功能拆成多个 PR。P0 请求通道、P1 主窗口、P2 单实例/原生邀请传输及 P3 显式退出、速览与原生菜单、可见性调度已分别合入。邀请事件已在 PR #35 补齐本机人工验收并合入（`4e9d024`）；共享主题、启动/退出配合、原生命令行入口与显式服务恢复均已合入；安装候选和包升级检查已合入；默认外壳切换和已完成的本机安装验收由 PR #45 交付。稳定边界已进入 [桌面契约](../sources/decisions/desktop-host.md)。
 
 调查日期：2026-09-30。Team Cross 基线为 `9abee024a415c1ee115224cf1d5776b2cdce165a`；本地 `Next` 直接从该提交创建。OpenSurge 参考为本次更新并读取的 `origin/Next`：`d968c88bf0558df2517c623d694d5a802c1beb6c`。没有切换或修改 OpenSurge 的工作区。
 
@@ -139,7 +139,39 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 每个阶段应形成可独立构建、可验证的增量。下面是建议实施顺序，不是已经执行的任务清单。
 
+### P4c 默认安装外壳切换候选（2026-09-30）
+
+`codex/next/desktop-default-install` 将默认发行构建改为 Wails，Swift 仅以显式参数保留为升级参照；更新中英文入口说明、开发/架构/分发来源，以及 release workflow 的桌面 module 门槛和外壳 metadata 检查。没有改变 `origin/main` 发布来源规则，也不创建 tag/Release 或公共 tap 更新。
+
+[PR #45](https://github.com/YTwsy/Team-Cross/pull/45) 交付默认外壳切换。包检查和独立原生验收均已完成，覆盖旧 Swift 原生退出、同路径 Wails 接管、双副本、生产 URL 投递、Dock 恢复与物理菜单栏/热键/输入法。原生验收发现并修复了 Wails 默认 reopen 显示已关闭速览的问题；验证结果与候选来源如下。
+
+- 干净提交 `23fac4aea127a43658bba5f32dc3731cfddaf4e5` 经默认 `make release VERSION=0.2.6-dev.wails-p4c` 构建，产物在 `dist/release/0.2.6-dev.wails-p4c/`，buildNumber 163、dirty=false、arm64/macOS 14+、Wails beta.26、ad-hoc、未公证。DMG SHA-256 为 `4fe52511461d91dcbd9dbecdda817b9f51871e5ae9754ca41141170800342bd6`；CLI 为 `215b3821d78d2539532239df19787914055916dd2b26e775f80a6e8b06ac5ee1`。
+- 默认构建的 DMG/App/CLI 检查、CLI 生命周期、Swift 包升级与 MCP 握手、隔离 Homebrew 安装/升级/互斥/卸载检查通过。最初并行运行两个 DMG 使用者导致挂载资源争用并残留未挂载设备；按精确候选路径确认 `/dev/disk4` 属于本轮后卸载，串行重跑通过。不同安装检查应串行使用同一 DMG，不把该次失败计为通过。
+- 最初默认构建增量只改构建、CI/workflow 和文档；后续 Dock 修复见下。Homebrew renderer 10 项、Python 语法、194 个相对链接、diff check 通过。`3b13252` 的 [CI 36708330968](https://github.com/YTwsy/Team-Cross/actions/runs/36708330968) 两项成功，macOS 实际检查默认 Wails DMG、非 UI 安装与 Swift 包升级。该提交相对候选构建源只增加验证记录。
+
+原生升级补充验收：
+
+- 用户从原生入口退出隔离 Swift App 后，核对旧 App `60285` / Core `60292` 均消失，`app.lock`、`core.lock`、`start.lock` 可取得，旧设置、测试文件和 CLI launcher 字节未变化。旧 App 保存在 fixture 的 `Previous Swift.app`，从只读挂载的上述 Wails DMG 复制到原来的 `Applications with spaces/Team Cross.app`。测试副本使用独立 Bundle ID、移除 URL 注册，并通过 `LSEnvironment` 固定隔离数据目录、空 Provider home 和命令目录；只重签测试副本的元数据，包内主程序与 helper 未改。
+- 真实 Wails App `73680` 启动 Core `73691`，实例 `ff9abe3f-dcdc-4a38-a41e-d200deffbc0e`，实际版本 `0.2.6-dev.wails-p4c` / `23fac4a`。设置页正确保留 English / Dark，App/Core 版本一致；原 CLI launcher 与 MCP command 路径不变，实际 MCP initialize / tools-list 成功，Core 实例不变。`preserved.txt` 内容保留。原生截图在实施会话内复核。
+- 同一数据目录的符号链接别名用于第二份独立 App 副本。首份主窗口关闭、固定速览保留时，启动第二份后恢复首份设置页及未保存的中文 emoji 草稿；进程核对只有首份 App/Core，PID 与实例不变。第二份快速退出使 UI 捕获工具超时，成功结论来自首份窗口状态和进程核对，未将捕获超时当作失败或成功证据。
+- 另一个独立数据目录实际启动独立 App 及 Core `74783`（实例 `f47d4394-c852-4d69-8d85-174b841ffd84`），使用默认中文/系统主题，与首份偏好隔离。通过原生 Cmd-Q 退出后，该 App/Core 均消失，首份 Core 继续运行，独立保留文件未变。
+- 已检查固定速览、主窗口关闭保留与 Cmd-1 恢复；用户补充实际中文输入法、物理全局热键及菜单栏左右键均正常。随后原生页面核对草稿为“升级验证草稿 · 中文输入正常 🔟”。用户同时发现 Dock 恢复主窗口会重新显示已关闭的速览，因此该项判为失败；根因是 Wails beta.26 默认 reopen listener 与本地 listener 并发，前者显示全部隐藏窗口。候选改为 event hook 先取消默认分发，再由持锁实例恢复主窗口；根 Go test/vet、七个相关 race package、桌面 internal race/vet、Web check（752 条消息）/139 项测试/build 通过，嵌入资源未变化；修复后的真实 Dock 复测与独立生产 scheme 系统投递结果见下。
+- fixture 位于 `/private/tmp/teamcross-desktop-upgrade-20260930/`，旧候选已从原生 Cmd-Q 退出。生产 URL 测试使用独立副本和空目录，用户已允许临时切换协议处理器并在结束后恢复。没有调用模型、启动用户会话或修改生产数据/个人 MCP 配置。
+
+修复候选 `0.2.6-dev.wails-p4c-r2`：
+
+- 从干净提交 `395c036f4484228d029909bd5df61d01a26db10a` 构建，buildNumber 165、arm64/macOS 14+、ad-hoc、未公证；产物保留在 `dist/release/0.2.6-dev.wails-p4c-r2/`。DMG SHA-256 为 `b049a2eb91b959c6a2f30ec0d0f868be2f4e98103054dc6929a55500a6f7c128`，CLI 为 `5cc556790f757f75379098a2552117f0a79438266bc1bad10b71284e22a00eac`。本地 bundle、非 UI release/CLI 生命周期、Swift 包升级及 Homebrew 检查串行通过；[CI 36712473393](https://github.com/YTwsy/Team-Cross/actions/runs/36712473393) 的 Go/Web 与 macOS 两项成功。
+- 换入同一隔离安装路径后，实际 Core `78409` / 实例 `fd6653d2-0560-4f67-a5d9-a2628f401086` 报告 r2 版本和上述提交。用户按“打开再关闭速览、关闭主窗口、点击 Dock”复测，确认只恢复主窗口、速览保持关闭、草稿保留；随后原生 AX 核对仍在 `/#/join`，内容为“Dock 修复复测 · 草稿保留 🧪”。从原生 Cmd-Q 退出后，Core `78409` 已停止。
+- 正式 URL 夹具最初位于 `/private/tmp/teamcross-desktop-production-url-20260930/`，LaunchServices 标记该 App `launch-disabled / in-temp-dir`；系统偏好写入不等于有效处理器改变，核对失败后先恢复原处理器。将同一测试副本放到工作区 `bin/desktop-validation/production-url/`，数据及空 Provider home 仍在原临时目录，再注册后 CoreServices 返回实际默认处理器 `io.github.ytwsy.teamcross.productionurl.fixture.p4c`。测试前处理器 `io.github.ytwsy.teamcross` 已记录，结束须恢复并注销测试副本。冷启动基线是 URL App 0 个、接收方 Core 0 个，邀请由用户在本机页面手动点击。
+- 用户手动点击正式 `teamcross://` 邀请后，App `84007` 与实际内置 Core `84016` 启动（实例 `6b58d082-1a24-4503-8432-1ca1934fe49c`，r2 / `395c036`）。原生窗口显示“桌面邀请确认验证”的只读预览，页面 URL 只有 pending UUID；此时接收方 `/api/collaborations` 返回空列表。随后点击原生窗口的“确认加入并查看上下文”，接收方变为 1 个只读空间，页面显示 2 名成员。来源是合成空间，接收方是安装候选内的真实 Core，实际 pinned-TLS 加入，没有模型输入。热启动取消另用新建的第二个合成空间，避免已加入空间的复用掩盖误加入。
+- 用户再次手动点击正式协议，原生独立窗口显示“正式协议热启动取消验证”的预览。关闭该窗口前后，接收方协作数均为 1、第二个源空间的已加入成员数均为 0；只有 App `84007`，Core `84016` 与实例不变。取消后主窗口仍在 `/#/join`，草稿“正式协议热启动草稿 · 取消保留 🧪”完整保留。预览与取消后的原生浅色截图在实施会话内复核；未保存独立截图文件。
+- 从原生退出确认选择停止后，原 App `84007` / Core `84016` 均已消失。随后的 UI 状态捕获重新启动了一份测试实例 `89913` / `89957`；核对精确路径后，通过其内置 helper 停止 Core，并终止该测试外壳，未把这次重新捕获当成原进程退出失败。最终 App/Core/start 三把锁释放，保留文件未变，邀请源 fixture 正常 PASS（1170.05 秒），本机页面服务和测试浏览器页均关闭。CoreServices 核对 `teamcross://` 已恢复为 `io.github.ytwsy.teamcross`，工作区测试副本已注销，所有本轮测试进程均已结束。
+
+本轮完成的是 Apple Silicon/macOS 的隔离安装与同机邀请验证。Swift 参照来自此前记录的 Next 源码，不能据此宣称某个公开发行版、Developer ID 签名/公证或两台 Mac 网络验收通过；未安装到系统 Applications、修改个人 MCP 配置或发布公共渠道。
+
 ### P4b 包安装与升级验证（2026-09-30）
+
+已由 [PR #44](https://github.com/YTwsy/Team-Cross/pull/44) 合入 Next（`1a41d1e`），Go/Web 与 macOS 两项 CI 成功。
 
 `codex/next/desktop-install-verification` 更新验证入口：Wails 包不再进入依赖 Swift helper 调用方式的原生 fixture；安装脚本明确报告原生验收须独立进行，Swift 默认原有 fixture 保留。新增 Swift→Wails 包升级脚本与 macOS CI 检查，没有变更默认外壳。
 

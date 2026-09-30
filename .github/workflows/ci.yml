@@ -131,7 +131,7 @@ jobs:
       - name: Build and inspect Wails installation candidate
         run: |
           export GOCACHE="$(go env GOCACHE)" GOMODCACHE="$(go env GOMODCACHE)"
-          python3 scripts/build-release.py --desktop-host wails --version 0.2.6-dev.ci --output "${RUNNER_TEMP}/teamcross-wails-package"
+          python3 scripts/build-release.py --version 0.2.6-dev.ci --output "${RUNNER_TEMP}/teamcross-wails-package"
           python3 scripts/verify-desktop-bundle.py "${RUNNER_TEMP}/teamcross-wails-package"
       - name: Verify installation and Swift package upgrade
         run: |

@@ -302,7 +302,11 @@ func main() {
 		event.Cancel()
 		application.InvokeSync(func() { window.Hide() })
 	})
-	app.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen, func(*application.ApplicationEvent) {
+	app.Event.RegisterApplicationEventHook(events.Mac.ApplicationShouldHandleReopen, func(event *application.ApplicationEvent) {
+		// Wails beta.26 otherwise shows every hidden window in a concurrent
+		// listener, including a closed Quick View. Own reopen before listeners
+		// run; secondary instances must never expose their hidden windows.
+		event.Cancel()
 		if primary.Load() {
 			show()
 		}

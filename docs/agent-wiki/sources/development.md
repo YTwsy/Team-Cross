@@ -4,7 +4,7 @@
 
 ## 环境与启动
 
-从源码开发需要 Go 1.27.1+、Node 24+ 和 pnpm，版本要求见 [go.mod](../../../go.mod) 与 [package.json](../../../package.json)。构建 App 还需要 macOS Command Line Tools / Swift。以下命令均在仓库根目录运行。
+从源码开发需要 Go 1.27.1+、Node 24+ 和 pnpm，版本要求见 [go.mod](../../../go.mod) 与 [package.json](../../../package.json)。Wails App 构建还需要 macOS Command Line Tools 与 CGO；根 module 的 Core/CLI 不依赖 Wails。以下命令均在仓库根目录运行。
 
 ```sh
 pnpm install
@@ -21,16 +21,19 @@ pnpm --filter @teamcross/web dev
 
 ## 本地安装包
 
-`Next` 的 Wails 桌面增量通过独立 module 构建：`make desktop-test` 运行原生请求边界的 race test，`make desktop-build` 生成隔离 Preview。它尚未替换下述正式 App 构建；环境、fixture 与产物位置见 [桌面开发说明](../../../apps/desktop/README.md)。
+`Next` 默认安装包使用独立 module 的 Wails 外壳。`make desktop-test` 运行原生请求边界的 race test，`make desktop-build` 生成要求隔离数据目录的 Preview；`make release` 使用正式 App 身份与既有数据目录。环境、fixture 与产物位置见 [桌面开发说明](../../../apps/desktop/README.md)。
 
 ```sh
 # 生成本地 CLI、App、DMG、校验文件和 tap 定义；不上传产物。
 make release
+make verify-desktop-bundle
 make verify-release
 make verify-homebrew
 ```
 
 开发默认版本以 Makefile 的 `VERSION` 为准，输出位于 `dist/release/<版本>/`。指定版本时使用 `make release VERSION=<版本>`，并为两个安装验证目标传入相同的 `VERSION`。版本构建要求干净 checkout，并在重建 Web 资源后再次核对。
+
+包检查不启动 Wails GUI；原生升级、双副本和邀请按 [安装门槛](validation/test-gates.md#wails-安装与升级) 单独验证。需要旧 Swift 参照时显式运行 `python3 scripts/build-release.py --desktop-host swift --version <不同版本> --output <新目录>`；保留该入口用于升级回归，默认发行不再使用 Swift。公共发布仍要求 `origin/main` 来源，构建或合入 `Next` 不会创建 tag/Release 或更新 Homebrew tap。
 
 ## 验证与发布
 

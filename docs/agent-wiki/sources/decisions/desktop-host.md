@@ -13,9 +13,9 @@
 
 ## 当前实现范围
 
-默认 Preview [入口](../../../../apps/desktop/main.go) 显示与浏览器共用的完整 React 页面，要求显式隔离 `--data-dir` 或 `TEAMCROSS_DATA_DIR`，拒绝默认生产数据目录。只有持锁实例通过内置 CLI helper 确保该目录的独立 Core；`--connect-only` 用于不允许启动的 fixture。显式退出按下述规则停止对应实例；不注册生产邀请协议，尚未替换 Swift App 或正式安装包。`--probe` 保留最小请求通道诊断页。
+隔离 Preview [入口](../../../../apps/desktop/main.go) 显示与浏览器共用的完整 React 页面，要求显式隔离 `--data-dir` 或 `TEAMCROSS_DATA_DIR`，拒绝默认生产数据目录。只有持锁实例通过内置 CLI helper 确保该目录的独立 Core；`--connect-only` 用于不允许启动的 fixture。显式退出按下述规则停止对应实例；不注册生产邀请协议。`--probe` 保留最小请求通道诊断页。
 
-同一入口另有编译固定的 `release` profile，由 `build-release.py --desktop-host wails` 显式构建安装候选。它保留生产 Bundle ID、主程序/CLI 相对路径、数据目录与邀请 scheme，使用正常 Dock 主窗口；`--version` 只输出构建 metadata，便于无 UI 核对。Preview 仍拒绝生产目录与路径别名，profile 不接受运行时切换。当前默认发行构建仍是 Swift，待安装验收后再切换；候选构建不等于已经发布或安装。
+同一入口另有编译固定的 `release` profile，由默认 `build-release.py` / `make release` 构建安装包。它保留生产 Bundle ID、主程序/CLI 相对路径、数据目录与邀请 scheme，使用正常 Dock 主窗口；`--version` 只输出构建 metadata，便于无 UI 核对。Preview 仍拒绝生产目录与路径别名，profile 不接受运行时切换。`Next` 的默认发行构建为 Wails；`--desktop-host swift` 保留为升级参照。包检查与原生验收按各自契约执行，源码切换不等于公共渠道已发布或用户已安装。
 
 [platform.ts](../../../../packages/web/src/platform.ts) 集中处理首次语言读取、业务请求、复制和窗口操作。Core 路由按方法与路径列明，控制及运行时专用入口继续不可达。剪贴板与窗口操作只提供固定的 `/desktop/clipboard`、`/desktop/open`、`/desktop/pin`、`/desktop/menu` POST，使用同一资源能力验证；打开路由限制为已知页面、材料 key 与协作 ID，拒绝任意 URL、脚本或邀请参数。外链仅允许内嵌主页面中主动点击的 HTTP(S) 导航，交给系统浏览器，不新建 WebView 或加载远程页面。
 
@@ -31,9 +31,11 @@
 
 页面资源、资源库与语言的后台读取统一通过 [可见性调度](../../../../packages/web/src/visibility.ts) 执行。浏览器使用 DOM visibility；Wails 在导航 guard 中补充 AppKit 窗口隐藏、最小化、完全遮挡和 App 隐藏状态。失去焦点本身不暂停。不可见时取消 GET 与定时器，恢复可见时立即读取，同一读取未完成前不再启动一份。页面与草稿不卸载，业务 POST 不接入这一读取调度；菜单轻量状态检查和独立 Core 继续运行。显式打开、Dock/reopen 与快捷键恢复主窗口时同时解除最小化。
 
-关闭窗口只隐藏，Dock 或菜单重新打开保留页面。显式退出沿用“停止本机服务并退出”契约：读取活动协作，默认取消；确认后再次验证同一 Core 实例并发送一次 stop，等待 Core 锁释放后才结束外壳。取消、超时、实例变化或响应丢失保留窗口，不自动重发 stop。无活动协作使用非强制停止，让 Core 拒绝竞态中新启动的协作；正在启动、失联但进程仍在运行或身份不兼容的 Core 不被当作已停止。启动期间的退出先等待所有权与 Core 启动结果确定，再由持锁外壳探测并停止对应 Core；重复请求合并，取消后仍可再次退出。未取得所有权的副本仅结束自己，不调用 Core stop。`--leave-core-running` 只用于不由外壳停止的测试 fixture。
+关闭窗口只隐藏，Dock 或菜单重新打开保留页面。Dock/reopen 仅恢复主窗口，已关闭的速览保持隐藏；仍可见的固定速览维持原状态。Wails beta.26 默认 reopen listener 会显示全部隐藏窗口，因此外壳使用 application event hook 先取消默认分发，再由持锁实例恢复主窗口，避免并发 listener 重新显示速览或未持锁副本的窗口。
 
-Core 控制接口仅由原生退出协调器调用，普通 renderer API 仍无法访问；对外状态不带 token。退出确认使用 Core 返回的共享语言偏好，失联错误读取 Core 保存的本机偏好。处理退出期间拒绝新的转交回执，发送者沿用原请求重试；UI 取消不重建页面或清除草稿。
+显式退出沿用“停止本机服务并退出”契约：读取活动协作，默认取消；确认后再次验证同一 Core 实例并发送一次 stop，等待 Core 锁释放后才结束外壳。取消、超时、实例变化或响应丢失保留窗口，不自动重发 stop。无活动协作使用非强制停止，让 Core 拒绝竞态中新启动的协作；正在启动、失联但进程仍在运行或身份不兼容的 Core 不被当作已停止。启动期间的退出先等待所有权与 Core 启动结果确定，再由持锁外壳探测并停止对应 Core；重复请求合并，取消后仍可再次退出。未取得所有权的副本仅结束自己，不调用 Core stop。`--leave-core-running` 只用于不由外壳停止的测试 fixture。
+
+Core 停止操作仅由原生退出协调器发起，普通 renderer API 仍无法访问控制接口；对外状态不带 token。退出确认使用 Core 返回的共享语言偏好，失联错误读取 Core 保存的本机偏好。处理退出期间拒绝新的转交回执，发送者沿用原请求重试；UI 取消不重建页面或清除草稿。
 
 [appinstance](../../../../apps/desktop/internal/appinstance/) 保留 Swift 的 `app.lock` 与 CFMessagePort 身份算法（用户 ID + 规范化数据目录）、版本 1 请求及入队回执。启动事件循环可初始化隐藏窗口，但持锁前不显示主窗口、创建菜单栏或注册全局快捷键，也不启动 Core；第二份外壳带固定请求 ID 有界重试，收据成功后只退出自身。锁文件保留，崩溃由系统释放锁与 IPC；独立数据目录使用独立身份。回调仅入队，原生 UI 在队列外处理，避免等待 AppKit 弹窗才返回回执。
 
