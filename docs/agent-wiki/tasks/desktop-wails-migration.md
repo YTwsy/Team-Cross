@@ -139,6 +139,14 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 每个阶段应形成可独立构建、可验证的增量。下面是建议实施顺序，不是已经执行的任务清单。
 
+### P2b 原生邀请传输增量（2026-09-30）
+
+邀请接入继续拆分：先提供原生专用 `coreclient.StageInvitation`，再接入 Apple Event、确认队列与桌面窗口。该方法沿用私有 discovery 的目录、PID、instance、协议和构建身份验证，将邀请放在 authenticated `POST /api/invitations/pending` 的 JSON body 中，只返回经 UUID 格式检查的 pending ID。普通 React API 转发仍拒绝此私有路由。
+
+单元与 race 检查覆盖原生凭据、邀请仅进入 body、renderer 拒绝访问、响应丢失后不重试、非法响应和错误不泄露邀请，以及输入长度上限。此增量尚未接入 App URL 事件，不能据此认定冷启动、邀请确认队列或加入流程完成；这些仍需下一批代码和真实 WKWebView 验证。
+
+本批根 Go test/vet、桌面 module 的 test/race/vet，以及 Web check（750 条消息）/test（11 文件、130 项）/build 通过；Web 嵌入资源未变化。macOS arm64 Preview 与内置 CLI 构建及 ad-hoc 签名验证通过，产物在 `bin/desktop-preview/p2b-invitation-transport/`，清单记录 `8edc927` 加本批源码、`dirty: true`。本批没有修改页面或窗口行为，未新增真实 UI 验收；已通过的原生协议测试包含 Swift/Wails 消息端口互通。
+
 | 阶段 | 交付 | 进入下一阶段的证据 |
 | --- | --- | --- |
 | P0：技术验证与构建基础 | 独立 Wails module、锁定版本、Preview App、内嵌资源、受限转发、合成 Core fixture；为 `Next` 增加工程 CI | 在真实 macOS 图形会话打开窗口；GET/POST、取消、来源限制和禁止控制路由通过；根 Go 工程门槛不依赖 GUI 库 |
