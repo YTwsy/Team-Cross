@@ -88,7 +88,7 @@ MCP 配置保存稳定 opt/App 绝对路径。通过 Cask 命令链接调用时�
 
 ## 检查与相关规范
 
-[安装验证](../../../scripts/verify-release.py) 验证校验文件、DMG 挂载/安装、CLI/App 版本一致与实例复用，并调用 [App 副本验证](../../../scripts/verify-app-instance.py)。后者从两个临时 App 副本通过真实 macOS 启动/URL/退出事件验证外壳去重、请求确认、卡住后的恢复及 Core 保留；邀请 helper 使用测试内容，Core 使用包内真实二进制，不打开浏览器或调用模型。[生命周期验证](../../../scripts/verify-lifecycle.py) 验证 Core 并发启动、符号链接路径、端口冲突、鉴权停止、MCP 延迟启动、崩溃恢复及数据保留。工程、真实客户端、浏览器和清理门槛继续按 [验证契约](validation/test-gates.md)。
+[安装验证](../../../scripts/verify-release.py) 验证校验文件、DMG 挂载/安装、CLI/App 版本一致与实例复用。Swift 默认另调用 [App 副本验证](../../../scripts/verify-app-instance.py)，`--package-only` 可只检查包；旧脚本截获 helper 调用，不能用于 Wails 的直接 Core 转发，因此 Wails 输出明确标记原生验收须另行完成。[包升级检查](../../../scripts/verify-desktop-upgrade.py) 验证 Swift→Wails 的安装路径、CLI/MCP 和数据保留，不打开 GUI；原生退出、双副本、URL、菜单栏和输入法按 [Wails 安装契约](validation/test-gates.md#wails-安装与升级) 独立验证。[生命周期验证](../../../scripts/verify-lifecycle.py) 验证 Core 并发启动、符号链接路径、端口冲突、鉴权停止、MCP 延迟启动、崩溃恢复及数据保留。工程、真实客户端、浏览器和清理门槛继续按 [验证契约](validation/test-gates.md)。
 
 证据只对应各记录中的提交、runner 与主机，后续基础设施失败不能静默跳过或沿用旧结论。同机或托管 runner 不能证明真实 macOS 26 图标显示、两台 Mac LAN、跨网络 Tailcat 或强制 DERP，未使用 Developer ID 的产物不能证明公证或 Gatekeeper 首次批准通过。
 

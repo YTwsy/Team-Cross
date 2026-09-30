@@ -22,6 +22,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("app")
 args = parser.parse_args()
 original = pathlib.Path(args.app).resolve()
+info = plistlib.loads((original / "Contents/Info.plist").read_bytes())
+if info.get("TeamCrossDesktopHost") == "wails":
+    parser.error("This helper-interception fixture is for the Swift host. Use the Wails native installation checklist in docs/agent-wiki/sources/validation/test-gates.md; package checks cannot replace App/URL acceptance.")
 
 
 def run(*command, **kwargs):
