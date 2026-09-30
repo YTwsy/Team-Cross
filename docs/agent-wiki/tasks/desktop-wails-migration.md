@@ -139,6 +139,14 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 
 每个阶段应形成可独立构建、可验证的增量。下面是建议实施顺序，不是已经执行的任务清单。
 
+### P3f 原生命令行工具菜单（2026-09-30）
+
+`codex/next/desktop-cli-tools` 接入命令状态、安装和移除，复用现有 `cliinstall`，命令写入只在用户选择后发生。权限不足才请求系统授权，授权命令只允许 App helper 的两种 launcher 操作，路径保持字面量。语言/CLI 弹窗与退出、邀请处理串行，不给 renderer 新增执行接口。
+
+- 根 Go test/vet、七个相关 race package、Web check（752 消息）与 139 项测试通过；桌面 internal race/vet 通过，新回归使用含空格、引号、Unicode、美元符与反引号的实际路径验证参数不被解释，并检查安装/移除和外部文件保护。macOS arm64/ad-hoc 构建在 `bin/desktop-preview/p3-cli-tools-20260930/`，基于 `ad84156` 加本批源码，dirty=true、未公证；Web production build 通过且资源无变化。
+- 隔离数据目录/空 Provider home/独立命令目录中，真实原生菜单默认关闭，点击安装后可执行命令正确报告 `ad84156` 与候选版本；重新打开只提供移除，移除后 Core PID 49332、实例及保留文件不变。放入合成的外部命令后，菜单仅显示冲突与关闭，没有安装/移除按钮。弹窗期间 Cmd-Q 未叠加退出，关闭后再退出，App/Core 均结束；截图在实施会话中复核。
+- 未触发实际管理员授权，未写系统命令目录；测试外部命令和保留文件留在隔离目录，没有模型输入。系统授权/签名公证仍需安装阶段单独验收。
+
 ### P3e 启动与退出竞态（2026-09-30）
 
 邀请接入后，Core Ensure 尚未返回时直接退出外壳可能留下稍后启动的 Core。本批在 `codex/next/desktop-startup-quit` 让退出等待启动完成：未持锁只结束外壳；持锁实例沿用已有精确停止与取消契约。共享启动器在取消/超时时先回收本次启动的 foreground helper，等待退出后才释放启动锁，已取消请求不创建进程。
@@ -149,6 +157,8 @@ P0 已由 [PR #31](https://github.com/YTwsy/Team-Cross/pull/31) 合入 `Next`（
 - 主题 PR #39 的首轮 CI 在 theme effect 尚未应用时立即断言 DOM，已改为等待外观 effect；本地 Web 全量通过后单独推送原主题 PR，未把本批生命周期改动混入。
 
 ### P3d 共享主题（2026-09-30）
+
+已由 [PR #39](https://github.com/YTwsy/Team-Cross/pull/39) 合入 Next（`48cef24`），修正测试时序后两项 CI 成功。
 
 `codex/next/desktop-theme` 将系统/浅色/深色偏好持久化到 Core；主窗口、速览、邀请确认窗口与 WebGUI 读取同一偏好，原生标题栏也同步。页面缓存仅供首次/离线绘制，不导入 Core；写入等待确认、失败不自动重放，迟到的 GET 不覆盖新写入。通用设置保存保留主题与语言，避免旧表单覆盖。
 

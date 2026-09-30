@@ -109,7 +109,7 @@ func main() {
 			if allowQuit.Load() || *leaveCore {
 				return true
 			}
-			if host := shell.Load(); host != nil && host.languageBusy.Load() {
+			if host := shell.Load(); host != nil && host.operationBusy.Load() {
 				return false
 			}
 			startup.RequestQuit()
@@ -254,7 +254,8 @@ func main() {
 			})
 			startup.Finish()
 			for ctx.Err() == nil {
-				if quit.Busy() {
+				host := shell.Load()
+				if quit.Busy() || (host != nil && host.operationBusy.Load()) {
 					time.Sleep(100 * time.Millisecond)
 					continue
 				}
