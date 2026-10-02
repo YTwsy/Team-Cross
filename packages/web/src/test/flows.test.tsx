@@ -82,7 +82,10 @@ function mockFetch(handler: (path: string, body: any) => unknown) {
       const path = url.replace("/api/", "");
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       calls.push({ path, body });
-      const result = handler(path, body);
+      const result =
+        path === "agent-pairings" || (path === "agent-requests" && !body)
+          ? []
+          : handler(path, body);
       return {
         ok: !(result instanceof Error),
         status: result instanceof Error ? 400 : 200,

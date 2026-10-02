@@ -16,7 +16,8 @@ import {
   MaterialReferencePicker,
 } from "./MaterialReferences";
 import type { Material, MaterialReference } from "../types";
-import { Copy, ErrorBox, Icon } from "./ui";
+import { Copy, ErrorBox, Icon, Modal } from "./ui";
+import { SendToAgent } from "./AgentPairings";
 
 export type AnnotationRequest = {
   target?: AnnotationTarget;
@@ -77,6 +78,7 @@ export function Discussion({
   onLocateMaterial?: (ref: MaterialReference) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [sendToAgent, setSendToAgent] = useState(false);
   const [text, setText] = useState("");
   const [refs, setRefs] = useState<MaterialReference[]>([]);
   const [error, setError] = useState("");
@@ -202,7 +204,23 @@ export function Discussion({
           ))}
         </div>
       )}
+      {sendToAgent && (
+        <Modal title={t("交给 Agent")} onClose={() => setSendToAgent(false)}>
+          <SendToAgent
+            references={[
+              { spaceId: id, kind: "annotation", annotationId: annotation.id },
+            ]}
+          />
+        </Modal>
+      )}
       <div className="annotation-actions">
+        <button
+          className="button small"
+          disabled={disabled}
+          onClick={() => setSendToAgent(true)}
+        >
+          {t("交给 Agent")}
+        </button>
         <ResourceActions
           reference={{
             spaceId: id,

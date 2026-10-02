@@ -179,3 +179,16 @@ python3 scripts/verify-annotations.py \
 为上面的 `verify-annotations.py` 增加 `--runtime-mode trusted`，分别为 Codex 和 Claude 使用新的专用 fixture。脚本继承测试 home 的只读个人 MCP 和无副作用标记 hook，并确认原生 TUI 实际读取工具返回值、执行 hook、读写批注、结束和同 ID 恢复。Codex 另核对主机权限 profile 与原生 hook 审阅写回 A；允许原生插件加载，不调用无关个人工具。Claude 的临时 home 与 Luna guard 保持隔离。默认参数仍验证受限模式的个人 MCP 隔离。
 
 可信执行不等于跳过原生确认；脚本只能确认可见的专用测试 hook 和批注工具。新配置或插件可能延长客户端启动时间，必须等原生历史实际呈现再发送输入。Claude 结束应等待精确 worker 退出，保留个人 daemon 及其他 job；普通主机环境和沙箱的进程身份探测能力分别记录。浏览器、电脑控制、组织策略、第三方登录与专用 Desktop 窗口需要各自的实际验收，不能由继承配置测试直接推断。
+
+## 接收会话配对
+
+配对相关变更覆盖 `agents_test.go`、MCP `agents_test.go` 和 Web `agent-pairings.test.tsx`：验证一次性码、准确会话与运行时范围、接收挑战、权限撤销、断线、并发同 ID 去重、发送/读取/完成顺序及重启不重放。运行相关 race test，前端检查中英文、丢失响应后只查询同一请求，并进行实际浏览器与截图复核。
+
+```sh
+python3 scripts/verify-agent-pairing.py --fixture-dir <新的空目录> --teamcross-bin "$PWD/bin/teamcross" --codex-bin <Codex绝对路径>
+python3 scripts/verify-agent-channel.py --fixture-dir <另一个新的空目录> --teamcross-bin "$PWD/bin/teamcross" --claude-bin <Claude绝对路径>
+```
+
+两者只在专门仓库、独立 home 与 Core 中使用 `gpt-5.6-luna`。Codex 路径验证真实 TUI 配对、发送引用、读取原批注、完成摘要、重复请求不重放和只分析不回复；仅确认本次已知工具请求的原生审批。Claude 路径要求当前客户端和账户允许开发 Channel，并保持测试模型代理可用；通过 STDIO 写入测试或宿主提示 Channel 不可用时，不能声称真实接收通过。不得为通过测试而伪造挑战回执或绕过宿主能力限制。
+
+完成后关闭本次 TUI、Core、守护进程及测试浏览器，保留检查报告。单机检查不代表两台 Mac 或 ChatGPT Cloud MCP Events 验收。实际结果按任务记录规则另存。

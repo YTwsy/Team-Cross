@@ -4370,3 +4370,22 @@ mark[data-annotation-highlight] {
     flex-direction: column;
   }
 }
+
+/* One receiving-conversation flow across annotations, library and settings. */
+.agent-pair-flow, .send-to-agent { display: grid; gap: 16px; min-width: 0; }
+.agent-pair-flow p, .send-to-agent > p { margin: 0; }
+.agent-pair-flow form, .agent-pair-flow label, .send-to-agent > label { display: grid; gap: 8px; min-width: 0; }
+.agent-pair-flow form { gap: 16px; }
+.agent-pair-flow input, .send-to-agent select, .send-to-agent textarea { width: 100%; min-width: 0; }
+.agent-pair-flow form .button, .agent-pair-flow > .button, .send-to-agent > .text-link { justify-self: start; }
+.agent-pair-copy, .agent-pair-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.agent-pair-copy strong, .agent-pair-row > div { min-width: 0; overflow-wrap: anywhere; }
+.agent-pair-row > div { display: grid; gap: 6px; flex: 1 1 180px; }
+.agent-pair-row p { margin: 0; }
+.agent-pair-row { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.agent-pair-inline { border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+.agent-pair-steps { padding-left: 22px; margin: 0; display: grid; gap: 8px; }
+.agent-request-result p { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.send-to-agent details pre { max-height: 200px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 768px) { .agent-pair-inline { padding: 12px; } }
+.agent-recent-requests > div { margin-top: 16px; }

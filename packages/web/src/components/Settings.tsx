@@ -11,6 +11,7 @@ import { type Info, type Provider } from "../types";
 import { ErrorBox, Icon, Loading, PageHeading } from "./ui";
 export type Theme = "system" | "light" | "dark";
 import { MCPConnection } from "./MCPConnection";
+import { AgentPairings } from "./AgentPairings";
 export function Settings({
   theme,
   setTheme,
@@ -74,6 +75,7 @@ export function Settings({
       />
       <ErrorBox message={error || info.error} retry={info.reload} />
       <div className="settings-stack">
+        <AgentPairings />
         <section className="panel settings-section">
           <div>
             <h2>{t("界面语言")}</h2>

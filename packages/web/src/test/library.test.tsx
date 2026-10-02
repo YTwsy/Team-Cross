@@ -192,6 +192,33 @@ beforeEach(() => {
           references: body.references,
           expiresAt: "2026-09-29T03:00:00Z",
         };
+      else if (path === "agent-pairings")
+        result = [
+          {
+            id: "paired",
+            name: "方案讨论",
+            spaceId: "space",
+            state: "paired",
+            provider: "codex",
+            reason:
+              collaboration.writer === "owner"
+                ? ""
+                : "当前输入权属于其他参与者，请先在空间中交接输入",
+          },
+        ];
+      else if (path === "agent-requests" && body)
+        result = {
+          id: body.requestId,
+          pairingId: body.pairingId,
+          state: "submitted",
+        };
+      else if (path === "agent-requests") result = [];
+      else if (path.startsWith("agent-requests/"))
+        result = {
+          id: path.split("/")[1],
+          pairingId: "paired",
+          state: "submitted",
+        };
       else if (path === "collaborations/space") result = collaboration;
       else if (path === "collaborations") result = collaborations;
       else if (path === "collaborations/space/read-material") result = page;
@@ -728,11 +755,14 @@ describe("个人资源库", () => {
     expect(data.selection).toHaveLength(3);
     expect(calls.some((c) => c.path.endsWith("/rpc"))).toBe(false);
   });
-  it("previews shared input and reports receipt separately from completion", async () => {
+  it("uses a paired conversation and distinguishes submission from Agent receipt", async () => {
     mount();
     await select(annotation.title);
-    await userEvent.click(
-      screen.getByRole("button", { name: "发送到共享会话" }),
+    await userEvent.click(screen.getByRole("button", { name: "交给 Agent" }));
+    await screen.findByRole("option", { name: /方案讨论/ });
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "接收会话" }),
+      "paired",
     );
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "确认发送" })).toBeEnabled(),
@@ -740,21 +770,23 @@ describe("个人资源库", () => {
     expect(calls.some((c) => c.path.endsWith("/rpc"))).toBe(false);
     await userEvent.click(screen.getByRole("button", { name: "确认发送" }));
     expect(
-      await screen.findByText("共享会话已接收，尚未确认执行完成。"),
+      await screen.findByText("请求已提交，等待 Agent 读取"),
     ).toBeInTheDocument();
-    const sent = calls.filter((c) => c.path.endsWith("/rpc"));
+    const sent = calls.filter((c) => c.path === "agent-requests" && c.body);
     expect(sent).toHaveLength(1);
-    expect(sent[0]!.body.method).toBe("turn/start");
-    expect(sent[0]!.body.params.input[0].text).toContain(
-      '"annotationId": "a1"',
-    );
+    expect(sent[0]!.body.pairingId).toBe("paired");
+    expect(sent[0]!.body.intent).toBe("analyze");
+    expect(sent[0]!.body.references).toEqual([annotation.reference]);
   });
   it("blocks sending without input ownership", async () => {
     collaboration.writer = "someone-else";
     mount();
     await select(annotation.title);
-    await userEvent.click(
-      screen.getByRole("button", { name: "发送到共享会话" }),
+    await userEvent.click(screen.getByRole("button", { name: "交给 Agent" }));
+    await screen.findByRole("option", { name: /方案讨论/ });
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "接收会话" }),
+      "paired",
     );
     expect(
       await screen.findByText(/当前输入权属于其他参与者/),
@@ -767,9 +799,17 @@ describe("个人资源库", () => {
     mount();
     await select(material.title);
     await select(annotation.title);
+    expect(screen.getByRole("button", { name: "交给 Agent" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "交给 Agent" }));
+    await screen.findByRole("option", { name: /方案讨论/ });
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "接收会话" }),
+      "paired",
+    );
     expect(
-      screen.getByRole("button", { name: "发送到共享会话" }),
-    ).toBeDisabled();
+      await screen.findByText(/这个接收会话只能读取它所在空间/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "确认发送" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "生成读取入口" })).toBeEnabled();
     expect(calls.some((c) => c.path.endsWith("/rpc"))).toBe(false);
   });

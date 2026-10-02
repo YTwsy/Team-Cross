@@ -34,6 +34,11 @@ describe("interface language", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
+        if (
+          url.endsWith("/api/agent-pairings") ||
+          url.endsWith("/api/agent-requests")
+        )
+          return { ok: true, json: async () => [] };
         if (url.endsWith("/api/ui-language")) {
           const body = JSON.parse(String(init?.body));
           posts.push(body);

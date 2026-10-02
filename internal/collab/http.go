@@ -217,6 +217,9 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 	if a.libraryHTTP(w, r, path) {
 		return
 	}
+	if a.agentsHTTP(w, r, path) {
+		return
+	}
 	switch path {
 	case "info":
 		respond(w, a.Info(ctx), nil)

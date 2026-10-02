@@ -107,8 +107,9 @@ func (a *App) runtimeAnnotationsHTTP(w http.ResponseWriter, r *http.Request, id 
 		return
 	}
 	var input struct {
-		Name      string         `json:"name"`
-		Arguments map[string]any `json:"arguments"`
+		Name      string           `json:"name"`
+		Arguments map[string]any   `json:"arguments"`
+		Caller    mcp.CallerSource `json:"caller"`
 	}
 	if !decode(w, r, &input) {
 		return
@@ -118,6 +119,16 @@ func (a *App) runtimeAnnotationsHTTP(w http.ResponseWriter, r *http.Request, id 
 		return
 	}
 	ctx := context.WithValue(r.Context(), runtimeAnnotationKey{}, token)
+	if mcp.ValidateAgentCall(input.Name, input.Arguments) == nil {
+		caller, err := s.runtimeAgentCaller(input.Caller)
+		if err != nil {
+			respond(w, nil, err)
+			return
+		}
+		out, err := a.invokeAgentTool(r, input.Name, input.Arguments, caller, id)
+		respond(w, out, err)
+		return
+	}
 	if input.Name == "list_materials" {
 		out, err := s.materialOperation(ctx, "materials", nil)
 		respond(w, out, err)

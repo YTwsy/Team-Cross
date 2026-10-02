@@ -50,6 +50,9 @@ func Open(cfg Config) (*App, error) {
 	}
 	host, _ := os.Hostname()
 	a := &App{Config: cfg, Host: host, Token: uuid.NewString(), sessions: map[string]*Session{}, joined: map[string]*Joined{}}
+	if err := a.loadAgents(); err != nil {
+		return nil, err
+	}
 	if err = a.loadLibrary(); err != nil {
 		return nil, err
 	}
@@ -654,6 +657,7 @@ func (a *App) Close() {
 		clients = append(clients, c)
 	}
 	a.mu.Unlock()
+	a.stopAgentReceivers()
 	for _, c := range clients {
 		c.Close()
 	}

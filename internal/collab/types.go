@@ -250,27 +250,31 @@ type Settings struct {
 	UILanguage   string `json:"uiLanguage,omitempty"`
 }
 type App struct {
-	libraryMu     sync.Mutex
-	library       libraryState
-	spaceCreateMu sync.Mutex
-	shareRequests map[string]*shareRequest
-	shareWorkers  sync.WaitGroup
-	joinMu        sync.Mutex
-	mcpSetupMu    sync.Mutex
-	retiredShares []*sharing.Runtime
-	mu            sync.Mutex
-	Config        Config
-	Host          string
-	URL           string
-	Token         string
-	settings      Settings
-	claudeClients map[string]*nativeclaude.Client
-	reader        Runtime
-	readerMu      sync.Mutex
-	sessions      map[string]*Session
-	joined        map[string]*Joined
-	closed        bool
-	pending       map[string]pendingInvite
-	mcpObserved   map[string]time.Time
-	mcpProbed     bool
+	agentMu        sync.Mutex
+	agents         agentState
+	agentReceivers map[string]*agentReceiver
+	agentDone      chan struct{}
+	libraryMu      sync.Mutex
+	library        libraryState
+	spaceCreateMu  sync.Mutex
+	shareRequests  map[string]*shareRequest
+	shareWorkers   sync.WaitGroup
+	joinMu         sync.Mutex
+	mcpSetupMu     sync.Mutex
+	retiredShares  []*sharing.Runtime
+	mu             sync.Mutex
+	Config         Config
+	Host           string
+	URL            string
+	Token          string
+	settings       Settings
+	claudeClients  map[string]*nativeclaude.Client
+	reader         Runtime
+	readerMu       sync.Mutex
+	sessions       map[string]*Session
+	joined         map[string]*Joined
+	closed         bool
+	pending        map[string]pendingInvite
+	mcpObserved    map[string]time.Time
+	mcpProbed      bool
 }

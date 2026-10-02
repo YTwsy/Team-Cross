@@ -98,6 +98,27 @@
 
 `library.json` 以 0600 原子保存个人组织状态和读取编号，未收藏、未选择的旧导航元数据优先淘汰，总量上限 1000 条。它不是材料全文缓存；已保存的上下文定位可含当时 quote，但失去访问后不会通过资源库响应返回该片段。列表沿用本机快照和后台远端刷新，具体读取与创建入口重新检查实时状态。所有读取都不启动模型轮次，回复仍使用原空间与原批注身份。产品界面与原生桥边界见 [资源库决策](decisions/resource-library.md)。
 
+## 接收会话配对与请求
+
+产品约定与宿主支持范围见[接收会话配对](decisions/agent-pairing.md)。以下接口仅存在于本机 `/api`，不加入远端 `/v2`。
+
+| 方法与路径 | 请求与响应 |
+| --- | --- |
+| `GET /agent-pairings` | 配对列表，动态报告过期、接收断线和原生输入阻塞原因；不返回码哈希、连接标识或挑战 |
+| `POST /agent-pairings` | `{name}`，返回 `{pairing,code}`；名称 1–80 字 |
+| `POST /agent-pairings/:id/remove` | 移除目标，阻止后续投递与请求读取；不撤回已提交输入 |
+| `POST /agent-requests` | `{requestId,pairingId,references,instruction,intent}`；UUID 请求 ID，1–32 项引用，1–4000 字处理要求，`intent=analyze|analyze_reply`；返回请求状态 |
+| `GET /agent-requests` | 最近二十个请求，可在页面关闭后继续核对回执 |
+| `GET /agent-requests/:id` | 单个已持久化请求及 Agent 结果摘要 |
+| `POST /agent-tools/call` | `{name,arguments,caller,receiverId?}`；仅个人 MCP 的 Core Bearer 凭据可用，拒绝浏览器 Origin；caller 来自工具传输 |
+| `POST /agent-receivers/poll` | `{receiverId}`，同一 Core Bearer 边界；最多等待 25 秒，返回 `{event:null|{kind,pairingId?,challenge?,requestId?}}`；这是本地适配器内部接收通道，不是 MCP Events 规范接口 |
+
+`TCP-` 配对码使用 16 个随机字节的无填充 Base32，仅保存 SHA-256，十分钟有效。`waiting/verifying/unsupported/expired` 均不代表配对成功，只有 `paired` 可投递，投递前还需检查连接与输入状态。会话身份与接收连接不能由模型工具参数指定；配对码首次绑定后不能用于其他会话。
+
+个人 MCP 增加 `pair_current_session(code)`、`confirm_pairing(pairingId,challenge)`、`read_agent_request(requestId,offset?)`、`finish_agent_request(requestId,status,summary)`。共享运行时仅加入其中的配对、读取请求和完成请求三个工具，不提供 Channel `confirm_pairing`。运行时调用复用原 `runtime-annotations/:id` 的专用 token，caller 必须与该运行时 Provider/Session 匹配。工具不枚举目标、不任意指定空间、不启动其他模型输入。`analyze_reply` 至少需要一条原批注；共享目标引用全部属于它的空间；读取请求时再次检查访问，正文继续走现有工具。每次返回一项引用和 `offset/total/nextOffset?`，`offset` 为 0–31；分页不改变持久化的完整引用组。
+
+`agent-pairings.json` 按 0600 原子保存，最多 64 个配对记录、512 个请求；创建时清除到期未配对记录，以及超过三十天的完成/失败请求。状态为 `submitting/submitted/received/completed/failed/unknown`，`completed/failed` 是 Agent 自报结果，不由传输成功推断；摘要最多 2000 字。请求提交前持久化，同 ID 不同内容拒绝，已有请求只返回状态。重启不重放；内存接收租约失效，个人 Channel 需要重新配对。
+
 ## 共享邀请与传输
 
 原始邀请格式 `tcx3.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `3`，能力 `collaboration-spaces-v3-links`。公共字段含空间 ID、显示名称、主机、`readOnly`、`runtimeMode`、`transport`、SHA-256 SPKI 指纹、随机 secret 和到期时间。只读邀请 `readOnly=true` 且不携带 `runtimeMode`；执行邀请 `readOnly=false`，模式省略为受限、未知值拒绝。连接后的能力以 A 的记录为准。`expiresAt` 为可选墙钟期限，省略或零值表示本次共享内无固定到期时间；`tcx2`、v1/v2 空间能力及其他旧能力明确拒绝，双方需使用兼容版本。
@@ -320,7 +341,7 @@ CLI 复用个人 MCP 适配：`space`、`freeze`、`publication-preview`、`publ
 
 ### 共享运行时的批注工具
 
-A 的 Codex app-server / Claude worker 通过 `teamcross mcp --data-dir … --runtime-id …` 启动 `teamcross_annotations`。仍只枚举四个工具：`read_annotations`、`reply_to_annotation`、`list_materials` 和 `read_material`。`read_material` 支持流游标及 `turnId/itemId/startOffset` 按条读取；共享运行时不增加私有草稿工具。它们只访问绑定空间，不允许选择其他空间、枚举私人来源、发布材料、读取任意路径或发送模型输入。个人 MCP 另有 `read_publication_draft`。参数校验在 STDIO 和 Core 两端执行。读取批注使用与个人 MCP 相同的精确筛选、摘要目录和分页回复。个人与运行时 MCP 的回复均返回 `{annotationId,status:"saved",reply}`，只包含本次已保存回复；同一 requestId 重试返回同一回执。`POST annotation-replies?compact=true` 在写入成功后生成该回执，Web 默认仍返回完整 Annotation。回复作者由运行时 Provider 决定，为 `Codex` 或 `Claude Code`。
+A 的 Codex app-server / Claude worker 通过 `teamcross mcp --data-dir … --runtime-id …` 启动 `teamcross_annotations`。提供 `read_annotations`、`reply_to_annotation`、`list_materials` 和 `read_material`，以及[配对与请求回执工具](#接收会话配对与请求)。`read_material` 支持流游标及 `turnId/itemId/startOffset` 按条读取；共享运行时不增加私有草稿工具。它们只访问绑定空间，不允许选择其他空间、枚举私人来源、发布材料、读取任意路径或发送模型输入。个人 MCP 另有 `read_publication_draft`。参数校验在 STDIO 和 Core 两端执行。读取批注使用与个人 MCP 相同的精确筛选、摘要目录和分页回复。个人与运行时 MCP 的回复均返回 `{annotationId,status:"saved",reply}`，只包含本次已保存回复；同一 requestId 重试返回同一回执。`POST annotation-replies?compact=true` 在写入成功后生成该回执，Web 默认仍返回完整 Annotation。回复作者由运行时 Provider 决定，为 `Codex` 或 `Claude Code`。
 
 每个协作保存独立 `annotationToken`，仅通过 A 上的 MCP 环境变量传递；普通状态、远端响应和原生 `config/read` 不暴露凭据。STDIO 每次调用重新读取本机连接地址，只使用协作凭据，不启动 Core、不使用管理 token。创建、明确恢复或重新开启共享时开启批注工具访问，结束共享关闭访问；发起者恢复后即使尚未重新邀请，也可读取。运行时未连接、已释放或 Core 关闭时拒绝访问。成员访问撤销仍由原生入口和共享路由处理。
 

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"teamcross/internal/mcp"
 	"teamcross/internal/webassets"
 )
 
@@ -78,6 +79,18 @@ func TestLibraryBrowserFixture(t *testing.T) {
 	server := httptest.NewServer(a.Handler(http.FileServer(http.FS(assets))))
 	defer server.Close()
 	manifest := map[string]string{"url": server.URL + "/#/library", "api": server.URL, "dataDir": a.Config.DataDir, "id": main.record.ID}
+	if os.Getenv("TEAMCROSS_PAIRING_BROWSER") == "1" {
+		created, err := a.createAgentPairing("接口方案讨论")
+		if err != nil {
+			t.Fatal(err)
+		}
+		paired, err := a.pairAgent(ctx, agentPairInput{Code: created["code"].(string), agentCaller: agentCaller{Caller: mcp.CallerSource{Provider: "codex", SourceID: main.record.SessionID, TurnID: "turn-fixture"}}}, main.record.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		manifest["pairingId"] = paired.ID
+	}
+
 	if err = writeJSONFile(filepath.Join(dir, "fixture.json"), manifest); err != nil {
 		t.Fatal(err)
 	}
