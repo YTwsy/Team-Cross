@@ -1,3 +1,4 @@
+import { localStorage } from "./storage";
 import {
   languageInfo,
   setLanguageInfo,

@@ -1,0 +1,93 @@
+{
+  "base": "fed1e0aaac2851feb1f2ff798dd998cfdac30648",
+  "branch": "codex/meta-plugin-webgui",
+  "testedSource": "Meta plus the changes in this commit",
+  "uiResourceSha256": "9db514209521745c5acb447cba079900a84395133b59192acb996cb86069d2f3",
+  "sharedEntry": "packages/web/src/main.tsx",
+  "sharedApp": "packages/web/src/App.tsx",
+  "pluginOnlyLayout": false,
+  "webTests": 139,
+  "webCheck": true,
+  "webBuild": true,
+  "goTestAll": true,
+  "goVetAll": true,
+  "racePackages": [
+    "collab",
+    "mcp",
+    "pluginpack",
+    "service",
+    "nativecodex",
+    "nativeclaude",
+    "sharing",
+    "cliinstall"
+  ],
+  "browser": {
+    "host": "simulated MCP Apps host",
+    "core": "real loopback HTTP and storage; synthetic native source history",
+    "sandbox": "allow-scripts; opaque origin",
+    "connectSrc": "none",
+    "widths": [
+      1440,
+      1024,
+      768
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "languages": [
+      "zh-CN",
+      "en"
+    ],
+    "navigation": [
+      "home",
+      "space detail",
+      "library",
+      "settings",
+      "create",
+      "join"
+    ],
+    "ordinaryWebGUIChecked": true,
+    "pairingForm": "created waiting target and removed it; no receiving Agent connected",
+    "reply": {
+      "id": "dcd19ab7-2e11-4731-836e-f5faf45b90f8",
+      "requestId": "cf44c1d6-0c35-42e2-acb1-d7b209ea5ed3",
+      "persisted": true
+    },
+    "hostMessages": 1,
+    "references": [
+      {
+        "kind": "material",
+        "materialId": "c3b22c77-732e-4234-adf3-38c6dff70bcd",
+        "spaceId": "5518f88a-e098-46dd-a6b1-512ffbf57569",
+        "version": 1
+      }
+    ],
+    "messageReceipt": "simulated",
+    "forks": 0,
+    "sharedModelInput": false
+  },
+  "lifecycle": {
+    "result": "passed",
+    "coreBindingPreserved": true,
+    "foreignConfigurationPreserved": true,
+    "native": {
+      "threadId": "01a0fe20-6337-7ef1-9bb1-98c9bea3b233",
+      "server": "teamcross-ui",
+      "onlyTeamCrossPluginActive": true,
+      "resourceSha256": "9db514209521745c5acb447cba079900a84395133b59192acb996cb86069d2f3",
+      "installedResourceMatchesBuild": true,
+      "exitCode": 0
+    }
+  },
+  "newModelCalls": 0,
+  "desktopRenderingAndDelivery": "pending final product check",
+  "twoMacLANOrTailcat": "not run",
+  "environment": {
+    "macOS": "14.8.5",
+    "arch": "arm64",
+    "Go": "1.27.1",
+    "Node": "24.18.0",
+    "CodexCLI": "0.159.0-alpha.12.1"
+  }
+}

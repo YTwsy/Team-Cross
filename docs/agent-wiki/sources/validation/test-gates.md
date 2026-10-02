@@ -24,14 +24,14 @@
 ```sh
 go test ./...
 go vet ./...
-go test -race ./internal/collab ./internal/mcp ./internal/sharing ./internal/nativecodex ./internal/nativeclaude ./internal/service ./internal/cliinstall
+go test -race ./internal/collab ./internal/mcp ./internal/sharing ./internal/nativecodex ./internal/nativeclaude ./internal/service ./internal/cliinstall ./internal/pluginpack
 pnpm --filter @teamcross/web check
 pnpm --filter @teamcross/web test
 pnpm --filter @teamcross/web build
 go build -o bin/teamcross ./cmd/teamcross
 ```
 
-修改 `packages/web/src/` 后，提交重新生成的 `internal/webassets/dist/`。纯文档修改无需重建这些产物。若沙箱阻止 Go 缓存写入，可将 `GOCACHE`、`GOMODCACHE` 指向 `/private/tmp` 下的任务专用目录。
+修改 `packages/web/src/` 后，提交重新生成的 `internal/webassets/dist/` 和 `internal/mcpassets/dist/`。纯文档修改无需重建这些产物。若沙箱阻止 Go 缓存写入，可将 `GOCACHE`、`GOMODCACHE` 指向 `/private/tmp` 下的任务专用目录。
 
 旧 Node Agent Bridge 已移除，不再运行或恢复旧 Bridge 的 check/test/build 门槛。
 
@@ -61,6 +61,31 @@ go build -o bin/teamcross ./cmd/teamcross
 | [reading-scroll.test.tsx](../../../../packages/web/src/test/reading-scroll.test.tsx) | 整页阅读的段落恢复、吸顶高度变化、标签与显式批注定位、隐藏阅读器、成员折叠与焦点保护 |
 | [library_test.go](../../../../internal/collab/library_test.go) / [library.test.tsx](../../../../packages/web/src/test/library.test.tsx) | 固定引用选择、读取编号、个人/共享访问隔离、撤回、并发更新、内联入口和设置导航保留；[独立浏览器 fixture](../../../../internal/collab/library_browser_test.go) 使用合成内容与真实 Core/存储 |
 | [annotation_reply_test.go](../../../../internal/collab/annotation_reply_test.go) / [runtime_test.go](../../../../internal/mcp/runtime_test.go) / [annotations.test.tsx](../../../../packages/web/src/test/annotations.test.tsx) | 单层回复、去重、并发快照、访问撤销、受限运行时工具、内嵌草稿与键盘保存 |
+
+## ChatGPT 本机插件
+
+回归见 [UI MCP](../../../../internal/mcp/ui_test.go)、[本地包管理](../../../../internal/pluginpack/plugin_test.go) 和 [完整 WebGUI 宿主适配](../../../../packages/web/src/test/plugin.test.tsx)。检查 global/thread 元数据、嵌入资源、纯协议握手不启动 Core、UI 路由白名单、共享运行时的原有工具和配对契约保留、完整 App 导航、固定版本、读写分离、沙盒存储、Core scope 隔离、原有配对流程、同请求回复去重与消息不自动重放。构建的 iframe 应在 `connect-src 'none'` 下工作，不依赖外部脚本、字体或语法高亮资源。
+
+使用两个终端，显式选择新的 fixture 与输出目录：
+
+```sh
+TEAMCROSS_PLUGIN_FIXTURE_DIR=/private/tmp/teamcross-plugin-fresh \
+  go test ./internal/collab -run '^TestChatGPTPluginFixture$' -v -count=1 -timeout=91m
+
+python3 scripts/verify-chatgpt-plugin.py \
+  --fixture /private/tmp/teamcross-plugin-fresh/fixture.json \
+  --teamcross-bin /absolute/path/to/teamcross \
+  --codex-bin /absolute/path/to/codex \
+  --output /private/tmp/teamcross-plugin-check-fresh
+```
+
+fixture 使用合成原生历史，其他发布、版本、Core HTTP、存储、批注和读取编号均真实；不创建执行 fork。脚本在专用 Codex 配置目录完成 export/install/status/upgrade/remove，检查稳定启动路径、Core 绑定和其他配置保留，再核对精确引用及回复去重。安装仍生效时，在同一个隔离配置目录运行真实 app-server，验证仅启用本插件、资源 hash 与当前构建相同，以及固定读取编号可用；该步骤不发送模型输入。同名异源与符号链接拒绝由上述 Go 回归检查。
+
+安装成品包并绑定该 fixture 后，可追加 `--installed /absolute/path/to/plugin-source` 检查真实插件缓存、原生 MCP 发现和资源内容；追加 `--model` 仅在专用仓库、ephemeral 个人会话使用 `gpt-5.6-luna`，核对实际读取指定材料版本和批注标记。个人 MCP 和无关插件在测试客户端中禁用，用户原配置不因此改变。
+
+独立浏览器使用 `scripts/chatgpt-plugin-browser.py`，参数为 `--fixture`、`--teamcross-bin` 和新的 `--output`；对真实嵌入 HTML 使用 opaque iframe 和禁止网络的 CSP，业务工具通过本机 stdio，宿主 initialize/message/context 回执由测试页面模拟。在 1440、1024、768 CSS 像素及深浅主题复核、截图，检查整套 WebGUI 的空间、资源库、创建、加入和设置导航、版本切换、原文定位、回复回执与明确选定内容。与 fixture 上的普通浏览器 WebGUI 对照；不以只测试复用组件代替完整 App 验收。
+
+真实桌面最后整体检查：global 和 thread 分别打开成品；读取、回复落盘、关闭重开、选择固定版本、点击分析后当前个人会话实际收到并读取正确引用。原生 app-server 成功不能代替宿主 `ui/message` 回执；独立浏览器模拟也不能证明桌面入口显示。禁止通过其他自动化方式绕开 Codex 主窗口控制限制。完成后写入 fixture 的 `finish` 并等待测试退出，关闭精确的浏览器、stdio、app-server 与辅助进程；保留测试数据供成品复核时，后续普通 Core 可读取已持久化材料。
 
 ## 真实模型和客户端
 

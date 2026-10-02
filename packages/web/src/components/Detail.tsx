@@ -1,3 +1,4 @@
+import { sessionStorage } from "../storage";
 import { formatDate, serviceText, t, tr } from "../i18n";
 import {
   transportName,

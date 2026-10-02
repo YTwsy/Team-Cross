@@ -1,3 +1,4 @@
+import { currentConversation } from "../currentConversation";
 import { formatDate, t, tr } from "../i18n";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, errorText, useResource } from "../api";
@@ -858,6 +859,13 @@ function SelectionEntry({
             <code className="selection-code">{bundle.code}</code>
             <span>{t("复制后，粘贴到本机个人 Agent")}</span>
             <Copy label={t("复制读取提示")} text={prompt} />
+            {currentConversation() && (
+              <ConversationHandoff
+                key={bundle.code}
+                bundle={bundle}
+                prompt={prompt}
+              />
+            )}
           </div>
           {changed && (
             <p className="selection-entry-changed" role="status">
@@ -900,5 +908,55 @@ function SelectionEntry({
         </>
       )}
     </section>
+  );
+}
+
+// The existing reading entry also works in a host conversation. All selection,
+// version binding and reading UI above remain shared with the browser WebGUI.
+function ConversationHandoff({
+  bundle,
+  prompt,
+}: {
+  bundle: LibraryBundle;
+  prompt: string;
+}) {
+  const host = currentConversation()!;
+  const [state, setState] = useState(() => host.status(bundle.code));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const sending = useRef(false);
+  async function send() {
+    if (sending.current || state) return;
+    sending.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      await host.send(bundle, prompt);
+    } catch (error) {
+      setError(errorText(error));
+    } finally {
+      setState(host.status(bundle.code));
+      setBusy(false);
+      sending.current = false;
+    }
+  }
+  return (
+    <div>
+      <button
+        className="button"
+        disabled={busy || !!state}
+        onClick={() => void send()}
+      >
+        {t("带回当前对话")}
+      </button>
+      <ErrorBox message={error} />
+      {state && (
+        <p className="small-text" role="status">
+          {state === "sent"
+            ? t("消息已交给当前会话，请在会话中查看处理结果。")
+            : t("消息结果尚未确认，请查看当前会话；不会自动重发。")}
+        </p>
+      )}
+    </div>
   );
 }

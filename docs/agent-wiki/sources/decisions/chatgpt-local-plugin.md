@@ -1,0 +1,42 @@
+# ChatGPT 本机 WebGUI 插件
+
+## 范围与接入
+
+Team Cross 的本机插件为 ChatGPT for Mac 的本机 Work/Codex 提供完整的现有 WebGUI。个人客户端通过 `teamcross mcp --ui` 的 stdio 读取嵌入式 MCP Apps 资源；MCP 进程使用现有 Go Backend 与认证的 loopback Core。面板不直接请求 Core，不需要公网入站、HTTPS 托管或 Team Cross 云端账号。远端协作者仍通过原有 LAN / Tailcat 连接本机 Core；本机插件没有改变这些网络条件。
+
+这是本机客户端的分发与使用方式。普通网页 ChatGPT、云端 Work、公开插件目录提交和两台 Mac 的网络可用性分别验收，不从本机成功推断。官方入口见 [插件打包](https://developers.openai.com/plugins/build/plugins)、[MCP Apps UI](https://developers.openai.com/plugins/build/chatgpt-ui) 与 [扩展入口](https://developers.openai.com/plugins/build/extensions)。公开目录的远端端点要求不作为本机插件的架构前提。
+
+## 包和生命周期
+
+稳定 CLI 入口为 `teamcross plugin export|install|upgrade|status|remove`。默认源位于 `~/Library/Application Support/TeamCross/plugins/local`；可用 `--plugin-dir` 选择独立源，`--data-dir` 绑定独立 Core。更新已有包时，未显式传入 `--data-dir` 则保留原绑定。包复制当前 CLI 至自己的 `runtime/teamcross`，清单使用这个稳定绝对路径；无需额外 Python 或 Node 运行时，客户端缓存复制不会改变启动路径。
+
+当前输出使用官方支持的 `.codex-plugin/plugin.json` 与 `.mcp.json` 兼容格式。安装检查须实际列出插件 MCP 并读取构建资源，而非只确认清单可见。将来迁移格式要重新执行对应客户端版本的原生加载门槛；具体版本与结果写入任务记录。
+
+市场名为 `teamcross-local`，插件 ID 为 `teamcross@teamcross-local`，MCP 服务名为 `teamcross-ui`。升级只接受原来源和这个精确 ID；当前 CLI 没有 `plugin upgrade` 子命令，Team Cross 通过核对后的 remove/add 刷新自身缓存。其他 MCP、插件和来源配置保留。已有非 Team Cross 目录、同名异源市场及包内符号链接会被拒绝。卸载移除自身插件及来源注册，保留包、本机 Core 数据和材料；不删除会话或协作目录。
+
+## 一套 WebGUI，两种运行环境
+
+浏览器版与插件版都从 `packages/web/src/main.tsx` 启动，挂载相同的 `App`，加载相同的 `styles.css` 与 `library.css`。插件包含完整的导航、空间、创建与加入、材料阅读、原文批注、资源库、设置及接收会话配对页面，不维护另一套面板或插件专用布局。后续 WebGUI 页面与组件的修改同时进入两种构建；新增 API 需要同步检查宿主桥的路由声明。
+
+插件环境还将原有 React 表单的点击提交交给相同的 `onSubmit`，保留必填验证，避免依赖 iframe 的原生表单导航权限；不改表单布局与业务处理器。
+
+插件构建只替换 `environment.ts`：先完成 MCP Apps 握手，再通过 `setAPITransport` 把原来的 API 调用转成宿主 `tools/call`。Go 侧 `teamcross_ui_read` / `teamcross_ui_write` 只向 app 可见，按明确的 WebGUI 路由及读写类型访问本机 Core，原样返回 WebGUI 数据结构。Core 继续验证成员权限、输入归属和请求编号；业务写入由现有界面的明确操作触发。不会将 Core 控制、接收通道轮询、原生调用者身份或任意 URL 暴露为 UI 路由。面向模型的工具仍限定于查询、材料/引用读取和批注回复。
+
+`open_teamcross` 声明 global / thread 入口，资源声明 fullscreen，以容纳完整 WebGUI。入口、显示模式、`ui/message` 和上下文能力遵循 [OpenAI MCP Extensions 规范](https://github.com/openai/mcp-extensions/blob/900032d8bd7c1566202d0cb1666986584f932043/docs/spec.md)，实际显示与投递仍需对应桌面版本验收。自包含 HTML 将页面脚本、样式和语法高亮一并打包；iframe 不请求 localhost，也不需要放宽 Core 的来源检查或向浏览器交付 Core token。
+
+语言继续来自 Core 的本机界面语言偏好。主题沿用 WebGUI 的系统、浅色、深色设置；浏览器保存在原 localStorage，插件沙盒通过薄存储适配保存在当前面板的 private widget state。页面路由与投递状态同样绑定 Core scope；它们不会自动成为模型上下文。无 widget state 时仅保留当前 iframe 的内存，不能承诺跨新会话或重载持久化。正文、批注草稿和回复逻辑沿用现有 WebGUI，不另设插件专用编辑器或草稿恢复契约。
+
+## 带给当前个人 Agent
+
+沿用资源库、材料和批注的选择操作及底部“生成读取入口”，最多 32 项，材料包含具体版本。生成入口调用现有 `library/bundles`；编号与权限语义遵守 [资源库契约](../protocol.md)。原有“交给 Agent”仍通过 Meta 的会话配对工作，插件不改变其接收能力范围。
+
+宿主支持消息时，在同一个读取入口旁增加“带回当前对话”。用户点击后，桥在宿主支持时更新所选引用上下文，再发送一次 `ui/message`，提示当前个人 Agent 按 `read_selection` 读取具体编号与分页。它不向共享原生会话发送输入，不自动回复批注；消息回执也不等于 Agent 已读取或完成分析。宿主不支持消息时，原有复制读取提示仍可使用。
+
+消息投递前保存结果未知状态，确认后标记已发送；结果不明时查看当前会话，不自动重放该编号的消息。上下文更新阶段失败而尚未发出消息时，可以明确重试。Composer mentions 和从 ChatGPT 原生消息选区采集片段属于后续宿主接入，不包含在本次 WebGUI 复用中。
+
+## 实现与验证入口
+
+- [Go UI MCP](../../../../internal/mcp/ui.go)、[stdio 协议](../../../../internal/mcp/server.go)、[嵌入资源](../../../../internal/mcpassets/embed.go)。
+- [本地包管理](../../../../internal/pluginpack/plugin.go)、[CLI](../../../../cmd/teamcross/plugin.go)。
+- [共同入口](../../../../packages/web/src/main.tsx)、[完整 WebGUI](../../../../packages/web/src/App.tsx)、[插件环境](../../../../packages/web/src/plugin/environment.ts)、[宿主桥](../../../../packages/web/src/plugin/bridge.ts)、[自包含构建](../../../../packages/web/vite.plugin.config.ts)。
+- 通过标准由 [本机插件验证门槛](../validation/test-gates.md#chatgpt-本机插件) 维护，具体版本结果保存在任务记录。

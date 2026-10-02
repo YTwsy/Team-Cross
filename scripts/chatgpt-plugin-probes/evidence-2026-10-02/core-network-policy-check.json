@@ -1,0 +1,14 @@
+{
+  "result": "passed",
+  "checks": {
+    "exactCorePortAllowed": true,
+    "otherLoopbackPortDenied": true,
+    "nonLoopbackDenied": true,
+    "coreOnlyListensOn127001": true
+  },
+  "listener": [
+    "127.0.0.1:64664"
+  ],
+  "policy": "(version 1)(allow default)(deny network*)(allow network-outbound (remote ip \"localhost:64664\"))",
+  "checkedAt": 1790873060.206416
+}

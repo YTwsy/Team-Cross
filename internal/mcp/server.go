@@ -236,6 +236,10 @@ func localClient() *http.Client {
 }
 
 func serve(ctx context.Context, input io.Reader, output io.Writer, tools []map[string]any, instructions string, invoke func(context.Context, string, map[string]any, string) (json.RawMessage, error)) error {
+	return serveWithResources(ctx, input, output, tools, instructions, invoke, false)
+}
+
+func serveWithResources(ctx context.Context, input io.Reader, output io.Writer, tools []map[string]any, instructions string, invoke func(context.Context, string, map[string]any, string) (json.RawMessage, error), ui bool) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	scan := bufio.NewScanner(input)
@@ -246,7 +250,9 @@ func serve(ctx context.Context, input io.Reader, output io.Writer, tools []map[s
 	connection := newAgentConnection(encode)
 	defer func() { cancel(); connection.wg.Wait() }()
 	ctx = context.WithValue(ctx, agentConnectionKey{}, connection)
-	instructions += agentInstructions
+	if !ui {
+		instructions += agentInstructions
+	}
 	provider := ""
 	for scan.Scan() {
 		var req struct {
@@ -278,10 +284,24 @@ func serve(ctx context.Context, input io.Reader, output io.Writer, tools []map[s
 					personal = true
 				}
 			}
-			if provider == "claude" && personal {
+			if !ui && provider == "claude" && personal {
 				capabilities["experimental"] = map[string]any{"claude/channel": map[string]any{}}
 			}
+			if ui {
+				capabilities["resources"] = map[string]any{}
+			}
 			result = map[string]any{"protocolVersion": "2024-11-05", "serverInfo": map[string]string{"name": "teamcross", "version": buildinfo.Version}, "capabilities": capabilities, "instructions": instructions}
+		case "resources/list", "resources/templates/list", "resources/read":
+			if !ui {
+				rpcError = map[string]any{"code": -32601, "message": "Method not found"}
+			} else {
+				var err error
+				result, err = uiResource(req.Method, req.Params)
+				if err != nil {
+					rpcError = map[string]any{"code": -32602, "message": err.Error()}
+				}
+			}
+
 		case "ping":
 			result = map[string]any{}
 		case "tools/list":
@@ -310,6 +330,12 @@ func serve(ctx context.Context, input io.Reader, output io.Writer, tools []map[s
 				text = string(detail)
 			}
 			result = map[string]any{"content": []any{map[string]any{"type": "text", "text": text}}, "isError": e != nil}
+			if ui && e == nil && len(out) > 0 {
+				var structured map[string]any
+				if json.Unmarshal(out, &structured) == nil {
+					result.(map[string]any)["structuredContent"] = structured
+				}
+			}
 		default:
 			rpcError = map[string]any{"code": -32601, "message": "Method not found"}
 		}

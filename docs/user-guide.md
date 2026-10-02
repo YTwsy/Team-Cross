@@ -163,6 +163,25 @@ WebGUI 与辅助工具可查看已持久化的上下文、添加批注，并在�
 
 ## 个人 Agent 与 MCP
 
+### ChatGPT for Mac 本机插件
+
+本节使用新增 `plugin` 子命令的开发构建，构建方式见[本机插件开发](agent-wiki/sources/development.md#本机-chatgpt-插件)。在本机 Work/Codex 中，可以安装包含完整 WebGUI 的 Team Cross 插件：
+
+```sh
+teamcross plugin install
+teamcross plugin status
+```
+
+插件使用本机 stdio 和现有 Core，不需要公网入站连接或 Team Cross 云端账号。自定义数据目录时追加 `--data-dir /absolute/path`；选择安装源或客户端时可追加 `--plugin-dir /absolute/path`、`--codex-bin /absolute/path/to/codex`。已打开的客户端可能需要重新加载工具或新开本机测试会话，才会看到新增插件。
+
+打开“Team Cross”后，使用与浏览器 WebGUI 相同的空间、资源库和设置导航。创建、加入、材料版本、原文批注和回复、接收会话配对等操作沿用原有页面；界面语言继续同步本机设置，主题可选择系统、浅色或深色。页面草稿沿用 WebGUI 的当前页生命周期，不保证关闭插件后恢复。
+
+在材料、批注或资源库中选择内容，然后在底部点击“生成读取入口”。最多 32 项，可跨空间，材料绑定明确版本。若宿主支持，点击入口旁的“带回当前对话”，当前个人 Agent 会收到使用 `read_selection` 读取该编号的提示；处理结果请在会话中查看。原有“交给 Agent”仍可发送到已配对目标。宿主消息不可用时，复制读取提示即可。投递结果不明时先查看当前会话，插件不会自动重发同一入口的消息。Composer mentions 后续接入。
+
+更新当前安装源使用 `teamcross plugin upgrade`；`teamcross plugin remove` 移除自身插件和来源注册，保留源包及协作数据。CLI 来自同一版本的 Team Cross，升级时核对运行中的 Core 版本；若提示已有服务版本不匹配，结束活动协作并从原版本退出，再打开新版本。详细能力与分发范围见 [本机插件](agent-wiki/sources/decisions/chatgpt-local-plugin.md)。
+
+### 通用个人 MCP
+
 在“设置与连接”或“用自己的客户端辅助”中选择 Codex / Claude Code，点击对应的“接入本机”按钮。也可以使用该页面给出的准确命令：
 
 ```sh

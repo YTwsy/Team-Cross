@@ -935,5 +935,11 @@
   "配对已移除": "The pairing was removed.",
   "最近发送的请求": "Recent requests",
   "已移除的接收会话": "Removed receiving conversation",
-  "客户端没有提供可核对的当前会话身份，暂时不能配对": "The client did not provide a verifiable conversation identity. Pairing is unavailable."
+  "客户端没有提供可核对的当前会话身份，暂时不能配对": "The client did not provide a verifiable conversation identity. Pairing is unavailable.",
+  "宿主连接超时，请重新连接后查看操作结果。": "The host connection timed out. Reconnect and check the result before submitting again.",
+  "当前宿主不支持向会话发送消息，请复制读取提示。": "This host cannot send a message to the conversation. Copy the reading prompt instead.",
+  "带回当前对话": "Bring into this conversation",
+  "消息已交给当前会话，请在会话中查看处理结果。": "Message sent to this conversation. Check the conversation for the result.",
+  "消息结果尚未确认，请查看当前会话；不会自动重发。": "The message result is unknown. Check the current conversation; it will not be resent automatically.",
+  "宿主未接受所选引用，请重试。": "The host did not accept the selected references. Try again."
 }

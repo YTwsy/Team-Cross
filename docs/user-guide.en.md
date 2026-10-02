@@ -165,6 +165,25 @@ Resuming reads the collaboration session's latest persisted settings. **Technica
 
 ## Personal agents and MCP
 
+### Local ChatGPT for Mac plugin
+
+This section uses the development build with the new `plugin` command. See [local plugin development (中文)](agent-wiki/sources/development.md#本机-chatgpt-插件) for building it. Install the complete Team Cross WebGUI in local Work/Codex:
+
+```sh
+teamcross plugin install
+teamcross plugin status
+```
+
+The plugin uses local stdio and the existing Core. It needs no public inbound endpoint or Team Cross cloud account. Use `--data-dir /absolute/path` for a separate Core, `--plugin-dir /absolute/path` for a package source, or `--codex-bin /absolute/path/to/codex` for a native client executable. Existing clients may need to reload their tools or open a new local test conversation to discover the plugin.
+
+Open **Team Cross** to use the same spaces, library and settings navigation as the browser WebGUI. Creating and joining spaces, material versions, source annotations and replies, and receiving-conversation pairings retain their existing pages and behavior. Language uses the local Core setting; theme offers system, light and dark. Drafts have the same page lifetime as the WebGUI and are not guaranteed to survive closing the plugin.
+
+Select content in a material, annotation or the library, then choose **Generate reading entry** in the existing selection tray. Up to 32 references can span spaces, with explicit material versions. If the host supports messaging, **Bring into this conversation** sends the current personal agent a prompt to read that code with `read_selection`; check the conversation for the actual result. **Send to agent** still uses existing paired targets. Copy the reading prompt if host messaging is unavailable. An uncertain delivery is never automatically resent for the same entry. Composer mentions are a later integration.
+
+Use `teamcross plugin upgrade` for the same package source. Omitting `--data-dir` preserves its existing Core binding. `teamcross plugin remove` unregisters only this plugin and its source, retaining the package and collaboration data. Use the CLI from the same Team Cross build as Core. If an existing service is incompatible, finish active collaborations and quit that version before starting the new build. See [plugin scope (中文)](agent-wiki/sources/decisions/chatgpt-local-plugin.md).
+
+### General personal MCP
+
 In **Settings and Connections** or **Use your own client to assist**, select Codex or Claude Code and connect the corresponding local client. You can also use the exact command shown on the page:
 
 ```sh
