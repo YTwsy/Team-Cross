@@ -87,6 +87,17 @@ func Open(cfg Config) (*App, error) {
 					r.Commands[id] = c
 				}
 			}
+			if r.Workbench != nil {
+				for id, request := range r.Workbench.Requests {
+					if request.State == "queued" {
+						request.State, request.Error = "failed", "Core 已重启，未自动投递，请核对后明确新建请求"
+						r.Workbench.Requests[id] = request
+					}
+				}
+				if r.Workbench.Assistant.State == "initializing" {
+					r.Workbench.Assistant.State = "failed"
+				}
+			}
 			s := a.newSession(r)
 			a.sessions[r.ID] = s
 		}
@@ -117,6 +128,11 @@ func Open(cfg Config) (*App, error) {
 		a.Close()
 		return nil, err
 	}
+	if err = a.loadSpaceReceivers(); err != nil {
+		a.Close()
+		return nil, err
+	}
+	a.startWorkbench()
 	return a, nil
 }
 func readJSON(path string, out any) error {
@@ -174,7 +190,10 @@ func (a *App) newSession(r Record) *Session {
 	return session
 }
 func (s *Session) saveLocked() error {
-	return writeJSONFile(filepath.Join(s.app.Config.DataDir, "collaborations", s.record.ID, "collaboration.json"), s.record)
+	if s.receiverSpace != "" {
+		return writeJSONFile(filepath.Join(s.runtimeDirectory(), "receiver.json"), receiverRecord{SpaceID: s.receiverSpace, Record: s.record})
+	}
+	return writeJSONFile(filepath.Join(s.runtimeDirectory(), "collaboration.json"), s.record)
 }
 func (a *App) binary() (string, error) {
 	a.mu.Lock()
@@ -593,7 +612,7 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 				}
 			}
 			if e == nil {
-				p, e = s.app.startProcessWithMode(ctx, r.ProviderHome, r.ExecutionCwd, filepath.Join(s.app.Config.DataDir, "collaborations", r.ID, "runtime.log"), r.RuntimeMode, launch.codexOverridesForMode(names, r.RuntimeMode)...)
+				p, e = s.app.startProcessWithMode(ctx, r.ProviderHome, r.ExecutionCwd, filepath.Join(s.runtimeDirectory(), "runtime.log"), r.RuntimeMode, launch.codexOverridesForMode(names, r.RuntimeMode)...)
 			}
 		}
 	}
@@ -652,11 +671,23 @@ func (a *App) Close() {
 		return
 	}
 	a.closed = true
+	// Cancel before releasing the close boundary. A share worker can otherwise
+	// observe a closed source reader while its context still appears active,
+	// persisting a spurious failure instead of an interrupted request.
+	for _, request := range a.shareRequests {
+		if request.cancel != nil {
+			request.cancel()
+		}
+	}
 	clients := make([]*nativeclaude.Client, 0, len(a.claudeClients))
 	for _, c := range a.claudeClients {
 		clients = append(clients, c)
 	}
 	a.mu.Unlock()
+	if a.workbenchCancel != nil {
+		a.workbenchCancel()
+		a.workbenchWG.Wait()
+	}
 	a.stopAgentReceivers()
 	for _, c := range clients {
 		c.Close()
@@ -666,6 +697,9 @@ func (a *App) Close() {
 	a.mu.Lock()
 	sessions := make([]*Session, 0, len(a.sessions))
 	for _, s := range a.sessions {
+		sessions = append(sessions, s)
+	}
+	for _, s := range a.receivers {
 		sessions = append(sessions, s)
 	}
 	joined := make([]*Joined, 0, len(a.joined))

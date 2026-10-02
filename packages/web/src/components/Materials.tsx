@@ -1,6 +1,7 @@
 import { formatDate, t, tr } from "../i18n";
 import { ResourceActions } from "../library";
 import { ReadingPanelHeading, ReadingPanelTools } from "./ReadingTabs";
+import { SpaceRequestButton } from "./SpaceWorkbench";
 import {
   captureReadingPosition,
   restoreReadingPosition,
@@ -386,6 +387,12 @@ export function MaterialReader({
             )}
           </div>
           <div className="material-reading-tools" ref={setReadingToolbar} />
+          <SpaceRequestButton
+            references={[
+              { spaceId, kind: "material", materialId: material.id, version },
+            ]}
+            disabled={disabled}
+          />
         </div>
       </ReadingPanelTools>
       {v?.changes && (

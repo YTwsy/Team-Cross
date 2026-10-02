@@ -207,6 +207,11 @@ export function Discussion({
       {sendToAgent && (
         <Modal title={t("交给 Agent")} onClose={() => setSendToAgent(false)}>
           <SendToAgent
+            spaceId={
+              !annotation.target || annotation.target.kind === "material"
+                ? id
+                : undefined
+            }
             references={[
               { spaceId: id, kind: "annotation", annotationId: annotation.id },
             ]}

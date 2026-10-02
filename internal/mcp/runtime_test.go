@@ -49,8 +49,15 @@ func TestRuntimeStdioHasOnlyScopedToolsAndUsesCurrentCore(t *testing.T) {
 		responses = append(responses, value)
 	}
 	list := responses[1]["result"].(map[string]any)["tools"].([]any)
-	if len(list) != 7 || list[0].(map[string]any)["name"] != "read_annotations" || list[1].(map[string]any)["name"] != "reply_to_annotation" {
+	if len(list) != 12 || list[0].(map[string]any)["name"] != "read_annotations" || list[1].(map[string]any)["name"] != "reply_to_annotation" {
 		t.Fatal(list)
+	}
+	for _, raw := range list {
+		tool := raw.(map[string]any)
+		properties := tool["inputSchema"].(map[string]any)["properties"].(map[string]any)
+		if _, ok := properties["spaceId"]; ok {
+			t.Fatal("runtime can choose another space", tool["name"])
+		}
 	}
 	for _, i := range []int{2, 3} {
 		if responses[i]["result"].(map[string]any)["isError"] != true {

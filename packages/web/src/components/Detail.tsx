@@ -16,6 +16,7 @@ import { Clients } from "./Clients";
 import { Materials } from "./Materials";
 import { InvitationPanel } from "./InvitationPanel";
 import { ReadOnlySpace } from "./ReadOnlySpace";
+import { SpaceWorkbench, WorkbenchReadingShortcut } from "./SpaceWorkbench";
 import { Members } from "./Members";
 import { Context } from "./Context";
 import { ReadingTabs, type ReadingTab } from "./ReadingTabs";
@@ -484,137 +485,165 @@ export function Detail({ id }: { id: string }) {
           {personalOpenNote}
         </p>
       )}
-      <div className="detail-grid">
-        <div className="detail-main">
-          <ReadingTabs
-            active={
-              readingTab ??
-              (c.materials?.some((m) => !m.withdrawnAt)
-                ? "materials"
-                : "context")
-            }
-            onChange={setReadingTab}
-            materialCount={
-              c.materials?.filter((m) => !m.withdrawnAt).length || 0
-            }
-            navigationKey={annotationLocation?.serial}
-            materials={
-              <Materials
-                collaboration={c}
-                reload={resource.reload}
-                onAnnotate={(target, origin) =>
-                  setAnnotationRequest({ target, origin, serial: Date.now() })
-                }
-                location={annotationLocation}
-                onDiscuss={(annotationId, origin) =>
-                  setAnnotationRequest({
-                    annotationId,
-                    origin,
-                    serial: Date.now(),
-                  })
-                }
-              />
-            }
-            context={
-              <Context
-                id={id}
-                sessionId={c.sessionId}
-                agentName={agentName}
-                technical={
-                  <TechnicalInformation
-                    collaboration={c}
-                    agentName={agentName}
-                  />
-                }
-                canAnnotate={owner || (c.online && !closed)}
-                onAnnotate={(target, origin) =>
-                  setAnnotationRequest({ target, origin, serial: Date.now() })
-                }
-                location={
-                  annotationLocation?.target?.kind === "material"
-                    ? undefined
-                    : annotationLocation
-                }
-                online={
-                  c.online ||
-                  (owner &&
-                    c.state === "ready" &&
-                    c.runtimeState !== "releasing" &&
-                    c.runtimeState !== "starting")
-                }
-                annotations={c.annotations}
-                onDiscuss={(annotationId, origin) =>
-                  setAnnotationRequest({
-                    annotationId,
-                    origin,
-                    serial: Date.now(),
-                  })
-                }
-                sequence={c.sequence}
-                closed={closed}
-              />
-            }
-          />
+      <SpaceWorkbench
+        collaboration={c}
+        onLocate={(ref) => {
+          if (ref.kind === "material")
+            locateAnnotation({
+              target: {
+                kind: "material",
+                materialId: ref.materialId,
+                version: ref.version,
+                quote: "",
+              },
+              serial: Date.now(),
+            });
+          else {
+            const note = c.annotations?.find((a) => a.id === ref.annotationId);
+            setAnnotationRequest({
+              annotationId: ref.annotationId,
+              serial: Date.now(),
+            });
+            if (note?.target)
+              locateAnnotation({ target: note.target, serial: Date.now() });
+          }
+        }}
+      >
+        <div className="detail-grid">
+          <div className="detail-main">
+            <ReadingTabs
+              active={
+                readingTab ??
+                (c.materials?.some((m) => !m.withdrawnAt)
+                  ? "materials"
+                  : "context")
+              }
+              onChange={setReadingTab}
+              materialCount={
+                c.materials?.filter((m) => !m.withdrawnAt).length || 0
+              }
+              navigationKey={annotationLocation?.serial}
+              materials={
+                <Materials
+                  collaboration={c}
+                  reload={resource.reload}
+                  onAnnotate={(target, origin) =>
+                    setAnnotationRequest({ target, origin, serial: Date.now() })
+                  }
+                  location={annotationLocation}
+                  onDiscuss={(annotationId, origin) =>
+                    setAnnotationRequest({
+                      annotationId,
+                      origin,
+                      serial: Date.now(),
+                    })
+                  }
+                />
+              }
+              context={
+                <Context
+                  id={id}
+                  sessionId={c.sessionId}
+                  agentName={agentName}
+                  technical={
+                    <TechnicalInformation
+                      collaboration={c}
+                      agentName={agentName}
+                    />
+                  }
+                  canAnnotate={owner || (c.online && !closed)}
+                  onAnnotate={(target, origin) =>
+                    setAnnotationRequest({ target, origin, serial: Date.now() })
+                  }
+                  location={
+                    annotationLocation?.target?.kind === "material"
+                      ? undefined
+                      : annotationLocation
+                  }
+                  online={
+                    c.online ||
+                    (owner &&
+                      c.state === "ready" &&
+                      c.runtimeState !== "releasing" &&
+                      c.runtimeState !== "starting")
+                  }
+                  annotations={c.annotations}
+                  onDiscuss={(annotationId, origin) =>
+                    setAnnotationRequest({
+                      annotationId,
+                      origin,
+                      serial: Date.now(),
+                    })
+                  }
+                  sequence={c.sequence}
+                  closed={closed}
+                />
+              }
+            />
+          </div>
+          <aside className="detail-aside">
+            <WorkbenchReadingShortcut />
+            <Members
+              collaboration={c}
+              busy={!!busy}
+              closed={closed}
+              onAction={(value, memberId) =>
+                void action(value, undefined, memberId)
+              }
+              onRemove={(memberId) =>
+                void manage("remove-member", { memberId })
+              }
+              onExecutionAccess={(memberId, allowed) =>
+                void manage("execution-access", { memberId, allowed })
+              }
+              onAssist={() => setModal("assist")}
+            />
+            <Annotations
+              key={id}
+              id={id}
+              annotations={c.annotations || []}
+              materials={c.materials}
+              onLocateMaterial={(ref) =>
+                locateAnnotation({
+                  target: {
+                    kind: "material",
+                    materialId: ref.materialId,
+                    version: ref.version,
+                    turnId: ref.turnId,
+                    quote: "",
+                  },
+                  serial: Date.now(),
+                })
+              }
+              request={annotationRequest}
+              disabled={!owner && (c.reachable === false || closed)}
+              onSaved={(annotation) => {
+                resource.setData((current) =>
+                  current
+                    ? {
+                        ...current,
+                        annotations: current.annotations?.some(
+                          (item) => item.id === annotation.id,
+                        )
+                          ? current.annotations.map((item) =>
+                              item.id === annotation.id ? annotation : item,
+                            )
+                          : [...(current.annotations || []), annotation],
+                      }
+                    : current,
+                );
+                resource.reload();
+              }}
+              onLocate={(annotation) =>
+                locateAnnotation({
+                  target: annotation.target,
+                  serial: Date.now(),
+                })
+              }
+            />
+          </aside>
         </div>
-        <aside className="detail-aside">
-          <Members
-            collaboration={c}
-            busy={!!busy}
-            closed={closed}
-            onAction={(value, memberId) =>
-              void action(value, undefined, memberId)
-            }
-            onRemove={(memberId) => void manage("remove-member", { memberId })}
-            onExecutionAccess={(memberId, allowed) =>
-              void manage("execution-access", { memberId, allowed })
-            }
-            onAssist={() => setModal("assist")}
-          />
-          <Annotations
-            key={id}
-            id={id}
-            annotations={c.annotations || []}
-            materials={c.materials}
-            onLocateMaterial={(ref) =>
-              locateAnnotation({
-                target: {
-                  kind: "material",
-                  materialId: ref.materialId,
-                  version: ref.version,
-                  turnId: ref.turnId,
-                  quote: "",
-                },
-                serial: Date.now(),
-              })
-            }
-            request={annotationRequest}
-            disabled={!owner && (c.reachable === false || closed)}
-            onSaved={(annotation) => {
-              resource.setData((current) =>
-                current
-                  ? {
-                      ...current,
-                      annotations: current.annotations?.some(
-                        (item) => item.id === annotation.id,
-                      )
-                        ? current.annotations.map((item) =>
-                            item.id === annotation.id ? annotation : item,
-                          )
-                        : [...(current.annotations || []), annotation],
-                    }
-                  : current,
-              );
-              resource.reload();
-            }}
-            onLocate={(annotation) =>
-              locateAnnotation({
-                target: annotation.target,
-                serial: Date.now(),
-              })
-            }
-          />
-        </aside>
-      </div>
+      </SpaceWorkbench>
       {modal && (
         <Modal
           title={

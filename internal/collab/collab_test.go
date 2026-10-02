@@ -100,8 +100,10 @@ func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error 
 		if f.history != nil {
 			result = map[string]any{"data": f.history}
 		}
-	case "thread/fork":
-		f.forks++
+	case "thread/fork", "thread/start":
+		if method == "thread/fork" {
+			f.forks++
+		}
 		thread.ID = uuid.NewString()
 		thread.Cwd, _ = params["cwd"].(string)
 		f.threads[thread.ID] = thread

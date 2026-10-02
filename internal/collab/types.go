@@ -160,8 +160,9 @@ type ExecutionRecord struct {
 	Commands            map[string]Command `json:"commands,omitempty"`
 }
 type Record struct {
-	Materials        []Material `json:"materials"`
-	Schema           int        `json:"schema"`
+	Workbench        *WorkbenchRecord `json:"workbench,omitempty"`
+	Materials        []Material       `json:"materials"`
+	Schema           int              `json:"schema"`
 	*ExecutionRecord `json:"execution,omitempty"`
 	ID               string       `json:"id"`
 	Title            string       `json:"title"`
@@ -186,38 +187,40 @@ type direct struct {
 func (d *direct) close() { d.once.Do(func() { close(d.done) }) }
 
 type Session struct {
-	mu               sync.Mutex
-	materialUploadMu sync.Mutex
-	record           Record
-	app              *App
-	materialStore    *materialstore.Store
-	process          Runtime
-	writer           string
-	busy             bool
-	nativeWaiting    string
-	nativeLastWrite  time.Time
-	online           bool
-	epoch            uint64
-	share            *sharing.Runtime
-	sharePreparing   bool
-	shareTransport   sharing.Transport
-	shareGeneration  uint64
-	shareCancel      context.CancelFunc
-	releaseWhenIdle  bool
-	annotationAccess bool
-	stopping         chan struct{}
-	activeCalls      int
-	generation       uint64
-	closed           bool
-	direct           *direct
-	events           []Event
-	sequence         uint64
-	approvals        map[string]Approval
-	listener         net.Listener
-	server           *http.Server
-	endpoint         string
-	starting         bool
-	presence         map[string]memberPresence
+	workbenchPresence map[string]targetPresence
+	receiverSpace     string
+	mu                sync.Mutex
+	materialUploadMu  sync.Mutex
+	record            Record
+	app               *App
+	materialStore     *materialstore.Store
+	process           Runtime
+	writer            string
+	busy              bool
+	nativeWaiting     string
+	nativeLastWrite   time.Time
+	online            bool
+	epoch             uint64
+	share             *sharing.Runtime
+	sharePreparing    bool
+	shareTransport    sharing.Transport
+	shareGeneration   uint64
+	shareCancel       context.CancelFunc
+	releaseWhenIdle   bool
+	annotationAccess  bool
+	stopping          chan struct{}
+	activeCalls       int
+	generation        uint64
+	closed            bool
+	direct            *direct
+	events            []Event
+	sequence          uint64
+	approvals         map[string]Approval
+	listener          net.Listener
+	server            *http.Server
+	endpoint          string
+	starting          bool
+	presence          map[string]memberPresence
 }
 type Joined struct {
 	app           *App
@@ -250,31 +253,36 @@ type Settings struct {
 	UILanguage   string `json:"uiLanguage,omitempty"`
 }
 type App struct {
-	agentMu        sync.Mutex
-	agents         agentState
-	agentReceivers map[string]*agentReceiver
-	agentDone      chan struct{}
-	libraryMu      sync.Mutex
-	library        libraryState
-	spaceCreateMu  sync.Mutex
-	shareRequests  map[string]*shareRequest
-	shareWorkers   sync.WaitGroup
-	joinMu         sync.Mutex
-	mcpSetupMu     sync.Mutex
-	retiredShares  []*sharing.Runtime
-	mu             sync.Mutex
-	Config         Config
-	Host           string
-	URL            string
-	Token          string
-	settings       Settings
-	claudeClients  map[string]*nativeclaude.Client
-	reader         Runtime
-	readerMu       sync.Mutex
-	sessions       map[string]*Session
-	joined         map[string]*Joined
-	closed         bool
-	pending        map[string]pendingInvite
-	mcpObserved    map[string]time.Time
-	mcpProbed      bool
+	workbenchMu     sync.Mutex
+	workbenchCancel context.CancelFunc
+	workbenchWG     sync.WaitGroup
+	workbenchWake   chan struct{}
+	receivers       map[string]*Session
+	agentMu         sync.Mutex
+	agents          agentState
+	agentReceivers  map[string]*agentReceiver
+	agentDone       chan struct{}
+	libraryMu       sync.Mutex
+	library         libraryState
+	spaceCreateMu   sync.Mutex
+	shareRequests   map[string]*shareRequest
+	shareWorkers    sync.WaitGroup
+	joinMu          sync.Mutex
+	mcpSetupMu      sync.Mutex
+	retiredShares   []*sharing.Runtime
+	mu              sync.Mutex
+	Config          Config
+	Host            string
+	URL             string
+	Token           string
+	settings        Settings
+	claudeClients   map[string]*nativeclaude.Client
+	reader          Runtime
+	readerMu        sync.Mutex
+	sessions        map[string]*Session
+	joined          map[string]*Joined
+	closed          bool
+	pending         map[string]pendingInvite
+	mcpObserved     map[string]time.Time
+	mcpProbed       bool
 }
