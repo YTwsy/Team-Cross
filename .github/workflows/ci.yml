@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - "codex/release-v*"
   pull_request:
     branches:
       - main

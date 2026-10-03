@@ -10,17 +10,17 @@ App 图标只使用 [AppIcon.png](../../../apps/macos/Assets/AppIcon.png) 生成
 
 首个公开版本使用 `v0.1.1`，发布标题为 `Team Cross v0.1.1`。发布来源为核对过的干净提交；本地构建脚本只生成产物，不发布网络内容。先使 `YTwsy/Team-Cross` Release 产物可下载并核对校验值，再发布 `YTwsy/homebrew-teamcross` 中对应的配方。生成的下载 URL 不代表已经发布，实际状态以 GitHub 为准。本地安装测试使用临时 tap、临时 Homebrew 前缀和应用目录。
 
-GitHub 上的 `CI` workflow 对指向 `main` 的 PR 和 `main` push 运行 Go test/vet、相关 race test、Web check/test/build、嵌入资源一致性和 Darwin arm64 CLI 交叉编译。所有 Tailcat 联网用例默认跳过，不把公共 DERP 可用性变成普通 PR 的外部硬依赖。
+GitHub 上的 `CI` workflow 对指向 `main` / `Meta` 的 PR，以及 `main` / `codex/release-v*` push 运行 Go test/vet、相关 race test、Web check/test/build、两套嵌入资源一致性和 Darwin arm64 CLI 交叉编译。所有 Tailcat 联网用例默认跳过，不把公共 DERP 可用性变成普通 PR 的外部硬依赖。
 
-`Unsigned macOS release` workflow 接受 `X.Y.Z` 与 `X.Y.Z-rc.N`：手动触发时从可到达 `origin/main` 的所选提交构建、验证、attest 并保存 14 天 workflow artifact，不创建 Release；推送同版本 annotated tag 时使用同一构建链，并在全部检查完成后创建不可覆盖的 GitHub Release。RC 标记为 Pre-release，正式版本标记为 Latest。tag 版本是发布版本的唯一输入，发布构建不使用 Makefile 或脚本的开发默认值。自动门槛依次包括：
+`Unsigned macOS release` workflow 接受 `X.Y.Z` 与 `X.Y.Z-rc.N`。发布来源由对应的 `codex/release-vX.Y.Z` 分支核对，RC 使用同一不带 RC 后缀的发布分支。先在用户指定的基础分支上建立发布分支，完成版本说明和验证，再推送发布分支；无需先把实验来源合入 `main`。手动触发时从可到达该远端发布分支的所选提交构建、验证、attest 并保存 14 天 workflow artifact，不创建 Release；推送同版本 annotated tag 时使用同一构建链，并在全部检查完成后创建不可覆盖的 GitHub Release。RC 标记为 Pre-release，正式版本标记为 Latest。tag 版本是发布版本的唯一输入，发布构建不使用 Makefile 或脚本的开发默认值。自动门槛依次包括：
 
-1. 完整 Git 历史、tag 格式与 `origin/main` 来源校验。
+1. 完整 Git 历史、tag 格式与对应远端发布分支的来源校验。
 2. Go/Web 工程门槛，共享一套 Go 缓存并串行运行 test、vet 与 race，避免 Tailcat/Tailscale/gVisor 冷编译重复占用磁盘。
 3. arm64 CLI、App、DMG、校验文件、构建清单、渠道元数据和 Homebrew 定义生成。
 4. `verify-release.py` 的 DMG/App/CLI/生命周期检查，以及 `verify-homebrew.py` 的隔离 Formula/Cask 检查。
 5. `release.json` 的版本、来源提交、架构、最低系统、干净状态和 unsigned/unnotarized 边界检查。
 6. CLI tar 与 DMG 的 GitHub artifact attestation、下载后 SHA-256 复核和对应渠道的 Release 创建。
-7. [Homebrew 发布 workflow](../../../.github/workflows/homebrew-publish.yml) 从公开 Release 重新下载资产，严格复核 annotated tag、`origin/main` 来源、checksum、manifest 与两份 attestation，在临时 Homebrew 前缀安装对应渠道后，使用短期 GitHub App token 向 `YTwsy/homebrew-teamcross` 创建 PR。tap 的只读 CI 通过并自动合并后，再等待公共 `main` 安装 smoke，并把 tap PR、commit 与安装命令写回 GitHub Release。
+7. [Homebrew 发布 workflow](../../../.github/workflows/homebrew-publish.yml) 从公开 Release 重新下载资产，严格复核 annotated tag、对应发布分支来源、checksum、manifest 与两份 attestation，在临时 Homebrew 前缀安装对应渠道后，使用短期 GitHub App token 向 `YTwsy/homebrew-teamcross` 创建 PR。tap 的只读 CI 通过并自动合并后，再等待公共 `main` 安装 smoke，并把 tap PR、commit 与安装命令写回 GitHub Release。
 
 tag 发布另要求同一提交包含 `docs/releases/<tag>.md`，并在发行说明中明确 ad-hoc 签名、未使用 Developer ID 和未公证。项目在较长时间内不以 Developer ID 身份作为正式版本发布前置条件；正式 GitHub Release 也可以发布经过同一完整门槛验证的 ad-hoc/unsigned 产物。Latest、稳定版本号和 GitHub provenance 都不代表 Apple 签名、公证或 Gatekeeper 验收；未来取得签名能力后，应显式调整构建清单、验证和发行说明，不能把 unsigned 产物描述为已签名。
 

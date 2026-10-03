@@ -6,7 +6,7 @@ Team Cross is an open source collaboration tool for coding agent sessions on mac
 
 Keep using your familiar terminal and native clients, with an optional WebGUI for shared context. Collaboration spaces and shared execution are hosted on the initiator's Mac. Each person's agent participates through MCP on request, keeping its own session, model, and local context.
 
-[Interactive demo](https://teamcross.pages.dev/en) · [Download v0.2.6](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.6) · [User guide](docs/user-guide.en.md) · [Engineering docs (中文)](docs/agent-wiki/wiki/index.md)
+[Interactive demo](https://teamcross.pages.dev/en) · [Download v0.3.0](https://github.com/YTwsy/Team-Cross/releases/tag/v0.3.0) · [User guide](docs/user-guide.en.md) · [Engineering docs (中文)](docs/agent-wiki/wiki/index.md)
 
 <img width="2400" height="1500" alt="Team Cross: share session context, discuss with teammates, and hand over input when needed" src="docs/images/concept-en.png" />
 
@@ -29,11 +29,11 @@ The same approach helps when a product colleague builds a small feature with AI 
 
 ## Install
 
-The current stable release is **`v0.2.6`**. Choose one installation method:
+The current stable release is **`v0.3.0`**. Choose one installation method:
 
 | Method | Install and open |
 | --- | --- |
-| Download the app | Download the [Apple Silicon DMG](https://github.com/YTwsy/Team-Cross/releases/download/v0.2.6/Team-Cross-0.2.6-arm64.dmg), drag `Team Cross.app` into Applications, and open it |
+| Download the app | Download the [Apple Silicon DMG](https://github.com/YTwsy/Team-Cross/releases/download/v0.3.0/Team-Cross-0.3.0-arm64.dmg), drag `Team Cross.app` into Applications, and open it |
 | Homebrew app | Run `brew install --cask YTwsy/teamcross/team-cross`, then open the app or run `teamcross` |
 | Homebrew CLI | Run `brew install YTwsy/teamcross/teamcross`, then run `teamcross` |
 
@@ -41,9 +41,9 @@ You do not need Go, Node, or pnpm to run an installed release. The app bundles t
 
 The current package is ad-hoc signed, without a Developer ID signature or Apple notarization. If macOS blocks the first launch, try opening the app, then follow [Apple's instructions](https://support.apple.com/en-us/102445) to allow it in **System Settings → Privacy & Security**.
 
-Quit Team Cross before upgrading, then update through the same installation channel. Installation preserves collaboration data and working directories, but **`v0.2.6` does not load or migrate old `schema:2` material; that data remains on disk**. Stable and RC Homebrew channels are maintained separately, and ordinary upgrades do not switch channels. Uninstall the previous channel before changing installation methods.
+Quit Team Cross before upgrading, then update through the same installation channel. Installation preserves collaboration data and working directories, but **`v0.3.0` does not load or migrate old `schema:2` material; that data remains on disk**. Stable and RC Homebrew channels are maintained separately, and ordinary upgrades do not switch channels. Uninstall the previous channel before changing installation methods.
 
-See [installation and upgrades](docs/user-guide.en.md#install-and-upgrade) for channel-switching steps, and the [release](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.6) for changes, CLI downloads, checksums, and provenance.
+See [installation and upgrades](docs/user-guide.en.md#install-and-upgrade) for channel-switching steps, and the [release](https://github.com/YTwsy/Team-Cross/releases/tag/v0.3.0) for changes, CLI downloads, checksums, and provenance.
 
 ## Get started
 

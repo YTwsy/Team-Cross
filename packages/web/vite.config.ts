@@ -17,5 +17,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
+    // Bound jsdom concurrency so normal UI deadlines remain meaningful.
+    maxWorkers: 2,
   },
 });

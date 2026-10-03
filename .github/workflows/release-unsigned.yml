@@ -69,9 +69,10 @@ jobs:
             exit 1
           fi
 
-          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
-          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main || {
-            echo "release source is not reachable from origin/main: $GITHUB_SHA" >&2
+          release_branch="codex/release-v${version%%-rc.*}"
+          git fetch --no-tags origin "+refs/heads/$release_branch:refs/remotes/origin/$release_branch"
+          git merge-base --is-ancestor "$GITHUB_SHA" "refs/remotes/origin/$release_branch" || {
+            echo "release source is not reachable from origin/$release_branch: $GITHUB_SHA" >&2
             exit 1
           }
           git diff --quiet
@@ -115,11 +116,12 @@ jobs:
             ./internal/nativecodex \
             ./internal/nativeclaude \
             ./internal/service \
-            ./internal/cliinstall
+            ./internal/cliinstall \
+            ./internal/pluginpack
           pnpm --filter @teamcross/web check
           pnpm --filter @teamcross/web test
           pnpm --filter @teamcross/web build
-          git diff --exit-code -- internal/webassets/dist
+          git diff --exit-code -- internal/webassets/dist internal/mcpassets/dist
 
       - name: Build unsigned release
         id: package
