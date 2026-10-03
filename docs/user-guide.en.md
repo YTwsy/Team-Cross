@@ -165,6 +165,29 @@ Resuming reads the collaboration session's latest persisted settings. **Technica
 
 ## Personal agents and MCP
 
+### Local ChatGPT for Mac plugin
+
+This section uses the development build with the new `plugin` command. See [local plugin development (中文)](agent-wiki/sources/development.md#本机-chatgpt-插件) for building it. Install the complete Team Cross WebGUI in local Work/Codex:
+
+```sh
+teamcross plugin install
+teamcross plugin status
+```
+
+The plugin uses local stdio and the existing Core. It needs no public inbound endpoint or Team Cross cloud account. Use `--data-dir /absolute/path` for a separate Core, `--plugin-dir /absolute/path` for a package source, or `--codex-bin /absolute/path/to/codex` for a native client executable. After installation or an upgrade, finish current tasks, quit ChatGPT completely (⌘Q), reopen it, and open Team Cross from the sidebar. An existing sidebar view and plugin process may still use the old UI; a new conversation does not confirm that the sidebar has refreshed.
+
+Open **Team Cross** to use the same spaces, library and settings navigation as the browser WebGUI. Creating and joining spaces, material versions, source annotations and replies, and receiving-conversation pairings retain their existing pages and behavior. Language uses the local Core setting; theme offers system, light and dark. Drafts have the same page lifetime as the WebGUI and are not guaranteed to survive closing the plugin.
+
+In a desktop composer that supports mentions, type `@`, open Team Cross resource search, and search by material title, space name, author or annotation text. Select a result. Material names include `v1`, `v2` and other version numbers. Add `v1` to a title to find version 1. An empty search shows the 20 most recent items. Add search words to narrow the list. Search does not read full material bodies, private conversations or unpublished drafts.
+
+The selected reference becomes part of the current message. Add your request, such as “Analyze this material” or “Check this annotation,” then send the message. Search and selection do not send messages, publish replies or start shared execution. Material references keep the selected version. Annotation references read the discussion and replies available at read time. Each read checks current access. An old reference cannot bypass withdrawal, an offline space or revoked access. References belong to the local Core selected by this plugin; they are not collaboration invitations. This entry requires desktop host support. It does not establish support in classic ChatGPT web or mobile apps.
+
+You can also select content in a material, annotation or the library, then choose **Generate reading entry** in the existing selection tray. Up to 32 references can span spaces, with explicit material versions. If the host supports messaging, **Bring into this conversation** sends the current personal agent a prompt to read that code with `read_selection`; check the conversation for the actual result. **Send to agent** still uses existing paired targets. Copy the reading prompt if host messaging is unavailable. An uncertain delivery is never automatically resent for the same entry.
+
+Use `teamcross plugin upgrade` for the same package source. Omitting `--data-dir` preserves its existing Core binding. `teamcross plugin remove` unregisters only this plugin and its source, retaining the package and collaboration data. Use the CLI from the same Team Cross build as Core. If an existing service is incompatible, finish active collaborations and quit that version before starting the new build. See [plugin scope (中文)](agent-wiki/sources/decisions/chatgpt-local-plugin.md).
+
+### General personal MCP
+
 In **Settings and Connections** or **Use your own client to assist**, select Codex or Claude Code and connect the corresponding local client. You can also use the exact command shown on the page:
 
 ```sh

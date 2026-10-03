@@ -89,6 +89,8 @@ teamcross join '收到的邀请码或完整邀请链接'
 
 ## 让自己的 Agent 参与
 
+开发构建还提供 [ChatGPT for Mac 本机插件](docs/user-guide.md#chatgpt-for-mac-本机插件)：在本机 Work/Codex 中打开完整的现有 WebGUI；空间、资源库、批注和会话配对共用同一套页面，并可将明确选定的材料带回当前会话。插件经 stdio 接入本机 Core；正式分发前需完成对应版本的桌面成品验收。
+
 WebGUI 是可选入口。个人 Codex TUI/Desktop 或 Claude Code TUI 可以通过 Team Cross MCP，按你的指令发布材料、读取上下文并参与讨论；终端也提供对应 CLI 入口。
 
 在“设置与连接”中选择 Codex 或 Claude Code，点击“接入本机”，已有客户端重新连接 MCP 或重新打开。也可以使用页面给出的完整路径执行配置命令，详见 [个人 Agent 与 MCP](docs/user-guide.md#个人-agent-与-mcp)。

@@ -1,3 +1,4 @@
+import { localStorage } from "../storage";
 import { serviceText, t, tr } from "../i18n";
 import { useEffect, useState } from "react";
 import { api, errorText, useResource } from "../api";

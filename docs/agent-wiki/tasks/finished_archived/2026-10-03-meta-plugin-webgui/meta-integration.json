@@ -1,0 +1,115 @@
+{
+  "baseMeta": "7ee5a0ad17bb4f67404fdd0832b0513699255169",
+  "featureBeforeMerge": "4556c18",
+  "engineering": [
+    {
+      "name": "go-test",
+      "command": [
+        "go",
+        "test",
+        "./..."
+      ],
+      "exitCode": 0,
+      "seconds": 30.28
+    },
+    {
+      "name": "go-vet",
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exitCode": 0,
+      "seconds": 0.48
+    },
+    {
+      "name": "go-race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "./internal/collab",
+        "./internal/mcp",
+        "./internal/sharing",
+        "./internal/nativecodex",
+        "./internal/nativeclaude",
+        "./internal/service",
+        "./internal/cliinstall",
+        "./internal/pluginpack"
+      ],
+      "exitCode": 0,
+      "seconds": 37.13
+    },
+    {
+      "name": "web-check",
+      "command": [
+        "pnpm",
+        "--filter",
+        "@teamcross/web",
+        "check"
+      ],
+      "exitCode": 0,
+      "seconds": 3.12
+    },
+    {
+      "name": "web-test",
+      "command": [
+        "pnpm",
+        "--filter",
+        "@teamcross/web",
+        "test",
+        "--maxWorkers=1"
+      ],
+      "exitCode": 0,
+      "seconds": 19.5
+    },
+    {
+      "name": "homebrew-render",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "scripts/test_homebrew_release.py"
+      ],
+      "exitCode": 0,
+      "seconds": 0.98
+    }
+  ],
+  "embeddedPluginSha256": "e0b8335fbb5969d867f4db81adbabb673145544b62e9873ae4f076b892d2a0f5",
+  "stdioAndNativeAppServer": {
+    "result": "passed",
+    "desktopEmptyPathMatchesQueryOnly": true,
+    "mentionsFixedVersionReads": true,
+    "annotationPagination": true,
+    "crossCoreAndWithdrawalRejected": true,
+    "nativeModel": false
+  },
+  "browser": {
+    "host": "simulated MCP Apps host",
+    "business": "real embedded HTML, stdio and Core",
+    "opaqueIframe": true,
+    "connectSrc": "none",
+    "workbenchToolErrors": 0,
+    "briefRevisionAfterSave": 1,
+    "nativeReceiversCreated": 0,
+    "widths": [
+      1440,
+      1024,
+      768
+    ],
+    "horizontalOverflow": false,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "onlyConsoleError": "test harness favicon.ico 404"
+  },
+  "rawEvidence": "/private/tmp/teamcross-meta-pr-20261003-09sEZd",
+  "cleanup": {
+    "fixtureExitCode": 0,
+    "harnessExitCode": 0,
+    "nativeAppServerExitCode": 0,
+    "dedicatedBrowserClosed": true,
+    "remainingTaskProcesses": []
+  }
+}

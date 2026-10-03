@@ -654,6 +654,11 @@ func (a *App) libraryHTTP(w http.ResponseWriter, r *http.Request, path string) b
 		respond(w, a.Library(ctx), nil)
 		return true
 	}
+	if path == "library/mentions" && r.Method == "GET" {
+		out, err := a.libraryMentions(ctx, r.URL.Query().Get("query"))
+		respond(w, out, err)
+		return true
+	}
 	if r.Method != "POST" {
 		http.NotFound(w, r)
 		return true

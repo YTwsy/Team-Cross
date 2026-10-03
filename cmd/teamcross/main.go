@@ -42,6 +42,9 @@ func main() {
 }
 func printJSON(v any) error { return json.NewEncoder(os.Stdout).Encode(v) }
 func run(args []string) error {
+	if len(args) > 0 && args[0] == "plugin" {
+		return runPlugin(args[1:])
+	}
 	if len(args) > 0 && collaborationCommand(args[0]) {
 		return runCollaboration(args, os.Stdout, os.Stderr)
 	}
@@ -68,6 +71,7 @@ func run(args []string) error {
 	desktop := flags.String("desktop-app", "", "Codex Desktop 应用路径")
 	cliDir := flags.String("cli-dir", cliinstall.DefaultDir, "App 命令入口目录")
 	runtimeID := flags.String("runtime-id", "", "共享运行时批注工具的协作 ID")
+	ui := flags.Bool("ui", false, "启用本机插件材料与批注界面")
 	setLanguage := flags.String("set", "", "界面语言：auto、zh-CN 或 en")
 	if e := flags.Parse(args); e != nil {
 		if errors.Is(e, flag.ErrHelp) {
@@ -111,7 +115,7 @@ func run(args []string) error {
 	switch command {
 	case "serve", "join", "mcp", "status", "doctor", "stop", "ui-language":
 	default:
-		return fmt.Errorf("用法: teamcross [serve | join | sources | space | freeze | publication-preview | publish | publication-status | materials | read-material | withdraw-material | preview | create | share | invite | inspect-invitation | collaborations | input | open | end | leave | resume | share-status | cancel-share | mcp | status | doctor | stop | ui-language | version | cli-status | install-cli | uninstall-cli]")
+		return fmt.Errorf("用法: teamcross [serve | join | sources | space | freeze | publication-preview | publish | publication-status | materials | read-material | withdraw-material | preview | create | share | invite | inspect-invitation | collaborations | input | open | end | leave | resume | share-status | cancel-share | mcp | plugin | status | doctor | stop | ui-language | version | cli-status | install-cli | uninstall-cli]")
 	}
 	var e error
 	*data, e = service.Normalize(*data)
@@ -121,6 +125,12 @@ func run(args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if command == "mcp" {
+		if *ui && *runtimeID != "" {
+			return fmt.Errorf("本机插件不能选择共享运行时")
+		}
+		if *ui {
+			return mcp.ServeUI(ctx, *data, os.Stdin, os.Stdout)
+		}
 		if *runtimeID != "" {
 			return mcp.ServeRuntime(ctx, *data, *runtimeID, os.Getenv(mcp.RuntimeTokenEnv), os.Stdin, os.Stdout)
 		}

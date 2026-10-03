@@ -23,6 +23,8 @@ coverage/
 dist/
 !internal/webassets/dist/
 !internal/webassets/dist/**
+!internal/mcpassets/dist/
+!internal/mcpassets/dist/**
 node_modules/
 packages/*/dist/
 packages/*/node_modules/

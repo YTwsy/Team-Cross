@@ -86,6 +86,7 @@
 | 方法与路径 | 请求与含义 |
 | --- | --- |
 | `GET /library` | 返回 `{resources,selection}`；只聚合本机发起或已加入空间中可见的材料、批注及获准的执行上下文 |
+| `GET /library/mentions?query=…` | 返回 `{resources,language}`；输入框检索专用的简要引用目录，参数与权限边界见下文 |
 | `POST /library/state` | `{action:select\|favorite\|visit,reference,enabled?,key?}`；取消可只用 key，`{action:clear}` 清空选择 |
 | `POST /library/read` | 一个资源引用，返回 `{resource,content}`，重新检查当前权限并按需读取 |
 | `POST /library/bundles` | `{references,requestId}`，创建不可变引用组，返回 `{code,references,requestId,createdAt,expiresAt}` |
@@ -97,6 +98,10 @@
 选择最多 32 项。编号为 `TC-` 加 6 个随机字节的无填充 Base32 编码，仅在当前数据目录有效，有效期 7 天，至多保留 256 个未到期编号。同一 `requestId` 与相同引用重试返回同一编号，引用不同拒绝；当前勾选的后续变更不影响编号。Web API 默认每次最多返回 4 项；个人 MCP `read_selection` 使用 `compact:true`，每次 1 项，仅返回 `reference/content`，去掉 UI 状态和重复引用全文。材料和历史使用 `answers` 视图，正文预算 20 KiB；批注直接按 ID 读取。更多项通过 `nextOffset` 继续；`offset` 为 0–31 的整数。正文分页继续使用已有 `read_material/read_context`，逐项结果包含明确引用和当前内容或错误，不以失去访问前的批注正文兜底。材料撤回后正文拒绝，仍在授权范围内的历史讨论继续保留。
 
 `library.json` 以 0600 原子保存个人组织状态和读取编号，未收藏、未选择的旧导航元数据优先淘汰，总量上限 1000 条。它不是材料全文缓存；已保存的上下文定位可含当时 quote，但失去访问后不会通过资源库响应返回该片段。列表沿用本机快照和后台远端刷新，具体读取与创建入口重新检查实时状态。所有读取都不启动模型轮次，回复仍使用原空间与原批注身份。产品界面与原生桥边界见 [资源库决策](decisions/resource-library.md)。
+
+Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内容，非空按空白拆词、不区分大小写且所有词均需匹配。搜索空间名、作者、材料标题和版本（`v1`、`版本1`、`version 1` 等），或完整原批注文字；不扫描材料正文、私人会话、草稿或执行上下文。返回最多 20 个 `{reference,title,spaceTitle,author}`，按最近更新时间排序，同时间按资源 key 稳定排序；`language` 使用本机已解析界面语言。检索远端空间时重新检查成员状态，最多 4 个并行检查、共用 5 秒期限，离线或失权内容不返回旧标题；读取时仍由原材料/批注路由重新检查权限。搜索不改变收藏、选择、最近阅读或读取编号。
+
+仅 `mcp --ui` 声明 app 可见的 `teamcross_search_mentions(query,path?)`，元数据为 `_meta["openai/extensions"]["mentions/search"]={}`，结果为 `content:[]` 与 `structuredContent:{items:ResourceLink[]}`。标准请求仅需 `query`；兼容当前桌面宿主为此元数据入口附带的 `path:[]`。`path` 只允许空数组，不表示文件路径、资源层级或扩大检索范围，其他额外字段仍拒绝。资源 URI 为 `teamcross://<scope>/material/<spaceId>/<materialId>/v/<version>` 或 `teamcross://<scope>/annotation/<spaceId>/<annotationId>`；scope 为规范化 Core 数据目录 SHA-256 的前 12 字节十六进制，不是凭据。`resources/read` 拒绝不同 Core、任意 URL/路径及非规范 URI，只返回选定对象的 `application/json` 文本 `{reference,content}`。材料使用既有 `answers` 视图且跳过工具正文，批注按 ID 使用精简分页；正文预算 24 KiB，材料 `nextCursor` 交给 `read_material`，批注 `nextRead` 配合引用中的空间 ID 交给 `read_context`。全文不缓存到 mention 链接，资源不加入静态 `resources/list`，查找所得 URI 可直接读取。通用个人 MCP、共享运行时和配对协议保持各自原有范围。
 
 ## 接收会话配对与请求
 

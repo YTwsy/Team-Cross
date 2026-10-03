@@ -1,0 +1,9 @@
+{
+  "startedAt": 1790873242.30827,
+  "method": "Remove only the two exact fixture blocks in memory, then compare the post-removal SHA256.",
+  "otherSettingsPreserved": true,
+  "expectedConfigSha256": "e41e660c5637a8dae36a4ce29d1f89736f2f1bb4ca197ef4a89b3fa5262faa87",
+  "actualConfigSha256": "e41e660c5637a8dae36a4ce29d1f89736f2f1bb4ca197ef4a89b3fa5262faa87",
+  "result": "passed",
+  "completedAt": 1790873242.5190232
+}
