@@ -202,16 +202,27 @@ func Export(root, binary, dataDir, version string) (Package, error) {
 type Manager struct {
 	Codex string
 	Root  string
+	Home  string // Optional isolated native profile; never a project or shared-session home.
 }
 
 func (m Manager) command(ctx context.Context, args ...string) (json.RawMessage, error) {
 	command := exec.CommandContext(ctx, m.Codex, append([]string{"plugin"}, append(args, "--json")...)...)
 	command.Dir = m.Root
+	if m.Home != "" {
+		command.Dir = os.TempDir()
+		command.Env = append(os.Environ(), "CODEX_HOME="+m.Home)
+	} else if _, err := os.Stat(m.Root); err != nil {
+		command.Dir = os.TempDir()
+	}
 	var stderr strings.Builder
 	command.Stderr = &stderr
 	b, e := command.Output()
 	if e != nil {
-		return nil, fmt.Errorf("Codex plugin command failed: %s", strings.TrimSpace(stderr.String()))
+		message := strings.TrimSpace(stderr.String())
+		if message == "" {
+			message = e.Error()
+		}
+		return nil, fmt.Errorf("Codex plugin command failed: %s", message)
 	}
 	if !json.Valid(b) {
 		return nil, fmt.Errorf("Invalid Codex plugin response")

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useResource } from "../api";
 import { type Collaboration, projectName, relativeTime } from "../types";
 import { Badge, Empty, ErrorBox, Icon, Loading, PageHeading } from "./ui";
+import { ChatGPTPluginConnection } from "./ChatGPTPluginConnection";
 export function Home() {
   const { data, error, loading, reload } = useResource<Collaboration[]>(
     "collaborations",
@@ -19,6 +20,7 @@ export function Home() {
         title={t("协作空间")}
         subtitle={t("分享已完成的调查，汇集各自的分析，需要时再一起继续执行。")}
       />
+      <ChatGPTPluginConnection compact />
       <div className="entry-grid">
         <a href="#/create" className="entry-card">
           <div className="entry-icon blue">

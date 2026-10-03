@@ -20,6 +20,7 @@ import uuid
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument("app")
+parser.add_argument("--plugin-codex-bin", help="Also verify opted-in plugin sync using this installed native CLI")
 args = parser.parse_args()
 original = pathlib.Path(args.app).resolve()
 
@@ -71,7 +72,7 @@ with tempfile.TemporaryDirectory(prefix="teamcross-app-instance-") as temp:
     idle = root / "allow-explicit-quit"
     env = os.environ.copy()
     env.update(TEAMCROSS_FIXTURE_CORE=str(helper), TEAMCROSS_FIXTURE_CALLS=str(calls),
-               TEAMCROSS_FIXTURE_IDLE=str(idle))
+               TEAMCROSS_FIXTURE_IDLE=str(idle), CODEX_HOME=str(root / "native-home"))
     processes = {}
     data_directories = {data}
 
@@ -85,7 +86,7 @@ with tempfile.TemporaryDirectory(prefix="teamcross-app-instance-") as temp:
         return bool(fields and not fields[0].startswith("Z") and str(root) in fields[-1])
 
     def status(directory=data):
-        return json.loads(run(str(helper), "status", "--json", "--data-dir", str(directory)).stdout)
+        return json.loads(run(str(helper), "status", "--json", "--data-dir", str(directory), env=env).stdout)
 
     def launch(index, directory=data, urls=(), reopen=False):
         launch_env = dict(env, TEAMCROSS_DATA_DIR=str(directory))
@@ -98,13 +99,17 @@ with tempfile.TemporaryDirectory(prefix="teamcross-app-instance-") as temp:
         return living[0] if len(living) == 1 else None
 
     try:
-        initial = json.loads(run(str(helper), "serve", "--no-open", "--json", "--data-dir", str(data)).stdout)["service"]
+        initial = json.loads(run(str(helper), "serve", "--no-open", "--json", "--data-dir", str(data), env=env).stdout)["service"]
         (data / "preserved.txt").write_text("keep")
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
             pids = list(pool.map(lambda i: launch(i % 2, alias if i % 2 else data), range(5)))
         owner = wait_for(lambda: only_owner(pids), "concurrent copies did not converge to one App")
         wait_for(lambda: len(events("serve")) >= 2, "Home request was not forwarded")
         assert {event["parent"] for event in events("serve")} == {owner}
+        wait_for(lambda: len(events("plugin")) == 1, "primary did not check the enabled plugin connection")
+        assert events("plugin")[0]["args"][:2] == ["plugin", "sync"]
+        assert events("plugin")[0]["parent"] == owner
+        assert not (root / "native-home/teamcross-plugin").exists(), "first startup opted in to plugins"
         assert status()["pid"] == initial["pid"] and not events("stop")
 
         # Two URL batches reach the original process while its helper is busy.
@@ -153,6 +158,16 @@ with tempfile.TemporaryDirectory(prefix="teamcross-app-instance-") as temp:
         wait_for(lambda: status(independent).get("running"), "independent App failed to start")
         assert alive(owner) and alive(other) and status(independent)["pid"] != initial["pid"]
 
+        if args.plugin_codex_bin:
+            connection = json.loads(run(str(helper), "plugin", "connect", "--data-dir", str(data),
+                "--codex-bin", args.plugin_codex_bin, env=env).stdout)
+            assert connection["installed"] and connection["autoUpdate"]
+            runtime = pathlib.Path(connection["root"]) / "runtime/teamcross"
+            # A stale executable fixture exercises byte-based synchronization;
+            # no plugin process runs this fixture executable.
+            runtime.write_bytes(b"#!/bin/sh\nexit 0\n")
+            runtime.chmod(0o700)
+
         # Kill only the verified fixture shell. Its Core and saved data survive;
         # the lock/IPC are reclaimed by a new copy without deleting lock files.
         assert alive(owner)
@@ -162,6 +177,15 @@ with tempfile.TemporaryDirectory(prefix="teamcross-app-instance-") as temp:
         wait_for(lambda: any(event["parent"] == replacement for event in events("serve")), "App lock was not recovered")
         assert status()["pid"] == initial["pid"] and not events("stop")
         assert (data / "preserved.txt").read_text() == "keep"
+
+        if args.plugin_codex_bin:
+            wait_for(lambda: runtime.read_bytes() == helper.read_bytes(), "App startup did not refresh the opted-in plugin", timeout=45)
+            updated = json.loads(run(str(helper), "plugin", "connection-status", "--data-dir", str(data),
+                "--codex-bin", args.plugin_codex_bin, env=env).stdout)
+            assert updated["reloadRequired"] and updated["dataDir"] == str(data)
+            assert updated["root"] == connection["root"] and not events("stop")
+            run(str(helper), "plugin", "disconnect", "--data-dir", str(data),
+                "--codex-bin", args.plugin_codex_bin, env=env)
 
         # Explicitly quitting a primary still stops its own Core normally.
         idle.touch()
@@ -182,6 +206,7 @@ with tempfile.TemporaryDirectory(prefix="teamcross-app-instance-") as temp:
                           "reopenExistingApp": True, "independentDataDirectories": True,
                           "secondaryExitPreservesCore": True, "shellCrashRecovery": True,
                           "explicitQuitStopsCore": True, "dataPreserved": True,
+                          "pluginOptInRequired": True, "pluginStartupSync": bool(args.plugin_codex_bin),
                           "realCodexOrLAN": False}))
     finally:
         # Every PID was returned for an explicit fixture path, and is checked

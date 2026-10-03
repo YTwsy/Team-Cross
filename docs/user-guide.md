@@ -165,7 +165,14 @@ WebGUI 与辅助工具可查看已持久化的上下文、添加批注，并在�
 
 ### ChatGPT for Mac 本机插件
 
-本节使用新增 `plugin` 子命令的开发构建，构建方式见[本机插件开发](agent-wiki/sources/development.md#本机-chatgpt-插件)。在本机 Work/Codex 中，可以安装包含完整 WebGUI 的 Team Cross 插件：
+本节使用支持插件连接的开发构建，构建方式见[本机插件开发](agent-wiki/sources/development.md#本机-chatgpt-插件)。在本机 Work/Codex 中，可以安装包含完整 WebGUI 的 Team Cross 插件。
+
+1. 打开 Team Cross，进入“设置与连接”，或从菜单栏点击“ChatGPT 插件…”。
+2. 在“ChatGPT 插件”区域点击“安装到 ChatGPT”。已有安装则点击“连接并启用自动同步”；若提示绑定另一个数据目录，请确认这是你希望继续使用的材料来源。
+3. 完全退出并重新打开 ChatGPT，再打开左侧 Team Cross。新版界面打开后，“等待打开新版插件”提示自动消失。
+4. 以后更新 Team Cross App 并打开它，插件会自动检查更新。需要处理时，在相同设置区域检查状态并重试。手动移除或停用后不会自动装回，点击“重新连接”才恢复。
+
+安装 App 本身不添加插件。“断开插件连接”会关闭自动同步并移除插件注册，保留材料、批注和协作数据。只用 CLI 时可以执行 `teamcross plugin connect` 启用接入，更新后执行 `teamcross plugin sync`；不会额外安装后台更新服务。旧的手动安装命令也保留：
 
 ```sh
 teamcross plugin install

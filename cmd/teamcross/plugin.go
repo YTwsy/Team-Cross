@@ -16,7 +16,7 @@ import (
 
 func runPlugin(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("Usage: teamcross plugin export|install|upgrade|status|remove [--plugin-dir DIR] [--data-dir DIR] [--codex-bin PATH]")
+		return fmt.Errorf("Usage: teamcross plugin export|install|upgrade|status|remove|connection-status|connect|sync|disconnect [--plugin-dir DIR] [--data-dir DIR] [--codex-bin PATH]")
 	}
 	action, args := args[0], args[1:]
 	flags := flag.NewFlagSet("plugin "+action, flag.ContinueOnError)
@@ -32,12 +32,80 @@ func runPlugin(args []string) error {
 	if flags.NArg() != 0 {
 		return fmt.Errorf("Unexpected plugin arguments")
 	}
+	home, err := pluginpack.NativeHome()
+	if err != nil {
+		return err
+	}
+	explicitRoot := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "plugin-dir" {
+			explicitRoot = true
+		}
+	})
+	// Preserve manual installation behavior, while commands targeting an opted-in
+	// package use the same lock, binding and load receipt as Settings.
+	if action != "export" {
+		managedRoot, enabled, e := pluginpack.ManagedPackage(home)
+		if e != nil {
+			return e
+		}
+		if !explicitRoot && managedRoot != "" {
+			*root = managedRoot
+		}
+		absolute, e := filepath.Abs(*root)
+		if e != nil {
+			return e
+		}
+		if explicitRoot && managedRoot != "" && absolute != managedRoot && (action == "connect" || action == "sync" || action == "disconnect" || action == "connection-status") {
+			return fmt.Errorf("This profile already manages another plugin source")
+		}
+		if enabled && absolute == managedRoot {
+			switch action {
+			case "install", "upgrade":
+				action = "connect"
+			case "remove":
+				action = "disconnect"
+			}
+		}
+	}
+	if action == "connection-status" || action == "connect" || action == "sync" || action == "disconnect" {
+		binary, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		binary = service.StableExecutable(binary)
+		dataDir, err := service.Normalize(*data)
+		if err != nil {
+			return err
+		}
+		pluginRoot, err := filepath.Abs(*root)
+		if err != nil {
+			return err
+		}
+		if !explicitRoot {
+			pluginRoot = filepath.Join(home, "teamcross-plugin", "package")
+		}
+		cli, err := pluginpack.CLIForConnection(*codex)
+		if err != nil {
+			return err
+		}
+		c := pluginpack.Connection{Home: home, Codex: cli, Binary: binary, Root: pluginRoot, DataDir: dataDir, Version: buildinfo.Version}
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		defer cancel()
+		if action == "connection-status" {
+			return printJSON(c.Status(ctx))
+		}
+		result, err := c.Apply(ctx, action)
+		if err != nil {
+			return err
+		}
+		return printJSON(result)
+	}
 	switch action {
 	case "export", "install", "upgrade", "status", "remove":
 	default:
 		return fmt.Errorf("Unknown plugin action %s", action)
 	}
-	var err error
 	*root, err = filepath.Abs(*root)
 	if err != nil {
 		return err

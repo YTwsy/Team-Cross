@@ -205,7 +205,7 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		a.runtimeAnnotationsHTTP(w, r, strings.TrimPrefix(path, "runtime-annotations/"))
 		return
 	}
-	if a.onboarding(w, r, path) {
+	if a.httpPluginConnection(w, r, path) || a.onboarding(w, r, path) {
 		return
 	}
 	if a.currentShareHTTP(w, r, path) {

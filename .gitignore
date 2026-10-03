@@ -30,6 +30,8 @@ packages/*/dist/
 packages/*/node_modules/
 playwright-report/
 output/playwright/
+output/plugin-onboarding-*/
+output/plugin-connection-*/
 test-results/
 *.db
 *.db-shm
