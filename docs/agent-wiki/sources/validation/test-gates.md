@@ -1,6 +1,6 @@
 # 验证门槛
 
-本页维护当前可复用的验证方法、通过标准与结论边界。具体任务选择适用检查，实际结果按 [任务记录规则](../../README.md#任务记录) 留存；历史报告不能证明后续提交自动通过。
+本页维护当前可复用的验证方法、通过标准与结论边界；它不报告哪些检查已经执行通过。判断实际验收范围先读 [证据入口](evidence-map.md)，再核对报告与当前相关实现。具体任务选择适用检查，完整结果按 [任务记录规则](../../README.md#任务记录) 留存；历史报告不能证明后续提交自动通过。
 
 ## 按变更选择检查
 
@@ -50,6 +50,7 @@ go build -o bin/teamcross ./cmd/teamcross
 | [runtime_mode_test.go](../../../../internal/collab/runtime_mode_test.go) | 创建模式与预览绑定、不可切换、原生权限、hook 确认归属、同 ID 恢复和结束访问 |
 | [model_test.go](../../../../internal/collab/model_test.go) | 模型继承、设置更新、拒绝请求、恢复与通知 |
 | [process_test.go](../../../../internal/nativecodex/process_test.go) | 客户端配置与启动不强制模型 |
+| [discovery_test.go](../../../../internal/nativecodex/discovery_test.go)、[client_discovery_test.go](../../../../internal/collab/client_discovery_test.go)、[native-client-settings.test.tsx](../../../../packages/web/src/test/native-client-settings.test.tsx) | 新旧应用布局、同应用迁移、自定义路径与环境覆盖、Shell PATH 缓存刷新、保存值与检测结果分离及失效恢复；真实版本、TUI/Desktop 按原生客户端门槛另行验证 |
 | [server_test.go](../../../../internal/mcp/server_test.go) | STDIO 读取不发送输入，保留输入文本与请求 ID |
 | [agent_read_test.go](../../../../internal/collab/agent_read_test.go) / [agent_annotations_test.go](../../../../internal/collab/agent_annotations_test.go) / [read_test.go](../../../../internal/mcp/read_test.go) | 最终答复与工具过滤、目录/记录索引、UTF-16 连续分页、完整封装预算、单条批注与精简状态/回复回执 |
 | [current_test.go](../../../../internal/mcp/current_test.go) / [current_share_test.go](../../../../internal/collab/current_share_test.go) / [source_turn_test.go](../../../../internal/nativecodex/source_turn_test.go) | 原生调用身份、历史落盘等待、固定轮次完成、去重、取消、漂移、中断与重启不重放 |
@@ -247,6 +248,6 @@ python3 scripts/verify-agent-pairing.py --fixture-dir <新的空目录> --teamcr
 python3 scripts/verify-agent-channel.py --fixture-dir <另一个新的空目录> --teamcross-bin "$PWD/bin/teamcross" --claude-bin <Claude绝对路径>
 ```
 
-两者只在专门仓库、独立 home 与 Core 中使用 `gpt-5.6-luna`。Codex 路径验证真实 TUI 配对、发送引用、读取原批注、完成摘要、重复请求不重放和只分析不回复；仅确认本次已知工具请求的原生审批。Claude 路径要求当前客户端和账户允许开发 Channel，并保持测试模型代理可用；通过 STDIO 写入测试或宿主提示 Channel 不可用时，不能声称真实接收通过。不得为通过测试而伪造挑战回执或绕过宿主能力限制。
+两者只在专门仓库、独立 home 与 Core 中使用 `gpt-5.6-luna`。Codex 脚本通过共同执行入口新建 fork，验证真实 TUI 配对、发送引用、读取原批注、完成摘要、重复请求不重放和只分析不回复；仅确认本次已知工具请求的原生审批。工作台新建会话的流程由 [空间工作台门槛](#空间工作台)覆盖；两者均未验证将测试前已存在的 Codex 会话接入投递连接的流程，不能将这一覆盖范围当作会话能力分类。Claude 路径要求当前客户端和账户允许开发 Channel，并保持测试模型代理可用；通过 STDIO 写入测试或宿主提示 Channel 不可用时，不能声称真实接收通过。不得为通过测试而伪造挑战回执或绕过宿主能力限制。
 
 完成后关闭本次 TUI、Core、守护进程及测试浏览器，保留检查报告。单机检查不代表两台 Mac 或 ChatGPT Cloud MCP Events 验收。实际结果按任务记录规则另存。

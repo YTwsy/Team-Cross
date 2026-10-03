@@ -4728,3 +4728,15 @@ mark[data-annotation-highlight] {
     flex-direction: column;
   }
 }
+
+.client-detection, .client-source-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 10px;
+}
+.client-installation { margin: 18px 0; }
+.client-installation summary { cursor: pointer; font-size: 12px; }
+.client-installation dl { margin-top: 12px; }
+.client-installation dd { overflow-wrap: anywhere; min-width: 0; }

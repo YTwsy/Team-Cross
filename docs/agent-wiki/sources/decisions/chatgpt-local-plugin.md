@@ -1,5 +1,7 @@
 # ChatGPT 本机 WebGUI 插件
 
+本页维护本机插件的宿主范围、包生命周期、界面桥和输入框引用契约及取舍。工具字段由 [协议](../protocol.md) 维护，开发命令见 [开发与构建](../development.md#本机-chatgpt-插件)。原生加载、桌面交互与模型读取须分别取证，最近已知结果见 [证据入口](../validation/evidence-map.md#chatgpt-本机插件)；会话接收由 [配对契约](agent-pairing.md)维护。
+
 ## 范围与接入
 
 Team Cross 的本机插件为 ChatGPT for Mac 的本机 Work/Codex 提供完整的现有 WebGUI。个人客户端通过 `teamcross mcp --ui` 的 stdio 读取嵌入式 MCP Apps 资源；MCP 进程使用现有 Go Backend 与认证的 loopback Core。面板不直接请求 Core，不需要公网入站、HTTPS 托管或 Team Cross 云端账号。远端协作者仍通过原有 LAN / Tailcat 连接本机 Core；本机插件没有改变这些网络条件。
@@ -40,15 +42,15 @@ App 的菜单“ChatGPT 插件…”和 WebGUI“设置与连接”共用插件�
 
 ## 带给当前个人 Agent
 
-沿用资源库、材料和批注的选择操作及底部“生成读取入口”，最多 32 项，材料包含具体版本。生成入口调用现有 `library/bundles`；编号与权限语义遵守 [资源库契约](../protocol.md)。原有“交给 Agent”仍通过 Meta 的会话配对工作，插件不改变其接收能力范围。
+沿用资源库、材料和批注的选择操作及底部“生成读取入口”，最多 32 项，材料包含具体版本。生成入口调用现有 `library/bundles`；编号与权限语义遵守 [资源库契约](../protocol.md)。原有“交给 Agent”复用统一会话配对与投递入口，由 Core 向目标会话发送请求；这条链路不要求安装插件或保持插件面板打开。
 
-宿主支持消息时，在同一个读取入口旁增加“带回当前对话”。用户点击后，桥在宿主支持时更新所选引用上下文，再发送一次 `ui/message`，提示当前个人 Agent 按 `read_selection` 读取具体编号与分页。它不向共享原生会话发送输入，不自动回复批注；消息回执也不等于 Agent 已读取或完成分析。宿主不支持消息时，原有复制读取提示仍可使用。
+宿主支持消息时，在同一个读取入口旁增加“带回当前对话”。用户点击后，桥在宿主支持时更新所选引用上下文，再发送一次 `ui/message`，提示当前 Agent 按 `read_selection` 读取具体编号与分页。消息目标是当前宿主对话，不负责选择另一个配对目标，也不自动回复批注；消息回执不等于 Agent 已读取或完成分析。宿主不支持消息时，原有复制读取提示仍可使用。
 
 消息投递前保存结果未知状态，确认后标记已发送；结果不明时查看当前会话，不自动重放该编号的消息。上下文更新阶段失败而尚未发出消息时，可以明确重试。从 ChatGPT 原生消息选区采集片段仍属于后续宿主接入。
 
 ## 输入框引用
 
-Composer mentions 直接接入宿主的原生输入框，不增加插件专用搜索界面。用户搜索空间名、材料标题、作者、版本或批注文字，选中某一材料版本或原批注后，将引用加入尚未发送的消息。搜索与选择只读，不改资源库勾选，不生成读取编号，不启动分析、回复或共同执行；用户发送消息时的处理要求由用户填写。
+Composer mentions 直接接入宿主的原生输入框，不增加插件专用搜索界面。用户搜索空间名、材料标题、作者、版本或批注文字，选中某一材料版本或原批注后，将引用加入尚未发送的消息。搜索与选择只读，不改资源库勾选，不生成读取编号，不启动分析、回复或共同执行；用户发送消息时的处理要求由用户填写。当前 mention 不调用配对工具，引用选择不表示会话已绑定；会话绑定使用统一配对流程。
 
 工具、ResourceLink 与 `resources/read` 遵循固定版本的 [OpenAI Composer At-Mentions 规范](https://github.com/openai/mcp-extensions/blob/ca16cb3bc015baaa1b849082d8755bbef18770cb/docs/spec.md#composer-at-mentions)。该规范将入口支持限定在桌面；不把本机 Work/Codex 的接入推广到普通 ChatGPT 网页、Web Work 或手机端。实际输入框渲染与选中引用仍需对应桌面版本验收。
 
@@ -60,4 +62,4 @@ Composer mentions 直接接入宿主的原生输入框，不增加插件专用�
 - [输入框搜索与资源读取](../../../../internal/mcp/mentions.go)、[资源库检索](../../../../internal/collab/mentions.go)。
 - [本地包管理](../../../../internal/pluginpack/plugin.go)、[CLI](../../../../cmd/teamcross/plugin.go)。
 - [共同入口](../../../../packages/web/src/main.tsx)、[完整 WebGUI](../../../../packages/web/src/App.tsx)、[插件环境](../../../../packages/web/src/plugin/environment.ts)、[宿主桥](../../../../packages/web/src/plugin/bridge.ts)、[自包含构建](../../../../packages/web/vite.plugin.config.ts)。
-- 通过标准由 [本机插件验证门槛](../validation/test-gates.md#chatgpt-本机插件) 维护，具体版本结果保存在任务记录。
+- 通过标准由 [本机插件验证门槛](../validation/test-gates.md#chatgpt-本机插件) 维护；具体版本结果保存在任务记录，从 [证据入口](../validation/evidence-map.md#chatgpt-本机插件) 区分协议测试、用户桌面验收和后续待补证范围。

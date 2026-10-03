@@ -20,8 +20,10 @@
 | 修改会话配对与交给 Agent | [配对契约](../sources/decisions/agent-pairing.md) | [Core](../../../internal/collab/agents.go)、[MCP](../../../internal/mcp/agents.go)、[界面](../../../packages/web/src/components/AgentPairings.tsx) |
 | 修改 ChatGPT 本机 WebGUI 插件或宿主消息桥 | [本机插件](../sources/decisions/chatgpt-local-plugin.md) | [UI MCP](../../../internal/mcp/ui.go)、[包管理](../../../internal/pluginpack/plugin.go)、[共同入口](../../../packages/web/src/main.tsx)、[插件环境](../../../packages/web/src/plugin/environment.ts) |
 | 修改空间请求、简报或可选专用会话 | [空间工作台契约](../sources/decisions/space-workbench.md) | [空间业务](../../../internal/collab/workbench.go)、[接收会话](../../../internal/collab/space_receivers.go)、[工作台](../../../packages/web/src/components/SpaceWorkbench.tsx) |
-| 选择测试或判断验收结论 | [验证门槛](concepts/validation-gates.md) | [自动化与真实验证入口](../sources/validation/test-gates.md) |
+| 选择测试与通过标准 | [验证层次](concepts/validation-gates.md) | [自动化与真实验证方法](../sources/validation/test-gates.md) |
+| 判断支持范围与实际验收结论 | [验证范围与证据入口](../sources/validation/evidence-map.md) | 先确定具体路径，再核对契约、实现和对应报告 |
 | 安装、App 外壳与首次体验 | [分发与首次体验](../sources/distribution-and-onboarding.md) | [公共启动器](../../../internal/service/service.go)、[App](../../../apps/macos/TeamCross.swift)、[构建](../../../scripts/build-release.py) |
+| 构建产物、发布或更新 Homebrew | [构建与发布](../sources/releasing.md) | [构建](../../../scripts/build-release.py)、[发布 workflow](../../../.github/workflows/release-unsigned.yml)、[Homebrew workflow](../../../.github/workflows/homebrew-publish.yml) |
 
 ## 完整事实来源
 
@@ -37,6 +39,6 @@
 
 ## 维护
 
-本索引和概念页引用来源与代码，不另建产品规则。事实变化更新其主要来源，只有摘要内容或导航变化时才更新概念页与本索引；维护方法见 [Agent Wiki 说明](../README.md)。任务文件按需创建，收尾后移入 `docs/agent-wiki/tasks/finished_archived/`，不在本索引追加历史验收清单；具体规则见 [任务记录与历史归档](../README.md#任务记录)。旧原型与已结束任务的归档只用于定向追溯，当前产品范围由有效来源文档与用户已确认的决定确定。
+本索引按问题导航；概念页解释跨主题关系，完整规范和领域契约在来源中维护。事实变化更新其主要来源，只有解释或导航变化时才更新概念页与本索引；维护方法见 [Agent Wiki 说明](../README.md)。任务文件按需创建，收尾后移入 `docs/agent-wiki/tasks/finished_archived/`，影响能力判断的证据入口维护在 [evidence-map](../sources/validation/evidence-map.md)，本索引不追加历史报告清单。旧原型与已结束任务的归档只用于定向追溯，当前产品范围由有效来源文档与用户已确认的决定确定。
 
 安装和首次体验：[分发与首次体验](../sources/distribution-and-onboarding.md)。

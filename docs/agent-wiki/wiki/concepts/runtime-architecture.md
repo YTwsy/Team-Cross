@@ -1,6 +1,10 @@
 # 运行时架构
 
-Go Core 负责空间、已发布材料与本机管理；启用执行时，A 的专属原生运行时持有共享 fork。参与者的本机 Core 连接 A，提供个人来源导出、材料发布、直接客户端和 MCP 入口。独立只读空间没有运行时。完整数据流见 [架构](../../sources/architecture.md)，字段和方法见 [协议](../../sources/protocol.md)。
+本页解释托管位置、进程与调用入口之间的关系，详细模块和数据流由 [架构](../../sources/architecture.md) 维护，字段和方法由 [协议](../../sources/protocol.md) 维护。
+
+Go Core 保存空间、已发布材料和本机管理状态。共享执行由 A 的专属原生运行时持有 fork，其他成员的本机 Core 连接 A；各自的个人 Agent 仍在自己的环境中运行。独立只读空间不要求共享执行运行时。工作台按需新建会话时，由创建者的 Core 维护运行时连接，不进入空间的共同执行对象；接收能力与当前连接范围由 [配对契约](../../sources/decisions/agent-pairing.md#身份接收能力与范围)维护。
+
+CLI、App 和 MCP 按数据目录发现同一后台 Core；菜单栏外壳另有自己的实例协调。服务可用、外壳已打开、客户端已接通和模型已完成分别代表不同层次。App/Core 的发现与退出规则见 [分发与首次体验](../../sources/distribution-and-onboarding.md)，接收进程和空间角色的关系见 [工作台契约](../../sources/decisions/space-workbench.md)。
 
 ## 从哪里进入代码
 
@@ -12,26 +16,16 @@ Go Core 负责空间、已发布材料与本机管理；启用执行时，A 的�
 | 当前会话身份与本轮结束后分享 | [mcp/current.go](../../../../internal/mcp/current.go)、[collab/current_share.go](../../../../internal/collab/current_share.go)、[nativecodex/source_turn.go](../../../../internal/nativecodex/source_turn.go) |
 | 原生 WebSocket RPC 和请求分发 | [nativecodex/process.go](../../../../internal/nativecodex/process.go) |
 | 本机管理、共享与接收端代理 | [http.go](../../../../internal/collab/http.go)、[network.go](../../../../internal/collab/network.go) |
+| 接收配对、空间请求与独立会话 | [agents.go](../../../../internal/collab/agents.go)、[workbench.go](../../../../internal/collab/workbench.go)、[space_receivers.go](../../../../internal/collab/space_receivers.go) |
 | 工具、工作目录与 TLS/传输 | [mcp](../../../../internal/mcp/)、[workspace](../../../../internal/workspace/)、[sharing](../../../../internal/sharing/) |
+| Core 生命周期与 App 实例协调 | [service.go](../../../../internal/service/service.go)、[AppInstance.swift](../../../../apps/macos/AppInstance.swift) |
 
-## 修改时守住的边界
+## 按边界追溯来源
 
-读取来源可以按需启动控制进程，但不得发送业务 prompt。创建执行使用原生 fork，恢复使用已保存会话 ID；创建只读空间仅保存空间记录。共享开放时客户端断开保留已有运行时；共享结束且执行、审批、请求和直接连接清空后，关闭此协作的 app-server 释放原生锁。只读历史不恢复该会话，显式恢复继续同一 ID。两者都不删除会话或目录。
+创建与恢复、原目录与 worktree、释放后的保留规则看 [目录与生命周期](../../sources/decisions/workspace-and-lifecycle.md)。原生客户端、账户路由和模型设置看 [原生客户端](../../sources/decisions/native-clients-and-models.md)，受限/信任配置继承看 [协作模式](../../sources/decisions/runtime-modes.md)。
 
-数据目录沿用 `Team Cross Next`，与旧产品分开；变更默认路径要考虑已有协作可见性。协作记录使用 JSON，不能重新接回旧 SQLite/CAS、Node Bridge 或附加 `--native` 启动模式。
+共享前的 LAN/Tailcat 选择、成员凭据和输入协调看 [输入与共享](../../sources/decisions/input-and-sharing.md)。它们共用授权层，但网络环境须单独验证。Claude 的单 worker、个人历史和控制路径看 [Claude 接入](../../sources/decisions/claude-native-tui.md)，不能直接套用 Codex app-server 的全部语义。
 
-直接客户端与 MCP 共用协作的上游控制入口；账户与偏好按本机路由处理。不要把连接存在、RPC 成功、轮次完成或远端共享开放混成一个状态。
+修改对应路径时按 [验证门槛](../../sources/validation/test-gates.md) 选择检查；已有证据从 [证据入口](../../sources/validation/evidence-map.md) 定向读取。协议替身、真实客户端、App 外壳与跨机传输的结果分别判断。
 
-共享前显式选择 LAN 或实验性 Tailcat；两者最终进入同一个 TLS pin、成员资格和输入协调层，不自动回退或切换。Tailcat 的启动会访问 DERP，准备期间不持有 Session 锁；同机成功不能推广为两台 Mac 或强制中继结论。
-
-修改启动、恢复或并发状态后，按 [验证门槛](validation-gates.md) 完成 Go 测试与相关 race test。
-
-相关任务：[原生客户端](../../sources/decisions/native-clients-and-models.md) · [输入与共享](../../sources/decisions/input-and-sharing.md) · [目录与生命周期](../../sources/decisions/workspace-and-lifecycle.md)
-
-CLI、App、MCP 现在共用按数据目录发现的后台 Core；默认 serve 在后台运行，调试用 --foreground。实例身份、版本和受控停止见 [分发与首次体验](../../sources/distribution-and-onboarding.md)。
-
-菜单栏 App 另由 [AppInstance](../../../../apps/macos/AppInstance.swift) 在创建图标前取得 `app.lock`，向同一用户、同一数据目录的已有外壳转交页面或邀请请求。第二份外壳退出不能调用 Core 停止；接收确认只表示请求已入队。修改时运行真实 App 副本回归，不用 CLI 的 Core 复用结果代替外壳验证。
-
-分发使用 App 内置 CLI：Cask 注册其命令，DMG 由菜单栏安装启动器，Formula 提供互斥的独立安装。命令安装仅维护自身入口，不启动或提权 Core；设置页区分磁盘安装版本与运行版本。修改命令归属时先读上述来源与 `internal/cliinstall`，不要在 Homebrew 之外覆盖其链接。
-
-Claude 实验性路径使用 A 的单个原生后台 job。受限模式的每个协作有独立 `claude-runtime`，只保存所选来源快照、本次 fork、settings、认证快照、daemon/job 和控制凭据；fork 首次落盘后仅将该 transcript 发布为 A 的个人 CLI/TUI history 文件，不挂载其他个人会话。B 的专用 Unix 入口经 Core/TLS 连接它，不启动第二个 SDK 执行进程，也不复制 A 的完整 Provider 历史。版本锁定、首次输入后的惰性落盘和同 ID 恢复见 [Claude 接入契约](../../sources/decisions/claude-native-tui.md)。
+相关导航：[产品模型](product-model-and-glossary.md) · [WebGUI 与 MCP](webgui-and-mcp.md) · [验证层次](validation-gates.md)

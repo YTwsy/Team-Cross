@@ -1,77 +1,33 @@
 # WebGUI 与本地 MCP
 
-菜单栏协作速览提供平级的“当前协作 / 资源速览”。当前协作显示未结束、未离开的空间并打开详情；资源筛选和选择在视图切换间保留。速览使用单一页面滚动，服务菜单与筛选同列；完整约定见 [资源库与速览](../../sources/decisions/resource-library.md#macos-协作速览)。
+本页解释人和 Agent 如何使用同一份空间内容，并按问题定位来源和代码。界面行为由 [产品流程](../../sources/product-flows.md) 维护，工具与数据字段由 [协议](../../sources/protocol.md) 维护；这里不另存完整交互规范或验收状态。
 
-WebGUI 提供协作管理、材料阅读与原文讨论；执行交互在对应原生客户端。MCP 让普通本地会话访问已发起或加入的协作。按本次修改范围查阅 [产品流程](../../sources/product-flows.md) 或 [协议](../../sources/protocol.md) 的对应章节。
+WebGUI 负责协作管理、材料阅读和原文讨论；菜单栏速览提供较轻的查找入口。个人 MCP 让自己的 Agent 访问已发起或加入的空间，共享运行时的工具则绑定当前空间。它们通过 Core 使用同一套权限和原文引用，默认阅读视图可以不同。完整 Agent 对话与执行交互仍在对应原生客户端。
 
-界面语言由本机 Core 共用偏好控制，默认按 macOS 首选语言决定：中文使用简体中文，其余使用英文。菜单栏“语言”和 WebGUI“设置与连接 → 界面语言”手动选择会同步影响两端；会话与用户内容不翻译。实现见 [界面语言](../../sources/product-flows.md#界面语言)、[Web 消息表](../../../../packages/web/src/i18n.ts)、[Core 偏好](../../../../internal/collab/ui_language.go) 与 [App 语言资源](../../../../apps/macos/AppLanguage.swift)。
+ChatGPT 本机插件复用 WebGUI，通过 UI MCP 桥调用 Core；插件界面能打开、模型能读到引用、会话能主动接收请求是三个需要分别判断的环节。输入框 mention 用于选择引用，发送给明确配对目标则沿 [接收会话契约](../../sources/decisions/agent-pairing.md) 处理。不要从页面、资源或工具已经加载推导后续环节已通过。
 
-新增 Web 文案用 `t` / `tr` 并补 [英文消息表](../../../../packages/web/src/en.json)；翻译必须在组件渲染或函数调用时执行，不要在模块顶层计算。`pnpm --filter @teamcross/web check` 会检查遗漏文案、占位符和模块顶层翻译。动态的服务提示只按产品消息处理，不能翻译会话正文或用户内容。
+## 按问题查来源
 
-独立只读分享、多会话材料与三人以上入口见 [协作空间任务页](collaboration-spaces.md)。公开范围预览必须覆盖实际发布的工具输出和附件，页面隐藏不能代替 Core、MCP/CLI 与运行时工具共同的数据范围限制；导出缺失与截断必须显式标记。
+| 问题 | 主要维护位置 | 实现入口 |
+| --- | --- | --- |
+| 来源选择、发布范围与确认 | [分享范围与确认](../../sources/product-flows.md#分享范围与确认)、[空间契约](../../sources/decisions/collaboration-spaces.md) | [Publisher](../../../../packages/web/src/components/Publisher.tsx)、[PublicationReader](../../../../packages/web/src/components/PublicationReader.tsx) |
+| 正文、目录、阅读位置与批注编辑 | [上下文阅读](../../sources/product-flows.md#上下文阅读)、[批注引用](../../sources/protocol.md#批注引用) | [Reading](../../../../packages/web/src/components/Reading.tsx)、[Context](../../../../packages/web/src/components/Context.tsx)、[原文位置映射](../../../../packages/web/src/reading.ts) |
+| Agent 默认读取、工具输出和分页 | [按需读取协议](../../sources/protocol.md#agent-按需读取视图) | [读取投影](../../../../internal/collab/agent_read.go)、[批注读取](../../../../internal/collab/agent_annotations.go) |
+| 资源选择、固定引用编号与菜单栏速览 | [资源库契约](../../sources/decisions/resource-library.md)、[资源库协议](../../sources/protocol.md#个人资源库) | [Library](../../../../packages/web/src/components/Library.tsx)、[Core](../../../../internal/collab/library.go)、[App](../../../../apps/macos/TeamCross.swift) |
+| 配对、明确发送和请求回执 | [配对契约](../../sources/decisions/agent-pairing.md)、[空间工作台](../../sources/decisions/space-workbench.md) | [配对 Core](../../../../internal/collab/agents.go)、[工作台](../../../../packages/web/src/components/SpaceWorkbench.tsx) |
+| ChatGPT 面板、带回对话与 mention | [本机插件契约](../../sources/decisions/chatgpt-local-plugin.md) | [UI MCP](../../../../internal/mcp/ui.go)、[mentions](../../../../internal/mcp/mentions.go)、[宿主桥](../../../../packages/web/src/plugin/bridge.ts) |
+| 个人 MCP 管理与当前 Session 分享 | [管理协议](../../sources/protocol.md#个人-mcp-管理入口)、[当前 Session](../../sources/protocol.md#当前-session-与延后分享) | [管理工具](../../../../internal/mcp/management.go)、[来源工具](../../../../internal/mcp/current.go) |
+| 首页快照、界面语言与主题 | [首页与创建](../../sources/product-flows.md#首页与创建入口)、[界面语言](../../sources/product-flows.md#界面语言)、[开发约束](../../sources/development.md#前端与本机界面) | [App.tsx](../../../../packages/web/src/App.tsx)、[i18n.ts](../../../../packages/web/src/i18n.ts)、[样式](../../../../packages/web/src/styles.css) |
+| 安装、邀请打开与个人客户端配置 | [分发与首次体验](../../sources/distribution-and-onboarding.md)、[Claude 辅助模式](../../sources/decisions/claude-native-tui.md#个人-claude-code-辅助模式) | [公共启动器](../../../../internal/service/service.go)、[客户端启动](../../../../internal/collab/launch.go) |
 
-资源库汇集参与过的 Session 材料、本人批注/回复与执行上下文，保留“设置与连接”入口。跨类型选择在 Core 持久化，与菜单栏速览共用；读取编号在底部内联生成，个人 MCP 用 `read_selection` 读取明确固定引用，不读取含糊的当前选择。批注和选择清单通过统一配对目标发送，保留范围与输入检查；见[接收会话配对](../../sources/decisions/agent-pairing.md)。范围与取舍见 [资源库决策](../../sources/decisions/resource-library.md)，字段见 [资源库协议](../../sources/protocol.md#个人资源库)。
+## 阅读与发送的关系
 
-资源库阅读和操作继续更新最近使用记录与资源状态，但保持当前条目、分组顺序；后台同步同样不重排。只有顶部手动刷新或重新加载页面才采用最新排序，新资源按所属分组追加。顺序稳定不能延迟访问撤销、资源移除或选择状态更新。
+材料是已发布的固定范围，执行上下文是经授权读取的活历史；共用阅读组件不使两者具有相同的存储或版本语义。批注保留原文引用，资源选择把明确引用交给后续读取。读取和保存讨论都不会自动开始模型轮次；需要处理时，再明确选择目标、要求与发送动作。
 
-个人 MCP 和 CLI 也支持选择来源、预览、创建、邀请、加入、直接客户端启动及结束/恢复；[管理工具](../../../../internal/mcp/management.go) 统一映射现有 Core API。个人 MCP 还可通过 [当前来源工具](../../../../internal/mcp/current.go) 核对调用者 Session、预览并登记本轮结束后的分享；无法核对身份时明确选择来源，不猜最近会话。登记后结束本轮，再查询状态和取回邀请；等待可取消，重启不自动重放。邀请失败后只重试分享，不重复 fork。共享运行时的内置批注 MCP 保持当前协作范围。
-
-MCP 默认先读取最近 3 轮的问题、用户补充与明确标记的最终答复，跳过工具正文。`view=conversation/outline/items` 分别用于过程对话、轻量目录和轮内记录索引；`toolOutputs=none/preview/full` 独立控制工具正文，`turnId+itemId` 精确展开。阶段和 UTF-16 原文坐标保留，没有 final 标记时明确报告而不猜测。完整响应按字节预算分页，Web 默认阅读方式保持不变；细则见 [Agent 读取契约](../../sources/protocol.md#agent-按需读取视图)，实现见 [读取投影](../../../../internal/collab/agent_read.go)。
-
-个人 `read_context kind=annotations` 与运行时 `read_annotations` 支持相同的 annotationId 精确读取；无 ID 只列摘要。状态查询不含讨论正文，回复返回 saved 和本次回复。已知引用时直接定位，缺少目标时才查目录，结果不明时才查询写入状态。读取编号每页一项，去掉 UI 元数据和重复 quote。回归见 [读取测试](../../../../internal/collab/agent_read_test.go) 与 [批注载荷测试](../../../../internal/collab/agent_annotations_test.go)。
-
-## 页面与工具入口
-
-| 任务 | 代码入口 |
-| --- | --- |
-| 首页、创建、详情、加入、设置 | [components](../../../../packages/web/src/components/)、[App.tsx](../../../../packages/web/src/App.tsx) |
-| API 与状态类型 | [api.ts](../../../../packages/web/src/api.ts)、[types.ts](../../../../packages/web/src/types.ts) |
-| 视觉、键盘与通用组件 | [styles.css](../../../../packages/web/src/styles.css)、[ui.tsx](../../../../packages/web/src/components/ui.tsx) |
-| 本机管理与客户端启动 | [http.go](../../../../internal/collab/http.go)、[launch.go](../../../../internal/collab/launch.go) |
-| STDIO 工具与协议输入 | [mcp/server.go](../../../../internal/mcp/server.go) |
-| 资源库、选择与读取编号 | [Library.tsx](../../../../packages/web/src/components/Library.tsx)、[状态](../../../../packages/web/src/library.tsx)、[Core](../../../../internal/collab/library.go)、[MCP](../../../../internal/mcp/library.go) |
-| 菜单栏速览、热键与浮窗 | [TeamCross.swift](../../../../apps/macos/TeamCross.swift) |
-| 终端协作查询与输入管理 | [collaboration.go](../../../../cmd/teamcross/collaboration.go) |
-| 只读入口、公开范围与固定版本阅读 | [Publisher.tsx](../../../../packages/web/src/components/Publisher.tsx)、[PublicationReader.tsx](../../../../packages/web/src/components/PublicationReader.tsx)、[ReadOnlySpace.tsx](../../../../packages/web/src/components/ReadOnlySpace.tsx)、[Materials.tsx](../../../../packages/web/src/components/Materials.tsx) |
-
-## 修改时守住的边界
-
-来源固定后收起形态卡片，用目录与正文选择连续整轮范围。目录只定位，建议阅读起点只导航；顶部吸顶区集中范围摘要、阅读工具、可展开的导出说明及预览/发布操作，底部不再重复。目录与轮次定位避让吸顶区的实际高度。确认页读取 Core 按范围生成的私有预览，正文成功加载后才能发布；返回编辑保留阅读状态。完整行为见 [分享范围与确认](../../sources/product-flows.md#分享范围与确认)，回归见 [发布交互测试](../../../../packages/web/src/test/publication.test.tsx)。
-
-只读流程选择明确来源、冻结历史、起止范围、实际内容预览后发布。更新默认保留上一版范围；边界缺失须重新选，不能退回全部历史。材料正文只按需展开，引用绑定版本，个人和共享 Agent 通过 `list_materials/read_material` 读取；个人 MCP 还可用 `read_publication_draft` 读取私有冻结草稿，共享运行时另有绑定自身会话的配对/请求回执工具，仍不枚举个人来源。批注和回复可以附多份材料。
-
-WebGUI 的材料读取首页显式请求轮次目录；未指定 Agent 视图的正文流完整给出用户/助手消息，长工具输出只给精确前缀、总长度和读取提示。WebGUI 折叠条内的“读取完整输出”以及 Agent 的 `turnId + itemId + startOffset` 都切换到单条分页，按条游标不会溢出到其他 item；深处批注也直接定位该条，而不顺序吞下之前的日志。所有偏移继续使用 UTF-16，折叠投影不改变固定版本正文或批注位置。
-
-发起页用两张卡片区分先分享讨论和直接一起执行，标题、形态卡片和下方表单与首页共用同一居中栏宽；来源客户端是会话列表筛选，不是与形态并列的主选择。切换形态或来源时两套表单共用同一占位，列表区不随加载塌缩。创建执行时用两张卡解释原目录和干净 worktree，不加入未跟踪文件选择器。执行主机、目录、输入归属与下一步动作保持清楚；协议 ID、版本和地址按需展开。
-
-邀请面板在只读和执行详情中复用：复制同一链接、关闭链接加入、重置链接；成员列表负责执行访问与输入交接。只读空间始终可关闭，关闭状态持久化且可重新开放。
-
-详情页把执行主机、目录、当前输入者和共享状态收在同一执行信息卡；共享详情按需浮层展开，不推动下方内容。右侧先完整展示参与成员，再展示批注；双栏滚动进入阅读时成员平滑折叠，期间保留右栏内容的最低高度，避免短页面滚动回调造成反复收放；回到概览展开并释放预留，支持手动展开和减少动态效果，焦点位于成员操作时及窄屏下排时不自动收起。技术信息位于“协作上下文”的最后一个标签，不继续堆叠在右栏。
-
-执行详情用 [ReadingTabs.tsx](../../../../packages/web/src/components/ReadingTabs.tsx) 切换材料和上下文，正文随整页滚动，阅读面板不设独立纵向滚动。内容切换、当前标题或类型、目录与专注入口吸顶；多份材料在吸顶栏直接切换并可收起当前材料，首次打开定位卡片，已读版本恢复原阅读位置。概览可见时切换材料或上下文类型不移动页面，进入阅读后按段落恢复位置，批注目标定位优先。专注宽度变化也保留阅读段落。目录在阅读宽度不足时收成按钮，宽屏多轮阅读默认保留侧边目录。只读空间复用同一阅读布局，没有执行上下文标签。材料正文在对应卡片内展开并占满列表宽度，外框颜色不随阅读状态改变；选择、收藏及作者操作仍位于卡片顶部，选择与收藏始终绑定所读版本，收藏有高亮、文字与失败反馈。底部选择栏收起时缩薄，正文为实际栏高留白；批注列表与引用交互保持现有方式。完整行为见 [上下文阅读](../../sources/product-flows.md#上下文阅读)，回归见 [整页阅读测试](../../../../packages/web/src/test/reading-scroll.test.tsx) 和 [上下文刷新测试](../../../../packages/web/src/test/context-refresh.test.tsx)。
-
-主要动作随连接、输入交接、运行和审批状态改变。批注可独立保存，读取或批注不隐式开始模型轮次。已发布材料和已授权上下文使用一致的消息视觉、轮对齐正文流、可读取的工具折叠与按条定位；`read_context kind=history` 用 `pageCursor + turnId + itemId + startOffset` 展开单条，Agent 无需顺序吞下整页日志。执行上下文仍按来源的 8 轮页面读取，只在内存中投影，不持久化为材料清单/blob，也没有固定版本语义；两者统一的是读取契约，不是存储生命周期。执行交互继续在原生客户端。
-
-批注从对话文字或代码行发起，自动携带原文与结构化定位，编辑失败保留当前页草稿；点击批注可查找原文，变化后展示引用片段而不猜测新位置。页面内编辑取代弹窗，原文和整体意见分别保留当前页草稿；原批注下可展开单层回复，刷新期间保留正在填写的内容。个人 MCP 通过 `read_context kind=annotations` 读取，并可 `reply_to_annotation`。共享运行时自动提供当前协作的 `read_annotations` 和 `reply_to_annotation`，直接客户端可以在原会话内处理讨论。字段与快照边界以 [协议](../../sources/protocol.md#批注引用) 为准；交互实现见 [Context.tsx](../../../../packages/web/src/components/Context.tsx) / [Annotations.tsx](../../../../packages/web/src/components/Annotations.tsx)，回归见 [批注测试](../../../../packages/web/src/test/annotations.test.tsx)。
-
-选区浮条打开原文旁编辑卡，窄屏在消息下方展开；编辑卡与批注面板共用草稿状态，收起和失败保留当前页草稿。会话新内容先提示，读者点击后更新；材料在当前页记住最近六个已读版本的位置。首次加载或切换资源才显示加载占位；具体行为见 [上下文阅读](../../sources/product-flows.md#上下文阅读)，回归入口见 [上下文刷新测试](../../../../packages/web/src/test/context-refresh.test.tsx)。
-
-共用阅读实现见 [Reading.tsx](../../../../packages/web/src/components/Reading.tsx)、[MarkdownText.tsx](../../../../packages/web/src/components/MarkdownText.tsx) 与 [原文位置映射](../../../../packages/web/src/reading.ts)。改动排版时必须保留 UTF-16 原文定位；引用材料选择器默认只列元数据，预览按需读取。回归见 [阅读与引用测试](../../../../packages/web/src/test/reading.test.tsx)。
-
-协作对话目录跳转时，已加载轮次直接滚动，尚未加载的轮次按当前 `pageCursor + turnId` 读取后定位；保留专注阅读选择，支持读取失败重试。分页、返回最近对话和批注定位不能沿用旧轮次参数。行为见 [上下文阅读](../../sources/product-flows.md#上下文阅读)，回归见 [上下文刷新测试](../../../../packages/web/src/test/context-refresh.test.tsx)。
-
-首页最近协作先显示本机快照，不因已加入的旧协作失联而串行等待；远端状态在后台刷新并由下一次轮询更新。进入详情仍实时探测单个协作，MCP 需要确认当前状态时使用 `get_collaboration`。
-
-个人 Codex / Claude Code 的 MCP 一次性配置连接本机 Core，后续通过工具定位协作。工具写入走现有 RPC 与输入协调，不另建绕过控制的发送通道；stdout 只输出协议消息。
-
-浅色为主要设计基准，支持系统/浅色/深色主题。检查空状态、失败、长路径、小窗口、焦点和键盘；更新 Web 源码后提交重建的嵌入式资源。
+工具写入、直接客户端输入和工作台请求分别沿对应授权路径进入 Core。辅助客户端的 Provider 不决定目标运行时支持什么，也不使普通 MCP 自动获得 Channel 或原生接收连接。判断接收边界时，继续读取目标的领域契约。
 
 ## 检查入口
 
-[前端路径测试](../../../../packages/web/src/test/flows.test.tsx) · [MCP 测试](../../../../internal/mcp/server_test.go) · [浏览器与工程门槛](../../sources/validation/test-gates.md)
+改动时从 [验证门槛](../../sources/validation/test-gates.md) 选择工程、浏览器和原生客户端检查；判断已有验收时从 [证据入口](../../sources/validation/evidence-map.md) 读取具体版本报告。浏览器宿主替身、原生工具加载和用户桌面操作分别报告。
 
-相关任务：[产品模型](product-model-and-glossary.md) · [输入与共享](../../sources/decisions/input-and-sharing.md) · [原生客户端](../../sources/decisions/native-clients-and-models.md)
-
-首次流程支持创建并邀请、App 邀请确认后进入上下文，以及 MCP 配置/协议探测/实际调用分别展示。完整规则见 [分发与首次体验](../../sources/distribution-and-onboarding.md)。
-
-个人客户端选择、配置覆盖检测与独立调用证据的完整规则见 [Claude 辅助模式](../../sources/decisions/claude-native-tui.md#个人-claude-code-辅助模式)。辅助客户端的 Provider 不改变目标协作能力；共享 Claude worker 仍通过直接 TUI 处理审批、中断与补充。
+相关导航：[产品模型](product-model-and-glossary.md) · [协作空间](collaboration-spaces.md) · [运行时架构](runtime-architecture.md)

@@ -1,5 +1,7 @@
 # Claude Code 原生 TUI 接入
 
+本页维护 Claude 共享执行、原生 TUI 与个人辅助 MCP 的接入契约及取舍；个人会话 Channel 主动接收另由 [配对契约](agent-pairing.md) 维护。两条路径的结果不能互相替代，具体版本与范围见 [原生执行证据](../validation/evidence-map.md#原生执行与协作模式) 和 [接收证据](../validation/evidence-map.md#配对与空间请求)。
+
 Claude Code 是新增的实验性 Provider。Codex 原有 app-server 路径继续保留；Claude 使用 A 上一个原生后台 job，Team Cross 控制端与参与者的原生 TUI 都连接这个执行端。当前最低要求 Claude Code `2.1.268`，双方需使用包含此适配的 Team Cross 构建。按数值比较 major/minor/patch，接受不低于此版本的正式版本，拒绝旧版、无效版本和预发布版本。`2.1.268` 保留为已实测基线；更高版本通过版本检查不等于完成该版本的真实协议验收。TUI 本机连接层返回检测到的实际 CLI 版本，不伪装为基线版本。
 
 ## 用户入口与能力边界

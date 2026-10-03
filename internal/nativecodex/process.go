@@ -46,18 +46,8 @@ type Process struct {
 }
 
 func Binary() (string, error) {
-	if value := os.Getenv("TEAMCROSS_CODEX_BIN"); value != "" {
-		return exec.LookPath(value)
-	}
-	if value, err := exec.LookPath("codex"); err == nil {
-		return value, nil
-	}
-	for _, value := range []string{"/Applications/ChatGPT.app/Contents/Resources/codex", "/Applications/Codex.app/Contents/Resources/codex"} {
-		if stat, err := os.Stat(value); err == nil && stat.Mode().IsRegular() {
-			return value, nil
-		}
-	}
-	return "", errors.New("未找到 Codex CLI；安装 Codex 或设置 TEAMCROSS_CODEX_BIN")
+	installation, err := Discover("", "")
+	return installation.Binary, err
 }
 
 func Home() (string, error) {

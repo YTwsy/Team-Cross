@@ -5,10 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"teamcross/internal/buildinfo"
 	"teamcross/internal/collab"
+	"teamcross/internal/nativecodex"
 	"teamcross/internal/pluginpack"
 	"teamcross/internal/service"
 	"time"
@@ -148,16 +148,11 @@ func runPlugin(args []string) error {
 			return printJSON(p)
 		}
 	}
-	if *codex == "" {
-		*codex, err = exec.LookPath("codex")
-		if err != nil {
-			const desktop = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
-			if _, e := os.Stat(desktop); e != nil {
-				return err
-			}
-			*codex = desktop
-		}
+	installation, err := nativecodex.Discover(*codex, "")
+	if err != nil {
+		return err
 	}
+	*codex = installation.Binary
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	m := pluginpack.Manager{Codex: *codex, Root: *root}
