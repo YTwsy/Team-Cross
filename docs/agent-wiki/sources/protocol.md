@@ -2,7 +2,7 @@
 
 这些接口是 `main` 的默认协作协议，不兼容旧 Thread/Share API。
 
-本页是字段、路由与协议行为的统一说明。产品语义见 [词汇与核心模型](product-core-and-glossary.md)，调用入口见 [运行时架构](../wiki/concepts/runtime-architecture.md)。
+本页维护字段、路由与协议行为。产品语义见 [词汇与核心模型](product-core-and-glossary.md)，领域支持边界见对应契约，例如 [接收会话配对](decisions/agent-pairing.md) 与 [本机插件](decisions/chatgpt-local-plugin.md)；模块和调用入口见 [架构](architecture.md)。接口存在不等于宿主已接通或真实验收通过，已知执行结果与适用范围见 [证据入口](validation/evidence-map.md)。
 
 ## 本机管理 API
 

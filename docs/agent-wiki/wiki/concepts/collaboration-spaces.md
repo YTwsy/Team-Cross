@@ -1,27 +1,24 @@
 # 只读分享与多人协作空间
 
-状态：本地原型主要闭环已实现，实网与原生客户端的证据边界单独记录。完整设计和实施门槛见 [协作空间契约](../../sources/decisions/collaboration-spaces.md)，对象语义见 [核心词汇](../../sources/product-core-and-glossary.md#协作空间的对象边界)。
+本页解释空间、材料、成员和执行之间的关系，帮助跨主题定位。当前规则与设计取舍由 [协作空间契约](../../sources/decisions/collaboration-spaces.md) 维护，对象语义见 [核心词汇](../../sources/product-core-and-glossary.md#协作空间的对象边界)，实际验证范围见 [证据入口](../../sources/validation/evidence-map.md#空间材料与读取)。
 
-## 已确认的首版目标
+空间先提供成员、材料和讨论。成员可以发布自己选定范围的会话材料，各自的个人会话继续保持独立；分享一段历史不会自动公开后续内容。材料的固定版本让不同成员和 Agent 能围绕同一份原文讨论。
 
-- 独立只读分享不要求创建原生 fork，可从一个 Session 直接发起阅读和讨论。
-- 首版必须支持三人及以上，至少覆盖发起者 A 与受邀者 B、C 同时参与。不能只实现 A/B 后宣称完成。
-- 任一参与者可发布多份选定范围的会话材料；公开范围、建议先看位置和 Agent 实际读取范围分别处理。
+加入空间、获得执行访问和取得当前输入权是不同关系。同一链接可以供多人加入，每位成员拥有独立凭据；需要一起操作项目时，才明确启用共同执行并开放新增访问。只读空间本身不需要共享 fork，空间的公开材料与执行目录也有各自的授权范围。
 
-## 实现时的对象边界
+参与会话还可以通过明确关联的目标接收空间请求。空间简报保存成员确认的共同依据，可选专用会话帮助接手这些请求；它们与共同执行独立。因此，“有人阅读材料”“Agent 参与讨论”和“共同操作项目”不应视为同一种接入状态。
 
-空间负责成员、材料和讨论；原生个人会话保持独立。已发布材料是固定范围与版本的只读内容，可操作的协作仍是新的原生 fork。设计基线为单主机托管、每空间最多一个可操作协作，后续对话不自动公开。
+## 按问题查来源
 
-成员身份必须分别绑定作者、凭据、在线状态、输入申请与请求去重。同一链接多人加入、每人成员身份独立；撤销 B 不影响 C。讨论无需共享输入权，共享执行仍只有一个当前输入者，所有原生和工具写入共用协调入口。
+| 问题 | 主要来源 | 实现入口 |
+| --- | --- | --- |
+| 空间成员、邀请与执行授权 | [空间契约](../../sources/decisions/collaboration-spaces.md)、[输入与共享](../../sources/decisions/input-and-sharing.md) | [空间](../../../../internal/collab/spaces.go)、[网络](../../../../internal/collab/network.go) |
+| 发布范围、更新版本与撤回 | [分享流程](../../sources/product-flows.md#分享范围与确认)、[材料协议](../../sources/protocol.md#已发布会话材料) | [发布](../../../../internal/collab/publication.go)、[材料](../../../../internal/collab/materials.go) |
+| 内容存储、授权和按需读取 | [架构](../../sources/architecture.md#空间材料与执行)、[Agent 读取协议](../../sources/protocol.md#agent-按需读取视图) | [材料存储](../../../../internal/materialstore/)、[材料 MCP](../../../../internal/mcp/materials.go) |
+| 空间请求、简报与专用角色 | [空间工作台](../../sources/decisions/space-workbench.md)、[接收配对](../../sources/decisions/agent-pairing.md) | [工作台 Core](../../../../internal/collab/workbench.go)、[独立接收会话](../../../../internal/collab/space_receivers.go) |
 
-只读空间启用共同执行是明确的新访问范围；发布一段历史不能隐式开放完整原生会话或执行目录。WebGUI、MCP/CLI 与运行时工具必须读取同一份受范围限制的材料。
+## 验证时区分
 
-## 代码与检查
+按 [验证门槛](../../sources/validation/test-gates.md) 选择范围隔离、多成员撤销和输入交接检查。实际结果通过 [证据入口](../../sources/validation/evidence-map.md) 定向读取；同机三个 Core、真实模型参与和三台 Mac 的网络各自需要相应证据，较早的双人或旧材料格式报告只适用于当时范围。
 
-现有入口：[types.go](../../../../internal/collab/types.go)、[sharing.go](../../../../internal/sharing/sharing.go)、[network.go](../../../../internal/collab/network.go)、[MCP](../../../../internal/mcp/server.go)、[WebGUI](../../../../packages/web/src/components/)。`Record` 的 `execution` 可空；范围冻结、固定版本、多份材料、原文批注和回复附件均独立于执行。启用执行保留链接、成员及内容；主机按成员开放新增执行访问，输入另行交接。只读空间无邀请或无人加入也可关闭，持久化关闭状态后可重新开放。实际边界见 [材料验证](../../tasks/finished_archived/materials-2026-09-18.md) 与 [多成员基础验证](../../tasks/finished_archived/multi-member-2026-09-18.md)。
-
-材料读取使用 `list_materials/read_material`，不得沿 sourceId 读取未公开的原生历史。正文以不可变清单和空间内内容寻址 blob 保存，空间记录只留版本元数据；远端发布先协商清单，再逐个上传缺失 blob，最后幂等提交。协商只复用当前作者从自己未撤回版本可证明拥有的正文，不能探测其他作者或撤回内容。
-
-WebGUI 与 Agent 共用材料授权和原文坐标，默认读取视图不同；窗口、工具过滤、分页及按条展开见 [Agent 读取契约](../../sources/protocol.md#agent-按需读取视图)。个人 MCP 可读取本机私有草稿，共享运行时只访问绑定空间，工具范围见 [运行时协议](../../sources/protocol.md#共享运行时的批注工具)。旧 `schema:2` 原样留盘但不加载。详细限额和后续项目见完整契约。按 [验证门槛](validation-gates.md) 补范围隔离、多成员撤销和交接竞态；同机三 Core 与三台 Mac 分别报告，旧双人结果不能替代。
-
-相关任务：[产品模型](product-model-and-glossary.md) · [输入与共享](../../sources/decisions/input-and-sharing.md) · [WebGUI 与 MCP](webgui-and-mcp.md)
+相关导航：[产品模型](product-model-and-glossary.md) · [WebGUI 与 MCP](webgui-and-mcp.md) · [验证层次](validation-gates.md)

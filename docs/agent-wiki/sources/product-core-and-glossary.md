@@ -1,5 +1,7 @@
 # 产品核心与统一词汇
 
+本页维护产品对象、用词和语义边界。用户动作见 [产品流程](product-flows.md)，字段与路由见 [协议](protocol.md)，领域规则及取舍由对应契约维护；词汇映射不作为验收结果，实际范围见 [证据入口](validation/evidence-map.md)。
+
 当前对象为协作空间、已发布会话材料、空间请求与简报，以及分别可选的专用会话角色和原生执行。空间可以只供阅读和讨论；多位成员各自发布固定范围与版本，不自动合并个人上下文。完整流程见 [产品流程](product-flows.md)，设计基线见 [协作空间契约](decisions/collaboration-spaces.md) 与 [空间工作台](decisions/space-workbench.md)。
 
 ## 当前实现的词汇映射

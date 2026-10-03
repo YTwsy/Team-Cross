@@ -1,6 +1,6 @@
 # 原生协作架构
 
-本页保存当前架构的完整说明。按任务查找代码与边界时，从 [运行时架构](../wiki/concepts/runtime-architecture.md) 开始；具体字段和路由见 [协作接口](protocol.md)。
+本页维护模块职责、数据流和进程边界。跨主题理解可从 [运行时架构](../wiki/concepts/runtime-architecture.md) 开始；字段和路由由 [协作接口](protocol.md) 维护，安装后的 App/Core 发现与退出规则见 [分发与首次体验](distribution-and-onboarding.md)，具体路径的已知实测结果见 [证据入口](validation/evidence-map.md)。
 
 Team Cross 管理协作的来源、执行目录、原生 fork、邀请、输入归属与人工批注。模型上下文与工具执行由 A 上的 Codex app-server 持有。
 

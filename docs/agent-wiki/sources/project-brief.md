@@ -6,6 +6,8 @@ status: current
 
 # 项目简报
 
+本页维护产品定位、设计出发点和总体范围。对象定义见 [核心词汇](product-core-and-glossary.md)，用户动作见 [产品流程](product-flows.md)，具体能力的规则与限制由领域契约维护；已知验收结果与环境边界见 [证据入口](validation/evidence-map.md)。
+
 Team Cross 是 macOS 上的本地协作工具：从已有 Session 发布选定的历史，邀请同事阅读、讨论并带回自己的调查；需要共同执行时创建新的原生 fork。空间、可选的共享会话、模型调用与代码执行留在发起者 A；每位参与者通过自己的 Team Cross Core 加入。
 
 main 已采用原生协作架构，当前仍处于原型阶段，可以按确认的产品方向重构，不维护旧数据或旧 API 兼容性。

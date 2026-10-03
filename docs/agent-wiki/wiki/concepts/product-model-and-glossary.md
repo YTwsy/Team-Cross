@@ -1,34 +1,24 @@
 # 产品模型与词汇
 
-Team Cross 空间保存成员、已发布会话材料与讨论；可独立只读分享，也可关联一个新的原生 fork 在 A 的目录中共同执行。各人的个人 Agent 按需读取材料并参与讨论。[空间工作台](../../sources/decisions/space-workbench.md) 另保存明确协作请求、共同进展和成员确认的简报；每空间最多一个可选专用会话角色，与共同执行独立。
+本页解释产品对象之间的关系，完整定义由 [核心词汇](../../sources/product-core-and-glossary.md) 维护。Team Cross 从已有 Session 和会话记录入手，让人和各自的 Agent 按需分享经验、讨论材料，必要时共同执行；设计原因和总体范围见 [项目简报](../../sources/project-brief.md)。
 
-设计从已有 Session 和会话记录入手，让人的经验和判断能及时加入正在进行的工作，并保留各自的工具。个人资源库也让当前 Agent 按选择接上此前分享或参与的上下文；本机托管、连接方式与设计原因见 [项目简报](../../sources/project-brief.md#设计出发点)。
+空间托管成员、已发布材料和讨论。个人会话是材料的来源，也可以在明确授权下参与空间请求；它不会因为被引用或关联就全部公开。共同执行使用新的原生 fork，目录与输入归属另行确定。空间工作台中的专用会话是可选协调角色，与共同执行分别管理。
 
-涉及空间及三人以上流程时，可从 [协作空间任务页](collaboration-spaces.md) 定位，具体范围查 [完整契约](../../sources/decisions/collaboration-spaces.md)；不要把只读材料与可操作 fork 混为同一个对象。
+## 容易混淆的对象
+
+| 对象关系 | 理解时的区别 | 主要来源 |
+| --- | --- | --- |
+| 空间、个人会话、已发布材料 | 空间组织协作，个人会话保留原生所有权，材料固定已公开的范围与版本 | [空间对象语义](../../sources/product-core-and-glossary.md#协作空间的对象边界)、[空间契约](../../sources/decisions/collaboration-spaces.md) |
+| 来源会话、新 fork、执行目录 | 新建会话与选择工作目录是两个步骤；原目录模式也使用新会话 | [目录与生命周期](../../sources/decisions/workspace-and-lifecycle.md) |
+| 成员资格、在线状态、输入归属 | 能访问空间、当前已连接、现在可写入分别判断 | [输入与共享](../../sources/decisions/input-and-sharing.md) |
+| 配对目标、空间请求、专用角色 | 配对确定接收路径，请求保存明确要求与回执，角色决定是否承担空间接手职责 | [接收配对](../../sources/decisions/agent-pairing.md)、[空间工作台](../../sources/decisions/space-workbench.md) |
+| 批注、发送、读取、完成 | 保存讨论不自动触发输入；发送成功和 Agent 读取、报告完成各有自己的回执 | [产品流程](../../sources/product-flows.md#上下文阅读)、[请求契约](../../sources/decisions/agent-pairing.md#投递与回执) |
+| 产品对象与原生协议术语 | Codex Thread/Turn 是 Provider 会话与轮次，不是旧产品的 Thread/Round 模型 | [词汇映射](../../sources/product-core-and-glossary.md#当前实现的词汇映射)、[协议](../../sources/protocol.md) |
 
 ## 按问题查来源
 
-[项目简报](../../sources/project-brief.md) 解释定位与范围，[完整词汇](../../sources/product-core-and-glossary.md) 定义语义，[用户流程](../../sources/product-flows.md) 描述用户动作；按本次问题选读。
+定位、目标范围和 [GPL-3.0-only](../../../../LICENSE) 许可看 [项目简报](../../sources/project-brief.md)；用户怎么完成某个动作看 [产品流程](../../sources/product-flows.md)；Provider 和客户端差异看 [原生客户端](../../sources/decisions/native-clients-and-models.md) 与 [Claude 接入](../../sources/decisions/claude-native-tui.md)。产品不固定模型或推理强度，显示语义见 [模型设置](../../sources/product-core-and-glossary.md)。
 
-项目许可证为 [GPL-3.0-only](../../../../LICENSE)，适用范围见 [项目简报](../../sources/project-brief.md#开源协议)。
+命名变更从 [协作类型](../../../../internal/collab/types.go)、[页面组件](../../../../packages/web/src/components/) 和 [产品路径测试](../../../../packages/web/src/test/flows.test.tsx) 追踪；主要来源更新后，只有本页解释发生变化时才同步本页。判断能力是否已经验收，另从 [证据入口](../../sources/validation/evidence-map.md) 读取对应路径与版本。
 
-## 修改时守住的边界
-
-- Team Cross 协作 `id`、来源 `sourceId`、协作原生 `sessionId` 分别表示不同对象。
-- 只读发布以连续完整轮次为分享范围；目录点击与建议阅读起点均不改变范围。编辑私有草稿与确认范围预览分别读取，细节见 [分享范围与确认](../../sources/product-flows.md#分享范围与确认)。
-- 当前 Session 分享请求的 `requestId` 同时是拟创建的协作 `id`；登记不代表 fork 或邀请已经完成。核对原生调用身份后等待固定本轮结束，来源变化或重启不自动重放。
-- 原生协议里的 Thread/Turn 不代表恢复旧产品的 Thread/Round/managed Run。
-- “创建新会话”和“使用哪个目录”分别处理；原目录模式也必须创建新的会话 ID。
-- 受限模式的 Claude fork 由原生命令在隔离 runtime 中创建，并只把这个新 transcript 发布到 A 的个人 CLI/TUI history；B 不取得其他 Provider 历史。
-- 发起和结束不要求问题描述、摘要、独立 Evidence 或成果验收；批注不自动注入模型。
-- 输入者是协作控制状态，不自动添加到 Provider prompt。
-- 邀请绑定用户显式选择的 `lan|tailcat`，只限制首次加入；加入资格、当前在线和输入归属分别管理，关闭客户端或断线不撤销成员。
-- 对话与执行留在 Codex；WebGUI 提供协作管理、必要上下文和反馈。
-
-## 代码与检查
-
-类型从 [types.go](../../../../internal/collab/types.go) 开始，界面入口在 [App.tsx](../../../../packages/web/src/App.tsx) 和 [页面组件](../../../../packages/web/src/components/)。命名变更应同时检查来源、API 字段、界面文案与 [产品路径测试](../../../../packages/web/src/test/flows.test.tsx)。
-
-相关任务：[目录与生命周期](../../sources/decisions/workspace-and-lifecycle.md) · [WebGUI 与 MCP](webgui-and-mcp.md) · [验证](validation-gates.md)
-
-当前 Provider 包含 Codex 与实验性的 Claude Code 原生 TUI。两者共享协作、目录与输入归属语义；客户端和控制方法支持范围按 [Claude 接入契约](../../sources/decisions/claude-native-tui.md) 区分。
+相关导航：[协作空间](collaboration-spaces.md) · [WebGUI 与 MCP](webgui-and-mcp.md) · [运行时架构](runtime-architecture.md)

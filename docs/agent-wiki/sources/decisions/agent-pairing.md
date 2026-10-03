@@ -1,5 +1,7 @@
 # 接收会话配对与交给 Agent
 
+本页维护配对身份、接收适配范围、明确发送与回执的领域契约及取舍。字段和路由见 [协议](../protocol.md#接收会话配对与请求)，验证方法见 [验证门槛](../validation/test-gates.md#接收会话配对)，最近已知结果及未覆盖路径见 [证据入口](../validation/evidence-map.md#配对与空间请求)。
+
 ## 统一交互
 
 批注、资源选择清单和设置使用同一套接收会话配对流程。用户先为目标起名，生成十分钟有效的一次性提示，粘贴到要接收任务的具体会话，由 Agent 调用 `pair_current_session`。界面不要求用户先判断个人/共享、Codex/Claude/ChatGPT；Core 依据工具传输提供的会话身份和实际接收方式判断能否完成。新的会话需要单独配对，不按最近使用的会话猜测目标。
@@ -35,10 +37,11 @@ sequenceDiagram
 - Codex 身份来自 MCP `_meta` 中的当前 thread/turn；Claude 来自进程的 `CLAUDE_CODE_SESSION_ID` 和本次 `_meta.claudecode/toolUseId`。个人 Claude 的配对、接收核验和请求读取/完成都核对工具调用确实存在于该会话最新 transcript，防止恢复会话后使用过期进程身份。工具参数不能指定 Provider、Session 或接收连接。
 - 本机 Core 管理的共享运行时，使用已有原生连接核对精确 Session。发送仍走 `Session.RPC(turn/start)`，检查当前输入归属、空闲状态及审批；同一请求 ID 不重复执行。共享运行时只接受自身空间的引用。
 - 个人 Claude 使用独立于共享运行时的实验性 Channel 适配器。STDIO 声明 `experimental["claude/channel"]`，Core 将最小事件送到该连接，再发 `notifications/claude/channel`。首次配对必须收到通知中的随机挑战并通过 `confirm_pairing` 回传，写入 STDIO 本身不是接收证明。未开启 Channel、账户/组织不支持或宿主丢弃通知时，状态停留在 `verifying`，到期失效。
-- 当前个人 Codex 和不能提供可核对身份的宿主返回 `unsupported`。不能因此创建新会话、恢复旧会话、猜测默认 app-server，或把普通 MCP 日志通知当作模型唤醒。
+- 当前原生 Codex 接收路径包括 Core 管理的共享 fork，以及成员明确创建的独立接收会话。未由 Core 管理、仅连接个人 MCP 的既有 Codex 会话尚无接收适配，配对返回 `unsupported`；这是 Team Cross 的接入范围，不代表 Codex 原生平台不能向已有会话输入。不能提供可核对身份的宿主也返回 `unsupported`。
+- 配对不能隐式创建或恢复会话、猜测默认 app-server，或把普通 MCP 日志通知当作模型唤醒。独立接收会话的创建与恢复属于成员另行明确执行的 [工作台入口](space-workbench.md#独立原生接收会话)。
 - 配对码、会话目标和选择引用均属于当前 Core 数据目录。跨设备配对码路由尚未接入，不能把 A 上的码直接交给只连接 B Core 的工具。已有 `joined-…` 引用仍按本机成员权限读取。
 
-Claude 的普通 MCP 配置不代表已启用 Channel。开发接入需按 [官方 Channel 文档](https://code.claude.com/docs/en/channels-reference) 在运行中的客户端显式启用对应服务；Team Cross 不自动改写用户的启动参数或账户设置。协议测试通过不能推广为任意账户上的真实模型验收。
+Claude 的普通 MCP 配置不代表已启用 Channel。开发接入需按 [官方 Channel 文档](https://code.claude.com/docs/en/channels-reference) 在运行中的客户端显式启用对应服务；Team Cross 不自动改写用户的启动参数或账户设置。该适配仍为实验性，最近已知真实探测受宿主门槛阻塞，具体版本及失败范围见 [证据入口](../validation/evidence-map.md#配对与空间请求)。协议测试通过不能推广为任意账户上的真实模型验收。
 
 ## 投递与回执
 

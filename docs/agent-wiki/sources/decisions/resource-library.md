@@ -1,5 +1,7 @@
 # 个人资源库与资源速览
 
+本页维护资源索引、选择与固定读取入口、菜单栏速览的领域契约及取舍。字段和限额由 [协议](../protocol.md#个人资源库) 维护，通用阅读交互见 [产品流程](../product-flows.md#上下文阅读)，浏览器与原生桌面的已知验证范围见 [证据入口](../validation/evidence-map.md#空间材料与读取)。
+
 ## 目的与入口
 
 协作材料、原文批注和执行上下文需要反复带给个人或共享 Agent。资源库统一这些内容的查找、阅读和选择，减少逐条复制 UUID 与工具说明。WebGUI 主导航保留“协作空间”“设置与连接”，新增“资源库”。设置页原有主题、客户端和 MCP 接入功能继续保留。
@@ -36,4 +38,4 @@ App 使用同源 `WKWebView` 呈现速览，原生桥只允许打开经过校验
 
 首版不提供团队公共文件库、全文离线副本或自动同步私人 Session。免除重复粘贴仅适用于已核对会话身份与接收能力的配对目标。资源量增大时再评估索引分页与全文搜索；当前收藏和导航元数据有数量界限，协议细节统一见 [资源库接口](../protocol.md#个人资源库)。
 
-实现入口：[Core](../../../../internal/collab/library.go)、[个人 MCP](../../../../internal/mcp/library.go)、[WebGUI](../../../../packages/web/src/components/Library.tsx)、[原生速览](../../../../apps/macos/TeamCross.swift)。实际验证与未覆盖项见 [2026-09-22 记录](../../tasks/finished_archived/resource-library-2026-09-22.md)。
+实现入口：[Core](../../../../internal/collab/library.go)、[个人 MCP](../../../../internal/mcp/library.go)、[WebGUI](../../../../packages/web/src/components/Library.tsx)、[原生速览](../../../../apps/macos/TeamCross.swift)。实际验证与未覆盖项从 [证据入口](../validation/evidence-map.md#空间材料与读取) 定向读取；旧共享发送流程的结果不替代统一配对或原生速览交互验收。

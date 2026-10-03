@@ -1,5 +1,7 @@
 # ChatGPT 本机 WebGUI 插件
 
+本页维护本机插件的宿主范围、包生命周期、界面桥和输入框引用契约及取舍。工具字段由 [协议](../protocol.md) 维护，开发命令见 [开发与构建](../development.md#本机-chatgpt-插件)。原生加载、桌面交互、模型读取与接收须分别取证，最近已知结果见 [证据入口](../validation/evidence-map.md#chatgpt-本机插件)。
+
 ## 范围与接入
 
 Team Cross 的本机插件为 ChatGPT for Mac 的本机 Work/Codex 提供完整的现有 WebGUI。个人客户端通过 `teamcross mcp --ui` 的 stdio 读取嵌入式 MCP Apps 资源；MCP 进程使用现有 Go Backend 与认证的 loopback Core。面板不直接请求 Core，不需要公网入站、HTTPS 托管或 Team Cross 云端账号。远端协作者仍通过原有 LAN / Tailcat 连接本机 Core；本机插件没有改变这些网络条件。
@@ -60,4 +62,4 @@ Composer mentions 直接接入宿主的原生输入框，不增加插件专用�
 - [输入框搜索与资源读取](../../../../internal/mcp/mentions.go)、[资源库检索](../../../../internal/collab/mentions.go)。
 - [本地包管理](../../../../internal/pluginpack/plugin.go)、[CLI](../../../../cmd/teamcross/plugin.go)。
 - [共同入口](../../../../packages/web/src/main.tsx)、[完整 WebGUI](../../../../packages/web/src/App.tsx)、[插件环境](../../../../packages/web/src/plugin/environment.ts)、[宿主桥](../../../../packages/web/src/plugin/bridge.ts)、[自包含构建](../../../../packages/web/vite.plugin.config.ts)。
-- 通过标准由 [本机插件验证门槛](../validation/test-gates.md#chatgpt-本机插件) 维护，具体版本结果保存在任务记录。
+- 通过标准由 [本机插件验证门槛](../validation/test-gates.md#chatgpt-本机插件) 维护；具体版本结果保存在任务记录，从 [证据入口](../validation/evidence-map.md#chatgpt-本机插件) 区分协议测试、用户桌面验收和后续待补证范围。

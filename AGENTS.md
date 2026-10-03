@@ -27,14 +27,15 @@
 
 按 [验证契约](docs/agent-wiki/sources/validation/test-gates.md) 选择检查。产品代码的工程门槛包括 Go test/vet、相关 race test 和 Web check/test/build；修改前端后更新 `internal/webassets/dist`，进行真实浏览器与截图复核。
 
-仅修改文档时检查相对链接、代码路径、旧引用、索引可达性和 `git diff --check`，无需重新启动模型或测试客户端。`sources/validation/` 维护验证要求；实际执行结果按 [任务记录规则](docs/agent-wiki/README.md#任务记录) 留存，不将旧验收结果自动推广到后续版本。
+仅修改文档时检查相对链接、代码路径、旧引用、索引可达性和 `git diff --check`，无需重新启动模型或测试客户端。`sources/validation/` 维护验证要求与[证据入口](docs/agent-wiki/sources/validation/evidence-map.md)；完整执行结果按 [任务记录规则](docs/agent-wiki/README.md#任务记录) 留存，不将旧验收结果自动推广到后续版本。回答支持范围或是否已验收时，核对具体路径的契约、实现及执行记录，分别报告原生能力、接入范围和被测环境；未收录证据不等于不支持。
 
 验证后关闭本次启动的测试客户端、Core、app-server、浏览器页面及其测试辅助进程；先核对 PID、父子关系或测试目录，不按程序名批量终止用户的 Codex 或浏览器。
 
 ## 文档维护
 
-- [Agent Wiki 说明](docs/agent-wiki/README.md) 定义维护流程。`sources/` 保存完整事实、决策与验证契约，`wiki/index.md` 直接指向来源或代码；需要跨主题导航时才设置 `wiki/concepts/`，不要求来源与概念页一一对应。
+- [Agent Wiki 说明](docs/agent-wiki/README.md) 定义维护流程。`sources/` 根目录维护项目级规范与操作说明，`decisions/` 维护当前领域契约与设计取舍，`validation/` 维护验证方法与证据范围；`wiki/index.md` 直接指向来源或代码，`wiki/concepts/` 只按需解释跨主题关系并导航，不重复维护完整规范或验收状态。
 - 影响长期判断时，在同一提交中更新该事实的主要维护位置；只有摘要内容或阅读入口也发生变化时，才同步概念页、索引、本文件或 README。未改变长期知识的小改动不新增文档。
+- 验收范围扩展、出现阻塞或相关改动影响旧证据时，同步更新证据入口与领域契约中的当前限制；归档前保留从当前来源到相关报告的直接入口。
 - [核心词汇](docs/agent-wiki/sources/product-core-and-glossary.md) 负责产品语义，[协议](docs/agent-wiki/sources/protocol.md) 负责字段与路由；短页面不重复维护完整规范。
 - 旧现场与 main 迁移见 [IMPLEMENTATION.md](IMPLEMENTATION.md)。归档材料只供考据，不能把旧产品边界重新当作当前要求。
 - `sources/` 与 `wiki/` 不保存一次性日志、普通 TODO 或未验证猜测；确有接续价值的内容按任务规则记录。凭据和真实邀请 secret 不写入任何文档；未来 compiler 的 `.llmwiki/` 状态保持本地忽略。
