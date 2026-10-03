@@ -135,7 +135,7 @@ func TestConnectionOptInUpgradeAndUILoadReceipt(t *testing.T) {
 	}
 }
 
-func TestConnectionAdoptsExistingSourceAndBindingAndRepairsFailure(t *testing.T) {
+func TestConnectionAdoptsExistingSourceWithCurrentCoreAndRepairsFailure(t *testing.T) {
 	c, dir := connectionFixture(t)
 	customRoot, customData := filepath.Join(dir, "custom package"), filepath.Join(dir, "original data")
 	if _, err := Export(customRoot, c.Binary, customData, c.Version); err != nil {
@@ -145,7 +145,7 @@ func TestConnectionAdoptsExistingSourceAndBindingAndRepairsFailure(t *testing.T)
 	copyFixture(t, dir, "candidate-market", "market")
 	copyFixture(t, dir, "candidate-installed", "installed")
 	v, err := c.Apply(context.Background(), "connect")
-	if err != nil || v.Root != customRoot || v.DataDir != customData || !v.DifferentData {
+	if err != nil || v.Root != customRoot || v.DataDir != c.DataDir || v.DifferentData {
 		t.Fatal(v, err)
 	}
 	os.WriteFile(c.Binary, []byte("#!/bin/sh\nexit 1\n"), 0700)
@@ -164,8 +164,129 @@ func TestConnectionAdoptsExistingSourceAndBindingAndRepairsFailure(t *testing.T)
 	}
 	os.Remove(filepath.Join(dir, "fail-add"))
 	v, err = c.Apply(context.Background(), "connect")
-	if err != nil || !v.Installed || v.DataDir != customData || v.Root != customRoot {
+	if err != nil || !v.Installed || v.DataDir != c.DataDir || v.Root != customRoot {
 		t.Fatal(v, err)
+	}
+}
+
+func TestConnectionSyncFollowsCoreWithoutChangingData(t *testing.T) {
+	c, dir := connectionFixture(t)
+	ctx := context.Background()
+	original, current := c.DataDir, filepath.Join(dir, "current Core")
+	for _, path := range []string{original, current} {
+		os.MkdirAll(path, 0700)
+		os.WriteFile(filepath.Join(path, "keep"), []byte(path), 0600)
+	}
+	if _, err := c.Apply(ctx, "connect"); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := c.read()
+	t.Setenv("TEAMCROSS_PLUGIN_PROFILE", c.Home)
+	t.Setenv("TEAMCROSS_PLUGIN_GENERATION", old.Generation)
+	MarkUILoaded(original)
+	c.DataDir = current
+	// Reading Settings must not switch the plugin before an explicit action or
+	// the owning App's opted-in startup sync.
+	if v := c.Status(ctx); !v.DifferentData || v.DataDir != original {
+		t.Fatal(v)
+	}
+	v, err := c.Apply(ctx, "sync")
+	if err != nil || v.DataDir != current || v.DifferentData || !v.ReloadRequired || !v.AutoUpdate {
+		t.Fatal(v, err)
+	}
+	state, _ := c.read()
+	if state.DataDir != current || state.PendingDataDir != "" || state.Generation == old.Generation {
+		t.Fatal(state)
+	}
+	MarkUILoaded(original)
+	if !c.Status(ctx).ReloadRequired {
+		t.Fatal("old Core acknowledged the switched plugin")
+	}
+	t.Setenv("TEAMCROSS_PLUGIN_GENERATION", state.Generation)
+	MarkUILoaded(current)
+	if v := c.Status(ctx); v.ReloadRequired || v.State != "installed" {
+		t.Fatal(v)
+	}
+	if _, err = c.Apply(ctx, "sync"); err != nil {
+		t.Fatal(err)
+	}
+	unchanged, _ := c.read()
+	if unchanged.Generation != state.Generation {
+		t.Fatal("unchanged binding reinstalled plugin")
+	}
+	for _, path := range []string{original, current} {
+		entries, _ := os.ReadDir(path)
+		b, _ := os.ReadFile(filepath.Join(path, "keep"))
+		if len(entries) != 1 || string(b) != path {
+			t.Fatal("binding switch modified Core data", path)
+		}
+	}
+}
+
+func TestConnectionInterruptedBindingSwitchCanRetry(t *testing.T) {
+	for _, phase := range []string{"export", "install"} {
+		t.Run(phase, func(t *testing.T) {
+			c, dir := connectionFixture(t)
+			ctx := context.Background()
+			if _, err := c.Apply(ctx, "connect"); err != nil {
+				t.Fatal(err)
+			}
+			original := c.DataDir
+			c.DataDir = filepath.Join(dir, "current Core")
+			manifest := filepath.Join(c.Root, ".agents/plugins/marketplace.json")
+			backup := filepath.Join(dir, "marketplace-backup.json")
+			if phase == "export" {
+				if err := os.Rename(manifest, backup); err != nil {
+					t.Fatal(err)
+				}
+				os.Mkdir(manifest, 0700) // failure before the package marker changes
+			} else {
+				os.WriteFile(filepath.Join(dir, "fail-add"), nil, 0600)
+			}
+			if _, err := c.Apply(ctx, "sync"); err == nil {
+				t.Fatal("binding switch failure was hidden")
+			}
+			s, err := c.read()
+			if err != nil || s.DataDir != original || s.PendingDataDir != c.DataDir || s.Error == "" {
+				t.Fatal(s, err)
+			}
+			if v := c.Status(ctx); v.State != "error" || strings.Contains(v.Error, "binding changed") {
+				t.Fatal("interrupted switch is not inspectable", v)
+			}
+			if phase == "export" {
+				os.Remove(manifest)
+				os.Rename(backup, manifest)
+			} else {
+				os.Remove(filepath.Join(dir, "fail-add"))
+			}
+			v, err := c.Apply(ctx, "connect")
+			if err != nil || !v.Installed || v.DataDir != c.DataDir || v.DifferentData {
+				t.Fatal("explicit retry could not complete the binding switch", v, err)
+			}
+			s, _ = c.read()
+			if s.PendingDataDir != "" || s.Error != "" {
+				t.Fatal(s)
+			}
+		})
+	}
+}
+
+func TestConnectionDifferentAppCannotAutomaticallySwitchCore(t *testing.T) {
+	c, dir := connectionFixture(t)
+	ctx := context.Background()
+	if _, err := c.Apply(ctx, "connect"); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := c.read()
+	c.DataDir = filepath.Join(dir, "other Core")
+	c.Binary = filepath.Join(dir, "other App")
+	os.WriteFile(c.Binary, []byte("#!/bin/sh\nexit 0\n"), 0700)
+	if _, err := c.Apply(ctx, "sync"); err == nil {
+		t.Fatal("different App took over automatically")
+	}
+	p, _ := Inspect(c.Root)
+	if p.DataDir != old.DataDir {
+		t.Fatal("different App switched Core", p)
 	}
 }
 

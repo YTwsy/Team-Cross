@@ -159,7 +159,9 @@ with tempfile.TemporaryDirectory(prefix="teamcross-app-instance-") as temp:
         assert alive(owner) and alive(other) and status(independent)["pid"] != initial["pid"]
 
         if args.plugin_codex_bin:
-            connection = json.loads(run(str(helper), "plugin", "connect", "--data-dir", str(data),
+            # An older opted-in plugin can retain another Core. Actual App
+            # startup must correct that binding as well as refresh its bytes.
+            connection = json.loads(run(str(helper), "plugin", "connect", "--data-dir", str(independent),
                 "--codex-bin", args.plugin_codex_bin, env=env).stdout)
             assert connection["installed"] and connection["autoUpdate"]
             runtime = pathlib.Path(connection["root"]) / "runtime/teamcross"
@@ -180,9 +182,13 @@ with tempfile.TemporaryDirectory(prefix="teamcross-app-instance-") as temp:
 
         if args.plugin_codex_bin:
             wait_for(lambda: runtime.read_bytes() == helper.read_bytes(), "App startup did not refresh the opted-in plugin", timeout=45)
-            updated = json.loads(run(str(helper), "plugin", "connection-status", "--data-dir", str(data),
-                "--codex-bin", args.plugin_codex_bin, env=env).stdout)
+            def synced_plugin():
+                value = json.loads(run(str(helper), "plugin", "connection-status", "--data-dir", str(data),
+                    "--codex-bin", args.plugin_codex_bin, env=env).stdout)
+                return value if value["state"] == "reload_required" and value["dataDir"] == str(data) else None
+            updated = wait_for(synced_plugin, "App did not finish refreshing the plugin binding and registration", timeout=45)
             assert updated["reloadRequired"] and updated["dataDir"] == str(data)
+            assert not updated["differentData"]
             assert updated["root"] == connection["root"] and not events("stop")
             run(str(helper), "plugin", "disconnect", "--data-dir", str(data),
                 "--codex-bin", args.plugin_codex_bin, env=env)
@@ -207,6 +213,7 @@ with tempfile.TemporaryDirectory(prefix="teamcross-app-instance-") as temp:
                           "secondaryExitPreservesCore": True, "shellCrashRecovery": True,
                           "explicitQuitStopsCore": True, "dataPreserved": True,
                           "pluginOptInRequired": True, "pluginStartupSync": bool(args.plugin_codex_bin),
+                          "pluginFollowsAppCore": bool(args.plugin_codex_bin),
                           "realCodexOrLAN": False}))
     finally:
         # Every PID was returned for an explicit fixture path, and is checked

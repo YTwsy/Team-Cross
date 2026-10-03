@@ -109,11 +109,11 @@ export function ChatGPTPluginConnection({
             <p>
               {data.autoUpdate
                 ? t(
-                    "自动同步已启用。每次打开 Team Cross App 时，检查并更新此插件。",
+                    "自动同步已启用。每次打开 Team Cross App 时，更新插件并连接到该 App 当前使用的本机数据。",
                   )
                 : t("点击连接后启用自动同步。安装 App 本身不会添加插件。")}
             </p>
-          {data.reloadRequired && data.state !== "update_available" && (
+            {data.reloadRequired && data.state !== "update_available" && (
               <div className="notice">
                 {t(
                   "插件文件已更新。完全退出并重新打开 ChatGPT，再打开 Team Cross 插件。新版界面打开后，此提示会自动消失。",
@@ -133,7 +133,7 @@ export function ChatGPTPluginConnection({
             {data.differentData && (
               <div className="notice">
                 {t(
-                  "这个插件连接了另一个本机数据目录。更新会保留该目录，不会切换到当前空间列表。",
+                  "这个插件连接了另一个本机数据目录。连接后将使用当前 Team Cross 的数据，原目录的内容会保留。",
                 )}
               </div>
             )}
@@ -173,11 +173,13 @@ export function ChatGPTPluginConnection({
                 ? t("重试连接")
                 : data.state === "disconnected"
                   ? t("重新连接")
-                  : !data.installed
-                    ? t("安装到 ChatGPT")
-                    : !data.autoUpdate
-                      ? t("连接并启用自动同步")
-                      : t("同步插件")}
+                  : data.differentData
+                    ? t("连接到当前数据")
+                    : !data.installed
+                      ? t("安装到 ChatGPT")
+                      : !data.autoUpdate
+                        ? t("连接并启用自动同步")
+                        : t("同步插件")}
           </button>
         )}
         {data?.autoUpdate && (

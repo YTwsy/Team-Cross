@@ -37,9 +37,13 @@ func runPlugin(args []string) error {
 		return err
 	}
 	explicitRoot := false
+	explicitData := false
 	flags.Visit(func(f *flag.Flag) {
 		if f.Name == "plugin-dir" {
 			explicitRoot = true
+		}
+		if f.Name == "data-dir" {
+			explicitData = true
 		}
 	})
 	// Preserve manual installation behavior, while commands targeting an opted-in
@@ -60,6 +64,15 @@ func runPlugin(args []string) error {
 			return fmt.Errorf("This profile already manages another plugin source")
 		}
 		if enabled && absolute == managedRoot {
+			// App/Settings calls supply their Core explicitly. Legacy CLI updates
+			// without a directory must not fall back to an unrelated default Core.
+			if !explicitData && (action == "install" || action == "upgrade" || action == "sync") {
+				p, e := pluginpack.Inspect(managedRoot)
+				if e != nil {
+					return e
+				}
+				*data = p.DataDir
+			}
 			switch action {
 			case "install", "upgrade":
 				action = "connect"
@@ -111,12 +124,6 @@ func runPlugin(args []string) error {
 		return err
 	}
 	if action == "export" || action == "install" || action == "upgrade" {
-		explicitData := false
-		flags.Visit(func(f *flag.Flag) {
-			if f.Name == "data-dir" {
-				explicitData = true
-			}
-		})
 		if !explicitData {
 			previous, e := pluginpack.Inspect(*root)
 			if e == nil {

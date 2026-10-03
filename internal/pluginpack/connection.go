@@ -23,13 +23,16 @@ type Connection struct {
 }
 
 type connectionState struct {
-	Format     int    `json:"format"`
-	Enabled    bool   `json:"enabled"`
-	Root       string `json:"root"`
-	DataDir    string `json:"dataDir"`
-	Source     string `json:"source"`
-	Generation string `json:"generation"`
-	Error      string `json:"error,omitempty"`
+	Format  int    `json:"format"`
+	Enabled bool   `json:"enabled"`
+	Root    string `json:"root"`
+	DataDir string `json:"dataDir"`
+	// Retain both bindings until export and native registration finish, so an
+	// interrupted switch can be inspected and retried without editing files.
+	PendingDataDir string `json:"pendingDataDir,omitempty"`
+	Source         string `json:"source"`
+	Generation     string `json:"generation"`
+	Error          string `json:"error,omitempty"`
 }
 
 type ConnectionStatus struct {
@@ -89,7 +92,7 @@ func (c Connection) read() (connectionState, error) {
 	if err != nil {
 		return s, err
 	}
-	if json.Unmarshal(b, &s) != nil || s.Format != 1 || !filepath.IsAbs(s.Root) || !filepath.IsAbs(s.DataDir) || !filepath.IsAbs(s.Source) {
+	if json.Unmarshal(b, &s) != nil || s.Format != 1 || !filepath.IsAbs(s.Root) || !filepath.IsAbs(s.DataDir) || !filepath.IsAbs(s.Source) || (s.PendingDataDir != "" && (!filepath.IsAbs(s.PendingDataDir) || s.Error == "")) {
 		return s, fmt.Errorf("Invalid Team Cross plugin connection record")
 	}
 	return s, nil
@@ -206,7 +209,7 @@ func (c Connection) inspect(ctx context.Context, s connectionState) (ConnectionS
 		return v, m, err
 	}
 	if err == nil {
-		if p.Binary != filepath.Join(m.Root, "runtime", "teamcross") || !filepath.IsAbs(p.DataDir) || (s.DataDir != "" && p.DataDir != s.DataDir) {
+		if p.Binary != filepath.Join(m.Root, "runtime", "teamcross") || !filepath.IsAbs(p.DataDir) || (s.DataDir != "" && p.DataDir != s.DataDir && p.DataDir != s.PendingDataDir) {
 			return v, m, fmt.Errorf("Plugin package binding changed; inspect the original installation")
 		}
 		if err = safePath(m.Root, "runtime/teamcross"); err != nil {
@@ -330,7 +333,7 @@ func (c Connection) Apply(ctx context.Context, action string) (ConnectionStatus,
 			}
 			return v, fmt.Errorf("%s", s.Error)
 		}
-		if v.State != "update_available" && s.Error == "" {
+		if v.State != "update_available" && !v.DifferentData && s.Error == "" {
 			return v, nil
 		}
 	}
@@ -344,16 +347,26 @@ func (c Connection) Apply(ctx context.Context, action string) (ConnectionStatus,
 			s = connectionState{Format: 1, Root: m.Root, DataDir: data, Source: c.Binary}
 		}
 		s.Enabled = false
+		if v.DataDir != "" {
+			s.DataDir = v.DataDir
+		}
+		s.PendingDataDir = ""
 		if err = c.save(s); err != nil {
 			return v, err
 		}
 		_, err = m.Remove(ctx)
 	} else {
-		data := v.DataDir
-		if data == "" {
-			data = c.DataDir
+		// The App supplies its actual Core directory. Explicit connection and
+		// opted-in startup sync follow that Core, including legacy demo bindings.
+		data := c.DataDir
+		previous := v.DataDir
+		if previous == "" {
+			previous = data
 		}
-		s = connectionState{Format: 1, Enabled: true, Root: m.Root, DataDir: data, Source: c.Binary, Generation: randomGeneration()}
+		s = connectionState{Format: 1, Enabled: true, Root: m.Root, DataDir: previous, Source: c.Binary, Generation: randomGeneration()}
+		if previous != data {
+			s.PendingDataDir = data
+		}
 		// Persist intent before export/remove/add. An interrupted operation is
 		// visible and repairable through an explicit connect, never silently done.
 		s.Error = "Plugin setup did not finish; retry from Settings"
@@ -383,6 +396,9 @@ func (c Connection) Apply(ctx context.Context, action string) (ConnectionStatus,
 					err = fmt.Errorf("Plugin is registered but disabled; enable it in ChatGPT and retry")
 				}
 			}
+		}
+		if err == nil {
+			s.DataDir, s.PendingDataDir = data, ""
 		}
 	}
 	s.Error = ""
@@ -430,7 +446,7 @@ func MarkUILoaded(dataDir string) error {
 	if err != nil {
 		return err
 	}
-	if !s.Enabled || s.Generation != generation || s.DataDir != dataDir {
+	if !s.Enabled || s.Error != "" || s.PendingDataDir != "" || s.Generation != generation || s.DataDir != dataDir {
 		return nil
 	}
 	if err = safePath(c.dir(), "loaded.json"); err != nil {

@@ -43,6 +43,7 @@ beforeEach(() => {
                 installed: true,
                 autoUpdate: true,
                 reloadRequired: true,
+                differentData: false,
               };
       }
       return { ok: true, json: async () => ({ ...state }) };
@@ -69,7 +70,7 @@ it("connects only on click and separates installed files from a loaded interface
   expect(writes).toEqual([{ action: "connect" }, { action: "disconnect" }]);
 });
 
-it("shows preserved legacy binding before enabling automatic sync", async () => {
+it("connects a legacy plugin to current data only after an explicit action", async () => {
   state = {
     ...state,
     installed: true,
@@ -82,10 +83,15 @@ it("shows preserved legacy binding before enabling automatic sync", async () => 
   expect(
     await screen.findByText(/这个插件连接了另一个本机数据目录/),
   ).toBeVisible();
-  expect(
-    await screen.findByRole("button", { name: "连接并启用自动同步" }),
-  ).toBeVisible();
+  const connect = await screen.findByRole("button", { name: "连接到当前数据" });
+  expect(connect).toBeVisible();
   expect(writes).toEqual([]);
+  await userEvent.click(connect);
+  expect(await screen.findByText("等待打开新版插件")).toBeVisible();
+  expect(writes).toEqual([{ action: "connect" }]);
+  expect(
+    screen.queryByText(/这个插件连接了另一个本机数据目录/),
+  ).not.toBeInTheDocument();
 });
 
 it("does not replay a write after losing its response", async () => {

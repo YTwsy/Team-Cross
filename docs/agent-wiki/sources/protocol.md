@@ -81,7 +81,7 @@
 
 `personal-desktop` 从本机持久化协作记录读取 `sessionId`，生成 `codex://threads/<sessionId>`，不使用来源 `sourceId` 或请求体提供的会话 ID/URL。返回 `{sessionId,url,command,launched,note}`；`launch:false` 仅生成命令，`launch:true` 通过 `open -a <Desktop路径> <URL>` 请求打开普通 Desktop，`launched` 只表示系统打开请求成功，不证明页面、侧边栏或新消息已刷新。此入口不要求当前输入权或在线运行时，不 fork、resume、发送 prompt、连接共享网关或更改共享状态；不适用于接收者或 Claude 协作。
 
-插件连接响应包含 `state`（`not_installed|installed|reload_required|update_available|unavailable|disconnected|error`）、`available`、`autoUpdate`、`installed`、`pluginEnabled`、`reloadRequired`、`differentData`，以及可选的 `version`、`root`、`dataDir` 和 `error`。`available` 表示已找到客户端 CLI；`installed` 表示原生注册存在，不能替代界面加载回执。`dataDir` 是插件的实际绑定，`differentData` 与当前 Core 对比。连接管理接口只在浏览器本机 API 和 app-only UI 工具开放，普通模型工具不获得安装入口。
+插件连接响应包含 `state`（`not_installed|installed|reload_required|update_available|unavailable|disconnected|error`）、`available`、`autoUpdate`、`installed`、`pluginEnabled`、`reloadRequired`、`differentData`，以及可选的 `version`、`root`、`dataDir` 和 `error`。`available` 表示已找到客户端 CLI；`installed` 表示原生注册存在，不能替代界面加载回执。`dataDir` 是插件的实际绑定，`differentData` 与当前 Core 对比。显式 `connect` 使用该接口所在 Core 的数据目录；请求不接受调用者自定目录或可执行文件。App 的 `sync --data-dir` 在已启用接入时同步其实际 Core 绑定。连接管理接口只在浏览器本机 API 和 app-only UI 工具开放，普通模型工具不获得安装入口。
 
 ## 个人资源库
 
