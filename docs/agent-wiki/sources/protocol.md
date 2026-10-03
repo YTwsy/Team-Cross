@@ -228,6 +228,8 @@ TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS/Tailcat 路�
 
 `info.mcpClients.codex|claude` 各含 `configured`、`command`、`configError?`、`observedAt`；配置检测限定本机辅助目录。`mcpProbed` 是共用工具服务的独立协议检查。兼容 CLI 诊断的顶层 `mcpConfigured/mcpCommand/mcpObservedAt` 仍对应 Codex。实际调用根据 MCP 初始化声明的客户端名识别，未知名不冒充 Codex；该信息只用于诊断，不授予协作权限。
 
+`GET /api/info` 的 `settings` 返回保存的 `binary/desktopApp/claudeBinary/uiLanguage?`；空路径表示自动发现。顶层 `binary/desktopApp/claudeBinary` 是当前有效路径，不作为表单默认保存值。`codexInstallation` 含 `binary/source/desktopApp?/recoveredFrom?`，来源为 `custom/environment/app/path/common/shell`，自动发现没有候选时为空。`codexError/codexRecovery` 分别给出客户端问题与恢复提示。`GET /api/info?refreshClients=1` 刷新登录 Shell PATH 缓存再检测，保持设置和原生会话不变；插件 UI 的读取白名单允许这一参数，不接受额外查询键或重复值。`POST /api/settings` 保存用户选择，继续保留独立的界面语言偏好。
+
 STDIO MCP 采用逐行 JSON-RPC 2.0，协议版本 `2024-11-05`；只在 stdout 输出协议消息。工具输入和结果遵循上述管理 API。
 
 个人 MCP 提供 `request_input/cancel_input_request/handoff_input/reclaim_input/return_input`，参数为 `{id,epoch,memberId?}`（`memberId` 用于选择交接接收者），分别映射 `request_input/cancel_input/handoff/reclaim/return`。`epoch` 必须是刚查询到的正整数状态版本；缺失、过期、错误角色、尚未加入或忙碌交出/交还均拒绝。接回不自动中断轮次。成功后查询详情获取新版本，失败或超时不自动刷新版本重放动作。普通详情和输入管理结果均移除 `invitation`；工具错误以 JSON 文本返回 `code/error/recovery` 并设置 `isError:true`。

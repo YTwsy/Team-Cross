@@ -50,7 +50,7 @@ Formula 与 Cask 均检查稳定版和 RC 另一渠道的成功安装收据，�
 
 加入后进入所获授权的空间上下文；页面关闭不停止本机 Core 的在线心跳。多人参与、成员资格与执行访问按 [协作空间契约](decisions/collaboration-spaces.md) 判断，申请和交接按 [输入协调](decisions/input-and-sharing.md) 处理；心跳周期、在线窗口与请求字段统一维护在 [共享协议](protocol.md#共享邀请与传输)。
 
-直接客户端以连接建立、成功读取或恢复对应 thread 区分 `connected` 和 `session_ready`。Desktop 仍需手动打开会话时如实说明。配置发现支持显式 CLI、安装 App 内的 CLI、PATH 与系统/用户 Applications；实际版本可诊断，实验 Desktop 接口不视为公开稳定合同。
+直接客户端以连接建立、成功读取或恢复对应 thread 区分 `connected` 和 `session_ready`。Desktop 仍需手动打开会话时如实说明。设置页区分自动发现、手动配置与当前检测结果，并提供重新检测、错误恢复和同一应用内 CLI 迁移提示；保存时不固定自动发现的路径。发现顺序与失效处理由 [原生客户端决策](decisions/native-clients-and-models.md#cli-发现与配置) 维护。实际版本可诊断，实验 Desktop 接口不视为公开稳定合同。
 
 MCP 配置保存稳定 opt/App 绝对路径。通过 Cask 命令链接调用时也解析回 App helper；不保存版本化 Cellar 路径或依赖 shell alias。个人 Codex 或 Claude Code 分别配置；Claude 使用 user 范围原生配置命令，遇到当前项目同名覆盖或禁用时提示处理。配置存在、独立 STDIO 协议探测和各 Provider 实际客户端工具调用分别记录；仅配置成功不代表旧客户端已重载工具。协议探测不启动模型，也不记录为实际客户端调用。
 

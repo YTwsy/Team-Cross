@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"teamcross/internal/nativecodex"
 	"time"
 )
 
@@ -59,16 +59,8 @@ func NativeHome() (string, error) {
 
 // Prefer the desktop's matching CLI over an unrelated CLI earlier in PATH.
 func DesktopCLI() string {
-	home, _ := os.UserHomeDir()
-	for _, base := range []string{"/Applications", filepath.Join(home, "Applications")} {
-		for _, name := range []string{"ChatGPT.app", "Codex.app"} {
-			for _, relative := range []string{"Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex", "Contents/Resources/codex"} {
-				path := filepath.Join(base, name, relative)
-				if executable(path) {
-					return path
-				}
-			}
-		}
+	if app := nativecodex.DefaultDesktop(); app != "" {
+		return nativecodex.BundledBinary(app)
 	}
 	return ""
 }
@@ -459,7 +451,8 @@ func MarkUILoaded(dataDir string) error {
 // detected desktop installation. No package-manager or download side effects.
 func CLIForConnection(explicit string) (string, error) {
 	if strings.TrimSpace(explicit) != "" {
-		return exec.LookPath(explicit)
+		installation, err := nativecodex.Discover(explicit, "")
+		return installation.Binary, err
 	}
 	return DesktopCLI(), nil
 }

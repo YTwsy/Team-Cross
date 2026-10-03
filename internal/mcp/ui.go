@@ -159,7 +159,9 @@ func uiRoute(path string, body any, write bool) (string, error) {
 	queries := ""
 	if !write && method == "GET" {
 		switch u.Path {
-		case "info", "ui-language", "collaborations", "library", "agent-pairings", "agent-requests", "plugin/connection":
+		case "info":
+			allowed, queries = true, "refreshClients"
+		case "ui-language", "collaborations", "library", "agent-pairings", "agent-requests", "plugin/connection":
 			allowed = true
 		case "sources":
 			allowed, queries = true, "provider search cursor"

@@ -50,6 +50,7 @@ go build -o bin/teamcross ./cmd/teamcross
 | [runtime_mode_test.go](../../../../internal/collab/runtime_mode_test.go) | 创建模式与预览绑定、不可切换、原生权限、hook 确认归属、同 ID 恢复和结束访问 |
 | [model_test.go](../../../../internal/collab/model_test.go) | 模型继承、设置更新、拒绝请求、恢复与通知 |
 | [process_test.go](../../../../internal/nativecodex/process_test.go) | 客户端配置与启动不强制模型 |
+| [discovery_test.go](../../../../internal/nativecodex/discovery_test.go)、[client_discovery_test.go](../../../../internal/collab/client_discovery_test.go)、[native-client-settings.test.tsx](../../../../packages/web/src/test/native-client-settings.test.tsx) | 新旧应用布局、同应用迁移、自定义路径与环境覆盖、Shell PATH 缓存刷新、保存值与检测结果分离及失效恢复；真实版本、TUI/Desktop 按原生客户端门槛另行验证 |
 | [server_test.go](../../../../internal/mcp/server_test.go) | STDIO 读取不发送输入，保留输入文本与请求 ID |
 | [agent_read_test.go](../../../../internal/collab/agent_read_test.go) / [agent_annotations_test.go](../../../../internal/collab/agent_annotations_test.go) / [read_test.go](../../../../internal/mcp/read_test.go) | 最终答复与工具过滤、目录/记录索引、UTF-16 连续分页、完整封装预算、单条批注与精简状态/回复回执 |
 | [current_test.go](../../../../internal/mcp/current_test.go) / [current_share_test.go](../../../../internal/collab/current_share_test.go) / [source_turn_test.go](../../../../internal/nativecodex/source_turn_test.go) | 原生调用身份、历史落盘等待、固定轮次完成、去重、取消、漂移、中断与重启不重放 |

@@ -1,16 +1,11 @@
-import {
-  serviceText,
-  t,
-  tr,
-  type LanguageInfo,
-  type LanguageMode,
-} from "../i18n";
-import { useEffect, useState } from "react";
+import { t, tr, type LanguageInfo, type LanguageMode } from "../i18n";
+import { useState } from "react";
 import { api, errorText, useResource } from "../api";
 import { type Info, type Provider } from "../types";
-import { ErrorBox, Icon, Loading, PageHeading } from "./ui";
+import { ErrorBox, Icon, PageHeading } from "./ui";
 export type Theme = "system" | "light" | "dark";
 import { MCPConnection } from "./MCPConnection";
+import { NativeClientSettings } from "./NativeClientSettings";
 import { AgentPairings } from "./AgentPairings";
 import { ChatGPTPluginConnection } from "./ChatGPTPluginConnection";
 export function Settings({
@@ -25,36 +20,11 @@ export function Settings({
   onLanguageChange: (language: LanguageInfo) => void;
 }) {
   const info = useResource<Info>("info");
-  const [binary, setBinary] = useState("");
-  const [claudeBinary, setClaudeBinary] = useState("");
-  const [desktop, setDesktop] = useState("");
   const [provider, setProvider] = useState<Provider>("codex");
   const [connecting, setConnecting] = useState(false);
-  const [busy, setBusy] = useState("");
+  const [nativeBusy, setNativeBusy] = useState(false);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
   const [languageBusy, setLanguageBusy] = useState(false);
-  useEffect(() => {
-    if (info.data) {
-      setBinary(info.data.binary || "");
-      setClaudeBinary(info.data.claudeBinary || "");
-      setDesktop(info.data.desktopApp || "");
-    }
-  }, [info.data]);
-  async function save() {
-    setBusy("save");
-    setError("");
-    setSaved(false);
-    try {
-      await api("settings", { binary, desktopApp: desktop, claudeBinary });
-      setSaved(true);
-      info.reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy("");
-    }
-  }
   async function chooseLanguage(mode: LanguageMode) {
     if (languageBusy || mode === uiLanguage.mode) return;
     setLanguageBusy(true);
@@ -184,79 +154,14 @@ export function Settings({
             ))}
           </div>
         </section>
-        <section className="panel settings-section">
-          <div className="panel-heading">
-            <div>
-              <h2>{t("原生客户端")}</h2>
-              <p>{t("用于读取本机会话和打开客户端。")}</p>
-            </div>
-            <span
-              className={`badge ${info.data?.codexError ? "warning" : "green"}`}
-            >
-              <span className="dot" />
-              {info.data?.codexError ? t("需要配置") : t("自动检测")}
-            </span>
-          </div>
-          {info.loading ? (
-            <Loading />
-          ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void save();
-              }}
-            >
-              <ErrorBox message={info.data?.codexError} />
-              <label className="field">
-                {t("Codex CLI 路径") + " "}
-                <input
-                  value={binary}
-                  onChange={(e) => setBinary(e.target.value)}
-                  placeholder={t("自动检测")}
-                />
-                <small>
-                  {info.data?.codexVersion ||
-                    t("支持指定应用内附带的 Codex CLI")}
-                </small>
-              </label>
-              <label className="field">
-                {t("Codex Desktop 应用") + " "}
-                <input
-                  value={desktop}
-                  onChange={(e) => setDesktop(e.target.value)}
-                  placeholder="/Applications/ChatGPT.app"
-                />
-                <small>{t("直接操作会使用独立的数据目录启动专用实例。")}</small>
-              </label>
-              <label className="field">
-                {t("Claude Code CLI 路径") + " "}
-                <input
-                  value={claudeBinary}
-                  onChange={(e) => setClaudeBinary(e.target.value)}
-                  placeholder={t("自动检测")}
-                />
-                <small>
-                  {info.data?.claudeVersion ||
-                    t("实验性接入要求 2.1.268 或更高版本")}
-                </small>
-              </label>
-              {info.data?.claudeError && (
-                <p className="small-text muted">
-                  {t("Claude Code：")}
-                  {serviceText(info.data.claudeError, "请检查原生客户端配置。")}
-                </p>
-              )}
-              <div className="form-footer">
-                <span role="status" className="muted">
-                  {saved ? t("设置已保存，对新启动的客户端生效。") : ""}
-                </span>
-                <button className="button" disabled={!!busy || connecting}>
-                  {busy === "save" ? t("正在保存…") : t("保存设置")}
-                </button>
-              </div>
-            </form>
-          )}
-        </section>
+        <NativeClientSettings
+          info={info.data}
+          loading={info.loading}
+          reload={info.reload}
+          onChecked={info.setData}
+          disabled={connecting}
+          onBusyChange={setNativeBusy}
+        />
         <section className="panel settings-section">
           <div className="mcp-heading">
             <span className="entry-icon">
@@ -277,7 +182,7 @@ export function Settings({
             provider={provider}
             onProviderChange={setProvider}
             reload={info.reload}
-            disabled={!!busy}
+            disabled={nativeBusy}
             onBusyChange={setConnecting}
           />
         </section>
