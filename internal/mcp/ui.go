@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"teamcross/internal/mcpassets"
+	"teamcross/internal/pluginpack"
 	"teamcross/internal/service"
 )
 
@@ -119,6 +120,7 @@ func ServeUI(ctx context.Context, dataDir string, input io.Reader, output io.Wri
 					return nil, err
 				}
 				scope := sha256.Sum256([]byte(s.DataDir))
+				_ = pluginpack.MarkUILoaded(s.DataDir)
 				return json.Marshal(map[string]any{"language": json.RawMessage(info), "scope": hex.EncodeToString(scope[:12])})
 			}
 			return b.uiRequest(ctx, path, args["body"], false)
@@ -157,7 +159,7 @@ func uiRoute(path string, body any, write bool) (string, error) {
 	queries := ""
 	if !write && method == "GET" {
 		switch u.Path {
-		case "info", "ui-language", "collaborations", "library", "agent-pairings", "agent-requests":
+		case "info", "ui-language", "collaborations", "library", "agent-pairings", "agent-requests", "plugin/connection":
 			allowed = true
 		case "sources":
 			allowed, queries = true, "provider search cursor"
@@ -195,7 +197,7 @@ func uiRoute(path string, body any, write bool) (string, error) {
 	}
 	if write && method == "POST" {
 		switch u.Path {
-		case "ui-language", "settings", "mcp/setup", "mcp/probe", "preview", "spaces", "collaborations", "join", "invitations/preview",
+		case "ui-language", "settings", "mcp/setup", "mcp/probe", "preview", "spaces", "collaborations", "join", "invitations/preview", "plugin/connection",
 			"publications/source", "publications/preview", "library/state", "library/bundles", "agent-pairings", "agent-requests":
 			allowed = true
 		}

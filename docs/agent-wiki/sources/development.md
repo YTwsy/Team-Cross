@@ -34,6 +34,8 @@ make verify-homebrew
 
 Web build 同时生成 `internal/webassets/dist` 与自包含的 `internal/mcpassets/dist/panel.html`，然后由 Go embed 打包。开发完成后运行：
 
+成品首次接入使用设置页或 `teamcross plugin connect`；`connection-status` 查询状态，`sync` 仅同步已启用接入，`disconnect` 断开并关闭自动同步。调试时使用专门的 `CODEX_HOME` 和数据目录；以下底层包命令用于手动源，已经启用管理的源仍经统一生命周期更新。详细约束见[插件生命周期](decisions/chatgpt-local-plugin.md#包和生命周期)。
+
 ```sh
 make build
 ./bin/teamcross plugin export

@@ -4697,3 +4697,34 @@ mark[data-annotation-highlight] {
     flex-wrap: wrap;
   }
 }
+
+.plugin-onboarding {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.plugin-onboarding p {
+  margin: 6px 0 0;
+}
+.plugin-onboarding .button {
+  flex-shrink: 0;
+}
+.plugin-connection .form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.plugin-connection dd {
+  overflow-wrap: anywhere;
+}
+.plugin-connection details summary {
+  cursor: pointer;
+}
+@media (max-width: 700px) {
+  .plugin-onboarding {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -46,6 +46,8 @@ python3 scripts/build-release.py --version 0.1.1 --sign-identity 'Developer ID A
 
 ## 命令入口的归属
 
+ChatGPT 插件通过 App 菜单“ChatGPT 插件…”或 WebGUI 设置页首次启用。用户点击安装后，App 后续启动会检查并同步已启用的插件，保留现有来源和 Core 目录。安装包复制到 Applications 本身不注册插件；断开后不自动重装。同步与界面实际加载分别显示，具体生命周期及 CLI 入口见[本机插件](decisions/chatgpt-local-plugin.md#包和生命周期)。
+
 DMG 安装者在菜单栏“命令行工具…”安装或移除启动器，默认位置为 `/usr/local/bin/teamcross`。只有安装或移除该入口可能需要系统授权；Core、MCP 和协作执行不提权。启动器用绝对路径调用 App 内的 CLI，保持参数原样传递。相关代码为 [cliinstall](../../../internal/cliinstall/cliinstall.go) 与 [App 菜单](../../../apps/macos/TeamCross.swift)。
 
 `cli-status` 检查命令路径、来源、入口归属和 PATH；`install-cli`、`uninstall-cli` 不启动 Core。高级用户可用 `--cli-dir /absolute/bin` 指定目录，测试必须使用隔离目录。Finder 不继承终端 PATH，因此另外检查常见 Homebrew 命令位置。已有 Cask 指向当前 App 的链接可直接使用，不再注册第二个入口；其他可执行文件、符号链接、被修改的启动器均报告冲突。

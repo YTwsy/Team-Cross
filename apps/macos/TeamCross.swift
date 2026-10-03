@@ -96,6 +96,7 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
         add("加入协作…", #selector(openJoin), to: menu)
         add("启动服务", #selector(startService), to: menu)
         add("诊断与设置", #selector(diagnostics), to: menu)
+        add("ChatGPT 插件…", #selector(diagnostics), to: menu)
         add("命令行工具…", #selector(commandLineTools), to: menu)
         let languageItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         let languageMenu = NSMenu()
@@ -128,12 +129,18 @@ final class TeamCrossDelegate: NSObject, NSApplicationDelegate {
         }, 1, &event, context, &hotKeyHandler)
         hotKeyRegistered = RegisterEventHotKey(UInt32(kVK_ANSI_T), UInt32(controlKey | optionKey), EventHotKeyID(signature: 0x54435253, id: 1), GetApplicationEventTarget(), 0, &hotKey) == noErr
         refreshLanguage()
+        // Only an explicitly enabled connection can change here. The helper
+        // preserves its existing source and Core binding; it never quits ChatGPT.
+        call(["plugin", "sync"]) { _ in }
         if !receivedURL { launch(route: "") }
         drainRequests()
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.refresh() }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if item != nil { launch(route: "") }
+        if item != nil {
+            call(["plugin", "sync"]) { _ in }
+            launch(route: "")
+        }
         return false
     }
     private func add(_ title: String, _ action: Selector, to menu: NSMenu, key: String = "") {

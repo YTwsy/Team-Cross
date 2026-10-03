@@ -167,12 +167,16 @@ Resuming reads the collaboration session's latest persisted settings. **Technica
 
 ### Local ChatGPT for Mac plugin
 
-This section uses the development build with the new `plugin` command. See [local plugin development (中文)](agent-wiki/sources/development.md#本机-chatgpt-插件) for building it. Install the complete Team Cross WebGUI in local Work/Codex:
+This section uses the development build with plugin connection management. See [local plugin development (中文)](agent-wiki/sources/development.md#本机-chatgpt-插件) for building it.
 
-```sh
-teamcross plugin install
-teamcross plugin status
-```
+1. Open Team Cross and go to **Settings and Connections**, or choose **ChatGPT plugin…** from the menu bar.
+2. Click **Install in ChatGPT**. For an existing plugin, click **Connect and enable automatic sync**. If it uses another data directory, click **Connect to current data**.
+3. Quit ChatGPT completely, reopen it, and open Team Cross from the sidebar. The pending reload notice clears when the updated plugin UI opens.
+4. On later App starts, Team Cross updates the plugin and connects it to the local data that App currently uses. An enabled older connection is corrected automatically, including a demo binding. No configuration file edits are needed.
+
+Connect once on each Mac. No directory entry or configuration copied from another device is required. The plugin uses that Mac’s accessible spaces, published materials and annotations. It does not import another device’s data or demo materials. Switching the connection keeps the old data directory without moving or merging its contents.
+
+Installing the App alone does not add the plugin. **Disconnect plugin** disables automatic sync and unregisters the plugin, retaining the package and collaboration data. A plugin removed or disabled in ChatGPT is not reinstalled automatically. Use **Reconnect** to restore it. CLI users can run `teamcross plugin connect`, followed by `teamcross plugin sync` after an update; no extra background service is installed.
 
 The plugin uses local stdio and the existing Core. It needs no public inbound endpoint or Team Cross cloud account. Use `--data-dir /absolute/path` for a separate Core, `--plugin-dir /absolute/path` for a package source, or `--codex-bin /absolute/path/to/codex` for a native client executable. After installation or an upgrade, finish current tasks, quit ChatGPT completely (⌘Q), reopen it, and open Team Cross from the sidebar. An existing sidebar view and plugin process may still use the old UI; a new conversation does not confirm that the sidebar has refreshed.
 
@@ -184,7 +188,7 @@ The selected reference becomes part of the current message. Add your request, su
 
 You can also select content in a material, annotation or the library, then choose **Generate reading entry** in the existing selection tray. Up to 32 references can span spaces, with explicit material versions. If the host supports messaging, **Bring into this conversation** sends the current personal agent a prompt to read that code with `read_selection`; check the conversation for the actual result. **Send to agent** still uses existing paired targets. Copy the reading prompt if host messaging is unavailable. An uncertain delivery is never automatically resent for the same entry.
 
-Use `teamcross plugin upgrade` for the same package source. Omitting `--data-dir` preserves its existing Core binding. `teamcross plugin remove` unregisters only this plugin and its source, retaining the package and collaboration data. Use the CLI from the same Team Cross build as Core. If an existing service is incompatible, finish active collaborations and quit that version before starting the new build. See [plugin scope (中文)](agent-wiki/sources/decisions/chatgpt-local-plugin.md).
+Use `teamcross plugin upgrade` for the same package source. CLI `upgrade` and `sync` without `--data-dir` preserve the existing Core binding. The App supplies its current data directory explicitly during startup sync. `teamcross plugin remove` unregisters only this plugin and its source, retaining the package and collaboration data. Use the CLI from the same Team Cross build as Core. If an existing service is incompatible, finish active collaborations and quit that version before starting the new build. See [plugin scope (中文)](agent-wiki/sources/decisions/chatgpt-local-plugin.md).
 
 ### General personal MCP
 

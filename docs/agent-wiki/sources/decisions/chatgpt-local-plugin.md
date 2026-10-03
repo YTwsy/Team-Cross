@@ -8,7 +8,15 @@ Team Cross 的本机插件为 ChatGPT for Mac 的本机 Work/Codex 提供完整�
 
 ## 包和生命周期
 
-稳定 CLI 入口为 `teamcross plugin export|install|upgrade|status|remove`。默认源位于 `~/Library/Application Support/TeamCross/plugins/local`；可用 `--plugin-dir` 选择独立源，`--data-dir` 绑定独立 Core。更新已有包时，未显式传入 `--data-dir` 则保留原绑定。包复制当前 CLI 至自己的 `runtime/teamcross`，清单使用这个稳定绝对路径；无需额外 Python 或 Node 运行时，客户端缓存复制不会改变启动路径。
+App 的菜单“ChatGPT 插件…”和 WebGUI“设置与连接”共用插件连接页。首次使用点击“安装到 ChatGPT”后，才启用自动同步；仅安装或首次启动 App 不会注册插件。已有手动安装可以点击“连接并启用自动同步”接管；绑定不同时显示“连接到当前数据”。接管前检查原市场来源、插件 ID、包归属及 Core 绑定，随后使用当前设置页所属 Core 的数据目录。已有来源原地保留，旧数据不搬动、不复制、不合并。新安装不包含演示数据，也不使用构建机器的数据路径。
+
+连接命令为 `teamcross plugin connection-status|connect|sync|disconnect`，管理记录按个人 `CODEX_HOME`（默认 `~/.codex`）保存在 `teamcross-plugin/connection.json`；新的受管理源放在该目录的 `package`，已有来源原地保留。`connect` 是显式安装/修复入口；`sync` 只更新已启用且仍安装、未停用的插件，由取得主实例身份的 App 在启动或重新打开时传入自身数据目录。即使版本和可执行文件字节相同，绑定不一致也会刷新包与原生缓存，使插件跟随该 App 当前使用的 Core；旧版管理记录不需要手动编辑。被外部移除或停用后不自动安装。`disconnect` 先关闭自动同步，再移除精确注册；包与材料保留。原生配置只经客户端 CLI 修改，跨 Core/App 使用同一 profile 的生命周期锁。
+
+同步比较可执行文件 SHA-256，开发版版本号不变时仍能发现更新。更新来源是启用接入时的稳定 App/CLI 路径；旧 Core 经该磁盘上的 helper 操作，不把旧运行中 Core 的字节拷回去。另一安装路径尝试自动接管时停止并提示重新连接。CLI 包安装本身不启用后台进程；只有启动 App 才自动同步，纯 CLI 用户可以显式调用 `sync`。
+
+文件注册成功与界面加载分开报告。每次受管理安装生成新的代号，随原生 MCP 配置传入；只有该代号的插件 WebGUI 成功执行 `plugin/bootstrap`，且 Core 绑定一致，才记录新版界面已打开。纯 stdio 握手、安装命令、旧缓存进程均不能清除此提示。它只证明一次新版面板打开，不证明每个旧会话或侧栏都刷新。提示期间由用户在适当时机退出并重开 ChatGPT；Team Cross 不重启宿主、不打断协作。切换绑定时先保存原目录与待切换目录，再导出包并刷新原生注册；中途失败保留诊断和两个目录标识，允许在设置页显式重试，不会因包与记录暂时不一致而要求人工修改文件。失败或未完成的安装不能写入界面加载回执。
+
+稳定 CLI 入口为 `teamcross plugin export|install|upgrade|status|remove`。默认源位于 `~/Library/Application Support/TeamCross/plugins/local`；可用 `--plugin-dir` 选择独立源，`--data-dir` 绑定独立 Core。手动包更新时，未显式传入 `--data-dir` 则保留原绑定。受管理源的 `install` / `upgrade` 转入统一连接流程，未指定目录时仍保留实际绑定；纯 CLI 的 `sync` 同样如此，避免 CLI 的默认目录覆盖 App 的独立目录。显式 `connect --data-dir`、`sync --data-dir` 和设置页连接使用指定 Core。包复制当前 CLI 至自己的 `runtime/teamcross`，清单使用这个稳定绝对路径；无需额外 Python 或 Node 运行时，客户端缓存复制不会改变启动路径。
 
 当前输出使用官方支持的 `.codex-plugin/plugin.json` 与 `.mcp.json` 兼容格式。安装检查须实际列出插件 MCP 并读取构建资源，而非只确认清单可见。将来迁移格式要重新执行对应客户端版本的原生加载门槛；具体版本与结果写入任务记录。
 

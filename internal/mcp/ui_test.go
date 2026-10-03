@@ -78,6 +78,23 @@ func TestUIHandshakeAndEntrypointsWithoutCore(t *testing.T) {
 }
 func mustJSON(value any) []byte { b, _ := json.Marshal(value); return b }
 
+func TestPluginConnectionIsAppOnlyAndReadWriteSeparated(t *testing.T) {
+	if _, err := uiRoute("plugin/connection", nil, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := uiRoute("plugin/connection", map[string]any{"action": "connect"}, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := uiRoute("plugin/connection", map[string]any{"action": "connect"}, false); err == nil {
+		t.Fatal("write routed as read")
+	}
+	for _, path := range []string{"plugin/connection?binary=/bin/sh", "plugin/sync", "plugin/export", "plugin/connection/loaded"} {
+		if _, err := uiRoute(path, nil, false); err == nil {
+			t.Fatal(path)
+		}
+	}
+}
+
 func TestUIWebGUIRoutesKeepNativeShapeAndSeparateWrites(t *testing.T) {
 	var calls []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

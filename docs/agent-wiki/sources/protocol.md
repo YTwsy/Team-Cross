@@ -12,6 +12,8 @@
 | --- | --- |
 | `GET /info` | 客户端位置、版本、主机、MCP 配置状态 |
 | `POST /settings` | 保存 `binary`、`desktopApp`、`claudeBinary` |
+| `GET /plugin/connection` | 查询本机插件注册、自动同步、更新与界面加载状态；不执行安装 |
+| `POST /plugin/connection` | 仅接受 `{action:connect|disconnect}`，显式接入/修复或断开；拒绝额外字段，来源和可执行路径不由 HTTP 调用者传入 |
 | `POST /mcp/setup` | `{provider:codex|claude}` 写入个人 MCP 配置，省略默认 Codex（稳定 opt/App 路径） |
 | `POST /mcp/probe` | 运行独立 STDIO 握手与工具枚举探测，不启动模型 |
 | `POST /mcp/observed` | 本机凭据保护，`{provider:codex|claude}` 分别记录实际工具调用时间；未知客户端不记入 |
@@ -78,6 +80,8 @@
 协作列表以本机记录和最近一次成功状态立即响应，不等待逐个远端主机重连；已加入协作的远端状态在后台去重刷新，下一次页面轮询会显示结果。`GET /collaborations/:id` 仍等待该协作的实时状态探测，供详情页和工具确认当前输入归属与运行状态。
 
 `personal-desktop` 从本机持久化协作记录读取 `sessionId`，生成 `codex://threads/<sessionId>`，不使用来源 `sourceId` 或请求体提供的会话 ID/URL。返回 `{sessionId,url,command,launched,note}`；`launch:false` 仅生成命令，`launch:true` 通过 `open -a <Desktop路径> <URL>` 请求打开普通 Desktop，`launched` 只表示系统打开请求成功，不证明页面、侧边栏或新消息已刷新。此入口不要求当前输入权或在线运行时，不 fork、resume、发送 prompt、连接共享网关或更改共享状态；不适用于接收者或 Claude 协作。
+
+插件连接响应包含 `state`（`not_installed|installed|reload_required|update_available|unavailable|disconnected|error`）、`available`、`autoUpdate`、`installed`、`pluginEnabled`、`reloadRequired`、`differentData`，以及可选的 `version`、`root`、`dataDir` 和 `error`。`available` 表示已找到客户端 CLI；`installed` 表示原生注册存在，不能替代界面加载回执。`dataDir` 是插件的实际绑定，`differentData` 与当前 Core 对比。显式 `connect` 使用该接口所在 Core 的数据目录；请求不接受调用者自定目录或可执行文件。App 的 `sync --data-dir` 在已启用接入时同步其实际 Core 绑定。连接管理接口只在浏览器本机 API 和 app-only UI 工具开放，普通模型工具不获得安装入口。
 
 ## 个人资源库
 
