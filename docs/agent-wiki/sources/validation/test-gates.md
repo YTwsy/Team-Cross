@@ -66,7 +66,7 @@ go build -o bin/teamcross ./cmd/teamcross
 
 回归见 [UI MCP](../../../../internal/mcp/ui_test.go)、[本地包管理](../../../../internal/pluginpack/plugin_test.go) 和 [完整 WebGUI 宿主适配](../../../../packages/web/src/test/plugin.test.tsx)。检查 global/thread 元数据、嵌入资源、纯协议握手不启动 Core、UI 路由白名单、共享运行时的原有工具和配对契约保留、完整 App 导航、固定版本、读写分离、沙盒存储、Core scope 隔离、原有配对流程、同请求回复去重与消息不自动重放。构建的 iframe 应在 `connect-src 'none'` 下工作，不依赖外部脚本、字体或语法高亮资源。
 
-Composer mentions 的 [MCP 回归](../../../../internal/mcp/mentions_test.go) 与 [Core 回归](../../../../internal/collab/mentions_test.go) 检查 app-only 搜索声明、允许空查询、中文与版本搜索、20 项上限、稳定排序、Core scope 和 URI 严格校验、撤回与成员撤销后的新查询/读取拒绝。检索不改个人选择、创建执行或生成读取编号；通用与共享 MCP 不获得搜索工具。下列验收脚本同时验证真实 stdio 和原生 app-server 所发现的工具元数据、搜索结果、材料固定版本与批注资源读取及回复分页。协议成功仍不能代替桌面输入框的搜索、选择与发送显示验收；成品阶段统一检查，不绕开 Codex 主窗口自动化限制。
+Composer mentions 的 [MCP 回归](../../../../internal/mcp/mentions_test.go) 与 [Core 回归](../../../../internal/collab/mentions_test.go) 检查 app-only 搜索声明、允许空查询、中文与版本搜索、20 项上限、稳定排序、Core scope 和 URI 严格校验、撤回与成员撤销后的新查询/读取拒绝。检索不改个人选择、创建执行或生成读取编号；通用与共享 MCP 不获得搜索工具。下列验收脚本同时验证真实 stdio 和原生 app-server 所发现的工具元数据、搜索结果、材料固定版本与批注资源读取及回复分页。每个检索同时调用标准 `{query}` 和当前桌面实际使用的 `{query,path:[]}`，结果必须一致；拒绝非空、null 或非数组 path。不能以手工构造的 query-only 调用替代宿主请求格式验收。协议成功仍不能代替桌面输入框的搜索、选择与发送显示验收；成品阶段统一检查，不绕开 Codex 主窗口自动化限制。
 
 使用两个终端，显式选择新的 fixture 与输出目录：
 

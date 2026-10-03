@@ -21,7 +21,12 @@ const mentionSearchTool = "teamcross_search_mentions"
 func mentionsTool() map[string]any {
 	query := str("Search published material titles, space names, authors, versions, or annotation text. Empty text returns recent items.")
 	query["maxLength"] = 256
-	t := tool(mentionSearchTool, "Search visible Team Cross materials and annotations for the composer. Does not send, publish, or change the library selection.", map[string]any{"query": query}, []string{"query"}, true)
+	t := tool(mentionSearchTool, "Search visible Team Cross materials and annotations for the composer. Does not send, publish, or change the library selection.", map[string]any{
+		"query": query,
+		// Desktop currently sends this legacy field for metadata-discovered hooks.
+		// Team Cross has a flat catalog; no filesystem or hierarchy is exposed.
+		"path": map[string]any{"type": "array", "maxItems": 0, "items": map[string]any{"type": "string"}, "description": "Optional desktop compatibility field. Must be an empty array."},
+	}, []string{"query"}, true)
 	t["_meta"] = map[string]any{"openai/extensions": map[string]any{"mentions/search": map[string]any{}}, "ui": map[string]any{"visibility": []string{"app"}}}
 	return t
 }
@@ -29,8 +34,20 @@ func mentionsTool() map[string]any {
 func validateMentionArgs(args map[string]any) error {
 	query, ok := args["query"].(string)
 	// Unlike ordinary required tool strings, the official query may be empty.
-	if !ok || len(args) != 1 || utf8.RuneCountInString(query) > 256 {
-		return fmt.Errorf("query must be a string of 0–256 characters; no other arguments are accepted")
+	if !ok || utf8.RuneCountInString(query) > 256 {
+		return fmt.Errorf("query must be a string of 0–256 characters")
+	}
+	for key, value := range args {
+		switch key {
+		case "query":
+		case "path":
+			path, ok := value.([]any)
+			if !ok || len(path) != 0 {
+				return fmt.Errorf("path must be an empty array")
+			}
+		default:
+			return fmt.Errorf("Unsupported mention search argument %s", key)
+		}
 	}
 	return nil
 }

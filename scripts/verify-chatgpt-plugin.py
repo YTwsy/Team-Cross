@@ -56,11 +56,18 @@ def mentions(call, read_resource, tools, fixture):
     search = next(t for t in tools if t["name"] == "teamcross_search_mentions")
     assert search["_meta"]["openai/extensions"]["mentions/search"] == {}, search
     assert search["_meta"]["ui"]["visibility"] == ["app"], search
-    recent = call("teamcross_search_mentions", {"query": ""})["items"]
+    def search_items(query):
+        # Current Desktop uses the metadata-discovered legacy request shape.
+        # Exercise it through the real native client, not just query-only calls.
+        modern = call("teamcross_search_mentions", {"query": query})
+        desktop = call("teamcross_search_mentions", {"query": query, "path": []})
+        assert desktop == modern, {"query": query, "desktop": desktop, "modern": modern}
+        return desktop["items"]
+    recent = search_items("")
     assert len(recent) == 20 and all(x["type"] == "resource_link" for x in recent), recent
     reads = []
     for query, marker, version in [("连接池 v1", "PLUGIN-V1-20261002", 1), ("连接池 v2", "PLUGIN-V2-20261002", 2), ("ANNOTATION-SELECTED-20261002", "ANNOTATION-SELECTED-20261002", None)]:
-        items = call("teamcross_search_mentions", {"query": query})["items"]
+        items = search_items(query)
         if version:
             items = [x for x in items if x["uri"].endswith(f'/material/{fixture["spaceId"]}/{fixture["materialId"]}/v/{version}')]
         assert len(items) == 1, items
@@ -80,8 +87,8 @@ def mentions(call, read_resource, tools, fixture):
             following = call("read_context", {"id": ref["spaceId"], "kind": "annotations", **content["nextRead"]})
             assert following["annotations"][0]["id"] == ref["annotationId"], following
         reads.append({"query": query, "title": item["title"], "reference": ref, "markerVerified": marker})
-    assert call("teamcross_search_mentions", {"query": "UNPUBLISHED-SECRET"})["items"] == []
-    return {"appOnlyHookDiscovered": True, "emptyQueryBounded": True, "fixedVersionAndAnnotationReads": reads, "annotationPagination": True, "unpublishedExcluded": True}
+    assert search_items("UNPUBLISHED-SECRET") == []
+    return {"appOnlyHookDiscovered": True, "desktopEmptyPathMatchesQueryOnly": True, "emptyQueryBounded": True, "fixedVersionAndAnnotationReads": reads, "annotationPagination": True, "unpublishedExcluded": True}
 
 def lifecycle(binary, codex, fixture, output):
     root=output/"local-marketplace";home=output/"native-config";home.mkdir()

@@ -24,14 +24,21 @@ func TestMentionDiscoveryAndEmptyQuery(t *testing.T) {
 		}
 	}
 	for _, q := range []string{"", " 中文 🧭 v1 ", strings.Repeat("字", 256)} {
-		if err := validateMentionArgs(map[string]any{"query": q}); err != nil {
-			t.Fatal(err)
+		for _, args := range []map[string]any{{"query": q}, {"query": q, "path": []any{}}} {
+			if err := validateMentionArgs(args); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
-	for _, args := range []map[string]any{nil, {"query": nil}, {"query": 1}, {"query": "", "id": "space"}, {"query": strings.Repeat("字", 257)}} {
+	for _, args := range []map[string]any{nil, {"query": nil}, {"query": 1}, {"query": "", "id": "space"}, {"query": strings.Repeat("字", 257)}, {"query": "", "path": nil}, {"query": "", "path": "/tmp"}, {"query": "", "path": []any{"space"}}, {"query": "", "path": map[string]any{}}} {
 		if err := validateMentionArgs(args); err == nil {
 			t.Fatal(args)
 		}
+	}
+	properties := mentionsTool()["inputSchema"].(map[string]any)["properties"].(map[string]any)
+	path := properties["path"].(map[string]any)
+	if path["type"] != "array" || path["maxItems"] != 0 {
+		t.Fatal("desktop compatibility field missing from advertised schema", path)
 	}
 	var output bytes.Buffer
 	input := `{"id":1,"method":"tools/call","params":{"name":"teamcross_search_mentions","arguments":{"query":""}}}`
