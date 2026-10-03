@@ -174,7 +174,7 @@ teamcross plugin install
 teamcross plugin status
 ```
 
-The plugin uses local stdio and the existing Core. It needs no public inbound endpoint or Team Cross cloud account. Use `--data-dir /absolute/path` for a separate Core, `--plugin-dir /absolute/path` for a package source, or `--codex-bin /absolute/path/to/codex` for a native client executable. Existing clients may need to reload their tools or open a new local test conversation to discover the plugin.
+The plugin uses local stdio and the existing Core. It needs no public inbound endpoint or Team Cross cloud account. Use `--data-dir /absolute/path` for a separate Core, `--plugin-dir /absolute/path` for a package source, or `--codex-bin /absolute/path/to/codex` for a native client executable. After installation or an upgrade, finish current tasks, quit ChatGPT completely (⌘Q), reopen it, and open Team Cross from the sidebar. An existing sidebar view and plugin process may still use the old UI; a new conversation does not confirm that the sidebar has refreshed.
 
 Open **Team Cross** to use the same spaces, library and settings navigation as the browser WebGUI. Creating and joining spaces, material versions, source annotations and replies, and receiving-conversation pairings retain their existing pages and behavior. Language uses the local Core setting; theme offers system, light and dark. Drafts have the same page lifetime as the WebGUI and are not guaranteed to survive closing the plugin.
 

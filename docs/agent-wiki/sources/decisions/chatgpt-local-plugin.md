@@ -14,6 +14,8 @@ Team Cross 的本机插件为 ChatGPT for Mac 的本机 Work/Codex 提供完整�
 
 市场名为 `teamcross-local`，插件 ID 为 `teamcross@teamcross-local`，MCP 服务名为 `teamcross-ui`。升级只接受原来源和这个精确 ID；当前 CLI 没有 `plugin upgrade` 子命令，Team Cross 通过核对后的 remove/add 刷新自身缓存。其他 MCP、插件和来源配置保留。已有非 Team Cross 目录、同名异源市场及包内符号链接会被拒绝。卸载移除自身插件及来源注册，保留包、本机 Core 数据和材料；不删除会话或协作目录。
 
+`upgrade` 更新磁盘上的包与安装缓存，不替换 ChatGPT 已运行的 stdio 进程或已打开的面板。更新后按[官方本机插件流程](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually)完全退出并重新打开 ChatGPT，再检查侧栏入口；新会话加载成功不能证明旧侧栏已经刷新。重启由用户在当前任务结束后进行，升级命令不结束 ChatGPT 或其他会话。
+
 ## 一套 WebGUI，两种运行环境
 
 浏览器版与插件版都从 `packages/web/src/main.tsx` 启动，挂载相同的 `App`，加载相同的 `styles.css` 与 `library.css`。插件包含完整的导航、空间、创建与加入、材料阅读、原文批注、资源库、设置及接收会话配对页面，不维护另一套面板或插件专用布局。后续 WebGUI 页面与组件的修改同时进入两种构建；新增 API 需要同步检查宿主桥的路由声明。

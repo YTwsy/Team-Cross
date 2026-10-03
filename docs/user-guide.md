@@ -172,7 +172,7 @@ teamcross plugin install
 teamcross plugin status
 ```
 
-插件使用本机 stdio 和现有 Core，不需要公网入站连接或 Team Cross 云端账号。自定义数据目录时追加 `--data-dir /absolute/path`；选择安装源或客户端时可追加 `--plugin-dir /absolute/path`、`--codex-bin /absolute/path/to/codex`。已打开的客户端可能需要重新加载工具或新开本机测试会话，才会看到新增插件。
+插件使用本机 stdio 和现有 Core，不需要公网入站连接或 Team Cross 云端账号。自定义数据目录时追加 `--data-dir /absolute/path`；选择安装源或客户端时可追加 `--plugin-dir /absolute/path`、`--codex-bin /absolute/path/to/codex`。安装或升级后，在当前任务结束后完全退出 ChatGPT（⌘Q）并重新打开，再进入左侧的 Team Cross。已打开的侧栏和插件进程可能继续使用旧界面，新建会话不等于侧栏已刷新。
 
 打开“Team Cross”后，使用与浏览器 WebGUI 相同的空间、资源库和设置导航。创建、加入、材料版本、原文批注和回复、接收会话配对等操作沿用原有页面；界面语言继续同步本机设置，主题可选择系统、浅色或深色。页面草稿沿用 WebGUI 的当前页生命周期，不保证关闭插件后恢复。
 
