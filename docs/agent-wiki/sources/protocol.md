@@ -122,7 +122,7 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 | `POST /agent-tools/call` | `{name,arguments,caller,receiverId?}`；仅个人 MCP 的 Core Bearer 凭据可用，拒绝浏览器 Origin；caller 来自工具传输 |
 | `POST /agent-receivers/poll` | `{receiverId}`，同一 Core Bearer 边界；最多等待 25 秒，返回 `{event:null|{kind,pairingId?,challenge?,requestId?}}`；这是本地适配器内部接收通道，不是 MCP Events 规范接口 |
 
-`TCP-` 配对码使用 16 个随机字节的无填充 Base32，仅保存 SHA-256，十分钟有效。`waiting/verifying/unsupported/expired` 均不代表配对成功，只有 `paired` 可投递，投递前还需检查连接与输入状态。会话身份与接收连接不能由模型工具参数指定；配对码首次绑定后不能用于其他会话。
+`TCP-` 配对码使用 16 个随机字节的无填充 Base32，仅保存 SHA-256，十分钟有效。`waiting/verifying/unsupported/expired` 均不代表配对成功，只有 `paired` 可投递，投递前还需检查连接与输入状态。`unsupported` 表示本次配对未建立可用的接收路径，结合 `reason` 判断原因；当前触发条件见 [接入范围](decisions/agent-pairing.md#当前接入范围)，不用于定义原生会话种类。会话身份与接收连接不能由模型工具参数指定；配对码首次绑定后不能用于其他会话。
 
 个人 MCP 增加 `pair_current_session(code)`、`confirm_pairing(pairingId,challenge)`、`read_agent_request(requestId,offset?)`、`finish_agent_request(requestId,status,summary)`。共享运行时仅加入其中的配对、读取请求和完成请求三个工具，不提供 Channel `confirm_pairing`。运行时调用复用原 `runtime-annotations/:id` 的专用 token，caller 必须与该运行时 Provider/Session 匹配。这组配对工具不任意指定空间或发送其他模型输入；明确的空间间接投递由下节通用工作台工具提供。`analyze_reply` 至少需要一条原批注；共享目标引用全部属于它的空间；读取请求时再次检查访问，正文继续走现有工具。每次返回一项引用和 `offset/total/nextOffset?`，`offset` 为 0–31；分页不改变持久化的完整引用组。
 

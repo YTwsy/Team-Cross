@@ -6,32 +6,34 @@
 
 ## 如何使用和更新
 
-1. 先确定具体路径：Provider、目标会话归属、客户端、接收方式和网络环境。原生平台有某个接口、Team Cross 已有适配、实际宿主通过验收分别判断。
+1. 先确定具体路径：Provider、目标主机、客户端、接收方式和网络环境。原生平台有某个接口、Team Cross 已有适配、实际宿主通过验收分别判断。
 2. 沿本页链接读取对应报告的结果和未覆盖项；测试脚本存在、构建通过或协议替身成功不能代替真实客户端结果。“受阻”表示当次验收未完成，不据此断言实现错误或平台永久不支持。
 3. 对照当前分支的相关实现与报告被测范围。后续改动影响该路径时，标明需要复验的部分；没有对应结果时，只报告最近已知证据，不称当前版本已通过。未作差异核对的旧报告保留为历史参考。
 4. 新结果改变已知范围、暴露阻塞或替代旧证据时，在同一变更中更新对应条目及领域契约中的当前限制，再归档报告。保留仍有解释价值的失败和未覆盖项；不用维护第二份原始结果。执行命令、环境细节和日志仍在任务记录中。
 
 ## 配对与空间请求
 
-范围来源：[接收会话配对](../decisions/agent-pairing.md)、[空间工作台](../decisions/space-workbench.md)。共享执行 fork、独立接收会话和未由 Core 管理的既有个人会话是不同路径。
+范围来源：[接收会话配对](../decisions/agent-pairing.md)、[空间工作台](../decisions/space-workbench.md)。下表按实际被测操作记录范围；会话创建方式用于复现场景，不划分原生投递能力。
 
 | 具体路径 | 最近已知结果 | 被测代码与环境 | 证据与适用边界 |
 | --- | --- | --- | --- |
-| Core 管理的 Codex 共享 fork 配对、投递、读取和完成回执 | 真实 TUI 通过；重复请求未重放，分析未擅自回复原批注 | 2026-10-03；配对首轮为 `9abee02` + 当次实现，工作台回归为 `fed1e0a` + 当次实现；单 Mac，Codex `0.159.0-alpha.12.1`，`gpt-5.6-luna` | [首轮报告](../../tasks/finished_archived/agent-pairing-2026-10-03/README.md#真实-codex-tui)、[后续回归](../../tasks/finished_archived/space-workbench-2026-10-03/README.md#真实模型与原生客户端)。不能推广为任意个人 Codex 会话或专用 Desktop 验收。 |
-| 独立 Codex 接收会话、简报接手、经明确授权的会话间请求 | 真实模型协作链通过；三个成员看到相同完成记录；暂停/停用保留会话；没有共同执行 | 2026-10-03；`fed1e0a` + 工作台当次实现；单 Mac、三个隔离 Core、真实 TLS、两名成员的独立接收会话；同上 Codex/Luna | [报告](../../tasks/finished_archived/space-workbench-2026-10-03/README.md#真实模型与原生客户端)、[结构化结果](../../tasks/finished_archived/space-workbench-2026-10-03/evidence/native-space.json)。模型链中的启动目录没有材料，不能据此声称已验证所有真实材料组合；材料与界面另看对应证据。不是三台 Mac。 |
+| 共同执行中的 Codex 新 fork 配对、投递、读取和完成回执 | 真实 TUI 通过；重复请求未重放，分析未擅自回复原批注 | 2026-10-03；配对首轮为 `9abee02` + 当次实现，工作台回归为 `fed1e0a` + 当次实现；单 Mac，Codex `0.159.0-alpha.12.1`，`gpt-5.6-luna` | [首轮报告](../../tasks/finished_archived/agent-pairing-2026-10-03/README.md#真实-codex-tui)、[后续回归](../../tasks/finished_archived/space-workbench-2026-10-03/README.md#真实模型与原生客户端)。覆盖该次 fork 的配对链，未验证连接其他已有会话的投递入口或专用 Desktop。 |
+| 工作台新建 Codex 会话、简报接手、经明确授权的会话间请求 | 真实模型协作链通过；三个成员看到相同完成记录；暂停/停用保留会话；没有共同执行 | 2026-10-03；`fed1e0a` + 工作台当次实现；单 Mac、三个隔离 Core、真实 TLS、两名成员的独立接收会话；同上 Codex/Luna | [报告](../../tasks/finished_archived/space-workbench-2026-10-03/README.md#真实模型与原生客户端)、[结构化结果](../../tasks/finished_archived/space-workbench-2026-10-03/evidence/native-space.json)。模型链中的启动目录没有材料，不能据此声称已验证所有真实材料组合；材料与界面另看对应证据。不是三台 Mac。 |
 | 个人 Claude Channel 主动接收 | 实验适配有协议检查；真实接收受宿主门槛阻塞，未通过 | 2026-10-03；上述配对及工作台工作树；Claude Code `2.1.270` 提示 Channels 不可用；首轮模型代理也拒绝连接 | [首次探测](../../tasks/finished_archived/agent-pairing-2026-10-03/README.md#真实-claude-channel-探测)、[后续探测](../../tasks/finished_archived/space-workbench-2026-10-03/README.md#真实模型与原生客户端)。未伪造挑战；普通 Claude MCP 调用或共享 TUI 通过不能替代 Channel 接收。 |
 
-未由 Core 管理、仅连接个人 MCP 的既有 Codex 会话，当前接收适配范围见[配对契约](../decisions/agent-pairing.md#身份接收能力与范围)与 [Core](../../../../internal/collab/agents.go)。上述通过记录不覆盖该路径；`unsupported` 是当前 Team Cross 接入结果，不能据此判断 Codex 原生平台没有外部输入能力。ChatGPT 云端 MCP Events/webhook 尚未接入，边界见[契约](../decisions/agent-pairing.md#mcp-events-的边界)；本机 STDIO 与 `ui/message` 结果不作为云端订阅验收。
+上述记录未覆盖将测试前已存在的 Codex 会话接入投递连接的流程。当前连接查找限制及 `unsupported` 的触发条件见 [配对契约](../decisions/agent-pairing.md#当前接入范围)；未覆盖该流程不表示已有会话缺少原生接收能力。
+
+ChatGPT 云端 MCP Events/webhook 尚未接入，边界见 [契约](../decisions/agent-pairing.md#mcp-events-的边界)；本机 STDIO 与 `ui/message` 结果不作为云端订阅验收。
 
 ## ChatGPT 本机插件
 
-范围来源：[本机插件](../decisions/chatgpt-local-plugin.md)。协议加载、宿主界面、模型读取、长期接收分别取证。
+范围来源：[本机插件](../decisions/chatgpt-local-plugin.md)。协议加载、宿主界面与模型读取分别取证；会话投递的证据见上节，不依赖插件面板是否打开。
 
 | 具体路径 | 最近已知结果 | 被测代码与环境 | 证据与适用边界 |
 | --- | --- | --- | --- |
 | 完整 WebGUI 的插件资源、原生加载、业务桥和工作台页面 | 原生 app-server 加载与真实 Core/stdio 通过；独立浏览器完成页面、批注、简报等操作 | 2026-10-03；`fed1e0a` + 插件改动，后续集成为 `4556c18` 合入 `7ee5a0a`；macOS 14.8.5 arm64，Codex `0.159.0-alpha.12.1` | [完整界面及集成报告](../../tasks/finished_archived/2026-10-03-meta-plugin-webgui/README.md)。浏览器宿主消息回执为模拟；最终成品的 global/thread 入口、实际摆放及“带回当前对话”投递仍不能由这些检查证明。旧桌面探针不替代该成品。 |
 | Composer mentions 搜索、固定版本/批注资源读取 | stdio、原生 app-server 与桌面兼容参数通过 | 2026-10-03；初版 `9c1c378`，参数修复 `53d3472`；Codex `0.159.0-alpha.12.1`，桌面请求格式来自 ChatGPT `26.930.21537` / build `12776` | [初版](../../tasks/finished_archived/2026-10-03-composer-mentions.md)、[参数修复](../../tasks/finished_archived/2026-10-03-composer-mentions-empty-results.md#修复与验证)。必须包含 `{query,path:[]}`，不能只用 query-only 检查替代实际宿主请求。 |
-| Composer mentions 在桌面输入框搜索、选择和发送显示 | 用户实际确认通过，并发送材料 v1 与原批注引用 | 2026-10-03；`53d3472` 修复后用户重载桌面；原生引用来自已安装 `teamcross-ui` | [用户最终显示验收](../../tasks/finished_archived/2026-10-03-composer-mentions-empty-results.md#用户最终显示验收)。这是显示与引用选择证据，不证明模型已经分析正文、会话已配对或可被主动唤醒。不能沿用初版“尚需桌面验收”覆盖此后续结果。 |
+| Composer mentions 在桌面输入框搜索、选择和发送显示 | 用户实际确认通过，并发送材料 v1 与原批注引用 | 2026-10-03；`53d3472` 修复后用户重载桌面；原生引用来自已安装 `teamcross-ui` | [用户最终显示验收](../../tasks/finished_archived/2026-10-03-composer-mentions-empty-results.md#用户最终显示验收)。覆盖显示与引用选择，未包含模型正文分析或会话配对验收。不能沿用初版“尚需桌面验收”覆盖此后续结果。 |
 | 显式安装/接管、App 同步、断开与新版 bootstrap 回执 | 原生 CLI、真实 App 生命周期及浏览器通过；成品主窗口体验待验收 | 2026-10-03；`7089781`，包 `0.2.6-dev.plugin-onboarding.20261003`；隔离 profile，Codex `0.159.0-alpha.12.1` | [接入报告](../../tasks/finished_archived/2026-10-03-chatgpt-plugin-onboarding.md)。报告之后 `d1b3452` 修改当前 Core 的绑定与恢复处理；本次未找到该修复对应的独立执行记录，涉及换绑的结论需要补证或复验，不能由 `7089781` 的通过自动覆盖。测试存在不等于当次执行结果。 |
 
 ## 原生执行与协作模式

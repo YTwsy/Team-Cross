@@ -247,6 +247,6 @@ python3 scripts/verify-agent-pairing.py --fixture-dir <新的空目录> --teamcr
 python3 scripts/verify-agent-channel.py --fixture-dir <另一个新的空目录> --teamcross-bin "$PWD/bin/teamcross" --claude-bin <Claude绝对路径>
 ```
 
-两者只在专门仓库、独立 home 与 Core 中使用 `gpt-5.6-luna`。Codex 脚本在 Team Cross 创建并管理的共享 fork 中验证真实 TUI 配对、发送引用、读取原批注、完成摘要、重复请求不重放和只分析不回复；仅确认本次已知工具请求的原生审批。独立 Codex 接收会话由[空间工作台门槛](#空间工作台)单独覆盖；两者均不覆盖未由 Core 管理的既有个人 Codex 会话。Claude 路径要求当前客户端和账户允许开发 Channel，并保持测试模型代理可用；通过 STDIO 写入测试或宿主提示 Channel 不可用时，不能声称真实接收通过。不得为通过测试而伪造挑战回执或绕过宿主能力限制。
+两者只在专门仓库、独立 home 与 Core 中使用 `gpt-5.6-luna`。Codex 脚本通过共同执行入口新建 fork，验证真实 TUI 配对、发送引用、读取原批注、完成摘要、重复请求不重放和只分析不回复；仅确认本次已知工具请求的原生审批。工作台新建会话的流程由 [空间工作台门槛](#空间工作台)覆盖；两者均未验证将测试前已存在的 Codex 会话接入投递连接的流程，不能将这一覆盖范围当作会话能力分类。Claude 路径要求当前客户端和账户允许开发 Channel，并保持测试模型代理可用；通过 STDIO 写入测试或宿主提示 Channel 不可用时，不能声称真实接收通过。不得为通过测试而伪造挑战回执或绕过宿主能力限制。
 
 完成后关闭本次 TUI、Core、守护进程及测试浏览器，保留检查报告。单机检查不代表两台 Mac 或 ChatGPT Cloud MCP Events 验收。实际结果按任务记录规则另存。

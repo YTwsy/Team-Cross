@@ -29,9 +29,7 @@ node_modules/
 packages/*/dist/
 packages/*/node_modules/
 playwright-report/
-output/playwright/
-output/plugin-onboarding-*/
-output/plugin-connection-*/
+output/
 test-results/
 *.db
 *.db-shm
