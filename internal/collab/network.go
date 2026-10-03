@@ -196,6 +196,9 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "共享已结束", http.StatusGone)
 		return
 	}
+	if s.remoteWorkbenchHTTP(w, r) {
+		return
+	}
 	if s.materialUploadHTTP(w, r) {
 		return
 	}

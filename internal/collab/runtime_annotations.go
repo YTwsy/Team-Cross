@@ -88,7 +88,12 @@ func (c annotationLaunch) claudeConfigNamed(name string) string {
 func (a *App) runtimeAnnotationsHTTP(w http.ResponseWriter, r *http.Request, id string) {
 	a.mu.Lock()
 	s := a.sessions[id]
+	receiver := a.receivers[id]
 	a.mu.Unlock()
+	if receiver != nil {
+		a.receiverToolsHTTP(w, r, receiver)
+		return
+	}
 	if r.Method != "POST" || r.Header.Get("Origin") != "" || s == nil {
 		http.Error(w, "批注工具访问不可用", http.StatusForbidden)
 		return
@@ -119,13 +124,13 @@ func (a *App) runtimeAnnotationsHTTP(w http.ResponseWriter, r *http.Request, id 
 		return
 	}
 	ctx := context.WithValue(r.Context(), runtimeAnnotationKey{}, token)
-	if mcp.ValidateAgentCall(input.Name, input.Arguments) == nil {
+	if mcp.ValidateAgentCall(input.Name, input.Arguments) == nil || strings.Contains(input.Name, "_space_") {
 		caller, err := s.runtimeAgentCaller(input.Caller)
 		if err != nil {
 			respond(w, nil, err)
 			return
 		}
-		out, err := a.invokeAgentTool(r, input.Name, input.Arguments, caller, id)
+		out, err := a.invokeAgentTool(r.WithContext(ctx), input.Name, input.Arguments, caller, id)
 		respond(w, out, err)
 		return
 	}

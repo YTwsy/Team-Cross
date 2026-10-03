@@ -24,6 +24,8 @@ Team Cross 的本机插件为 ChatGPT for Mac 的本机 Work/Codex 提供完整�
 
 插件构建只替换 `environment.ts`：先完成 MCP Apps 握手，再通过 `setAPITransport` 把原来的 API 调用转成宿主 `tools/call`。Go 侧 `teamcross_ui_read` / `teamcross_ui_write` 只向 app 可见，按明确的 WebGUI 路由及读写类型访问本机 Core，原样返回 WebGUI 数据结构。Core 继续验证成员权限、输入归属和请求编号；业务写入由现有界面的明确操作触发。不会将 Core 控制、接收通道轮询、原生调用者身份或任意 URL 暴露为 UI 路由。面向模型的工具仍限定于查询、材料/引用读取和批注回复。
 
+[空间工作台](space-workbench.md) 的请求、简报、参与会话和可选专用会话使用同一套页面。宿主桥明确声明这些页面所需的读写路由，包括本机独立接收会话的状态和人工审批；内部投递的 poll/claim、接收身份与任意原生 RPC 仍不开放。新增页面接口时须同步路由声明和读写隔离回归，避免普通 WebGUI 可用而插件报错。
+
 `open_teamcross` 声明 global / thread 入口，资源声明 fullscreen，以容纳完整 WebGUI。入口、显示模式、`ui/message` 和上下文能力遵循 [OpenAI MCP Extensions 规范](https://github.com/openai/mcp-extensions/blob/900032d8bd7c1566202d0cb1666986584f932043/docs/spec.md)，实际显示与投递仍需对应桌面版本验收。自包含 HTML 将页面脚本、样式和语法高亮一并打包；iframe 不请求 localhost，也不需要放宽 Core 的来源检查或向浏览器交付 Core token。
 
 语言继续来自 Core 的本机界面语言偏好。主题沿用 WebGUI 的系统、浅色、深色设置；浏览器保存在原 localStorage，插件沙盒通过薄存储适配保存在当前面板的 private widget state。页面路由与投递状态同样绑定 Core scope；它们不会自动成为模型上下文。无 widget state 时仅保留当前 iframe 的内存，不能承诺跨新会话或重载持久化。正文、批注草稿和回复逻辑沿用现有 WebGUI，不另设插件专用编辑器或草稿恢复契约。

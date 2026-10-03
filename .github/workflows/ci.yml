@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - main
+      - Meta
 
 permissions:
   contents: read

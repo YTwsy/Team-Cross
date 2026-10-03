@@ -16,8 +16,8 @@ import (
 
 const UIResourceURI = "ui://teamcross/workspace-v1.html"
 
-// UITools is an independent personal-client surface. The shared runtime's four
-// tools retain their existing scope. The app-only adapter preserves the existing WebGUI actions and Core checks.
+// UITools is an independent personal-client surface. Shared runtime tools retain
+// their existing scope. The app-only adapter preserves WebGUI actions and Core checks.
 func UITools() []map[string]any {
 	allowed := map[string]bool{"list_collaborations": true, "get_collaboration": true, "list_materials": true, "read_material": true, "read_context": true, "reply_to_annotation": true, "read_selection": true}
 	var tools []map[string]any
@@ -161,6 +161,8 @@ func uiRoute(path string, body any, write bool) (string, error) {
 			allowed = true
 		case "sources":
 			allowed, queries = true, "provider search cursor"
+		case "space-receivers":
+			allowed, queries = true, "spaceId"
 		}
 		if len(parts) == 2 && (parts[0] == "collaborations" || parts[0] == "agent-requests") {
 			allowed = true
@@ -172,6 +174,17 @@ func uiRoute(path string, body any, write bool) (string, error) {
 			case "context":
 				allowed, queries = true, "kind path after cursor view toolOutputs turnLimit maxBytes annotationId compact offset includeQuote turnId itemId startOffset"
 			}
+		}
+		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "workbench" {
+			switch parts[3] {
+			case "view":
+				allowed, queries = true, "offset"
+			case "request":
+				allowed, queries = true, "requestId"
+			}
+		}
+		if len(parts) == 3 && parts[0] == "space-receivers" && parts[2] == "events" {
+			allowed = true
 		}
 	}
 	if !write && method == "POST" {
@@ -190,11 +203,20 @@ func uiRoute(path string, body any, write bool) (string, error) {
 			if parts[0] == "agent-pairings" && parts[2] == "remove" {
 				allowed = true
 			}
+			if parts[0] == "space-receivers" && (parts[2] == "action" || parts[2] == "respond") {
+				allowed = true
+			}
 			if parts[0] == "collaborations" {
 				switch parts[2] {
 				case "action", "invitations", "revoke-invitation", "remove-member", "execution-access", "personal-desktop", "open", "assist", "annotations", "annotation-replies", "materials", "withdraw-material":
 					allowed = true
 				}
+			}
+		}
+		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "workbench" {
+			switch parts[3] {
+			case "register", "send", "brief", "assistant", "cancel", "remove", "create-receiver":
+				allowed = true
 			}
 		}
 	}

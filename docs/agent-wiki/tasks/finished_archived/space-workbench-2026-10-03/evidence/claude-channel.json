@@ -1,0 +1,7 @@
+{
+  "scope": "one Mac, personal Claude TUI, development Channel and Core",
+  "model": "gpt-5.6-luna",
+  "nativeVersion": "2.1.270 (Claude Code)",
+  "error": "RuntimeError: The installed client reports Channels are not currently available; no receipt was forged",
+  "generationRequests": 2
+}

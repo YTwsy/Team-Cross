@@ -89,7 +89,7 @@ func TestUIWebGUIRoutesKeepNativeShapeAndSeparateWrites(t *testing.T) {
 	}))
 	defer server.Close()
 	b := Backend{URL: server.URL, Token: "local", Client: localClient()}
-	for _, request := range []struct {
+	requests := []struct {
 		path  string
 		body  any
 		write bool
@@ -109,13 +109,27 @@ func TestUIWebGUIRoutesKeepNativeShapeAndSeparateWrites(t *testing.T) {
 		{"ui-language", map[string]any{"mode": "en"}, true},
 		{"collaborations/a/annotation-replies", map[string]any{"text": "explicit reply"}, true},
 		{"collaborations/a/action", map[string]any{"action": "request_input"}, true},
-	} {
+		{"collaborations/a/workbench/view?offset=25", nil, false},
+		{"collaborations/a/workbench/request?requestId=fixed", nil, false},
+		{"space-receivers?spaceId=a", nil, false},
+		{"space-receivers/receiver/events", nil, false},
+		{"collaborations/a/workbench/register", map[string]any{"pairingId": "pair"}, true},
+		{"collaborations/a/workbench/send", map[string]any{"requestId": "fixed", "targetId": "target"}, true},
+		{"collaborations/a/workbench/brief", map[string]any{"revision": 1}, true},
+		{"collaborations/a/workbench/assistant", map[string]any{"action": "pause", "epoch": 1}, true},
+		{"collaborations/a/workbench/cancel", map[string]any{"requestId": "fixed"}, true},
+		{"collaborations/a/workbench/remove", map[string]any{"targetId": "target"}, true},
+		{"collaborations/a/workbench/create-receiver", map[string]any{"requestId": "create-fixed", "name": "Explicit receiver"}, true},
+		{"space-receivers/receiver/action", map[string]any{"action": "start"}, true},
+		{"space-receivers/receiver/respond", map[string]any{"id": "approval", "result": map[string]any{"decision": "decline"}}, true},
+	}
+	for _, request := range requests {
 		out, err := b.uiRequest(context.Background(), request.path, request.body, request.write)
 		if err != nil || !bytes.Contains(out, []byte("full web shape")) || !bytes.Contains(out, []byte(`"selection"`)) {
 			t.Fatalf("%s: %s %v", request.path, out, err)
 		}
 	}
-	if len(calls) != 15 || calls[3] != "GET /api/collaborations/a/context?kind=history&path=src%2Fmain.go" {
+	if len(calls) != len(requests) || calls[3] != "GET /api/collaborations/a/context?kind=history&path=src%2Fmain.go" {
 		t.Fatal(calls)
 	}
 	calls = nil
@@ -124,6 +138,10 @@ func TestUIWebGUIRoutesKeepNativeShapeAndSeparateWrites(t *testing.T) {
 		"collaborations/a/history", "collaborations/a/materials#x", "collaborations/a/materials?compact=true",
 		"collaborations/a/context?kind=history&kind=annotations", "collaborations/a/context?kind+path=history", "collaborations/a/context?=history", "collaborations/a/context?token=secret",
 		"control/status", "control/stop", "agent-tools/pair_current_session", "agent-receivers/poll", "mcp/observed", "runtime-annotations/a", "collaborations/a/rpc", "future/route",
+		"collaborations/a/workbench/poll", "collaborations/a/workbench/claim", "collaborations/a/workbench/receiver-check",
+		"collaborations/a/workbench/view?offset=0&offset=25", "collaborations/a/workbench/view?token=secret",
+		"collaborations/a/workbench/send?requestId=fixed", "space-receivers?spaceId=a&spaceId=b",
+		"space-receivers/receiver/rpc", "space-receivers/receiver/events?after=0",
 	} {
 		for _, write := range []bool{false, true} {
 			for _, body := range []any{nil, map[string]any{}} {
@@ -138,6 +156,11 @@ func TestUIWebGUIRoutesKeepNativeShapeAndSeparateWrites(t *testing.T) {
 	}
 	if _, err := b.uiRequest(context.Background(), "collaborations", nil, true); err == nil {
 		t.Fatal("GET allowed through write tool")
+	}
+	for _, request := range requests {
+		if _, err := b.uiRequest(context.Background(), request.path, request.body, !request.write); err == nil {
+			t.Fatalf("allowed %s through wrong read/write tool", request.path)
+		}
 	}
 	if len(calls) != 0 {
 		t.Fatal(calls)

@@ -28,6 +28,17 @@ func runtimeAgentTools() []map[string]any {
 	var out []map[string]any
 	for _, tool := range AgentTools() {
 		if tool["name"] != "confirm_pairing" {
+			if isWorkbenchTool(tool["name"].(string)) {
+				schema := tool["inputSchema"].(map[string]any)
+				delete(schema["properties"].(map[string]any), "spaceId")
+				required := []string{}
+				for _, key := range schema["required"].([]string) {
+					if key != "spaceId" {
+						required = append(required, key)
+					}
+				}
+				schema["required"] = required
+			}
 			out = append(out, tool)
 		}
 	}
@@ -59,7 +70,7 @@ func ServeRuntime(ctx context.Context, dataDir, id, token string, input io.Reade
 		}
 		backend := Backend{URL: connection.URL, Token: token, Client: localClient()}
 		envelope := map[string]any{"name": name, "arguments": args}
-		if isAgentTool(name) {
+		if isAgentTool(name) || strings.HasPrefix(id, "receiver-") {
 			caller, err := callerSource(ctx)
 			if err != nil {
 				return nil, err

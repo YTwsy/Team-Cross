@@ -1,0 +1,32 @@
+{
+  "model": "gpt-5.6-luna",
+  "scope": "one Mac, dedicated Codex TUI and Core",
+  "nativeVersion": "codex-cli 0.159.0-alpha.12.1",
+  "sessionId": "01a0fe3d-e31b-7c32-9970-c8306d6b43f9",
+  "collaborationId": "9e0be05b-b3c3-4f2a-a825-0c5cfcccf0d7",
+  "scopedToolApprovals": 3,
+  "pairingId": "3618f452-383a-4941-9409-83362c7b12f0",
+  "pairedThroughNativeTool": true,
+  "deliveryReadAndCompletion": true,
+  "duplicateRequestId": true,
+  "analysisDidNotReply": true,
+  "result": {
+    "id": "e9b1cab8-f7ae-4b9b-83f3-2e0d42c2e07c",
+    "pairingId": "3618f452-383a-4941-9409-83362c7b12f0",
+    "references": [
+      {
+        "spaceId": "9e0be05b-b3c3-4f2a-a825-0c5cfcccf0d7",
+        "kind": "annotation",
+        "annotationId": "d0fbb17b-3399-4a57-ad1c-5a5ee1e92db6"
+      }
+    ],
+    "instruction": "Read the original annotation with read_annotations. Tell me what it requests. Do not modify files or reply to the annotation. Finish this request using finish_agent_request with summary PAIRING_ANALYSIS_DONE.",
+    "intent": "analyze",
+    "state": "completed",
+    "summary": "PAIRING_ANALYSIS_DONE",
+    "turnId": "01a0fe3e-0df3-7321-9caf-ff8e44b3a0f0",
+    "createdAt": "2026-10-03T04:11:14.770581+08:00",
+    "updatedAt": "2026-10-03T04:11:29.083363+08:00"
+  },
+  "removed": true
+}

@@ -1,0 +1,27 @@
+$ tsc -b && vite build
+vite v7.1.7 building for production...
+transforming...
+✓ 396 modules transformed.
+rendering chunks...
+computing gzip size...
+../../internal/webassets/dist/index.html                         0.78 kB │ gzip:   0.45 kB
+../../internal/webassets/dist/assets/index-Dp5OZUSA.css         86.64 kB │ gzip:  16.30 kB
+../../internal/webassets/dist/assets/diff-D97Zzqfu.js            2.57 kB │ gzip:   0.70 kB
+../../internal/webassets/dist/assets/json-Cp-IABpG.js            2.82 kB │ gzip:   0.78 kB
+../../internal/webassets/dist/assets/yaml-Buea-lGh.js           10.51 kB │ gzip:   2.27 kB
+../../internal/webassets/dist/assets/github-light-DAi9KRSo.js   11.18 kB │ gzip:   2.51 kB
+../../internal/webassets/dist/assets/github-dark-DHJKELXO.js    11.41 kB │ gzip:   2.55 kB
+../../internal/webassets/dist/assets/bash-Yzrsuije.js           41.48 kB │ gzip:   6.09 kB
+../../internal/webassets/dist/assets/go-C27-OAKa.js             46.82 kB │ gzip:   5.18 kB
+../../internal/webassets/dist/assets/python-B6aJPvgy.js         69.95 kB │ gzip:   9.13 kB
+../../internal/webassets/dist/assets/swift-C2oV4EkX.js          87.23 kB │ gzip:  14.84 kB
+../../internal/webassets/dist/assets/syntax-BplMdQHD.js        146.84 kB │ gzip:  48.34 kB
+../../internal/webassets/dist/assets/javascript-wDzz0qaB.js    174.83 kB │ gzip:  16.51 kB
+../../internal/webassets/dist/assets/typescript-BPQ3VLAy.js    181.08 kB │ gzip:  16.04 kB
+../../internal/webassets/dist/assets/index-CAO4oc2H.js         666.32 kB │ gzip: 212.66 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 1.13s
