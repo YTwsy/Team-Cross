@@ -155,7 +155,7 @@ def run(args):
         assert 'invitation' not in guest
         note = mcp(b, 'add_annotation', {'id':bid, 'text':'TCX_AGENT_CLI_NOTE'})
         mcp(a, 'reply_to_annotation', {'id':cid, 'annotationId':note['id'], 'text':'TCX_AGENT_CLI_REPLY', 'requestId':str(uuid.uuid4())})
-        assert 'TCX_AGENT_CLI_REPLY' in json.dumps(mcp(b, 'read_context', {'id':bid,'kind':'annotations'}))
+        assert 'TCX_AGENT_CLI_REPLY' in json.dumps(mcp(b, 'read_context', {'id':bid,'kind':'annotations','annotationId':note['id'],'includeQuote':False}))
         denied = mcp(b, 'send_input', {'id':bid, 'mode':'start', 'text':'Do not run', 'requestId':str(uuid.uuid4())}, allow_error=True)
         assert 'code' in denied
         mcp(b, 'request_input', {'id':bid, 'epoch':guest['epoch']})
