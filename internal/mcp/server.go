@@ -236,10 +236,11 @@ func localClient() *http.Client {
 }
 
 func serve(ctx context.Context, input io.Reader, output io.Writer, tools []map[string]any, instructions string, invoke func(context.Context, string, map[string]any, string) (json.RawMessage, error)) error {
-	return serveWithResources(ctx, input, output, tools, instructions, invoke, false)
+	return serveWithResources(ctx, input, output, tools, instructions, invoke, nil)
 }
 
-func serveWithResources(ctx context.Context, input io.Reader, output io.Writer, tools []map[string]any, instructions string, invoke func(context.Context, string, map[string]any, string) (json.RawMessage, error), ui bool) error {
+func serveWithResources(ctx context.Context, input io.Reader, output io.Writer, tools []map[string]any, instructions string, invoke func(context.Context, string, map[string]any, string) (json.RawMessage, error), resources func(context.Context, string, json.RawMessage) (any, error)) error {
+	ui := resources != nil
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	scan := bufio.NewScanner(input)
@@ -296,7 +297,7 @@ func serveWithResources(ctx context.Context, input io.Reader, output io.Writer, 
 				rpcError = map[string]any{"code": -32601, "message": "Method not found"}
 			} else {
 				var err error
-				result, err = uiResource(req.Method, req.Params)
+				result, err = resources(ctx, req.Method, req.Params)
 				if err != nil {
 					rpcError = map[string]any{"code": -32602, "message": err.Error()}
 				}
@@ -334,6 +335,9 @@ func serveWithResources(ctx context.Context, input io.Reader, output io.Writer, 
 				var structured map[string]any
 				if json.Unmarshal(out, &structured) == nil {
 					result.(map[string]any)["structuredContent"] = structured
+					if params.Name == mentionSearchTool {
+						result.(map[string]any)["content"] = []any{}
+					}
 				}
 			}
 		default:

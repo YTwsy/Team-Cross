@@ -52,7 +52,7 @@ func TestUIHandshakeAndEntrypointsWithoutCore(t *testing.T) {
 					t.Fatal(meta)
 				}
 			}
-			if len(tools) != 10 {
+			if len(tools) != 11 {
 				t.Fatal(len(tools))
 			}
 		case 3:

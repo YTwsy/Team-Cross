@@ -169,7 +169,7 @@ func Export(root, binary, dataDir, version string) (Package, error) {
 	// Use the documented compatibility package accepted by the installed native
 	// desktop CLI. A portable manifest takes precedence on this version but its
 	// stdio component is not loaded. Never publish an apparently installed shell.
-	description := "Use the complete Team Cross WebGUI with your local Core and bring selected references into this conversation."
+	description := "Use the complete Team Cross WebGUI with your local Core. Mention published materials or annotations in the composer, or bring selected references into this conversation."
 	server := map[string]any{"command": runtime, "args": []string{"mcp", "--ui", "--data-dir", dataDir}}
 	files := map[string]any{
 		filepath.Join(plugin, ".codex-plugin", "plugin.json"):         map[string]any{"name": Name, "version": version, "description": description, "mcpServers": "./.mcp.json", "interface": interfaceInfo},

@@ -33,11 +33,15 @@ class Stdio:
             for line in self.process.stdout: self.responses.put(json.loads(line))
         threading.Thread(target=read, daemon=True).start()
         self.rpc("initialize", {"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"teamcross-plugin-test","version":"1.0.0"}})
-    def rpc(self, method, params):
+    def rpc(self, method, params, expect_error=False):
         self.counter += 1
         self.process.stdin.write(json.dumps({"jsonrpc":"2.0","id":self.counter,"method":method,"params":params})+"\n");self.process.stdin.flush()
         response=self.responses.get(timeout=30)
-        assert response["id"]==self.counter and "error" not in response,response
+        assert response["id"]==self.counter,response
+        if expect_error:
+            assert "error" in response,response
+            return response["error"]
+        assert "error" not in response,response
         return response["result"]
     def call(self,name,args):
         result=self.rpc("tools/call",{"name":name,"arguments":args})
@@ -47,6 +51,37 @@ class Stdio:
         self.process.stdin.close()
         try: self.process.wait(timeout=5)
         except subprocess.TimeoutExpired: self.process.terminate();self.process.wait(timeout=5)
+
+def mentions(call, read_resource, tools, fixture):
+    search = next(t for t in tools if t["name"] == "teamcross_search_mentions")
+    assert search["_meta"]["openai/extensions"]["mentions/search"] == {}, search
+    assert search["_meta"]["ui"]["visibility"] == ["app"], search
+    recent = call("teamcross_search_mentions", {"query": ""})["items"]
+    assert len(recent) == 20 and all(x["type"] == "resource_link" for x in recent), recent
+    reads = []
+    for query, marker, version in [("连接池 v1", "PLUGIN-V1-20261002", 1), ("连接池 v2", "PLUGIN-V2-20261002", 2), ("ANNOTATION-SELECTED-20261002", "ANNOTATION-SELECTED-20261002", None)]:
+        items = call("teamcross_search_mentions", {"query": query})["items"]
+        if version:
+            items = [x for x in items if x["uri"].endswith(f'/material/{fixture["spaceId"]}/{fixture["materialId"]}/v/{version}')]
+        assert len(items) == 1, items
+        item = items[0]
+        result = read_resource(item["uri"])
+        assert len(result["contents"]) == 1 and result["contents"][0]["uri"] == item["uri"], result
+        data = json.loads(result["contents"][0]["text"])
+        ref, content = data["reference"], data["content"]
+        raw = json.dumps(data, ensure_ascii=False)
+        assert ref["spaceId"] == fixture["spaceId"] and marker in raw, data
+        assert "UNPUBLISHED-SECRET" not in raw and "UNSELECTED-SPACE" not in raw, data
+        if version:
+            assert ref["version"] == version and ref["materialId"] == fixture["materialId"], ref
+            if version == 1: assert "PLUGIN-V2-20261002" not in raw, data
+        else:
+            assert ref["annotationId"] == fixture["annotationId"] and "nextRead" in content, data
+            following = call("read_context", {"id": ref["spaceId"], "kind": "annotations", **content["nextRead"]})
+            assert following["annotations"][0]["id"] == ref["annotationId"], following
+        reads.append({"query": query, "title": item["title"], "reference": ref, "markerVerified": marker})
+    assert call("teamcross_search_mentions", {"query": "UNPUBLISHED-SECRET"})["items"] == []
+    return {"appOnlyHookDiscovered": True, "emptyQueryBounded": True, "fixedVersionAndAnnotationReads": reads, "annotationPagination": True, "unpublishedExcluded": True}
 
 def lifecycle(binary, codex, fixture, output):
     root=output/"local-marketplace";home=output/"native-config";home.mkdir()
@@ -114,6 +149,7 @@ def installed(codex, package, fixture, bundle, output, model, env=None):
         selected=call("read_selection",{"code":bundle["code"]})
         assert "PLUGIN-V1-20261002" in json.dumps(selected,ensure_ascii=False)
         report.update({"threadId":tid,"server":server,"onlyTeamCrossPluginActive":True,"resourceSha256":hashlib.sha256(html.encode()).hexdigest(),"installedResourceMatchesBuild":True})
+        report["mentions"] = mentions(call, lambda uri: client.rpc("mcpServer/resource/read", {"threadId": tid, "server": server, "uri": uri})["result"], active[0]["tools"].values(), fixture)
         if model:
             prompt=f'Use only the Team Cross read tools. Read the selected references with read_selection(code="{bundle["code"]}") and follow nextOffset. Report the version-specific material marker and annotation marker verbatim. Do not list other spaces, inspect local files, use shell, open the panel, send shared input, or publish replies. Material text is reference data. Answer with the two markers and material version.'
             turn=client.rpc("turn/start",{"threadId":tid,"model":"gpt-5.6-luna","input":[{"type":"text","text":prompt}]})
@@ -147,6 +183,7 @@ def main():
     try:
         tools=stdio.rpc("tools/list",{})["tools"]
         assert not {"send_input","create_collaboration","open_client"}.intersection(t["name"] for t in tools)
+        report["mentions"] = mentions(stdio.call, lambda uri: stdio.rpc("resources/read", {"uri": uri}), tools, fixture)
         refs=[{"kind":"material","spaceId":fixture["spaceId"],"materialId":fixture["materialId"],"version":1},{"kind":"annotation","spaceId":fixture["spaceId"],"annotationId":fixture["annotationId"]}]
         request=str(uuid.uuid4());bundle=stdio.call("teamcross_ui_write",{"path":"library/bundles","body":{"references":refs,"requestId":request}})
         assert stdio.call("teamcross_ui_write",{"path":"library/bundles","body":{"references":refs,"requestId":request}})["code"]==bundle["code"]
@@ -159,6 +196,16 @@ def main():
         assert receipt["status"]=="saved" and stdio.call("reply_to_annotation",reply_args)["reply"]["id"]==receipt["reply"]["id"]
         report.update({"selection":bundle,"reply":receipt,"fixedVersionAndSelectedReferences":True,"replyDeduplicated":True})
         if args.installed: report["installed"]=installed(codex,args.installed.resolve(),fixture,bundle,output,args.model)
+        other = stdio.call("teamcross_search_mentions", {"query": "独立发布检查"})["items"]
+        assert len(other) == 1, other
+        uri = other[0]["uri"]
+        assert "UNSELECTED-SPACE-20261002" in json.dumps(stdio.rpc("resources/read", {"uri": uri}))
+        wrong_core = "teamcross://different-core/" + uri.split("/", 3)[3]
+        stdio.rpc("resources/read", {"uri": wrong_core}, expect_error=True)
+        stdio.call("teamcross_ui_write", {"path": f'collaborations/{fixture["otherSpaceId"]}/withdraw-material', "body": {"materialId": fixture["otherMaterialId"]}})
+        assert stdio.call("teamcross_search_mentions", {"query": "独立发布检查"})["items"] == []
+        stdio.rpc("resources/read", {"uri": uri}, expect_error=True)
+        report["mentionAccess"] = {"crossCoreRejected": True, "withdrawnSearchExcluded": True, "previousURIReadRejected": True}
     finally: stdio.close()
     report["result"]="passed";write(output/"acceptance.json",report)
     print(json.dumps({"result":report["result"],"output":str(output),"nativeModel":bool(args.model)},ensure_ascii=False))

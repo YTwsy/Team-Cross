@@ -34,11 +34,20 @@ Team Cross 的本机插件为 ChatGPT for Mac 的本机 Work/Codex 提供完整�
 
 宿主支持消息时，在同一个读取入口旁增加“带回当前对话”。用户点击后，桥在宿主支持时更新所选引用上下文，再发送一次 `ui/message`，提示当前个人 Agent 按 `read_selection` 读取具体编号与分页。它不向共享原生会话发送输入，不自动回复批注；消息回执也不等于 Agent 已读取或完成分析。宿主不支持消息时，原有复制读取提示仍可使用。
 
-消息投递前保存结果未知状态，确认后标记已发送；结果不明时查看当前会话，不自动重放该编号的消息。上下文更新阶段失败而尚未发出消息时，可以明确重试。Composer mentions 和从 ChatGPT 原生消息选区采集片段属于后续宿主接入，不包含在本次 WebGUI 复用中。
+消息投递前保存结果未知状态，确认后标记已发送；结果不明时查看当前会话，不自动重放该编号的消息。上下文更新阶段失败而尚未发出消息时，可以明确重试。从 ChatGPT 原生消息选区采集片段仍属于后续宿主接入。
+
+## 输入框引用
+
+Composer mentions 直接接入宿主的原生输入框，不增加插件专用搜索界面。用户搜索空间名、材料标题、作者、版本或批注文字，选中某一材料版本或原批注后，将引用加入尚未发送的消息。搜索与选择只读，不改资源库勾选，不生成读取编号，不启动分析、回复或共同执行；用户发送消息时的处理要求由用户填写。
+
+工具、ResourceLink 与 `resources/read` 遵循固定版本的 [OpenAI Composer At-Mentions 规范](https://github.com/openai/mcp-extensions/blob/ca16cb3bc015baaa1b849082d8755bbef18770cb/docs/spec.md#composer-at-mentions)。该规范将入口支持限定在桌面；不把本机 Work/Codex 的接入推广到普通 ChatGPT 网页、Web Work 或手机端。实际输入框渲染与选中引用仍需对应桌面版本验收。
+
+搜索复用资源库引用和权限判断，包含已发布的全部版本及可见批注，不搜索私有会话或材料正文。空查询提供最近内容，结果最多 20 项，更多内容通过关键词缩小范围。材料标题带明确版本；批注引用绑定原批注，回复读取时更新。引用绑定安装包所选 Core，具体读取再次验证访问；撤回、离线或撤销成员权限后，不以缓存正文或搜索结果兜底。协议字段和分页规则维护于 [资源库接口](../protocol.md#个人资源库)。
 
 ## 实现与验证入口
 
 - [Go UI MCP](../../../../internal/mcp/ui.go)、[stdio 协议](../../../../internal/mcp/server.go)、[嵌入资源](../../../../internal/mcpassets/embed.go)。
+- [输入框搜索与资源读取](../../../../internal/mcp/mentions.go)、[资源库检索](../../../../internal/collab/mentions.go)。
 - [本地包管理](../../../../internal/pluginpack/plugin.go)、[CLI](../../../../cmd/teamcross/plugin.go)。
 - [共同入口](../../../../packages/web/src/main.tsx)、[完整 WebGUI](../../../../packages/web/src/App.tsx)、[插件环境](../../../../packages/web/src/plugin/environment.ts)、[宿主桥](../../../../packages/web/src/plugin/bridge.ts)、[自包含构建](../../../../packages/web/vite.plugin.config.ts)。
 - 通过标准由 [本机插件验证门槛](../validation/test-gates.md#chatgpt-本机插件) 维护，具体版本结果保存在任务记录。
