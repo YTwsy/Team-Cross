@@ -8,6 +8,7 @@ import { ReadingTabs } from "./ReadingTabs";
 import { Members } from "./Members";
 import { Clients } from "./Clients";
 import { InvitationPanel } from "./InvitationPanel";
+import { SpaceWorkbench, WorkbenchReadingShortcut } from "./SpaceWorkbench";
 import { Badge, ErrorBox, Modal, PageHeading } from "./ui";
 
 export function ReadOnlySpace({
@@ -139,83 +140,110 @@ export function ReadOnlySpace({
           </button>
         </div>
       </section>
-      <div className="detail-grid">
-        <div className="detail-main">
-          <ReadingTabs
-            active="materials"
-            onChange={() => {}}
-            materialCount={
-              c.materials?.filter((m) => !m.withdrawnAt).length || 0
-            }
-            materials={
-              <Materials
-                collaboration={c}
-                reload={reload}
-                onAnnotate={(target, origin) =>
-                  setRequest({ target, origin, serial: Date.now() })
-                }
-                onDiscuss={(annotationId, origin) =>
-                  setRequest({ annotationId, origin, serial: Date.now() })
-                }
-                location={location}
-              />
-            }
-          />
-          <section className="panel optional-execution">
-            <h2>{t("共同继续执行")}</h2>
-            <p>
-              {c.executionAvailable
-                ? t(
-                    "发起者已启用共同执行。你可以继续阅读和讨论；获得执行访问后，此处会显示参与入口。",
-                  )
-                : t("需要一起修改和运行时，由发起者在这个空间中启用共同执行。")}
-            </p>
-            {owner && !closed && (
-              <a className="button" href={`#/execute/${c.id}`}>
-                {t("启用共同执行") + " "}
-              </a>
-            )}
-            <p className="small-text muted">
-              {t(
-                "启用时保留原邀请链接、成员、材料与讨论。发起者再向需要参与执行的成员开放原生历史与目录访问。",
-              ) + " "}
-            </p>
-          </section>
+      <SpaceWorkbench
+        collaboration={c}
+        onLocate={(ref) => {
+          if (ref.kind === "material")
+            setLocation({
+              target: {
+                kind: "material",
+                materialId: ref.materialId,
+                version: ref.version,
+                quote: "",
+              },
+              serial: Date.now(),
+            });
+          else {
+            const note = c.annotations?.find((a) => a.id === ref.annotationId);
+            setRequest({ annotationId: ref.annotationId, serial: Date.now() });
+            if (note?.target)
+              setLocation({ target: note.target, serial: Date.now() });
+          }
+        }}
+      >
+        <div className="detail-grid">
+          <div className="detail-main">
+            <ReadingTabs
+              active="materials"
+              onChange={() => {}}
+              materialCount={
+                c.materials?.filter((m) => !m.withdrawnAt).length || 0
+              }
+              materials={
+                <Materials
+                  collaboration={c}
+                  reload={reload}
+                  onAnnotate={(target, origin) =>
+                    setRequest({ target, origin, serial: Date.now() })
+                  }
+                  onDiscuss={(annotationId, origin) =>
+                    setRequest({ annotationId, origin, serial: Date.now() })
+                  }
+                  location={location}
+                />
+              }
+            />
+            <section className="panel optional-execution">
+              <h2>{t("共同继续执行")}</h2>
+              <p>
+                {c.executionAvailable
+                  ? t(
+                      "发起者已启用共同执行。你可以继续阅读和讨论；获得执行访问后，此处会显示参与入口。",
+                    )
+                  : t(
+                      "需要一起修改和运行时，由发起者在这个空间中启用共同执行。",
+                    )}
+              </p>
+              {owner && !closed && (
+                <a className="button" href={`#/execute/${c.id}`}>
+                  {t("启用共同执行") + " "}
+                </a>
+              )}
+              <p className="small-text muted">
+                {t(
+                  "启用时保留原邀请链接、成员、材料与讨论。发起者再向需要参与执行的成员开放原生历史与目录访问。",
+                ) + " "}
+              </p>
+            </section>
+          </div>
+          <aside className="detail-aside">
+            <WorkbenchReadingShortcut />
+            <Members
+              collaboration={c}
+              busy={busy}
+              closed={closed}
+              onAction={() => {}}
+              onRemove={(memberId) =>
+                void manage("remove-member", { memberId })
+              }
+              onAssist={() => setModal("assist")}
+            />
+            <Annotations
+              id={c.id}
+              annotations={c.annotations || []}
+              materials={c.materials}
+              request={request}
+              disabled={disabled}
+              onSaved={reload}
+              onLocate={(annotation) =>
+                setLocation({ target: annotation.target, serial: Date.now() })
+              }
+              onLocateMaterial={(ref) =>
+                setLocation({
+                  target: {
+                    kind: "material",
+                    materialId: ref.materialId,
+                    version: ref.version,
+                    turnId: ref.turnId,
+                    quote: "",
+                  },
+                  serial: Date.now(),
+                })
+              }
+            />
+          </aside>
         </div>
-        <aside className="detail-aside">
-          <Members
-            collaboration={c}
-            busy={busy}
-            closed={closed}
-            onAction={() => {}}
-            onRemove={(memberId) => void manage("remove-member", { memberId })}
-            onAssist={() => setModal("assist")}
-          />
-          <Annotations
-            id={c.id}
-            annotations={c.annotations || []}
-            materials={c.materials}
-            request={request}
-            disabled={disabled}
-            onSaved={reload}
-            onLocate={(annotation) =>
-              setLocation({ target: annotation.target, serial: Date.now() })
-            }
-            onLocateMaterial={(ref) =>
-              setLocation({
-                target: {
-                  kind: "material",
-                  materialId: ref.materialId,
-                  version: ref.version,
-                  turnId: ref.turnId,
-                  quote: "",
-                },
-                serial: Date.now(),
-              })
-            }
-          />
-        </aside>
-      </div>
+      </SpaceWorkbench>
       {modal && (
         <Modal
           title={

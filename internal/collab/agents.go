@@ -23,33 +23,37 @@ import (
 // Pairings name an exact receiving conversation. They confer no additional
 // resource access or execution ownership. This state is local to one Core.
 type AgentPairing struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Provider   string    `json:"provider,omitempty"`
-	SessionID  string    `json:"sessionId,omitempty"`
-	SpaceID    string    `json:"spaceId,omitempty"`
-	Transport  string    `json:"transport,omitempty"`
-	State      string    `json:"state"`
-	Reason     string    `json:"reason,omitempty"`
-	CreatedAt  time.Time `json:"createdAt"`
-	ExpiresAt  time.Time `json:"expiresAt"`
-	CodeHash   string    `json:"codeHash,omitempty"`
-	ReceiverID string    `json:"receiverId,omitempty"`
-	Challenge  string    `json:"challenge,omitempty"`
+	Links      map[string]string `json:"links,omitempty"`
+	RuntimeID  string            `json:"runtimeId,omitempty"`
+	ID         string            `json:"id"`
+	Name       string            `json:"name"`
+	Provider   string            `json:"provider,omitempty"`
+	SessionID  string            `json:"sessionId,omitempty"`
+	SpaceID    string            `json:"spaceId,omitempty"`
+	Transport  string            `json:"transport,omitempty"`
+	State      string            `json:"state"`
+	Reason     string            `json:"reason,omitempty"`
+	CreatedAt  time.Time         `json:"createdAt"`
+	ExpiresAt  time.Time         `json:"expiresAt"`
+	CodeHash   string            `json:"codeHash,omitempty"`
+	ReceiverID string            `json:"receiverId,omitempty"`
+	Challenge  string            `json:"challenge,omitempty"`
 }
 
 type AgentRequest struct {
-	ID          string             `json:"id"`
-	PairingID   string             `json:"pairingId"`
-	References  []LibraryReference `json:"references"`
-	Instruction string             `json:"instruction"`
-	Intent      string             `json:"intent"`
-	State       string             `json:"state"`
-	Summary     string             `json:"summary,omitempty"`
-	Error       string             `json:"error,omitempty"`
-	TurnID      string             `json:"turnId,omitempty"`
-	CreatedAt   time.Time          `json:"createdAt"`
-	UpdatedAt   time.Time          `json:"updatedAt"`
+	WorkbenchSpaceID string             `json:"workbenchSpaceId,omitempty"`
+	TargetID         string             `json:"targetId,omitempty"`
+	ID               string             `json:"id"`
+	PairingID        string             `json:"pairingId"`
+	References       []LibraryReference `json:"references"`
+	Instruction      string             `json:"instruction"`
+	Intent           string             `json:"intent"`
+	State            string             `json:"state"`
+	Summary          string             `json:"summary,omitempty"`
+	Error            string             `json:"error,omitempty"`
+	TurnID           string             `json:"turnId,omitempty"`
+	CreatedAt        time.Time          `json:"createdAt"`
+	UpdatedAt        time.Time          `json:"updatedAt"`
 }
 
 type agentState struct {
@@ -80,11 +84,14 @@ type agentPairInput struct {
 }
 
 type agentRequestInput struct {
-	RequestID   string             `json:"requestId"`
-	PairingID   string             `json:"pairingId"`
-	References  []LibraryReference `json:"references"`
-	Instruction string             `json:"instruction"`
-	Intent      string             `json:"intent"`
+	WorkbenchSpaceID string             `json:"-"`
+	TargetID         string             `json:"-"`
+	Role             string             `json:"-"`
+	RequestID        string             `json:"requestId"`
+	PairingID        string             `json:"pairingId"`
+	References       []LibraryReference `json:"references"`
+	Instruction      string             `json:"instruction"`
+	Intent           string             `json:"intent"`
 }
 
 func (a *App) loadAgents() error {
@@ -139,6 +146,7 @@ func agentSecret() (string, error) {
 	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(p[:]), nil
 }
 func pairingPublic(p AgentPairing) AgentPairing {
+	p.Links = nil
 	p.CodeHash, p.ReceiverID, p.Challenge = "", "", ""
 	return p
 }
@@ -348,9 +356,20 @@ func (a *App) agentPairings() []AgentPairing {
 }
 
 func (a *App) nativeAgentReason(p AgentPairing) string {
+	return a.nativeAgentReasonFor(p, "owner")
+}
+
+func (a *App) agentSession(p AgentPairing) *Session {
 	a.mu.Lock()
-	s := a.sessions[p.SpaceID]
-	a.mu.Unlock()
+	defer a.mu.Unlock()
+	if p.RuntimeID != "" {
+		return a.receivers[p.RuntimeID]
+	}
+	return a.sessions[p.SpaceID]
+}
+
+func (a *App) nativeAgentReasonFor(p AgentPairing, role string) string {
+	s := a.agentSession(p)
 	if s == nil {
 		return "接收会话已不可用"
 	}
@@ -362,7 +381,7 @@ func (a *App) nativeAgentReason(p AgentPairing) string {
 	if s.closed || !s.online || s.process == nil || !s.process.Alive() {
 		return "接收会话未连接，请先恢复运行时"
 	}
-	if s.writer != "owner" {
+	if s.writer != role {
 		return "当前输入权属于其他参与者，请先在空间中交接输入"
 	}
 	if s.busy || s.starting || len(s.approvals) > 0 || s.nativeWaiting != "" {
@@ -372,10 +391,13 @@ func (a *App) nativeAgentReason(p AgentPairing) string {
 }
 
 func sameAgentRequest(r AgentRequest, in agentRequestInput) bool {
-	return r.PairingID == in.PairingID && r.Intent == in.Intent && r.Instruction == in.Instruction && contentHash(r.References) == contentHash(in.References)
+	return r.WorkbenchSpaceID == in.WorkbenchSpaceID && r.TargetID == in.TargetID && r.PairingID == in.PairingID && r.Intent == in.Intent && r.Instruction == in.Instruction && contentHash(r.References) == contentHash(in.References)
 }
 
 func (a *App) sendAgentRequest(ctx context.Context, in agentRequestInput) (AgentRequest, error) {
+	if in.Role == "" {
+		in.Role = "owner"
+	}
 	if _, err := uuid.Parse(in.RequestID); err != nil {
 		return AgentRequest{}, fmt.Errorf("发送需要有效的 requestId")
 	}
@@ -412,16 +434,19 @@ func (a *App) sendAgentRequest(ctx context.Context, in agentRequestInput) (Agent
 			return AgentRequest{}, fmt.Errorf("分析并回复需要至少一条原批注")
 		}
 	}
-	if err := a.validateLibrarySelection(ctx, in.References, false); err != nil {
-		return AgentRequest{}, err
+	if len(in.References) != 0 || in.WorkbenchSpaceID == "" {
+		if err := a.validateLibrarySelection(ctx, in.References, false); err != nil {
+			return AgentRequest{}, err
+		}
 	}
 	if p.Transport == "native" {
-		if reason := a.nativeAgentReason(p); reason != "" {
+		if reason := a.nativeAgentReasonFor(p, in.Role); reason != "" {
 			return AgentRequest{}, fmt.Errorf("%s", reason)
 		}
 	}
 	now := time.Now()
 	r := AgentRequest{ID: in.RequestID, PairingID: p.ID, References: libraryClone(in.References), Instruction: in.Instruction, Intent: in.Intent, State: "submitting", CreatedAt: now, UpdatedAt: now}
+	r.WorkbenchSpaceID, r.TargetID = in.WorkbenchSpaceID, in.TargetID
 	a.agentMu.Lock()
 	if old, exists := a.agents.Requests[r.ID]; exists {
 		a.agentMu.Unlock()
@@ -465,14 +490,12 @@ func (a *App) sendAgentRequest(ctx context.Context, in agentRequestInput) (Agent
 	a.agentMu.Unlock()
 	// Only the user's explicit send starts a turn. The existing RPC checks input
 	// ownership again, records requestId before the write, and never replays it.
-	a.mu.Lock()
-	s := a.sessions[p.SpaceID]
-	a.mu.Unlock()
+	s := a.agentSession(p)
 	if s == nil {
 		return a.agentDeliveryResult(r.ID, "unknown", "", "接收会话已不可用")
 	}
 	prompt := "请使用 Team Cross 的 read_agent_request 读取请求 " + r.ID + "，按其中的用户处理要求核对原文并分析。处理结束后用 finish_agent_request 记录结果摘要。"
-	result, err := s.RPC(ctx, "owner", "turn/start", map[string]any{"threadId": p.SessionID, "input": []any{map[string]any{"type": "text", "text": prompt}}}, r.ID)
+	result, err := s.RPC(ctx, in.Role, "turn/start", map[string]any{"threadId": p.SessionID, "input": []any{map[string]any{"type": "text", "text": prompt}}}, r.ID)
 	if err != nil {
 		return a.agentDeliveryResult(r.ID, "unknown", "", err.Error())
 	}
@@ -507,7 +530,7 @@ func (a *App) agentRequestFor(c agentCaller, id, runtimeID string) (AgentRequest
 	defer a.agentMu.Unlock()
 	r, ok := a.agents.Requests[id]
 	p, paired := a.agents.Pairings[r.PairingID]
-	if !ok || !paired || p.State != "paired" || p.Provider != c.Caller.Provider || p.SessionID != c.Caller.SourceID || (runtimeID != "" && runtimeID != p.SpaceID) || (p.Transport == "claude_channel" && p.ReceiverID != c.ReceiverID) {
+	if !ok || !paired || p.State != "paired" || p.Provider != c.Caller.Provider || p.SessionID != c.Caller.SourceID || (runtimeID != "" && runtimeID != p.SpaceID && runtimeID != p.RuntimeID) || (p.Transport == "claude_channel" && p.ReceiverID != c.ReceiverID) {
 		return AgentRequest{}, AgentPairing{}, fmt.Errorf("此请求不属于当前已配对会话，或配对已移除")
 	}
 	return libraryClone(r), p, nil
@@ -517,6 +540,9 @@ func (a *App) readAgentRequest(ctx context.Context, c agentCaller, id, runtimeID
 	r, p, err := a.agentRequestFor(c, id, runtimeID)
 	if err != nil {
 		return nil, err
+	}
+	if r.WorkbenchSpaceID != "" {
+		return a.readSpaceAgentRequest(ctx, c, r, p, offset)
 	}
 	if offset < 0 || offset >= len(r.References) {
 		return nil, fmt.Errorf("请求引用分页位置无效")
@@ -570,9 +596,12 @@ func (a *App) finishAgentRequest(ctx context.Context, c agentCaller, id, runtime
 	if summary == "" || len([]rune(summary)) > 2000 {
 		return AgentRequest{}, fmt.Errorf("请提供 1–2000 字的结果摘要")
 	}
-	_, p, err := a.agentRequestFor(c, id, runtimeID)
+	request, p, err := a.agentRequestFor(c, id, runtimeID)
 	if err != nil {
 		return AgentRequest{}, err
+	}
+	if request.WorkbenchSpaceID != "" {
+		return a.finishSpaceAgentRequest(ctx, c, request, p, state, summary)
 	}
 	if p.Transport == "claude_channel" {
 		if _, err := a.currentSource(ctx, c.Caller); err != nil {

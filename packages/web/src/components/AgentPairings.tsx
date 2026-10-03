@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api, errorText, useResource } from "../api";
 import { formatDate, serviceText, t, tr } from "../i18n";
-import type { LibraryReference } from "../library";
+import { sameReference, useLibrary, type LibraryReference } from "../library";
+import type { WorkbenchView } from "../workbench";
 import { Copy, ErrorBox, Loading, Modal } from "./ui";
 
 export type AgentPairing = {
@@ -17,14 +18,16 @@ export type AgentPairing = {
 };
 export type AgentRequest = {
   id: string;
-  pairingId: string;
+  pairingId?: string;
   state:
     | "submitting"
     | "submitted"
     | "received"
     | "completed"
     | "failed"
-    | "unknown";
+    | "unknown"
+    | "queued"
+    | "cancelled";
   summary?: string;
   error?: string;
 };
@@ -239,15 +242,21 @@ export function AgentPairings() {
 
 export function AgentRequestStatus({ request }: { request: AgentRequest }) {
   const text =
-    request.state === "completed"
-      ? t("Agent 已报告处理完成")
-      : request.state === "failed"
-        ? t("Agent 已报告处理失败")
-        : request.state === "received"
-          ? t("Agent 已读取请求，尚未报告处理完成")
-          : request.state === "unknown"
-            ? t("发送结果需要核对，界面不会自动重发")
-            : t("请求已提交，等待 Agent 读取");
+    request.state === "queued"
+      ? t("等待接收端接手投递")
+      : request.state === "cancelled"
+        ? t("请求已取消，未启动新输入")
+        : request.state === "completed"
+          ? t("Agent 已报告处理完成")
+          : request.state === "failed"
+            ? request.summary
+              ? t("Agent 已报告处理失败")
+              : t("投递未完成，请查看原因")
+            : request.state === "received"
+              ? t("Agent 已读取请求，尚未报告处理完成")
+              : request.state === "unknown"
+                ? t("发送结果需要核对，界面不会自动重发")
+                : t("请求已提交，等待 Agent 读取");
   return (
     <div className="notice agent-request-result" role="status">
       <strong>{text}</strong>
@@ -261,12 +270,48 @@ export function AgentRequestStatus({ request }: { request: AgentRequest }) {
 
 export function SendToAgent({
   references,
+  spaceId,
+  initialTargetId = "",
+  parentRequestId,
+  onSent,
 }: {
   references: LibraryReference[];
+  spaceId?: string;
+  initialTargetId?: string;
+  parentRequestId?: string;
+  onSent?: () => void;
 }) {
-  const pairs = useResource<AgentPairing[]>("agent-pairings", 2000);
+  const library = useLibrary();
+  const pairs = useResource<AgentPairing[]>(
+    spaceId ? null : "agent-pairings",
+    2000,
+  );
+  const space = useResource<WorkbenchView>(
+    spaceId ? `collaborations/${spaceId}/workbench/view` : null,
+    2000,
+  );
+  const choices: AgentPairing[] | undefined = spaceId
+    ? space.data?.targets
+        ?.filter((p) => !p.removed)
+        .map((p) => ({
+          id: p.id,
+          name: `${p.name} · ${p.member}`,
+          state: "paired",
+          reason:
+            space.data?.assistant.targetId === p.id &&
+            !["ready", "disabled"].includes(space.data.assistant.state)
+              ? t("专用会话尚未接手或已暂停")
+              : p.available
+                ? ""
+                : p.reason || t("接收端未连接"),
+          createdAt: "",
+          expiresAt: "",
+        }))
+    : pairs.data;
   const [selected, setSelected] = useState(
-    () => localStorage.getItem("teamcross.agent-target.v1") || "",
+    () =>
+      initialTargetId ||
+      (spaceId ? "" : localStorage.getItem("teamcross.agent-target.v1") || ""),
   );
   const [pairing, setPairing] = useState(false);
   const [instruction, setInstruction] = useState(
@@ -279,10 +324,14 @@ export function SendToAgent({
   const [unknownID, setUnknownID] = useState("");
   const sending = useRef(false);
   const status = useResource<AgentRequest>(
-    request || unknownID ? `agent-requests/${request?.id || unknownID}` : null,
+    request || unknownID
+      ? spaceId
+        ? `collaborations/${spaceId}/workbench/request?requestId=${request?.id || unknownID}`
+        : `agent-requests/${request?.id || unknownID}`
+      : null,
     2000,
   );
-  const target = pairs.data?.find((p) => p.id === selected);
+  const target = choices?.find((p) => p.id === selected);
   const reason = !target
     ? t("请选择已配对的接收会话。")
     : target.state !== "paired"
@@ -295,7 +344,26 @@ export function SendToAgent({
   const locked = busy || !!request || !!unknownID;
   function choose(id: string) {
     setSelected(id);
-    localStorage.setItem("teamcross.agent-target.v1", id);
+    if (!spaceId) localStorage.setItem("teamcross.agent-target.v1", id);
+  }
+  async function paired(id: string) {
+    if (!spaceId) {
+      choose(id);
+      setPairing(false);
+      pairs.reload();
+      return;
+    }
+    try {
+      const target = await api<{ id: string }>(
+        `collaborations/${spaceId}/workbench/register`,
+        { pairingId: id },
+      );
+      choose(target.id);
+      setPairing(false);
+      space.reload();
+    } catch (e) {
+      setError(errorText(e));
+    }
   }
   async function send() {
     if (sending.current || locked || reason || !instruction.trim()) return;
@@ -305,14 +373,25 @@ export function SendToAgent({
     const requestId = crypto.randomUUID();
     try {
       setRequest(
-        await api<AgentRequest>("agent-requests", {
-          requestId,
-          pairingId: selected,
-          references,
-          instruction: instruction.trim(),
-          intent,
-        }),
+        await api<AgentRequest>(
+          spaceId
+            ? `collaborations/${spaceId}/workbench/send`
+            : "agent-requests",
+          {
+            requestId,
+            ...(spaceId
+              ? {
+                  targetId: selected,
+                  ...(parentRequestId ? { parentRequestId } : {}),
+                }
+              : { pairingId: selected }),
+            references,
+            instruction: instruction.trim(),
+            intent,
+          },
+        ),
       );
+      onSent?.();
     } catch (e) {
       // Once the POST is in flight, even a lost response must not enable a
       // second click. Query the same request; creating another is explicit.
@@ -325,6 +404,11 @@ export function SendToAgent({
   }
   return (
     <div className="send-to-agent">
+      {spaceId && (
+        <p className="notice">
+          {t("请求、所选引用和结果摘要将对本空间成员可见。")}
+        </p>
+      )}
       <p>{tr`本次带入 ${references.length} 项明确引用。原文仍由 Agent 按当前权限读取。`}</p>
       <label>
         {t("接收会话")}
@@ -334,7 +418,7 @@ export function SendToAgent({
           onChange={(e) => choose(e.target.value)}
         >
           <option value="">{t("选择接收会话")}</option>
-          {pairs.data?.map((p) => (
+          {choices?.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name} · {pairingState(p)}
             </option>
@@ -352,13 +436,7 @@ export function SendToAgent({
       )}
       {pairing && !locked && (
         <div className="agent-pair-inline">
-          <PairConversation
-            onPaired={(id) => {
-              choose(id);
-              setPairing(false);
-              pairs.reload();
-            }}
-          />
+          <PairConversation onPaired={(id) => void paired(id)} />
         </div>
       )}
       <label>
@@ -387,9 +465,34 @@ export function SendToAgent({
       </label>
       <details>
         <summary>{t("查看本次引用")}</summary>
-        <pre>{JSON.stringify(references, null, 2)}</pre>
+        <ul>
+          {references.map((ref, i) => {
+            const resource = library?.data?.resources.find((r) =>
+              sameReference(r.reference, ref),
+            );
+            const label =
+              resource?.title ||
+              (ref.kind === "material"
+                ? t("已发布会话材料")
+                : ref.kind === "annotation"
+                  ? t("批注")
+                  : t("上下文"));
+            return (
+              <li key={i}>
+                {resource?.spaceTitle ? `${resource.spaceTitle} · ` : ""}
+                {label}
+                {ref.kind === "material" ? ` · ${tr`版本 ${ref.version}`}` : ""}
+              </li>
+            );
+          })}
+        </ul>
+        {!references.length && (
+          <p className="muted">
+            {t("未附带材料引用；接收会话可按需读取空间简报。")}
+          </p>
+        )}
       </details>
-      <ErrorBox message={error || pairs.error} />
+      <ErrorBox message={error || pairs.error || space.error} />
       {!locked && reason && <p className="notice">{reason}</p>}
       {busy && <Loading text={t("正在提交，请勿重复发送…")} />}
       {(status.data || request) && (

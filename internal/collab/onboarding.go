@@ -28,6 +28,9 @@ func (a *App) Active() int {
 	for _, s := range a.sessions {
 		ss = append(ss, s)
 	}
+	for _, s := range a.receivers {
+		ss = append(ss, s)
+	}
 	for _, j := range a.joined {
 		js = append(js, j)
 	}

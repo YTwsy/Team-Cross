@@ -148,6 +148,9 @@ func (a *App) pollAgentReceiver(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) invokeAgentTool(r *http.Request, name string, args map[string]any, c agentCaller, runtimeID string) (any, error) {
+	if strings.Contains(name, "_space_") {
+		return a.invokeWorkbenchTool(r.Context(), name, args, c, runtimeID)
+	}
 	if err := mcp.ValidateAgentCall(name, args); err != nil {
 		return nil, err
 	}

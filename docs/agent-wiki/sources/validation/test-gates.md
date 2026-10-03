@@ -11,6 +11,7 @@
 | Git 预览、目录创建或恢复 | 原目录分支/HEAD/暂存区/文件不变；worktree 不复制四类未提交内容；子目录映射、新会话 ID 与来源关联 |
 | 输入协调、共享或进程生命周期 | 相关 race test，以及直接连接/MCP 共用输入者、重复请求、审批、断线、结束访问和恢复 |
 | 实现下一阶段只读分享与多人空间 | 除工程门槛外，完成 [首版契约](../decisions/collaboration-spaces.md#实施顺序与首版完成标准) 的三成员、逐人撤销、范围隔离、发布版本和多人接力检查；旧双人结果不能替代 |
+| 空间请求、简报、专用角色或独立接收会话 | 三成员跨 Core 目标/身份/回执、固定引用和撤销、请求去重、关闭/重启不重放、简报 CAS、唯一角色并发、接手确认/暂停/更换及独立原生调用；见下方空间工作台门槛 |
 | LAN / Tailcat 传输或邀请格式 | 邀请互斥字段、TLS pin、多人共用链接加入、成员重连、取消与资源关闭；Tailcat 另跑显式联网测试，并把同机、两台 Mac 直连和强制 DERP 分开报告 |
 | 原生协议、客户端启动或账户路由 | 除协议测试外，使用专门会话实测对应 TUI/Desktop；分别验证登录、历史、输入、审批和 A 上执行 |
 | 模型与推理设置 | 来源继承、客户端选择、失败不更新显示、通知、恢复与写入归属；真实调用仅使用 Luna |
@@ -61,6 +62,30 @@ go build -o bin/teamcross ./cmd/teamcross
 | [reading-scroll.test.tsx](../../../../packages/web/src/test/reading-scroll.test.tsx) | 整页阅读的段落恢复、吸顶高度变化、标签与显式批注定位、隐藏阅读器、成员折叠与焦点保护 |
 | [library_test.go](../../../../internal/collab/library_test.go) / [library.test.tsx](../../../../packages/web/src/test/library.test.tsx) | 固定引用选择、读取编号、个人/共享访问隔离、撤回、并发更新、内联入口和设置导航保留；[独立浏览器 fixture](../../../../internal/collab/library_browser_test.go) 使用合成内容与真实 Core/存储 |
 | [annotation_reply_test.go](../../../../internal/collab/annotation_reply_test.go) / [runtime_test.go](../../../../internal/mcp/runtime_test.go) / [annotations.test.tsx](../../../../packages/web/src/test/annotations.test.tsx) | 单层回复、去重、并发快照、访问撤销、受限运行时工具、内嵌草稿与键盘保存 |
+
+## 空间工作台
+
+[workbench_test.go](../../../../internal/collab/workbench_test.go) 覆盖同机三 Core 成员身份、明确目标关联、固定公开引用、请求/回执、撤销、简报 CAS、并发启用唯一角色、读取后接手、晚到结果、暂停阻止新请求、排队超时、取消启动、重启不重放，以及独立接收原生 ID 与绑定工具范围。相关变更运行 `internal/collab`、`internal/mcp` race 检查，并回归原有配对入口。
+
+真实模型检查使用专用空目录和当前构建：
+
+```sh
+python3 scripts/verify-space-workbench.py \
+  --fixture-dir /private/tmp/teamcross-space-workbench-fresh \
+  --teamcross-bin /absolute/path/to/teamcross \
+  --codex-bin /absolute/path/to/codex
+```
+
+脚本只用 `gpt-5.6-luna` 和隔离原生配置，启动同一台 Mac 上的三个 Core，通过真实 TLS 成员资格关联两名成员的独立接收会话。必须验证启动简报读取和接手、经明确授权的会话到会话 MCP 投递、关联请求及三个成员一致的完成回执、同 ID 去重、暂停/停用保留原生会话，且未启用共同执行。只能回应本测试精确原生会话、工具名称和请求 ID 的必要审批。模型返回摘要按明确指定的标记核对，协议完成不代表正文正确。脚本保留证据并退出自身 Core；不改写个人配置，不等价于两台 Mac 或 ChatGPT MCP Events 验证。
+
+[space-workbench.test.tsx](../../../../packages/web/src/test/space-workbench.test.tsx) 验证工作台键盘导航、阅读器保留、固定引用发送、丢失响应只查同 ID、成员确认简报和显式接手预览。真实浏览器 fixture 使用合成材料和模拟接收者，但空间存储、成员访问和 HTTP 是真实的：
+
+```sh
+TEAMCROSS_WORKBENCH_BROWSER_DIR=/private/tmp/teamcross-space-browser-fresh \
+  go test ./internal/collab -run '^TestWorkbenchBrowserFixture$' -v -count=1 -timeout=30m
+```
+
+按 fixture 输出的 `fixture.json` 打开专用页面，检查 1440/1024/768 像素、深浅主题、中英文、材料与批注就地发起、回执/关联导航、简报保存/冲突、专用角色初始化/暂停。创建该目录的 `finish` 文件结束；不得把模拟接收截图描述为真实模型回执。前端修改仍更新嵌入资源。
 
 ## 真实模型和客户端
 

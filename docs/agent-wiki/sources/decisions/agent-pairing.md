@@ -30,6 +30,8 @@ sequenceDiagram
 
 ## 身份、接收能力与范围
 
+空间内的公开批注与材料可以通过工作台发起空间请求。成员需将配对明确关联到空间；接收目标可分布于不同成员的 Core，记录和结果由空间托管端保存。此路径不自动公开个人配对列表或旧请求，也不要求把 A 的配对码粘贴到 B 的 Core。只读空间还可明确创建独立 Codex 接收会话，准确绑定新建的原生 ID；不使用猜测的个人会话。详细语义见 [空间工作台](space-workbench.md)。
+
 - Codex 身份来自 MCP `_meta` 中的当前 thread/turn；Claude 来自进程的 `CLAUDE_CODE_SESSION_ID` 和本次 `_meta.claudecode/toolUseId`。个人 Claude 的配对、接收核验和请求读取/完成都核对工具调用确实存在于该会话最新 transcript，防止恢复会话后使用过期进程身份。工具参数不能指定 Provider、Session 或接收连接。
 - 本机 Core 管理的共享运行时，使用已有原生连接核对精确 Session。发送仍走 `Session.RPC(turn/start)`，检查当前输入归属、空闲状态及审批；同一请求 ID 不重复执行。共享运行时只接受自身空间的引用。
 - 个人 Claude 使用独立于共享运行时的实验性 Channel 适配器。STDIO 声明 `experimental["claude/channel"]`，Core 将最小事件送到该连接，再发 `notifications/claude/channel`。首次配对必须收到通知中的随机挑战并通过 `confirm_pairing` 回传，写入 STDIO 本身不是接收证明。未开启 Channel、账户/组织不支持或宿主丢弃通知时，状态停留在 `verifying`，到期失效。

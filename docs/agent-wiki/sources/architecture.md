@@ -24,9 +24,9 @@ flowchart LR
 
 ## 空间、材料与执行
 
-`Record` 使用 `schema:3`，保存空间 ID、标题、成员、讨论和材料版本元数据；材料正文不再嵌入该记录。可空的嵌套 `execution` 保存原生 fork、目录、模式、模型与写入命令。纯只读空间不创建 Provider 执行进程或工作目录；分享通道也不要求执行运行时在线。已有原生协作仍通过状态投影使用原有界面字段。
+`Record` 使用 `schema:3`，保存空间 ID、标题、成员、讨论和材料版本元数据；材料正文不再嵌入该记录。可空的嵌套 `execution` 保存原生 fork、目录、模式、模型与写入命令。创建只读空间本身不创建 Provider 执行进程或工作目录；分享通道也不要求执行运行时在线。已有原生协作仍通过状态投影使用原有界面字段。
 
-本机 `publication-drafts/records/<UUID>.json` 保存草稿元数据，正文进入私有的内容寻址 `materials/`；只有本机发布入口和个人 MCP 的 `read_publication_draft` 能读取。托管主机同样把每个版本保存为不可变清单和按内容寻址 blob，`collaboration.json` 只追加小型版本引用。远端发布先协商清单、逐个上传缺失 blob，再幂等提交版本；协商只复用当前作者可从自己未撤回版本证明已经拥有的 blob。远端读者只访问目录、折叠正文流和按条范围读取；共享运行时保持当前空间的四个材料/批注工具，不能枚举个人来源。完整字段、限额与生命周期见 [材料协议](protocol.md#已发布会话材料)。
+本机 `publication-drafts/records/<UUID>.json` 保存草稿元数据，正文进入私有的内容寻址 `materials/`；只有本机发布入口和个人 MCP 的 `read_publication_draft` 能读取。托管主机同样把每个版本保存为不可变清单和按内容寻址 blob，`collaboration.json` 只追加小型版本引用。远端发布先协商清单、逐个上传缺失 blob，再幂等提交版本；协商只复用当前作者可从自己未撤回版本证明已经拥有的 blob。远端读者只访问目录、折叠正文流和按条范围读取；共享运行时提供当前空间的材料/批注工具及通用空间请求工具，不能枚举个人来源。完整字段、限额与生命周期见 [材料协议](protocol.md#已发布会话材料)。
 
 此原型只加载 `schema:3`；旧 `schema:2` 和更早的 Record 原样留在磁盘但不作为新空间加载，原生会话也不删除。启用执行保留原共享代次和成员；成员的 executionAccess 独立控制原生历史、目录、RPC、直接客户端与执行批注。材料与讨论访问持续有效，新增执行范围由主机明确开放。
 
@@ -37,8 +37,14 @@ flowchart LR
 - `internal/collab`：协作记录、原生协议网关、输入协调、邀请与加入、TUI/Desktop 启动、HTTP 管理接口。
 - `internal/materialstore`：确定性清单、SHA-256 blob、不可变原子写入及内容校验；授权仍由 `internal/collab` 的空间或私有草稿引用决定。
 - `internal/sharing`：`tcx3` 邀请、临时 TLS listener、指纹绑定，以及 LAN / Tailcat 服务端与客户端连接适配。Tailcat 只把虚拟 TCP 443 交给同一 TLS/HTTP 网关。
-- `internal/mcp`：个人辅助 STDIO 与共享运行时批注 STDIO。后者只有当前协作的读取/回复工具和独立凭据，每次调用重新读取 Core 地址，不启动 Core 或复用管理凭据。
+- `internal/mcp`：个人辅助 STDIO 与共享运行时批注 STDIO。后者提供当前协作的读取/回复、配对回执、通用空间请求工具及独立凭据，每次调用重新读取 Core 地址，不启动 Core 或复用管理凭据。
 - `packages/web`：新 React/Vite 界面，生产资源编译到 `internal/webassets/dist` 后嵌入 Go 二进制。
+
+## 空间工作台
+
+`workbench.go` 在空间锁内执行成员校验、请求/简报/角色变更和原子持久化；外部原生输入不在该锁内发生。`workbench_bridge.go` 将成员本机别名映射到托管空间，通过现有 TLS 成员凭据同步目标租约、一次性领取和结果。接收端复用 `agents.go` 的精确配对、原生输入与 Channel 接收适配。Web 工作台与 MCP 使用同一领域入口。
+
+独立接收会话由 `space_receivers.go` 复用原生 Session 引擎，单独保存在 `DataDir/receivers/`，不进入空间 `execution` 或共享原生 RPC。创建者 Core 运行其 app-server，角色与接收进程生命周期分离；Core 退出关闭自身进程，重启只加载记录，显式恢复才重新连接原生 ID。空间请求本身仍由托管 Core 保存。完整边界见 [空间工作台](decisions/space-workbench.md)，字段和路由见 [协议](protocol.md#空间工作台与独立接收会话)。
 
 ## 原生运行时
 

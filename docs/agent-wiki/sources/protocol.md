@@ -115,9 +115,41 @@
 
 `TCP-` 配对码使用 16 个随机字节的无填充 Base32，仅保存 SHA-256，十分钟有效。`waiting/verifying/unsupported/expired` 均不代表配对成功，只有 `paired` 可投递，投递前还需检查连接与输入状态。会话身份与接收连接不能由模型工具参数指定；配对码首次绑定后不能用于其他会话。
 
-个人 MCP 增加 `pair_current_session(code)`、`confirm_pairing(pairingId,challenge)`、`read_agent_request(requestId,offset?)`、`finish_agent_request(requestId,status,summary)`。共享运行时仅加入其中的配对、读取请求和完成请求三个工具，不提供 Channel `confirm_pairing`。运行时调用复用原 `runtime-annotations/:id` 的专用 token，caller 必须与该运行时 Provider/Session 匹配。工具不枚举目标、不任意指定空间、不启动其他模型输入。`analyze_reply` 至少需要一条原批注；共享目标引用全部属于它的空间；读取请求时再次检查访问，正文继续走现有工具。每次返回一项引用和 `offset/total/nextOffset?`，`offset` 为 0–31；分页不改变持久化的完整引用组。
+个人 MCP 增加 `pair_current_session(code)`、`confirm_pairing(pairingId,challenge)`、`read_agent_request(requestId,offset?)`、`finish_agent_request(requestId,status,summary)`。共享运行时仅加入其中的配对、读取请求和完成请求三个工具，不提供 Channel `confirm_pairing`。运行时调用复用原 `runtime-annotations/:id` 的专用 token，caller 必须与该运行时 Provider/Session 匹配。这组配对工具不任意指定空间或发送其他模型输入；明确的空间间接投递由下节通用工作台工具提供。`analyze_reply` 至少需要一条原批注；共享目标引用全部属于它的空间；读取请求时再次检查访问，正文继续走现有工具。每次返回一项引用和 `offset/total/nextOffset?`，`offset` 为 0–31；分页不改变持久化的完整引用组。
 
-`agent-pairings.json` 按 0600 原子保存，最多 64 个配对记录、512 个请求；创建时清除到期未配对记录，以及超过三十天的完成/失败请求。状态为 `submitting/submitted/received/completed/failed/unknown`，`completed/failed` 是 Agent 自报结果，不由传输成功推断；摘要最多 2000 字。请求提交前持久化，同 ID 不同内容拒绝，已有请求只返回状态。重启不重放；内存接收租约失效，个人 Channel 需要重新配对。
+`agent-pairings.json` 按 0600 原子保存，最多 64 个配对记录、512 个请求；创建时清除到期未配对记录，以及超过三十天的完成/失败请求。状态为 `submitting/submitted/received/completed/failed/unknown`；`completed` 为 Agent 自报完成，`failed` 区分投递失败的 `error` 与 Agent 自报失败的 `summary`，不由传输成功推断完成；摘要最多 2000 字。请求提交前持久化，同 ID 不同内容拒绝，已有请求只返回状态。重启不重放；内存接收租约失效，个人 Channel 需要重新配对。
+
+## 空间工作台与独立接收会话
+
+产品语义见 [空间工作台契约](decisions/space-workbench.md)。本机 API 仍遵循 loopback 与同源限制，`id` 可以是本机托管空间或 `joined-…` 别名：
+
+| 路由 | 输入与行为 |
+| --- | --- |
+| `GET /collaborations/:id/workbench/view?offset=0` | `{spaceId,selfId,targets,requests,total,nextOffset?,brief,assistant}`；请求按创建时间倒序，每页 40 项 |
+| `GET /collaborations/:id/workbench/request?requestId=…` | 按 ID 返回完整空间请求及不可变启动快照（若有） |
+| `POST …/workbench/register` | `{pairingId}`，将本机已有精确配对明确关联到空间；重试复用已持久化目标 ID |
+| `POST …/workbench/remove` | `{targetId}`，仅目标所属成员或空间发起者解除关联；保留记录，取消未投递请求 |
+| `POST …/workbench/send` | `{requestId,targetId,parentRequestId?,references,instruction,intent}`；0–32 项本空间固定材料/公开批注，空引用可用于简报协作；其他限额沿用配对请求 |
+| `POST …/workbench/cancel` | `{requestId}`，仅发起成员或空间发起者取消 `queued` 请求 |
+| `POST …/workbench/brief` | `{baseRevision,brief:{topic,decisions,questions}}`，人工成员确认，CAS 更新；条目为 `{text,sources}` |
+| `POST …/workbench/assistant` | `{baseEpoch,state,targetId?,requestId?}`，仅空间发起者；`state=initializing|paused|disabled`，初始化需就绪的独立目标和新的请求 ID |
+| `POST …/workbench/create-receiver` | `{requestId,name}`，在当前成员 Core 创建并关联独立 Codex 接收会话；相同 ID 不重复创建 |
+| `GET /space-receivers?spaceId=…` | 当前 Core 自己的接收会话、原生 TUI 命令、运行时确认模型及状态；不通过远端返回 |
+| `GET /space-receivers/:id/events` | 当前本机接收会话事件与待回应审批 |
+| `POST /space-receivers/:id/respond` | `{id,result}`，本机成员回应精确原生审批 |
+| `POST /space-receivers/:id/action` | `{action:"start"}`，显式恢复已保存的同一个原生会话 |
+
+成员 Core 使用已有 TLS 成员访问调用 `POST /v2/workbench/:op`，操作包括上述领域读写以及 `poll/claim/receipt/read/finish/annotations/reply/receiver-check`。空间托管端从访问凭据派生成员身份；只有接收目标的所属成员能领取和报告该目标的请求。浏览器入口将 `actor` 覆盖为人工，MCP 入口从核对后的传输生成会话身份。成员 Core 是该成员的可信边界，不能以自报 `actor.memberId` 冒充其他成员。
+
+`Record.workbench` 保存 `targets`、`requests`、`brief` 和 `assistant`，最多 256 个目标、4096 条请求。目标公开随机目标 ID、成员、名称、Provider、原生身份的不可逆摘要、是否共同执行、可用性和解除关联状态，不公开私人配对 ID、原生 ID 或凭据。请求保存完整发起身份、接收目标、父请求 ID、固定引用、要求、处理方式、状态、摘要/错误以及创建、更新、读取、结束时间。父请求必须属于当前空间，关联深度不超过 16。
+
+接收 Core 约每 2 秒报告关联目标的接收状态，租约有效期 20 秒。`queued` 最长等待 30 秒；`claim` 先持久化 `unknown` 再进行外部输入，且只能领取一次。随后 `receipt` 报告 `submitted/failed/unknown`；Agent 的 `read_agent_request` 才标为 `received`，读取后 `finish_agent_request` 才可标为 `completed/failed`。同 ID 内容不一致拒绝，已完成结果不同拒绝；原请求可查询，断线或重启不重放。空间关闭后拒绝新的发送/创建等操作，允许保留的本机结果查询和已投递结果收尾；成员凭据撤销仍优先拒绝所有远端访问。
+
+简报议题最多 2000 字，决定/问题各最多 32 条、每条 1000 字，整体 JSON 最大 24 KB，来源同样逐次核对公开范围。`revision` 递增并记录确认成员。专用角色为 `disabled/initializing/ready/paused/failed`，启用、暂停、停用或更换时递增 `epoch`；启动请求保存 `SpaceBootstrap`，包含空间身份、角色版本、完整确认简报、最多 16 份材料的最新固定版本目录、16 个目标、32 个待处理 ID、对应总数及规则。接手必须同时匹配当前 bootstrap ID 和 epoch，先读取再成功完成，不能由送达推断。
+
+个人 MCP 和绑定运行时都提供：`list_space_targets`、`read_space_brief`、`list_space_requests`、`get_space_request`、`send_space_request`。个人工具需要 `spaceId`，绑定运行时移除顶层选择字段并拒绝额外空间选择。请求目录每页最多 10 项，返回短预览和 `nextOffset`，完整正文按 ID 读取。投递是需要用户明确授权的写工具；不因读取材料、简报或收到其他请求自动获得授权。
+
+独立接收会话保存于 `DataDir/receivers/receiver-<requestId>/receiver.json`，专用目录为其 `workspace/`。使用 `thread/start` 并核对实际 ID，不创建空间 `execution`；`runtime-annotations/receiver-…` 使用自己的 token，所有工具调用均验证原生 Provider/Session/Turn 身份。Core 重启不自动启动进程；明确 `start` 沿用原生 ID。配对、成员引用别名与请求回执在接收 Core 桥接，重映射只处理 `spaceId` 字段，不改写用户文本。
 
 ## 共享邀请与传输
 
@@ -341,7 +373,7 @@ CLI 复用个人 MCP 适配：`space`、`freeze`、`publication-preview`、`publ
 
 ### 共享运行时的批注工具
 
-A 的 Codex app-server / Claude worker 通过 `teamcross mcp --data-dir … --runtime-id …` 启动 `teamcross_annotations`。提供 `read_annotations`、`reply_to_annotation`、`list_materials` 和 `read_material`，以及[配对与请求回执工具](#接收会话配对与请求)。`read_material` 支持流游标及 `turnId/itemId/startOffset` 按条读取；共享运行时不增加私有草稿工具。它们只访问绑定空间，不允许选择其他空间、枚举私人来源、发布材料、读取任意路径或发送模型输入。个人 MCP 另有 `read_publication_draft`。参数校验在 STDIO 和 Core 两端执行。读取批注使用与个人 MCP 相同的精确筛选、摘要目录和分页回复。个人与运行时 MCP 的回复均返回 `{annotationId,status:"saved",reply}`，只包含本次已保存回复；同一 requestId 重试返回同一回执。`POST annotation-replies?compact=true` 在写入成功后生成该回执，Web 默认仍返回完整 Annotation。回复作者由运行时 Provider 决定，为 `Codex` 或 `Claude Code`。
+A 的 Codex app-server / Claude worker 通过 `teamcross mcp --data-dir … --runtime-id …` 启动 `teamcross_annotations`。提供 `read_annotations`、`reply_to_annotation`、`list_materials` 和 `read_material`，以及[配对与请求回执工具](#接收会话配对与请求)和[通用空间请求工具](#空间工作台与独立接收会话)。`read_material` 支持流游标及 `turnId/itemId/startOffset` 按条读取；共享运行时不增加私有草稿工具。它们只访问绑定空间，不允许选择其他空间、枚举私人来源、发布材料或读取任意路径；明确投递仅能面向已关联目标，共同执行目标继续校验输入归属与执行访问。个人 MCP 另有 `read_publication_draft`。参数校验在 STDIO 和 Core 两端执行。读取批注使用与个人 MCP 相同的精确筛选、摘要目录和分页回复。个人与运行时 MCP 的回复均返回 `{annotationId,status:"saved",reply}`，只包含本次已保存回复；同一 requestId 重试返回同一回执。`POST annotation-replies?compact=true` 在写入成功后生成该回执，Web 默认仍返回完整 Annotation。共享执行回复作者由运行时 Provider 决定，为 `Codex` 或 `Claude Code`；独立接收会话回复同时标注所属空间成员。
 
 每个协作保存独立 `annotationToken`，仅通过 A 上的 MCP 环境变量传递；普通状态、远端响应和原生 `config/read` 不暴露凭据。STDIO 每次调用重新读取本机连接地址，只使用协作凭据，不启动 Core、不使用管理 token。创建、明确恢复或重新开启共享时开启批注工具访问，结束共享关闭访问；发起者恢复后即使尚未重新邀请，也可读取。运行时未连接、已释放或 Core 关闭时拒绝访问。成员访问撤销仍由原生入口和共享路由处理。
 
