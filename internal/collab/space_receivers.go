@@ -34,6 +34,11 @@ func (s *Session) runtimeDirectory() string {
 }
 
 func (a *App) newReceiver(r receiverRecord) *Session {
+	// Empty command ledgers are omitted on disk; every restored receiver must
+	// still be able to record its first write before sending it to the provider.
+	if r.Record.ExecutionRecord != nil && r.Record.Commands == nil {
+		r.Record.Commands = map[string]Command{}
+	}
 	return &Session{app: a, record: r.Record, receiverSpace: r.SpaceID, receiverCreation: r.CreationStage, writer: "owner", epoch: 1, presence: map[string]memberPresence{}, approvals: map[string]Approval{}}
 }
 
