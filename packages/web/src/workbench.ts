@@ -23,6 +23,17 @@ export type SpaceRequest = {
   targetId: string;
   actor: SpaceActor;
   parentRequestId?: string;
+  briefRevision?: number;
+  context?: {
+    brief: SpaceBrief;
+    previousBriefRevision?: number;
+    parent?: {
+      requestId: string;
+      state: string;
+      instruction: string;
+      summary?: string;
+    };
+  };
   references: LibraryReference[];
   instruction: string;
   intent: string;
@@ -47,7 +58,11 @@ export type SpaceRequest = {
     rules: string;
   };
 };
-export type BriefItem = { text: string; sources: LibraryReference[] };
+export type BriefItem = {
+  text: string;
+  sources: LibraryReference[];
+  requestId?: string;
+};
 export type SpaceBrief = {
   revision: number;
   topic: string;

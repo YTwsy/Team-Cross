@@ -18,6 +18,7 @@ import {
 import type { Material, MaterialReference } from "../types";
 import { Copy, ErrorBox, Icon, Modal } from "./ui";
 import { SendToAgent } from "./AgentPairings";
+import { SpaceRequestButton } from "./SpaceWorkbench";
 
 export type AnnotationRequest = {
   target?: AnnotationTarget;
@@ -219,13 +220,31 @@ export function Discussion({
         </Modal>
       )}
       <div className="annotation-actions">
-        <button
-          className="button small"
-          disabled={disabled}
-          onClick={() => setSendToAgent(true)}
-        >
-          {t("交给 Agent")}
-        </button>
+        {!annotation.target || annotation.target.kind === "material" ? (
+          <SpaceRequestButton
+            references={[
+              { spaceId: id, kind: "annotation", annotationId: annotation.id },
+            ]}
+            disabled={disabled}
+            fallback={
+              <button
+                className="button small"
+                disabled={disabled}
+                onClick={() => setSendToAgent(true)}
+              >
+                {t("交给 Agent")}
+              </button>
+            }
+          />
+        ) : (
+          <button
+            className="button small"
+            disabled={disabled}
+            onClick={() => setSendToAgent(true)}
+          >
+            {t("交给 Agent")}
+          </button>
+        )}
         <ResourceActions
           reference={{
             spaceId: id,

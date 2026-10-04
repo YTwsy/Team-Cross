@@ -48,7 +48,7 @@ export async function initializeEnvironment() {
       }
       for (const [code, status] of Object.entries(saved.deliveries || {})) {
         if (
-          code.startsWith("TC-") &&
+          (code.startsWith("TC-") || code.startsWith("connect:")) &&
           (status === "sent" || status === "unknown")
         )
           state.deliveries[code] = status;
@@ -66,6 +66,26 @@ export async function initializeEnvironment() {
     if (bridge.host?.hostCapabilities?.message) {
       setCurrentConversation({
         status: (code) => state.deliveries[code],
+        allowConnectAgain(spaceId) {
+          delete state.deliveries[`connect:${spaceId}`];
+          persist();
+        },
+        async connect(spaceId, name) {
+          const key = `connect:${spaceId}`;
+          if (state.deliveries[key]) return;
+          state.deliveries[key] = "unknown";
+          persist();
+          try {
+            await bridge.connectConversation(spaceId, name);
+            state.deliveries[key] = "sent";
+          } catch (error) {
+            if (error instanceof MessageDeliveryError && !error.dispatched)
+              delete state.deliveries[key];
+            throw error;
+          } finally {
+            persist();
+          }
+        },
         async send(bundle, prompt) {
           if (state.deliveries[bundle.code]) return;
           // Persist the uncertain state before dispatch; reopening never resends.

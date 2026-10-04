@@ -4,7 +4,8 @@ import { api, errorText, useResource } from "../api";
 import { formatDate, serviceText, t, tr } from "../i18n";
 import { sameReference, useLibrary, type LibraryReference } from "../library";
 import type { WorkbenchView } from "../workbench";
-import { Copy, ErrorBox, Loading, Modal } from "./ui";
+import { currentConversation } from "../currentConversation";
+import { Copy, ErrorBox, Icon, Loading, Modal } from "./ui";
 
 export type AgentPairing = {
   id: string;
@@ -12,7 +13,13 @@ export type AgentPairing = {
   provider?: string;
   sessionId?: string;
   spaceId?: string;
-  state: "waiting" | "verifying" | "paired" | "unsupported" | "expired";
+  state:
+    | "waiting"
+    | "verifying"
+    | "paired"
+    | "linked"
+    | "unsupported"
+    | "expired";
   reason?: string;
   createdAt: string;
   expiresAt: string;
@@ -33,11 +40,96 @@ export type AgentRequest = {
   error?: string;
 };
 function pairingState(p: AgentPairing) {
+  if (p.state === "linked") return t("已关联，尚未接通接收");
   if (p.state === "paired") return p.reason ? t("暂不可发送") : t("已配对");
   if (p.state === "verifying") return t("正在核验接收能力");
   if (p.state === "unsupported") return t("暂不支持主动接收");
   if (p.state === "expired") return t("配对码已到期");
   return t("等待目标会话配对");
+}
+
+export function ConnectCurrentConversation({
+  spaceId,
+  disabled = false,
+}: {
+  spaceId: string;
+  disabled?: boolean;
+}) {
+  const current = currentConversation();
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [, redraw] = useState(0);
+  if (!current?.connect) return null;
+  const state = current.status(`connect:${spaceId}`);
+  return (
+    <section className="panel agent-pair-flow workbench-current-connection">
+      <div className="workbench-connection-heading">
+        <span className="workbench-symbol">
+          <Icon name="link" />
+        </span>
+        <div>
+          <h3>{t("连接当前会话")}</h3>
+          <p className="muted">
+            {t("在当前对话核对身份并关联这个空间，接收能力会单独确认。")}
+          </p>
+        </div>
+      </div>
+      <details className="workbench-connection-name">
+        <summary>{t("自定义会话名称（可选）")}</summary>
+        <label>
+          {t("接收会话名称")}
+          <input
+            maxLength={80}
+            value={name}
+            placeholder={t("当前会话")}
+            disabled={disabled || busy || !!state}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </label>
+      </details>
+      <button
+        className="button primary"
+        disabled={disabled || busy || !!state}
+        onClick={async () => {
+          if (busy) return;
+          setBusy(true);
+          setError("");
+          try {
+            await current.connect!(spaceId, name);
+          } catch (error) {
+            setError(errorText(error));
+          } finally {
+            setBusy(false);
+            redraw((v) => v + 1);
+          }
+        }}
+      >
+        {busy ? t("正在提交，请勿重复发送…") : t("连接当前会话")}
+      </button>
+      {state && (
+        <p className="notice" role="status">
+          {state === "sent"
+            ? t("连接要求已带回当前对话，请查看身份与接收能力的确认结果。")
+            : t("连接要求的发送结果需要核对，请查看当前对话。")}
+        </p>
+      )}
+      {state && current.allowConnectAgain && (
+        <button
+          className="text-link"
+          disabled={busy || disabled}
+          onClick={() => {
+            current.allowConnectAgain!(spaceId);
+            setError("");
+            redraw((v) => v + 1);
+          }}
+        >
+          {t("已核对对话，准备重新连接")}
+        </button>
+      )}
+      <ErrorBox message={error} />
+    </section>
+  );
 }
 function pairingReason(p: AgentPairing) {
   return serviceText(p.reason, "接收会话暂不可用，请核对客户端与连接状态。");
@@ -241,26 +333,31 @@ export function AgentPairings() {
   );
 }
 
+export function agentRequestLabel(request: AgentRequest) {
+  return request.state === "queued"
+    ? t("等待接收端接手投递")
+    : request.state === "cancelled"
+      ? t("请求已取消，未启动新输入")
+      : request.state === "completed"
+        ? t("Agent 已报告处理完成")
+        : request.state === "failed"
+          ? request.summary
+            ? t("Agent 已报告处理失败")
+            : t("投递未完成，请查看原因")
+          : request.state === "received"
+            ? t("Agent 已读取请求，尚未报告处理完成")
+            : request.state === "unknown"
+              ? t("发送结果需要核对，界面不会自动重发")
+              : t("请求已提交，等待 Agent 读取");
+}
 export function AgentRequestStatus({ request }: { request: AgentRequest }) {
-  const text =
-    request.state === "queued"
-      ? t("等待接收端接手投递")
-      : request.state === "cancelled"
-        ? t("请求已取消，未启动新输入")
-        : request.state === "completed"
-          ? t("Agent 已报告处理完成")
-          : request.state === "failed"
-            ? request.summary
-              ? t("Agent 已报告处理失败")
-              : t("投递未完成，请查看原因")
-            : request.state === "received"
-              ? t("Agent 已读取请求，尚未报告处理完成")
-              : request.state === "unknown"
-                ? t("发送结果需要核对，界面不会自动重发")
-                : t("请求已提交，等待 Agent 读取");
   return (
-    <div className="notice agent-request-result" role="status">
-      <strong>{text}</strong>
+    <div
+      className="notice agent-request-result"
+      data-state={request.state}
+      role="status"
+    >
+      <strong>{agentRequestLabel(request)}</strong>
       {request.summary && <p>{request.summary}</p>}
       {request.error && (
         <p>{serviceText(request.error, "请打开接收会话核对请求状态。")}</p>

@@ -20,10 +20,14 @@
 | 共同执行中的 Codex 新 fork 配对、投递、读取和完成回执 | 真实 TUI 通过；重复请求未重放，分析未擅自回复原批注 | 2026-10-03；配对首轮为 `9abee02` + 当次实现，工作台回归为 `fed1e0a` + 当次实现；单 Mac，Codex `0.159.0-alpha.12.1`，`gpt-5.6-luna` | [首轮报告](../../tasks/finished_archived/agent-pairing-2026-10-03/README.md#真实-codex-tui)、[后续回归](../../tasks/finished_archived/space-workbench-2026-10-03/README.md#真实模型与原生客户端)。覆盖该次 fork 的配对链，未验证连接其他已有会话的投递入口或专用 Desktop。 |
 | 工作台新建 Codex 会话、简报接手、经明确授权的会话间请求 | 真实模型协作链通过；三个成员看到相同完成记录；暂停/停用保留会话；没有共同执行 | 2026-10-03；`fed1e0a` + 工作台当次实现；单 Mac、三个隔离 Core、真实 TLS、两名成员的独立接收会话；同上 Codex/Luna | [报告](../../tasks/finished_archived/space-workbench-2026-10-03/README.md#真实模型与原生客户端)、[结构化结果](../../tasks/finished_archived/space-workbench-2026-10-03/evidence/native-space.json)。模型链中的启动目录没有材料，不能据此声称已验证所有真实材料组合；材料与界面另看对应证据。不是三台 Mac。 |
 | 个人 Claude Channel 主动接收 | 实验适配有协议检查；真实接收受宿主门槛阻塞，未通过 | 2026-10-03；上述配对及工作台工作树；Claude Code `2.1.270` 提示 Channels 不可用；首轮模型代理也拒绝连接 | [首次探测](../../tasks/finished_archived/agent-pairing-2026-10-03/README.md#真实-claude-channel-探测)、[后续探测](../../tasks/finished_archived/space-workbench-2026-10-03/README.md#真实模型与原生客户端)。未伪造挑战；普通 Claude MCP 调用或共享 TUI 通过不能替代 Channel 接收。 |
+| 测试前已加载的 Codex 会话连接、投递与回执 | 真实专用会话通过；同一 thread 完成连接、读取及结果回报；关闭借用代理保留 daemon | 2026-10-04；`ae66ff6` + `codex/collaboration-flow` 改动；单 Mac、Codex `0.160.0`、`gpt-5.6-luna` | [本次报告](../../tasks/finished_archived/2026-10-04-collaboration-flow/README.md#原生与-lan)。只连接精确已加载 ID，不启用共同执行；不能推广为任意 Desktop 版本已验收。 |
+| LAN 三 Core 空间请求回归 | 真实 TLS 成员加入、两名成员原生接收、授权分派和一致结果通过；未启用 Cloud 网关 | 2026-10-04；同上工作树与 Codex/Luna，单 Mac 三 Core | [报告](../../tasks/finished_archived/2026-10-04-collaboration-flow/README.md#原生与-lan)、[结构化结果](../../tasks/finished_archived/2026-10-04-collaboration-flow/evidence/lan.json)。证明本地 LAN 路径不依赖 Cloud；不等价于两台 Mac 网络验收。 |
+| MCP Events 协议与隔离网关 | 签名验证/投递、筛选、去重、持久化、暂停/撤销/到期和权限检查通过；真实 loopback CLI 网关通过 | 2026-10-04；同上工作树；回调为受控 HTTP transport，网关为真实 Core/CLI | [报告](../../tasks/finished_archived/2026-10-04-collaboration-flow/README.md#事件与界面)、[网关结果](../../tasks/finished_archived/2026-10-04-collaboration-flow/evidence/gateway.json)。真实 ChatGPT Cloud 宿主验收由用户暂缓，未部署公网。 |
+| 工作台布局、快捷连接与简报编辑界面 | 添加会话的明确确认、可选名称、固定来源勾选、草稿保留和保存版本通过；中英、深浅主题及 1440/1024/768 宽度复核 | 2026-10-04；`ae66ff6` + 同分支后续 UI 改动；154 项 Web 测试，真实 Core / HTTP / stdio 和 production 资源 | [界面复核](../../tasks/finished_archived/2026-10-04-collaboration-flow/README.md#界面优化复核)。浏览器宿主消息回执为模拟；本轮不新增真实模型、LAN 跨 Core、Desktop 或 Cloud 宿主证据。 |
 
-上述记录未覆盖将测试前已存在的 Codex 会话接入投递连接的流程。当前连接查找限制及 `unsupported` 的触发条件见 [配对契约](../decisions/agent-pairing.md#当前接入范围)；未覆盖该流程不表示已有会话缺少原生接收能力。
+2026-10-04 的新增记录覆盖专用已有会话接入，之前记录仍只适用于各自被测路径。当前连接条件及 `unsupported` 的触发条件见 [配对契约](../decisions/agent-pairing.md#当前接入范围)。
 
-ChatGPT 云端 MCP Events/webhook 尚未接入，边界见 [契约](../decisions/agent-pairing.md#mcp-events-的边界)；本机 STDIO 与 `ui/message` 结果不作为云端订阅验收。
+ChatGPT 云端事件已实现本地协议和隔离入口，实际宿主接收仍未验收，边界见 [空间事件契约](../decisions/space-events.md)；本机 STDIO 与 `ui/message` 结果不作为云端订阅验收。
 
 ## ChatGPT 本机插件
 
@@ -35,6 +39,7 @@ ChatGPT 云端 MCP Events/webhook 尚未接入，边界见 [契约](../decisions
 | Composer mentions 搜索、固定版本/批注资源读取 | stdio、原生 app-server 与桌面兼容参数通过 | 2026-10-03；初版 `9c1c378`，参数修复 `53d3472`；Codex `0.159.0-alpha.12.1`，桌面请求格式来自 ChatGPT `26.930.21537` / build `12776` | [初版](../../tasks/finished_archived/2026-10-03-composer-mentions.md)、[参数修复](../../tasks/finished_archived/2026-10-03-composer-mentions-empty-results.md#修复与验证)。必须包含 `{query,path:[]}`，不能只用 query-only 检查替代实际宿主请求。 |
 | Composer mentions 在桌面输入框搜索、选择和发送显示 | 用户实际确认通过，并发送材料 v1 与原批注引用 | 2026-10-03；`53d3472` 修复后用户重载桌面；原生引用来自已安装 `teamcross-ui` | [用户最终显示验收](../../tasks/finished_archived/2026-10-03-composer-mentions-empty-results.md#用户最终显示验收)。覆盖显示与引用选择，未包含模型正文分析或会话配对验收。不能沿用初版“尚需桌面验收”覆盖此后续结果。 |
 | 显式安装/接管、App 同步、断开与新版 bootstrap 回执 | 原生 CLI、真实 App 生命周期及浏览器通过；成品主窗口体验待验收 | 2026-10-03；`7089781`，包 `0.2.6-dev.plugin-onboarding.20261003`；隔离 profile，Codex `0.159.0-alpha.12.1` | [接入报告](../../tasks/finished_archived/2026-10-03-chatgpt-plugin-onboarding.md)。报告之后 `d1b3452` 修改当前 Core 的绑定与恢复处理；本次未找到该修复对应的独立执行记录，涉及换绑的结论需要补证或复验，不能由 `7089781` 的通过自动覆盖。测试存在不等于当次执行结果。 |
+| 空间 mention、当前会话连接、来源进展与简报草稿 | Core/MCP 与 Web 回归通过；真实浏览器使用 production 资源完成连接消息、结果导航、成员确认简报及通知连接管理 | 2026-10-04；`ae66ff6` + `codex/collaboration-flow`，真实 Core/stdio，1440/1024/768 像素、中英与深浅主题 | [本次报告与截图](../../tasks/finished_archived/2026-10-04-collaboration-flow/README.md#事件与界面)。宿主 message/context 回执为模拟，新增空间 mention 的真实 Desktop 显示及绑定未另做宿主验收；不覆盖已有材料 mention 的用户确认结论。 |
 
 ## 原生执行与协作模式
 

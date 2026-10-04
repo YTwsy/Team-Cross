@@ -141,6 +141,7 @@ export function ReadOnlySpace({
         </div>
       </section>
       <SpaceWorkbench
+        key={c.id}
         collaboration={c}
         onLocate={(ref) => {
           if (ref.kind === "material")

@@ -66,6 +66,15 @@ func (a *App) libraryMentions(ctx context.Context, query string) (any, error) {
 		if json.Unmarshal(data, &space) != nil || space.ID == "" || spaceAvailability(space) != "available" {
 			continue
 		}
+		spaceText := strings.ToLower(space.Title + " space 空间")
+		matches := true
+		for _, term := range terms {
+			matches = matches && strings.Contains(spaceText, term)
+		}
+		if matches {
+			ref := LibraryReference{SpaceID: space.ID, Kind: "space"}
+			resources = append(resources, LibraryResource{Key: libraryKey(ref), Reference: ref, Title: space.Title, SpaceTitle: space.Title, UpdatedAt: space.UpdatedAt, Availability: "available"})
+		}
 		add := func(ref LibraryReference, searchText string) {
 			r, err := resourceFor(space, ref)
 			if err != nil || r.Availability != "available" {

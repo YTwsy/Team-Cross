@@ -322,7 +322,7 @@ func serveWithResources(ctx context.Context, input io.Reader, output io.Writer, 
 			if json.Compact(&compact, out) == nil {
 				out = compact.Bytes()
 			}
-			if e == nil && (strings.HasPrefix(params.Name, "read_") || strings.HasPrefix(params.Name, "list_") || params.Name == "get_collaboration") && readview.RawWireSize(out) > readview.MaxBytes {
+			if e == nil && (strings.HasPrefix(params.Name, "read_") || strings.HasPrefix(params.Name, "list_") || params.Name == "get_collaboration" || params.Name == "get_space_request") && readview.RawWireSize(out) > readview.MaxBytes {
 				e = fmt.Errorf("读取响应超过 65536 字节，请使用精确 ID、轻量视图或分页缩小范围")
 			}
 			text := string(out)

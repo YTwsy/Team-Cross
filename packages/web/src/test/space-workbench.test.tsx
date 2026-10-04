@@ -7,6 +7,10 @@ import {
 } from "../components/SpaceWorkbench";
 import type { Collaboration } from "../types";
 import type { SpaceRequest, WorkbenchView } from "../workbench";
+import {
+  setCurrentConversation,
+  type DeliveryState,
+} from "../currentConversation";
 
 const c = {
   id: "space",
@@ -31,9 +35,11 @@ const ref = {
 let view: WorkbenchView;
 let calls: { path: string; body: any }[];
 let lost: boolean;
+let pairs: { id: string; name: string; state: string }[];
 beforeEach(() => {
   lost = false;
   calls = [];
+  pairs = [];
   view = {
     spaceId: "space",
     selfId: "owner",
@@ -67,8 +73,8 @@ beforeEach(() => {
       calls.push({ path, body });
       let out: any = {};
       if (path.includes("/workbench/view")) out = view;
-      else if (path === "agent-pairings" || path.startsWith("space-receivers?"))
-        out = [];
+      else if (path === "agent-pairings") out = pairs;
+      else if (path.startsWith("space-receivers?")) out = [];
       else if (path.endsWith("/workbench/send")) {
         const request: SpaceRequest = {
           ...body,
@@ -104,7 +110,131 @@ beforeEach(() => {
     }),
   );
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  setCurrentConversation(undefined);
+});
+
+it("adds an existing conversation only after selection and confirmation in the add dialog", async () => {
+  pairs = [{ id: "paired", name: "本机分析", state: "paired" }];
+  render(
+    <SpaceWorkbench collaboration={c} onLocate={() => {}}>
+      reader
+    </SpaceWorkbench>,
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "参与会话" }));
+  await userEvent.click(
+    await screen.findByRole("button", { name: "添加会话" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "添加参与会话" });
+  expect(
+    within(dialog).getByRole("button", { name: "关联到本空间" }),
+  ).toBeDisabled();
+  await userEvent.click(
+    within(dialog).getByRole("radio", { name: /新建独立会话/ }),
+  );
+  await userEvent.type(
+    within(dialog).getByRole("textbox", { name: "接收会话名称" }),
+    " UI draft",
+  );
+  await userEvent.click(
+    within(dialog).getByRole("radio", { name: /关联已有会话/ }),
+  );
+  expect(calls.filter((call) => call.body)).toHaveLength(0);
+  expect(
+    within(dialog).queryByRole("button", { name: "创建并关联接收会话" }),
+  ).not.toBeInTheDocument();
+  await userEvent.selectOptions(
+    within(dialog).getByRole("combobox", { name: "本机已配对会话" }),
+    "paired",
+  );
+  await userEvent.click(
+    within(dialog).getByRole("button", { name: "关联到本空间" }),
+  );
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+  );
+  expect(calls.filter((call) => call.body)).toEqual([
+    {
+      path: "collaborations/space/workbench/register",
+      body: { pairingId: "paired" },
+    },
+  ]);
+});
+
+it("connects the current conversation without a name step and keeps the submitted state distinct from receiving", async () => {
+  let state: DeliveryState | undefined;
+  const connect = vi.fn(async () => {
+    state = "sent";
+  });
+  setCurrentConversation({ status: () => state, send: vi.fn(), connect });
+  render(
+    <SpaceWorkbench collaboration={c} onLocate={() => {}}>
+      reader
+    </SpaceWorkbench>,
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "参与会话" }));
+  const button = await screen.findByRole("button", { name: "连接当前会话" });
+  expect(
+    screen.getByRole("textbox", { name: "接收会话名称" }),
+  ).not.toBeVisible();
+  expect(connect).not.toHaveBeenCalled();
+  await userEvent.click(button);
+  expect(connect).toHaveBeenCalledExactlyOnceWith("space", "");
+  expect(
+    await screen.findByText(
+      "连接要求已带回当前对话，请查看身份与接收能力的确认结果。",
+    ),
+  ).toBeVisible();
+  expect(button).toBeDisabled();
+});
+
+it("keeps chosen fixed sources and an unsaved brief while searching sources and changing tabs", async () => {
+  const published = structuredClone(c);
+  published.materials![0]!.versions = Array.from({ length: 7 }, (_, i) => ({
+    ...published.materials![0]!.versions[0]!,
+    version: i + 1,
+  }));
+  render(
+    <SpaceWorkbench collaboration={published} onLocate={() => {}}>
+      reader
+    </SpaceWorkbench>,
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "空间简报" }));
+  await userEvent.click(
+    await screen.findByRole("button", { name: "编辑简报" }),
+  );
+  await userEvent.click(screen.getByText("关联已发布来源"));
+  await userEvent.type(
+    screen.getByRole("searchbox", { name: "搜索已发布来源" }),
+    "版本 2",
+  );
+  await userEvent.click(
+    screen.getByRole("checkbox", { name: "已确认材料 · 版本 2" }),
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "阅读与讨论" }));
+  await userEvent.click(screen.getByRole("tab", { name: "空间简报" }));
+  expect(screen.getByText("草稿尚未保存")).toBeVisible();
+  expect(calls.filter((call) => call.body)).toHaveLength(0);
+  await userEvent.clear(
+    screen.getByRole("searchbox", { name: "搜索已发布来源" }),
+  );
+  expect(
+    screen.getByRole("checkbox", { name: "已确认材料 · 版本 1" }),
+  ).toBeChecked();
+  expect(
+    screen.getByRole("checkbox", { name: "已确认材料 · 版本 2" }),
+  ).toBeChecked();
+  await userEvent.click(
+    screen.getByRole("button", { name: "保存确认后的简报" }),
+  );
+  await waitFor(() =>
+    expect(calls.filter((call) => call.body)).toHaveLength(1),
+  );
+  expect(
+    calls.find((call) => call.body)!.body.brief.decisions[0].sources,
+  ).toEqual([ref, { ...ref, version: 2 }]);
+});
 
 it("shows a paused assistant as unavailable in the participating conversations", async () => {
   view.assistant = { epoch: 1, revision: 3, state: "paused", targetId: "peer" };
@@ -214,6 +344,65 @@ it("preserves brief sources and submits the revision the member reviewed", async
       topic: "核对新的验证范围",
       decisions: [{ text: "固定材料版本", sources: [ref] }],
     },
+  });
+});
+
+it("keeps source progress nearby and proposes results without saving a decision automatically", async () => {
+  const request = {
+    id: "request-done",
+    targetId: "peer",
+    actor: { memberId: "owner", name: "Member", kind: "human" },
+    references: [ref],
+    instruction: "Review retries",
+    intent: "analyze",
+    state: "completed",
+    summary: "Test one uncertain delivery before retrying",
+    briefRevision: 2,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as SpaceRequest;
+  view.requests = [request];
+  view.total = 1;
+  render(
+    <SpaceWorkbench collaboration={c} onLocate={() => {}}>
+      <SpaceRequestButton references={[ref]} />
+    </SpaceWorkbench>,
+  );
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: /相关请求：Agent 已报告处理完成/,
+    }),
+  );
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.click(
+    await within(dialog).findByRole("button", { name: "拟为决定" }),
+  );
+  expect(screen.getByRole("tab", { name: "空间简报" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  expect(screen.getByRole("textbox", { name: "已确认决定 2" })).toHaveValue(
+    request.summary,
+  );
+  expect(calls.some((c) => c.path.endsWith("/workbench/brief") && c.body)).toBe(
+    false,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "保存确认后的简报" }),
+  );
+  await waitFor(() =>
+    expect(
+      calls.some((c) => c.path.endsWith("/workbench/brief") && c.body),
+    ).toBe(true),
+  );
+  const saved = calls.find(
+    (c) => c.path.endsWith("/workbench/brief") && c.body,
+  )!.body;
+  expect(saved.baseRevision).toBe(3);
+  expect(saved.brief.decisions[1]).toEqual({
+    text: request.summary,
+    sources: [ref],
+    requestId: request.id,
   });
 });
 

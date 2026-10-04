@@ -52,8 +52,11 @@ func TestMentionSearchVersionsTextAndNoLibraryMutation(t *testing.T) {
 			t.Fatal(q, items)
 		}
 	}
-	if items := searchLibraryMentions(t, a, ""); len(items) != 3 {
+	if items := searchLibraryMentions(t, a, ""); len(items) != 4 {
 		t.Fatal(items)
+	}
+	if items := searchLibraryMentions(t, a, "space 资源库验证"); len(items) != 1 || items[0].Reference.Kind != "space" || items[0].Reference.SpaceID != s.record.ID {
+		t.Fatal("space mention is missing", items)
 	}
 	if _, err := a.libraryMentions(context.Background(), strings.Repeat("字", 257)); err == nil {
 		t.Fatal("oversized query accepted")

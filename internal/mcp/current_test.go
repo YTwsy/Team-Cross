@@ -73,3 +73,23 @@ func TestStdioCarriesCurrentCallerOutsideToolArguments(t *testing.T) {
 		}
 	}
 }
+
+func TestChatGPTIdentityOnlyCorrelatesConversation(t *testing.T) {
+	metadata := map[string]json.RawMessage{"openai/session": json.RawMessage(`"opaque-session"`), "openai/subject": json.RawMessage(`"subject-a"`)}
+	ctx := callContext(context.Background(), "", metadata)
+	c, err := conversationCaller(ctx)
+	if err != nil || !ChatGPTConversation(c) || strings.Contains(c.SourceID, "opaque") {
+		t.Fatal(c, err)
+	}
+	if _, err := callerSource(ctx); err == nil {
+		t.Fatal("ChatGPT correlation became a native source")
+	}
+	metadata["openai/subject"] = json.RawMessage(`"subject-b"`)
+	other, _ := conversationCaller(callContext(context.Background(), "", metadata))
+	if c.SourceID == other.SourceID {
+		t.Fatal("collapsed different users")
+	}
+	if _, err := conversationCaller(callContext(context.Background(), "codex", metadata)); err == nil {
+		t.Fatal("native caller fell back to ChatGPT metadata")
+	}
+}

@@ -133,6 +133,10 @@ func Open(cfg Config) (*App, error) {
 		return nil, err
 	}
 	a.startWorkbench()
+	if err := a.startSpaceEvents(); err != nil {
+		a.Close()
+		return nil, err
+	}
 	return a, nil
 }
 func readJSON(path string, out any) error {
@@ -684,6 +688,10 @@ func (a *App) Close() {
 		clients = append(clients, c)
 	}
 	a.mu.Unlock()
+	if a.eventsCancel != nil {
+		a.eventsCancel()
+		a.eventsWG.Wait()
+	}
 	if a.workbenchCancel != nil {
 		a.workbenchCancel()
 		a.workbenchWG.Wait()

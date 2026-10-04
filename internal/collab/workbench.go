@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"teamcross/internal/readview"
 	"teamcross/internal/sharing"
 )
 
@@ -44,26 +45,44 @@ type SpaceTarget struct {
 }
 
 type SpaceRequest struct {
-	ID              string             `json:"id"`
-	TargetID        string             `json:"targetId"`
-	Actor           SpaceActor         `json:"actor"`
-	ParentRequestID string             `json:"parentRequestId,omitempty"`
-	References      []LibraryReference `json:"references"`
-	Instruction     string             `json:"instruction"`
-	Intent          string             `json:"intent"`
-	State           string             `json:"state"`
-	Summary         string             `json:"summary,omitempty"`
-	Error           string             `json:"error,omitempty"`
-	CreatedAt       time.Time          `json:"createdAt"`
-	UpdatedAt       time.Time          `json:"updatedAt"`
-	ReceivedAt      *time.Time         `json:"receivedAt,omitempty"`
-	FinishedAt      *time.Time         `json:"finishedAt,omitempty"`
-	Bootstrap       *SpaceBootstrap    `json:"bootstrap,omitempty"`
+	ID              string               `json:"id"`
+	TargetID        string               `json:"targetId"`
+	Actor           SpaceActor           `json:"actor"`
+	ParentRequestID string               `json:"parentRequestId,omitempty"`
+	References      []LibraryReference   `json:"references"`
+	Instruction     string               `json:"instruction"`
+	Intent          string               `json:"intent"`
+	State           string               `json:"state"`
+	Summary         string               `json:"summary,omitempty"`
+	Error           string               `json:"error,omitempty"`
+	CreatedAt       time.Time            `json:"createdAt"`
+	UpdatedAt       time.Time            `json:"updatedAt"`
+	ReceivedAt      *time.Time           `json:"receivedAt,omitempty"`
+	FinishedAt      *time.Time           `json:"finishedAt,omitempty"`
+	Bootstrap       *SpaceBootstrap      `json:"bootstrap,omitempty"`
+	Context         *SpaceRequestContext `json:"context,omitempty"`
+	BriefRevision   int                  `json:"briefRevision"`
+}
+
+// Captured by the host when a request is created, never supplied by the caller.
+// Full snapshots are returned for one request, not repeated in list responses.
+type SpaceRequestContext struct {
+	Brief                 SpaceBrief          `json:"brief"`
+	PreviousBriefRevision *int                `json:"previousBriefRevision,omitempty"`
+	Parent                *SpaceRequestResult `json:"parent,omitempty"`
+}
+
+type SpaceRequestResult struct {
+	RequestID   string `json:"requestId"`
+	State       string `json:"state"`
+	Instruction string `json:"instruction"`
+	Summary     string `json:"summary,omitempty"`
 }
 
 type BriefItem struct {
-	Text    string             `json:"text"`
-	Sources []LibraryReference `json:"sources"`
+	Text      string             `json:"text"`
+	Sources   []LibraryReference `json:"sources"`
+	RequestID string             `json:"requestId,omitempty"`
 }
 
 type SpaceBrief struct {
@@ -217,6 +236,7 @@ func (s *Session) workbenchViewLocked(ctx context.Context, offset int) Workbench
 	}
 	sort.Slice(out.Targets, func(i, j int) bool { return out.Targets[i].CreatedAt.Before(out.Targets[j].CreatedAt) })
 	for _, request := range b.Requests {
+		request.Context = nil
 		out.Requests = append(out.Requests, request)
 	}
 	sort.Slice(out.Requests, func(i, j int) bool { return out.Requests[i].CreatedAt.After(out.Requests[j].CreatedAt) })
@@ -269,7 +289,7 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 	}()
 	b := s.record.Workbench
 	actor := s.workbenchActor(ctx, in.Actor)
-	if actor.Kind == "session" && ((actor.Provider != "codex" && actor.Provider != "claude") || len(actor.Session) != 24) {
+	if actor.Kind == "session" && ((actor.Provider != "codex" && actor.Provider != "claude" && actor.Provider != "chatgpt") || len(actor.Session) != 24) {
 		return nil, fmt.Errorf("参与会话身份无效")
 	}
 	now := time.Now()
@@ -290,6 +310,8 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 	switch op {
 	case "receiver-check":
 		return map[string]bool{"allowed": true}, nil
+	case "event-snapshot":
+		return s.spaceEventSnapshotLocked(), nil
 	case "annotations":
 		notes := visibleAnnotations(s.record.Annotations, false)
 		if in.Read.AnnotationID != "" {
@@ -313,7 +335,7 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 		if actor.Kind != "human" {
 			return nil, fmt.Errorf("请由成员明确关联接收会话")
 		}
-		if _, e := uuid.Parse(in.TargetID); e != nil || strings.TrimSpace(in.Name) == "" || len([]rune(in.Name)) > 80 || len(in.Session) != 24 || (in.Provider != "codex" && in.Provider != "claude") {
+		if _, e := uuid.Parse(in.TargetID); e != nil || strings.TrimSpace(in.Name) == "" || len([]rune(in.Name)) > 80 || len(in.Session) != 24 || (in.Provider != "codex" && in.Provider != "claude" && in.Provider != "chatgpt") {
 			return nil, fmt.Errorf("接收会话信息无效")
 		}
 		if target.ID != "" {
@@ -430,7 +452,23 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 				}
 			}
 		}
-		request = SpaceRequest{ID: in.RequestID, TargetID: target.ID, Actor: actor, ParentRequestID: in.ParentRequestID, References: in.References, Instruction: in.Instruction, Intent: in.Intent, State: "queued", CreatedAt: now, UpdatedAt: now}
+		request = SpaceRequest{ID: in.RequestID, TargetID: target.ID, Actor: actor, ParentRequestID: in.ParentRequestID, References: in.References, Instruction: in.Instruction, Intent: in.Intent, State: "queued", CreatedAt: now, UpdatedAt: now, BriefRevision: b.Brief.Revision, Context: &SpaceRequestContext{Brief: libraryClone(b.Brief)}}
+		var previous time.Time
+		for _, r := range b.Requests {
+			if r.TargetID == target.ID && r.ReceivedAt != nil && r.ReceivedAt.After(previous) && (r.Context != nil || r.Bootstrap != nil) {
+				previous = *r.ReceivedAt
+				revision := r.BriefRevision
+				request.Context.PreviousBriefRevision = &revision
+			}
+		}
+		if parent, ok := b.Requests[in.ParentRequestID]; ok {
+			request.Context.Parent = &SpaceRequestResult{RequestID: parent.ID, State: parent.State, Instruction: parent.Instruction, Summary: parent.Summary}
+		}
+		// Reserve room for the later result, receipt metadata and read wrapper.
+		// Refuse before delivery rather than create a request its recipient cannot read.
+		if readview.WireSize(request) > readview.MaxBytes-16<<10 {
+			return nil, fmt.Errorf("请求上下文过长，请精简处理要求或空间简报后重试")
+		}
 		b.Requests[request.ID], changed = request, true
 		return request, nil
 	case "claim", "receipt", "read", "finish":
@@ -520,8 +558,13 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 			return nil, fmt.Errorf("简报过长")
 		}
 		for _, item := range append(append([]BriefItem{}, brief.Decisions...), brief.Questions...) {
-			if strings.TrimSpace(item.Text) == "" || len([]rune(item.Text)) > 1000 {
-				return nil, fmt.Errorf("简报条目需要 1–1000 字")
+			if item.RequestID != "" {
+				if request, ok := b.Requests[item.RequestID]; !ok || request.Summary == "" || (request.State != "completed" && request.State != "failed") {
+					return nil, fmt.Errorf("简报关联的请求尚无可引用结果")
+				}
+			}
+			if strings.TrimSpace(item.Text) == "" || len([]rune(item.Text)) > 2000 {
+				return nil, fmt.Errorf("简报条目需要 1–2000 字")
 			}
 			if err = s.workbenchRefsLocked(item.Sources); err != nil {
 				return nil, err
@@ -603,7 +646,10 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 		boot.Targets = boot.Targets[:min(16, len(boot.Targets))]
 		boot.Pending = boot.Pending[:min(32, len(boot.Pending))]
 		boot.Rules += "启动目录最多含 16 份材料的最新固定版本、16 个目标和 32 个待办 ID；需要完整目录时使用 list_materials、list_space_targets、list_space_requests。"
-		request = SpaceRequest{ID: in.RequestID, TargetID: target.ID, Actor: actor, References: []LibraryReference{}, Instruction: "请读取空间启动简报，确认当前范围与介入规则，然后明确确认接手。", Intent: "analyze", State: "queued", CreatedAt: now, UpdatedAt: now, Bootstrap: &boot}
+		request = SpaceRequest{ID: in.RequestID, TargetID: target.ID, Actor: actor, References: []LibraryReference{}, Instruction: "请读取空间启动简报，确认当前范围与介入规则，然后明确确认接手。", Intent: "analyze", State: "queued", CreatedAt: now, UpdatedAt: now, Bootstrap: &boot, BriefRevision: b.Brief.Revision}
+		if readview.WireSize(request) > readview.MaxBytes-16<<10 {
+			return nil, fmt.Errorf("启动上下文过长，请精简空间简报后重试")
+		}
 		b.Requests[request.ID], changed = request, true
 		return b.Assistant, nil
 	}
@@ -622,7 +668,7 @@ func (s *Session) workbenchReply(ctx context.Context, in workbenchInput) (any, e
 	if err != nil {
 		return nil, err
 	}
-	if actor.Kind != "session" || (actor.Provider != "codex" && actor.Provider != "claude") || len(actor.Session) != 24 {
+	if actor.Kind != "session" || (actor.Provider != "codex" && actor.Provider != "claude" && actor.Provider != "chatgpt") || len(actor.Session) != 24 {
 		return nil, fmt.Errorf("参与会话身份无效")
 	}
 	return s.replyAnnotationResult(ctx, in.Reply, actor.Provider+" · "+actor.Name, true)

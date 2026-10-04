@@ -487,6 +487,7 @@ export function Detail({ id }: { id: string }) {
         </p>
       )}
       <SpaceWorkbench
+        key={c.id}
         collaboration={c}
         onLocate={(ref) => {
           if (ref.kind === "material")

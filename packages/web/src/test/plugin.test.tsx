@@ -125,6 +125,27 @@ afterEach(() => {
   delete window.openai;
 });
 
+it("connects only after an explicit host message and does not replay a lost acknowledgement", async () => {
+  await initializeEnvironment();
+  expect(messages.filter((m) => m.method === "ui/message")).toHaveLength(0);
+  handler = (m) => (m.method === "ui/message" ? { isError: true } : route(m));
+  await expect(
+    currentConversation()!.connect!("space", "Current investigation"),
+  ).rejects.toThrow();
+  expect(currentConversation()!.status("connect:space")).toBe("unknown");
+  await currentConversation()!.connect!("space", "Current investigation");
+  expect(messages.filter((m) => m.method === "ui/message")).toHaveLength(1);
+  const sent = messages.find((m) => m.method === "ui/message")!;
+  expect(sent.params.content[0].text).toContain("connect_current_session");
+  expect(sent.params.content[0].text).toContain('"spaceId":"space"');
+  window.dispatchEvent(new Event("pagehide"));
+  await initializeEnvironment();
+  expect(currentConversation()!.status("connect:space")).toBe("unknown");
+  currentConversation()!.allowConnectAgain!("space");
+  expect(messages.filter((m) => m.method === "ui/message")).toHaveLength(1);
+  expect(currentConversation()!.status("connect:space")).toBeUndefined();
+});
+
 it("mounts the entire existing App, including navigation, creation and pairing pages", async () => {
   await initializeEnvironment();
   render(<App />);

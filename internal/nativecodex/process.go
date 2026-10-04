@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,6 +45,8 @@ type Process struct {
 	handler      func(Message)
 	Init         json.RawMessage
 	disconnected atomic.Bool
+	proxy        net.Conn
+	external     bool
 }
 
 func Binary() (string, error) {
@@ -283,7 +287,7 @@ func (p *Process) read() {
 			p.mu.Unlock()
 			if handler != nil {
 				handler(m)
-			} else if len(m.ID) > 0 {
+			} else if len(m.ID) > 0 && !p.external {
 				_ = p.Reply(context.Background(), m.ID, map[string]any{"decision": "decline"})
 			}
 			continue
@@ -319,7 +323,7 @@ func (p *Process) Call(ctx context.Context, method string, params, out any) erro
 	if err != nil {
 		return err
 	}
-	if err = p.conn.Write(ctx, websocket.MessageText, data); err != nil {
+	if err = p.write(ctx, data); err != nil {
 		return err
 	}
 	select {
@@ -343,6 +347,9 @@ func (p *Process) Close() {
 	p.closeOnce.Do(func() {
 		if p.conn != nil {
 			_ = p.conn.CloseNow()
+		}
+		if p.proxy != nil {
+			_ = p.proxy.Close()
 		}
 		if p.cmd != nil && p.cmd.Process != nil {
 			_ = p.cmd.Process.Signal(os.Interrupt)
@@ -380,5 +387,116 @@ func (p *Process) Reply(ctx context.Context, id json.RawMessage, result any) err
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	return p.write(ctx, data)
+}
+
+func (p *Process) write(ctx context.Context, data []byte) error {
 	return p.conn.Write(ctx, websocket.MessageText, data)
+}
+
+// codex app-server proxy is a byte tunnel to the native Unix socket, including
+// its HTTP upgrade and WebSocket frames. It is not JSONL stdio transport.
+type proxyConn struct {
+	reader io.ReadCloser
+	writer io.WriteCloser
+}
+
+func (c *proxyConn) Read(p []byte) (int, error)  { return c.reader.Read(p) }
+func (c *proxyConn) Write(p []byte) (int, error) { return c.writer.Write(p) }
+func (c *proxyConn) Close() error                { return errors.Join(c.reader.Close(), c.writer.Close()) }
+func (c *proxyConn) LocalAddr() net.Addr         { return &net.UnixAddr{Name: "teamcross-proxy", Net: "unix"} }
+func (c *proxyConn) RemoteAddr() net.Addr {
+	return &net.UnixAddr{Name: "codex-app-server", Net: "unix"}
+}
+func (c *proxyConn) SetDeadline(t time.Time) error {
+	return errors.Join(c.SetReadDeadline(t), c.SetWriteDeadline(t))
+}
+func (c *proxyConn) SetReadDeadline(t time.Time) error { return c.reader.(*os.File).SetReadDeadline(t) }
+func (c *proxyConn) SetWriteDeadline(t time.Time) error {
+	return c.writer.(*os.File).SetWriteDeadline(t)
+}
+
+// ConnectExisting attaches to the user's already-running native daemon. It
+// never starts/restarts that daemon, resumes a stored thread, or changes its
+// settings. Closing this connection only stops our proxy child.
+func ConnectExisting(ctx context.Context, binary, home, logPath, threadID string) (*Process, error) {
+	p, err := connectProxy(ctx, binary, home, logPath)
+	if err != nil {
+		return nil, err
+	}
+	if err = p.CheckLoaded(ctx, threadID); err != nil {
+		p.Close()
+		return nil, err
+	}
+	return p, nil
+}
+
+func connectProxy(ctx context.Context, binary, home, logPath string) (*Process, error) {
+	log, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if err != nil {
+		return nil, err
+	}
+	p := &Process{done: make(chan struct{}), pending: make(map[string]chan Message), external: true}
+	p.cmd = exec.Command(binary, "app-server", "proxy")
+	p.cmd.Env, p.cmd.Stderr = environment(home), log
+	in, err := p.cmd.StdinPipe()
+	if err != nil {
+		_ = log.Close()
+		return nil, err
+	}
+	out, err := p.cmd.StdoutPipe()
+	if err != nil {
+		_ = in.Close()
+		_ = log.Close()
+		return nil, err
+	}
+	p.proxy = &proxyConn{reader: out, writer: in}
+	if err = p.cmd.Start(); err != nil {
+		_ = in.Close()
+		_ = out.Close()
+		_ = log.Close()
+		return nil, err
+	}
+	go func() { _ = p.cmd.Wait(); _ = log.Close(); close(p.done) }()
+	ready, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	client := &http.Client{Transport: &http.Transport{DialContext: func(context.Context, string, string) (net.Conn, error) { return p.proxy, nil }}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	p.conn, _, err = websocket.Dial(ready, "ws://localhost/", &websocket.DialOptions{HTTPClient: client})
+	if err != nil {
+		p.Close()
+		return nil, fmt.Errorf("原生接收连接未接通: %w", err)
+	}
+	p.conn.SetReadLimit(32 << 20)
+	go p.read()
+	if err = p.Call(ready, "initialize", map[string]any{"clientInfo": map[string]string{"name": "teamcross_receiver", "version": buildinfo.Version}, "capabilities": map[string]bool{"experimentalApi": true}}, &p.Init); err == nil {
+		err = p.write(ready, []byte(`{"method":"initialized"}`))
+	}
+	if err != nil {
+		p.Close()
+		return nil, fmt.Errorf("未连接到持有此会话的原生服务：%w", err)
+	}
+	return p, nil
+}
+
+func (p *Process) CheckLoaded(ctx context.Context, threadID string) error {
+	var cursor *string
+	for page := 0; page < 100; page++ {
+		var result struct {
+			Data []string `json:"data"`
+			Next *string  `json:"nextCursor"`
+		}
+		if err := p.Call(ctx, "thread/loaded/list", map[string]any{"cursor": cursor, "limit": 100}, &result); err != nil {
+			return err
+		}
+		for _, id := range result.Data {
+			if id == threadID {
+				return nil
+			}
+		}
+		if result.Next == nil || *result.Next == "" || (cursor != nil && *cursor == *result.Next) {
+			break
+		}
+		cursor = result.Next
+	}
+	return fmt.Errorf("原生服务未加载当前会话，请在原客户端打开此会话后重新连接")
 }
