@@ -43,6 +43,17 @@ func (s *Session) onRuntimeMessage(generation uint64, m nativecodex.Message) {
 		}
 		return
 	}
+	if s.record.SessionID != "" {
+		var scope struct {
+			ThreadID string `json:"threadId"`
+			Thread   struct {
+				ID string `json:"id"`
+			} `json:"thread"`
+		}
+		if json.Unmarshal(m.Params, &scope) == nil && ((scope.ThreadID != "" && scope.ThreadID != s.record.SessionID) || (scope.Thread.ID != "" && scope.Thread.ID != s.record.SessionID)) {
+			return
+		}
+	}
 	if m.Method == "teamcross/claudeState" {
 		var state struct {
 			Busy       bool   `json:"busy"`
@@ -65,10 +76,35 @@ func (s *Session) onRuntimeMessage(generation uint64, m nativecodex.Message) {
 	}
 	if m.Method == "turn/started" {
 		s.busy = true
+		var params struct {
+			Turn struct {
+				ID string `json:"id"`
+			} `json:"turn"`
+		}
+		if json.Unmarshal(m.Params, &params) == nil {
+			s.activeTurnID = params.Turn.ID
+		}
+	}
+	if m.Method == "serverRequest/resolved" {
+		var params struct {
+			RequestID json.RawMessage `json:"requestId"`
+		}
+		if json.Unmarshal(m.Params, &params) == nil {
+			delete(s.approvals, string(params.RequestID))
+		}
 	}
 	if m.Method == "turn/completed" || m.Method == "teamcross/claudeHistory" {
 		if m.Method == "turn/completed" {
-			s.busy = false
+			var params struct {
+				Turn struct {
+					ID string `json:"id"`
+				} `json:"turn"`
+			}
+			_ = json.Unmarshal(m.Params, &params)
+			if s.activeTurnID == "" || params.Turn.ID == "" || s.activeTurnID == params.Turn.ID {
+				s.busy = false
+				s.activeTurnID = ""
+			}
 		}
 		s.record.UpdatedAt = time.Now()
 		_ = s.saveLocked()
@@ -320,6 +356,16 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 				return old.Result, nil
 			}
 			return nil, fmt.Errorf("该输入状态为 %s，请读取会话结果后再决定：%s", old.State, old.Error)
+		}
+		// Recheck after request deduplication and under the same lock as pause.
+		// Approval replies and interrupt remain available while release drains.
+		if s.receiverPaused && method != "turn/interrupt" {
+			unlock()
+			return nil, fmt.Errorf("接收已暂停，请恢复接收会话后再发送")
+		}
+		if method == "turn/interrupt" && s.receiverSpace != "" && (s.activeTurnID == "" || params["turnId"] != s.activeTurnID) {
+			unlock()
+			return nil, fmt.Errorf("当前轮次已变化，请刷新后重试")
 		}
 		if method == "turn/start" && s.busy {
 			unlock()

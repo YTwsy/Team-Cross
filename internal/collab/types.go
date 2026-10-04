@@ -192,6 +192,8 @@ type Session struct {
 	workbenchPresence map[string]targetPresence
 	receiverSpace     string
 	receiverCreation  string
+	receiverActionMu  sync.Mutex
+	receiverPaused    bool
 	mu                sync.Mutex
 	materialUploadMu  sync.Mutex
 	record            Record
@@ -200,6 +202,7 @@ type Session struct {
 	process           Runtime
 	writer            string
 	busy              bool
+	activeTurnID      string
 	nativeWaiting     string
 	nativeLastWrite   time.Time
 	online            bool

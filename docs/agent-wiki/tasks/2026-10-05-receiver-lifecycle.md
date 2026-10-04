@@ -1,14 +1,14 @@
 # 接收会话推送方案与待验证问题
 
-更新日期：2026-10-05（Asia/Shanghai）。核对工作树：`codex/collaboration-flow`，HEAD `ae66ff6` 加当前未提交改动。本次仅整理同日的代码、执行记录与官方文档评估，没有实现候选方案、创建定时任务或新增宿主验收；平台范围应在后续实施前重新确认。
+更新日期：2026-10-05（Asia/Shanghai）。最初调查基于 `codex/collaboration-flow` 的 `ae66ff6` 加当时工作树改动；本文继续保留个人 Desktop 主动接收的候选方案与待验证问题。接收会话释放/接回已另行推进，见下方交接回归；没有据此实现本文的事件接收候选方案、创建定时任务或新增个人 Desktop 宿主验收。
 
-调查工作树中已完成、尚未合入 Meta 的审批残留修复、准确轮次停止、深链接验证，以及 TUI / 专用 Desktop 交接澄清，已移至[原生生命周期回归与接入澄清](finished_archived/2026-10-05-receiver-lifecycle-validation.md)。完整检查结果、结构化摘要、复现入口与当时未覆盖项均保留在该报告，不在活跃任务重复展开。
+早先调查工作树的审批残留修复、准确轮次停止、深链接验证，以及 TUI / 专用 Desktop 交接澄清，保留于[原生生命周期回归与接入澄清](finished_archived/2026-10-05-receiver-lifecycle-validation.md)。完整检查结果、结构化摘要、复现入口与当时未覆盖项均保留在该报告，不在活跃任务重复展开。
 
 ## 个人 Desktop 的当前缺口
 
 现场的个人 Desktop 使用独立 STDIO app-server；当前 `ConnectExisting` 只连接提供控制 socket 的 daemon，并要求其加载准确目标 thread。此次没有接通现场运行实例，拿到 MCP thread 身份或打开深链接均不能补足接收入口。该结果不表示 Desktop 原理上无法接收外部输入。
 
-TUI 与 Team Cross 专用 Desktop 已有共同接入协作网关的机制，不需要重新设计；该机制也不能证明日常个人 Desktop 的原会话已接通。详细连接图与代码依据见[归档澄清](finished_archived/2026-10-05-receiver-lifecycle-validation.md#追加澄清现有交接与个人-desktop-推送)。上述生命周期修复仍属于未提交工作树，尚未合入 Meta 或安装；它与已通过独立分支提交的接收恢复死锁修复不同。个人 Desktop 推送、侧边栏自动刷新、`agents` 的 `x` 快捷键和两台 Mac 行为仍未纳入通过结论。
+TUI 与 Team Cross 专用 Desktop 已有共同接入协作网关的机制，不需要重新设计；该机制也不能证明日常个人 Desktop 的原会话已接通。详细连接图与代码依据见[归档澄清](finished_archived/2026-10-05-receiver-lifecycle-validation.md#追加澄清现有交接与个人-desktop-推送)。2026-10-05 基于 Meta 的交接改动迁入审批/停止修复，并补充安全释放和同 ID 接回，当前实现及验证见[交接回归](finished_archived/2026-10-05-receiver-handoff.md)；它与此前的接收恢复死锁修复不同。个人 Desktop 推送、侧边栏自动刷新、`agents` 的 `x` 快捷键和两台 Mac 行为仍未纳入通过结论。
 
 ## 已确认目标与本次判断
 

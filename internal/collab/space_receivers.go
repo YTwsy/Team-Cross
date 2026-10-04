@@ -20,9 +20,10 @@ import (
 // A receiver reuses the native runtime engine, but is not a shared execution:
 // no source fork, Git checkout, space ExecutionRecord or remote native access.
 type receiverRecord struct {
-	SpaceID       string `json:"spaceId"`
-	CreationStage string `json:"creationStage,omitempty"`
-	Record        Record `json:"record"`
+	SpaceID         string `json:"spaceId"`
+	CreationStage   string `json:"creationStage,omitempty"`
+	ReceivingPaused bool   `json:"receivingPaused,omitempty"`
+	Record          Record `json:"record"`
 }
 
 func (s *Session) runtimeDirectory() string {
@@ -39,7 +40,7 @@ func (a *App) newReceiver(r receiverRecord) *Session {
 	if r.Record.ExecutionRecord != nil && r.Record.Commands == nil {
 		r.Record.Commands = map[string]Command{}
 	}
-	return &Session{app: a, record: r.Record, receiverSpace: r.SpaceID, receiverCreation: r.CreationStage, writer: "owner", epoch: 1, presence: map[string]memberPresence{}, approvals: map[string]Approval{}}
+	return &Session{app: a, record: r.Record, receiverSpace: r.SpaceID, receiverCreation: r.CreationStage, receiverPaused: r.ReceivingPaused, releaseWhenIdle: r.ReceivingPaused, writer: "owner", epoch: 1, presence: map[string]memberPresence{}, approvals: map[string]Approval{}}
 }
 
 func (a *App) loadSpaceReceivers() error {
@@ -255,6 +256,9 @@ func (a *App) receiverView(s *Session) map[string]any {
 	s.mu.Lock()
 	r := s.snapshotLocked()
 	out := map[string]any{"id": r.ID, "spaceId": s.receiverSpace, "name": r.Title, "state": r.State, "error": r.Error, "sessionId": r.SessionID, "online": s.online, "busy": s.busy, "approvals": len(s.approvals), "model": r.Model, "modelProvider": r.ModelProvider, "reasoningEffort": r.ReasoningEffort, "pairingId": r.RequestID}
+	out["activeTurnId"] = s.activeTurnID
+	out["receivingPaused"] = s.receiverPaused
+	out["releasePending"] = s.receiverPaused && (s.online || s.starting || s.stopping != nil)
 	process := s.process
 	canRetry := s.canRetryReceiverLocked()
 	s.mu.Unlock()
@@ -322,12 +326,14 @@ func (a *App) receiversHTTP(w http.ResponseWriter, r *http.Request, path string)
 		return true
 	}
 	var in struct {
-		Action string `json:"action"`
+		Action    string `json:"action"`
+		TurnID    string `json:"turnId"`
+		RequestID string `json:"requestId"`
 	}
 	if !decode(w, r, &in) {
 		return true
 	}
-	if parts[2] != "action" || (in.Action != "start" && in.Action != "retry") {
+	if parts[2] != "action" {
 		http.NotFound(w, r)
 		return true
 	}
@@ -336,11 +342,34 @@ func (a *App) receiversHTTP(w http.ResponseWriter, r *http.Request, path string)
 		respond(w, out, err)
 		return true
 	}
-	if _, err := a.workbenchCall(r.Context(), s.receiverSpace, "receiver-check", workbenchInput{}); err != nil {
-		respond(w, nil, err)
+	// Local cleanup remains available after space closure or membership loss.
+	// Only resumption/opening requires current access to the space.
+	if in.Action != "pause" && in.Action != "interrupt" {
+		if _, err := a.workbenchCall(r.Context(), s.receiverSpace, "receiver-check", workbenchInput{}); err != nil {
+			respond(w, nil, err)
+			return true
+		}
+	}
+	var err error
+	switch in.Action {
+	case "start":
+		err = a.resumeReceiver(r.Context(), s)
+	case "pause":
+		err = a.pauseReceiver(r.Context(), s)
+	case "open-desktop":
+		out, e := a.openReceiverDesktop(r.Context(), s)
+		respond(w, out, e)
+		return true
+	case "interrupt":
+		if _, e := uuid.Parse(in.RequestID); e != nil {
+			err = fmt.Errorf("停止轮次需要唯一 requestId")
+		} else {
+			_, err = s.RPC(r.Context(), "owner", "turn/interrupt", map[string]any{"turnId": in.TurnID}, in.RequestID)
+		}
+	default:
+		http.NotFound(w, r)
 		return true
 	}
-	err := s.start(r.Context(), true)
 	if err == nil {
 		a.wakeWorkbench()
 	}

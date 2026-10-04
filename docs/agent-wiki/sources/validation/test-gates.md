@@ -103,7 +103,9 @@ fixture 使用合成原生历史，其他发布、版本、Core HTTP、存储、
 
 仅修改 CLI 发现或错误恢复时，检查 [接收会话路径回归](../../../../internal/collab/receiver_discovery_test.go) 和 [工作台交互](../../../../packages/web/src/test/space-workbench.test.tsx)：设置与助手有效路径一致、设置变化立即生效、历史错误不冒充当前检测、只读刷新不启动会话、明确重试保留同一 ID、未知创建结果不重放。此范围不要求真实模型回合；使用可执行文件发现和模拟原生 RPC 即可。
 
-审批解决通知、跨 thread 隔离、精确轮次停止和 Desktop 打开检查的调查版步骤见[生命周期回归记录](../../tasks/finished_archived/2026-10-05-receiver-lifecycle-validation.md#调查工作树的协议与复现入口)。对应回归文件和脚本仍属于当次未提交工作树，尚未进入 Meta；后续合入实现时一并确认这些检查入口，不以调查版结果证明个人 Desktop 主动推送或侧边栏自动刷新。
+接收生命周期修改检查 [审批与停止回归](../../../../internal/collab/receiver_lifecycle_test.go)、[安全交接回归](../../../../internal/collab/receiver_handoff_test.go) 和工作台交互：精确审批解决、跨 thread 隔离、旧 turn 拒绝、停止去重、暂停后投递/RPC 双重拒绝、等当前执行/审批/已接受调用退出、等待进程真正关闭、空历史拒绝、暂停持久化、同 ID/目录/配对恢复、最新模型继承和占用失败保留原状。空间结束后本机清理仍可用，恢复访问仍受限制。
+
+`python3 scripts/verify-receiver-lifecycle.py --fixture-dir /fresh/output --teamcross-bin /absolute/teamcross --codex-bin /absolute/codex` 使用隔离 Core、home、目录和 `gpt-5.6-luna`，由第二原生 WebSocket 客户端回应精确测试审批，验证可再次发送、真实中断与去重。随后释放专属 worker，由另一个真实 app-server 恢复相同 thread：占用期间 Team Cross 恢复必须失败；续写、退出后接回原会话并核对新增历史、模型实际使用前轮标记、恢复不重放输入，以及审批期间暂停后自动释放。Desktop 打开仅捕获系统命令参数；此脚本不证明个人 Desktop UI 完整往返、侧边栏刷新、`agents` 的 `x` 快捷键或两台 Mac。`--preview-seconds` 可暂留首次审批现场供界面检查。
 
 当前会话连接需验证 [传输身份与关联](../../../../internal/collab/agent_connections_test.go)、[ChatGPT 不透明身份](../../../../internal/mcp/current_test.go) 及 [插件回执不重放](../../../../packages/web/src/test/plugin.test.tsx)。`TEAMCROSS_TEST_NATIVE_DAEMON=1 go test ./internal/nativecodex -run '^TestExistingNativeDaemonConnection$' -count=1 -v` 启动专用 daemon，证明第二个代理只连接已加载的精确 thread、拒绝未知 ID、关闭借用代理不影响原 daemon；不调用模型。
 

@@ -31,11 +31,15 @@ func (a *App) PersonalDesktopPlan(ctx context.Context, id string, launch bool) (
 	if r.SessionID == "" || r.SessionID == r.SourceID {
 		return nil, fmt.Errorf("协作会话尚未创建，请等待创建完成后重试")
 	}
+	return a.openPersonalCodex(ctx, r.SessionID, launch)
+}
+
+func (a *App) openPersonalCodex(ctx context.Context, sessionID string, launch bool) (map[string]any, error) {
 	app := a.desktop()
 	if stat, err := os.Stat(app); err != nil || !stat.IsDir() {
 		return nil, problem.New("client_missing", "未找到 Codex Desktop", "请在设置中选择已安装的应用")
 	}
-	link := (&url.URL{Scheme: "codex", Host: "threads", Path: "/" + r.SessionID}).String()
+	link := (&url.URL{Scheme: "codex", Host: "threads", Path: "/" + sessionID}).String()
 	command := "open -a " + nativecodex.Quote(app) + " " + nativecodex.Quote(link)
 	note := "在个人 Codex 中定位此协作会话。"
 	if launch {
@@ -45,7 +49,7 @@ func (a *App) PersonalDesktopPlan(ctx context.Context, id string, launch bool) (
 		note = "已请求个人 Codex 打开此协作会话，请在 Desktop 中查看。"
 	}
 	return map[string]any{
-		"sessionId": r.SessionID,
+		"sessionId": sessionID,
 		"url":       link,
 		"command":   command,
 		"launched":  launch,

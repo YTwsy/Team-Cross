@@ -394,6 +394,9 @@ func (a *App) nativeAgentReasonFor(p AgentPairing, role string) string {
 	if s.record.ExecutionRecord == nil || s.record.SessionID != p.SessionID || s.record.Provider != p.Provider {
 		return "接收会话身份已变化，请重新配对"
 	}
+	if s.receiverPaused {
+		return "接收已暂停，请恢复接收会话后再发送"
+	}
 	if s.closed || !s.online || s.process == nil || !s.process.Alive() {
 		return "接收会话未连接，请先恢复运行时"
 	}

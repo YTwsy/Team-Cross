@@ -102,6 +102,9 @@ export type SpaceReceiver = {
   online: boolean;
   busy: boolean;
   approvals: number;
+  activeTurnId?: string;
+  receivingPaused?: boolean;
+  releasePending?: boolean;
   model?: string;
   modelProvider?: string;
   reasoningEffort?: string;
