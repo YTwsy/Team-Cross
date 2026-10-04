@@ -48,6 +48,8 @@ sequenceDiagram
 
 已有 Codex 会话除 `a.sessions` / `a.receivers` 外，还可通过当前原生 daemon 的 `codex app-server proxy` 建立连接。它是字节隧道上的 WebSocket；先核对 `thread/loaded/list` 包含当前 MCP 证明的精确 thread，再向同一 thread 提交输入。连接发现不启动 daemon，不调用 `thread/start/fork/resume`，不改写当前模型或原生审批。目标忙碌或原生连接不可用时显示原因；解除关联只关闭 Team Cross 自己的代理，不结束用户的 daemon 或会话。Core 重启后需明确重新连接，不自动恢复借用的连接。实现见 [当前会话连接](../../../../internal/collab/agent_connections.go) 与 [原生代理](../../../../internal/nativecodex/process.go)。
 
+这条代理只接入提供控制 socket 的 daemon。个人 Codex Desktop 可以使用独立 STDIO app-server；其 MCP thread 身份有效，并不表示默认 daemon 持有该 thread。当前没有接入这种 Desktop 进程的主动推送通道，单纯打开或重启 Desktop 不会补上它。已验证的 daemon 路径不能推广为个人 Desktop 推送通过；现场阻塞、调查工作树中的诊断及重试去重修复见[接收会话调查](../../tasks/2026-10-05-receiver-lifecycle.md)，该批生命周期修复尚未合入 Meta。
+
 ChatGPT 调用使用 `_meta["openai/session"]`，并结合可用的 subject/org 生成不透明本机关联键。它不是原生 `threadId`，不能用它调用 Codex 原生输入。`linked` 表示空间关联已保存，`paired` 才表示该适配已核验接收能力；ChatGPT 本机 mention / 面板连接目前只建立前者。Cloud 事件订阅是独立授权的接收方式，见 [空间事件](space-events.md)，不能由 `linked` 或 `ui/message` 的宿主回执推断已具备云端接收。
 
 缺少可核对身份的调用返回 `unsupported`；相同会话关联可重试，丢失宿主消息回执时先查看当前对话，界面不自动重发。对应的实际验证范围见 [证据入口](../validation/evidence-map.md#配对与空间请求)。
