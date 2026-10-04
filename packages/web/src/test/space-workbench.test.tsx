@@ -117,6 +117,78 @@ afterEach(() => {
   setCurrentConversation(undefined);
 });
 
+it("drains a paused receiver before exposing Desktop continuation and same-session resume", async () => {
+  receivers = [
+    {
+      id: "receiver-handoff",
+      spaceId: "space",
+      name: "交接助手",
+      state: "ready",
+      sessionId: "native-saved-id",
+      online: true,
+      busy: true,
+      activeTurnId: "native-turn-id",
+      approvals: 0,
+      pairingId: "same-pair",
+    },
+  ];
+  const user = userEvent.setup();
+  render(
+    <SpaceWorkbench collaboration={c} onLocate={() => {}}>
+      reader
+    </SpaceWorkbench>,
+  );
+  await user.click(screen.getByRole("tab", { name: "参与会话" }));
+  await screen.findByRole("button", { name: "暂停接收并释放" });
+  expect(
+    screen.queryByRole("button", { name: "在 Codex Desktop 中继续" }),
+  ).not.toBeInTheDocument();
+  receivers[0]!.receivingPaused = true;
+  receivers[0]!.releasePending = true;
+  await user.click(screen.getByRole("button", { name: "暂停接收并释放" }));
+  await screen.findByText("正在释放");
+  expect(calls.filter((c) => c.body?.action)).toEqual([
+    {
+      path: "space-receivers/receiver-handoff/action",
+      body: { action: "pause" },
+    },
+  ]);
+  expect(
+    screen.queryByRole("button", { name: "恢复接收会话" }),
+  ).not.toBeInTheDocument();
+  receivers[0]!.online = false;
+  receivers[0]!.busy = false;
+  receivers[0]!.activeTurnId = undefined;
+  receivers[0]!.releasePending = false;
+  await user.click(screen.getByRole("button", { name: "停止当前轮次" }));
+  await screen.findByText("已暂停接收");
+  expect(calls.find((c) => c.body?.action === "interrupt")?.body).toEqual({
+    action: "interrupt",
+    turnId: "native-turn-id",
+    requestId: expect.any(String),
+  });
+  await user.click(
+    screen.getByRole("button", { name: "在 Codex Desktop 中继续" }),
+  );
+  expect(calls.find((c) => c.body?.action === "open-desktop")?.path).toBe(
+    "space-receivers/receiver-handoff/action",
+  );
+  receivers[0]!.online = true;
+  receivers[0]!.receivingPaused = false;
+  await user.click(screen.getByRole("button", { name: "恢复接收会话" }));
+  await screen.findByRole("button", { name: "暂停接收并释放" });
+  expect(calls.find((c) => c.body?.action === "start")?.path).toBe(
+    "space-receivers/receiver-handoff/action",
+  );
+  expect(
+    calls.some(
+      (c) =>
+        c.path.endsWith("/workbench/create-receiver") ||
+        c.path.endsWith("/workbench/send"),
+    ),
+  ).toBe(false);
+});
+
 it("shows the recovered CLI and retries the existing receiver only on an explicit click", async () => {
   receivers = [
     {

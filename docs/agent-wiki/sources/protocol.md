@@ -146,10 +146,10 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 | `POST …/workbench/brief` | `{baseRevision,brief:{topic,decisions,questions}}`，人工成员确认，CAS 更新；条目为 `{text,sources,requestId?}`，引用请求须已完成/失败且有摘要 |
 | `POST …/workbench/assistant` | `{baseEpoch,state,targetId?,requestId?}`，仅空间发起者；`state=initializing|paused|disabled`，初始化需就绪的独立目标和新的请求 ID |
 | `POST …/workbench/create-receiver` | `{requestId,name}`，在当前成员 Core 创建并关联独立 Codex 接收会话；相同 ID 不重复创建 |
-| `GET /space-receivers?spaceId=…` | 当前 Core 自己的接收会话、原生 TUI 命令、运行时确认模型及状态；不通过远端返回 |
+| `GET /space-receivers?spaceId=…` | 当前 Core 自己的接收会话、原生 TUI 命令、运行时确认模型及状态；含 `activeTurnId`、持久化的 `receivingPaused`、等待执行/进程退出的 `releasePending`，不通过远端返回 |
 | `GET /space-receivers/:id/events` | 当前本机接收会话事件与待回应审批 |
 | `POST /space-receivers/:id/respond` | `{id,result}`，本机成员回应精确原生审批 |
-| `POST /space-receivers/:id/action` | `{action:"start"}` 恢复已保存的同一个原生会话；`{action:"retry"}` 明确重试已确认尚未发送 `thread/start` 的创建失败 |
+| `POST /space-receivers/:id/action` | `{action:"start"}` 恢复已保存的同一会话；`{action:"pause"}` 暂停新投递并安全释放；`{action:"interrupt",turnId,requestId}` 精确停止轮次且去重；`{action:"open-desktop"}` 仅在暂停且进程退出后打开保存的 ID；`{action:"retry"}` 明确重试尚未发送 `thread/start` 的创建失败 |
 
 本表对应 Meta 已接入的独立接收协议。调查工作树中的 `activeTurnId`、精确轮次中断与 Desktop 打开扩展保留在[生命周期记录](../tasks/finished_archived/2026-10-05-receiver-lifecycle-validation.md#调查工作树的协议与复现入口)；这些字段及操作尚未进入 Meta，不能据此调用当前接收接口。
 

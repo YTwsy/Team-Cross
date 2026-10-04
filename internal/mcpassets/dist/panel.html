@@ -11492,7 +11492,23 @@ After installing, open the link above again or paste this invitation code in “
   "当前 CLI": "Current CLI",
   "留空自动发现；直接操作会使用独立的数据目录启动专用实例。": "Leave empty for automatic discovery. Direct access launches a dedicated instance with its own data directory.",
   "设置有改动，保存后生效。": "Changes take effect after saving.",
-  "客户端设置尚未加载，请重新打开 Team Cross 后再检测。": "Client settings have not loaded. Reopen Team Cross, then check again."
+  "客户端设置尚未加载，请重新打开 Team Cross 后再检测。": "Client settings have not loaded. Reopen Team Cross, then check again.",
+  正在释放: "Releasing",
+  已暂停接收: "Receiving paused",
+  暂停接收并释放: "Pause receiving and release",
+  "已暂停新请求，等待当前执行和审批结束后释放会话。": "New requests are paused. The conversation will be released after the current turn and approvals finish.",
+  "会话已释放。可在个人 Codex 中继续；接回前，请先在个人客户端释放该会话。": "The conversation has been released. Continue in your personal Codex client, then release it there before resuming receiving.",
+  "在 Codex Desktop 中继续": "Continue in Codex Desktop",
+  停止当前轮次: "Stop current turn",
+  "接收已暂停，请恢复接收会话后再发送": "Receiving is paused. Resume receiving before sending.",
+  "当前轮次已变化，请刷新后重试": "The current turn has changed. Refresh and try again.",
+  "会话尚未就绪，请稍后重试": "The conversation is not ready. Try again shortly.",
+  原生会话尚未创建: "The native conversation has not been created yet.",
+  "会话尚无可读取的已保存历史，请完成首轮后再释放或打开": "No saved history is available yet. Complete the first turn before releasing or opening this conversation.",
+  "会话仍在释放，请等待当前执行和原生交互结束": "The conversation is still being released. Wait for the current turn and native interactions to finish.",
+  "请先暂停接收并等待会话释放，再在 Codex Desktop 中继续": "Pause receiving and wait for release before continuing in Codex Desktop.",
+  "停止轮次需要唯一 requestId": "Stopping a turn requires a unique requestId.",
+  "恢复接收失败；若会话仍在其他应用中打开，请先在那里释放后重试": "Could not resume receiving. If another app still has the conversation open, release it there before trying again."
 };
 let Dr = "zh-CN", Or = { mode: "auto", resolved: "zh-CN" };
 function gy() {
@@ -26269,7 +26285,7 @@ function eA({
   return /* @__PURE__ */ l.jsxs("section", { className: "panel workbench-receiver", children: [
     /* @__PURE__ */ l.jsxs("div", { className: "workbench-section-heading", children: [
       /* @__PURE__ */ l.jsx("h3", { children: e.name }),
-      /* @__PURE__ */ l.jsx("span", { children: e.online ? e.busy ? h("正在处理") : h("已连接") : h("未连接") })
+      /* @__PURE__ */ l.jsx("span", { children: e.releasePending ? h("正在释放") : e.receivingPaused ? h("已暂停接收") : e.online ? e.busy ? h("正在处理") : h("已连接") : h("未连接") })
     ] }),
     /* @__PURE__ */ l.jsxs("p", { className: "small-text muted", children: [
       h("仅你可见的原生会话控制"),
@@ -26291,7 +26307,7 @@ function eA({
         children: h("重试创建接收会话")
       }
     ),
-    !e.online && e.state === "ready" && /* @__PURE__ */ l.jsx(
+    !e.online && !e.releasePending && e.state === "ready" && /* @__PURE__ */ l.jsx(
       "button",
       {
         className: "button",
@@ -26300,7 +26316,44 @@ function eA({
         children: h("恢复接收会话")
       }
     ),
-    e.command && /* @__PURE__ */ l.jsxs("details", { children: [
+    e.online && !e.receivingPaused && /* @__PURE__ */ l.jsx(
+      "button",
+      {
+        className: "button secondary",
+        disabled: c,
+        onClick: () => void m("action", { action: "pause" }),
+        children: h("暂停接收并释放")
+      }
+    ),
+    e.releasePending && /* @__PURE__ */ l.jsx("p", { className: "notice", children: h("已暂停新请求，等待当前执行和审批结束后释放会话。") }),
+    e.receivingPaused && !e.releasePending && /* @__PURE__ */ l.jsxs(l.Fragment, { children: [
+      /* @__PURE__ */ l.jsx("p", { className: "small-text muted", children: h(
+        "会话已释放。可在个人 Codex 中继续；接回前，请先在个人客户端释放该会话。"
+      ) }),
+      /* @__PURE__ */ l.jsx(
+        "button",
+        {
+          className: "button secondary",
+          disabled: a || c,
+          onClick: () => void m("action", { action: "open-desktop" }),
+          children: h("在 Codex Desktop 中继续")
+        }
+      )
+    ] }),
+    e.online && e.activeTurnId && /* @__PURE__ */ l.jsx(
+      "button",
+      {
+        className: "button danger",
+        disabled: c,
+        onClick: () => void m("action", {
+          action: "interrupt",
+          turnId: e.activeTurnId,
+          requestId: crypto.randomUUID()
+        }),
+        children: h("停止当前轮次")
+      }
+    ),
+    e.command && e.online && /* @__PURE__ */ l.jsxs("details", { children: [
       /* @__PURE__ */ l.jsx("summary", { children: h("在原生终端中打开") }),
       /* @__PURE__ */ l.jsx("p", { children: h("在本机终端运行此命令，查看会话、调整模型或处理原生交互。") }),
       /* @__PURE__ */ l.jsx(Bn, { text: e.command })

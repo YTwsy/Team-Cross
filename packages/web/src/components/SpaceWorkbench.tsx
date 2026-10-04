@@ -1287,7 +1287,15 @@ function ReceiverCard({
       <div className="workbench-section-heading">
         <h3>{r.name}</h3>
         <span>
-          {r.online ? (r.busy ? t("正在处理") : t("已连接")) : t("未连接")}
+          {r.releasePending
+            ? t("正在释放")
+            : r.receivingPaused
+              ? t("已暂停接收")
+              : r.online
+                ? r.busy
+                  ? t("正在处理")
+                  : t("已连接")
+                : t("未连接")}
         </span>
       </div>
       <p className="small-text muted">
@@ -1313,7 +1321,7 @@ function ReceiverCard({
           {t("重试创建接收会话")}
         </button>
       )}
-      {!r.online && r.state === "ready" && (
+      {!r.online && !r.releasePending && r.state === "ready" && (
         <button
           className="button"
           disabled={disabled || busy}
@@ -1322,7 +1330,52 @@ function ReceiverCard({
           {t("恢复接收会话")}
         </button>
       )}
-      {r.command && (
+      {r.online && !r.receivingPaused && (
+        <button
+          className="button secondary"
+          disabled={busy}
+          onClick={() => void call("action", { action: "pause" })}
+        >
+          {t("暂停接收并释放")}
+        </button>
+      )}
+      {r.releasePending && (
+        <p className="notice">
+          {t("已暂停新请求，等待当前执行和审批结束后释放会话。")}
+        </p>
+      )}
+      {r.receivingPaused && !r.releasePending && (
+        <>
+          <p className="small-text muted">
+            {t(
+              "会话已释放。可在个人 Codex 中继续；接回前，请先在个人客户端释放该会话。",
+            )}
+          </p>
+          <button
+            className="button secondary"
+            disabled={disabled || busy}
+            onClick={() => void call("action", { action: "open-desktop" })}
+          >
+            {t("在 Codex Desktop 中继续")}
+          </button>
+        </>
+      )}
+      {r.online && r.activeTurnId && (
+        <button
+          className="button danger"
+          disabled={busy}
+          onClick={() =>
+            void call("action", {
+              action: "interrupt",
+              turnId: r.activeTurnId,
+              requestId: crypto.randomUUID(),
+            })
+          }
+        >
+          {t("停止当前轮次")}
+        </button>
+      )}
+      {r.command && r.online && (
         <details>
           <summary>{t("在原生终端中打开")}</summary>
           <p>{t("在本机终端运行此命令，查看会话、调整模型或处理原生交互。")}</p>

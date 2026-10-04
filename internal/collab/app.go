@@ -194,7 +194,7 @@ func (a *App) newSession(r Record) *Session {
 }
 func (s *Session) saveLocked() error {
 	if s.receiverSpace != "" {
-		return writeJSONFile(filepath.Join(s.runtimeDirectory(), "receiver.json"), receiverRecord{SpaceID: s.receiverSpace, CreationStage: s.receiverCreation, Record: s.record})
+		return writeJSONFile(filepath.Join(s.runtimeDirectory(), "receiver.json"), receiverRecord{SpaceID: s.receiverSpace, CreationStage: s.receiverCreation, ReceivingPaused: s.receiverPaused, Record: s.record})
 	}
 	return writeJSONFile(filepath.Join(s.runtimeDirectory(), "collaboration.json"), s.record)
 }
@@ -627,6 +627,7 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 	p.SetHandler(func(m nativecodex.Message) { s.onRuntimeMessage(generation, m) })
 	s.online = !resume
 	s.busy = false
+	s.activeTurnID = ""
 	s.approvals = map[string]Approval{}
 	s.mu.Unlock()
 	if resume && r.SessionID != "" && r.Provider != "claude" {
