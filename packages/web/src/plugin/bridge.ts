@@ -1,5 +1,5 @@
 import { APIError, setAPITransport } from "../api";
-import { serviceText, t } from "../i18n";
+import { serviceText, t, tr } from "../i18n";
 
 type Message = {
   jsonrpc: string;
@@ -199,6 +199,25 @@ export class HostBridge {
       throw new MessageDeliveryError((e as Error).message, true);
     }
     return text;
+  }
+
+  async connectConversation(spaceId: string, name: string) {
+    if (!this.host?.hostCapabilities?.message)
+      throw new MessageDeliveryError(
+        t("当前宿主不支持向会话发送消息，请复制读取提示。"),
+        false,
+      );
+    const text = tr`请把当前会话连接到 Team Cross 空间。调用 connect_current_session，参数为 ${JSON.stringify({ spaceId, ...(name.trim() ? { name: name.trim() } : {}) })}。请分别报告 linked（已关联）和 receiving（接收能力已核验）。不要创建其他会话、发送协作请求或订阅后续讨论。`;
+    try {
+      const result = await this.request<{ isError?: boolean }>("ui/message", {
+        role: "user",
+        content: [{ type: "text", text }],
+      });
+      if (result?.isError)
+        throw new Error(t("消息结果尚未确认，请查看当前会话；不会自动重发。"));
+    } catch (error) {
+      throw new MessageDeliveryError((error as Error).message, true);
+    }
   }
   dispose() {
     window.removeEventListener("message", this.listener);

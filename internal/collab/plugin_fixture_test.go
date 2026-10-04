@@ -104,6 +104,20 @@ func TestChatGPTPluginFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	otherMid := publish(other, "独立发布检查", "other", "other", "", 0)
+	// Synthetic receiver; the business requests, snapshots and brief drafts use
+	// real Core storage. Model delivery has a separate opt-in native fixture.
+	_, caller, target := spaceChannel(t, a, space.record.ID)
+	ref := LibraryReference{SpaceID: space.record.ID, Kind: "material", MaterialID: mid, Version: 1}
+	wb(t, a, space.record.ID, "brief", workbenchInput{Brief: SpaceBrief{Topic: "核对连接池调查与协作重试。", Decisions: []BriefItem{{Text: "先核对已发布的固定版本。", Sources: []LibraryReference{ref}}}, Questions: []BriefItem{}}})
+	requestID := uuid.NewString()
+	wb(t, a, space.record.ID, "send", workbenchInput{RequestID: requestID, TargetID: target.ID, References: []LibraryReference{ref, {SpaceID: space.record.ID, Kind: "annotation", AnnotationID: note.ID}}, Instruction: "请核对固定版本的样本条件和待复测事项。", Intent: "analyze"})
+	a.pumpWorkbench(ctx)
+	if _, err = a.readAgentRequest(ctx, caller, requestID, "", 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = a.finishAgentRequest(ctx, caller, requestID, "", "completed", "建议补充断线恢复与重复请求测试；真实跨设备网络仍待复测。这是建议，尚未写入成员确认的简报。"); err != nil {
+		t.Fatal(err)
+	}
 	var mu sync.Mutex
 	var requests []map[string]string
 	var connection service.Connection

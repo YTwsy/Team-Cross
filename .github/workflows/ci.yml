@@ -76,6 +76,7 @@ jobs:
           go test -race
           ./internal/collab
           ./internal/mcp
+          ./internal/mcpevents
           ./internal/sharing
           ./internal/nativecodex
           ./internal/nativeclaude

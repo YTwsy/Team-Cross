@@ -13,6 +13,7 @@ const agentInstructions = " 用户要求配对时调用 pair_current_session，�
 
 func AgentTools() []map[string]any {
 	return append([]map[string]any{
+		tool("connect_current_session", "仅在用户明确要求把当前会话连接到指定空间时调用。由传输核对当前会话，复用已有绑定并关联空间；linked 与 receiving 分别表示已关联和已核验接收能力。不得指定或猜测其他会话，不创建新会话，不自动发送请求。", map[string]any{"spaceId": str("用户明确选定的本机空间 ID，可来自空间 mention"), "name": str("可选接收会话名称，最多 80 字")}, []string{"spaceId"}, false),
 		tool("pair_current_session", "使用用户从 Team Cross 复制的一次性配对码绑定当前会话；会核对传输提供的身份和接收能力。verifying 表示还在核验，unsupported 表示此客户端不能主动接收，均不可称为配对完成。不创建或恢复会话，不自动发送任务。", map[string]any{"code": str("Team Cross 生成的 TCP- 配对码，有效期十分钟")}, []string{"code"}, false),
 		tool("confirm_pairing", "只用于确认刚收到的 Team Cross Channel 核验通知。必须使用通知中的 pairingId 和 challenge；不猜测、不轮询。", map[string]any{"pairingId": str("核验通知的配对 ID"), "challenge": str("仅在核验通知中收到的挑战值")}, []string{"pairingId", "challenge"}, false),
 		tool("read_agent_request", "读取投递到当前已配对会话的请求；返回用户明确的处理要求和固定引用，记录已读取回执。每页一项引用，按 nextOffset 继续；按 readingGuidance 使用现有工具读取原文，不能仅凭通知分析。", map[string]any{"requestId": str("Team Cross 投递通知中的请求 ID"), "offset": map[string]any{"type": "integer", "minimum": 0, "maximum": 31, "description": "引用分页位置，默认 0；按 nextOffset 继续，直到全部引用已核对"}}, []string{"requestId"}, false),
@@ -51,9 +52,9 @@ func (b Backend) invokeAgent(ctx context.Context, name string, args map[string]a
 	if err := ValidateAgentCall(name, args); err != nil {
 		return true, nil, err
 	}
-	caller, err := callerSource(ctx)
+	caller, err := conversationCaller(ctx)
 	if err != nil {
-		if name != "pair_current_session" {
+		if name != "pair_current_session" && !WorkbenchReadTool(name) {
 			return true, nil, err
 		}
 		// Let the code's owner see an explicit unsupported status in the UI.

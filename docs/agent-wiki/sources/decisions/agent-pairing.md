@@ -4,11 +4,13 @@
 
 ## 统一交互
 
-批注、资源选择清单和设置使用同一套接收会话配对流程。用户先为目标起名，生成十分钟有效的一次性提示，粘贴到要接收任务的具体会话，由 Agent 调用 `pair_current_session`。Core 依据工具传输提供的会话身份和实际接收方式核对目标。新的会话需要单独配对，不按最近使用的会话猜测目标。
+空间面板提供“连接当前会话”：自定义名称是可选展开项，不填写也可直接连接。用户明确点击后，宿主向当前对话发送一次 `connect_current_session(spaceId,name?)` 请求；Core 从工具传输核对身份，复用同一空间、同一会话的关联，并单独报告是否具备接收能力。空间 mention 可以省去寻找空间 ID，但选择引用本身不会绑定或订阅。
+
+跨客户端仍可生成十分钟有效的一次性提示，粘贴到要接收任务的具体会话，由 Agent 调用 `pair_current_session`。批注、资源选择清单和设置复用这套接收配对。新的会话需要单独关联，不按最近使用的会话猜测目标。下面展示复制提示的路径。
 
 配对完成后，在批注或选择清单点击“交给 Agent”，选择已配对目标，选择“分析后告诉我”或“分析并回复原批注”，编辑处理要求后发送。选择清单里的“生成读取入口”和批注的“复制提示”继续可用。配对可在设置移除，最近二十个请求的处理回执也可在设置查看。
 
-保存批注本身不启动 Agent；只有明确发送才创建请求。配对不启用共同执行、不创建 fork、不接管输入权、不共享其他个人历史，也不订阅后续讨论。“关注后续讨论”的事件筛选与授权属于后续工作。
+保存批注本身不启动 Agent；只有明确发送才创建请求。配对不启用共同执行、不创建 fork、不接管输入权、不共享其他个人历史，也不订阅后续讨论。持续关注另走明确授权的 [空间事件订阅](space-events.md)。
 
 ```mermaid
 sequenceDiagram
@@ -44,9 +46,11 @@ sequenceDiagram
 
 ### 当前接入范围
 
-当前 [Core 实现](../../../../internal/collab/agents.go)中，`pairAgent` 只在 `a.sessions` 查找已保存的原生运行时；`agentSession` 只从 `a.sessions` 或 `a.receivers` 取得投递连接。工作台新建会话时直接核对并保存其原生 ID 和配对。已有 Codex 会话若未命中上述配对查找，即使身份核对成功，也由 Team Cross 返回 `unsupported`。这是连接发现与接入范围的实现限制，不能据此将已有会话划为不支持接收；接入该目标应复用同一原生输入、授权、去重与回执流程。
+已有 Codex 会话除 `a.sessions` / `a.receivers` 外，还可通过当前原生 daemon 的 `codex app-server proxy` 建立连接。它是字节隧道上的 WebSocket；先核对 `thread/loaded/list` 包含当前 MCP 证明的精确 thread，再向同一 thread 提交输入。连接发现不启动 daemon，不调用 `thread/start/fork/resume`，不改写当前模型或原生审批。目标忙碌或原生连接不可用时显示原因；解除关联只关闭 Team Cross 自己的代理，不结束用户的 daemon 或会话。Core 重启后需明确重新连接，不自动恢复借用的连接。实现见 [当前会话连接](../../../../internal/collab/agent_connections.go) 与 [原生代理](../../../../internal/nativecodex/process.go)。
 
-缺少可核对身份的调用也返回 `unsupported`，应结合 `reason` 判断本次配对失败原因。对应的实际验证范围见 [证据入口](../validation/evidence-map.md#配对与空间请求)。
+ChatGPT 调用使用 `_meta["openai/session"]`，并结合可用的 subject/org 生成不透明本机关联键。它不是原生 `threadId`，不能用它调用 Codex 原生输入。`linked` 表示空间关联已保存，`paired` 才表示该适配已核验接收能力；ChatGPT 本机 mention / 面板连接目前只建立前者。Cloud 事件订阅是独立授权的接收方式，见 [空间事件](space-events.md)，不能由 `linked` 或 `ui/message` 的宿主回执推断已具备云端接收。
+
+缺少可核对身份的调用返回 `unsupported`；相同会话关联可重试，丢失宿主消息回执时先查看当前对话，界面不自动重发。对应的实际验证范围见 [证据入口](../validation/evidence-map.md#配对与空间请求)。
 
 Claude 的普通 MCP 配置不代表已启用 Channel。开发接入需按 [官方 Channel 文档](https://code.claude.com/docs/en/channels-reference) 在运行中的客户端显式启用对应服务；Team Cross 不自动改写用户的启动参数或账户设置。该适配仍为实验性，最近已知真实探测受宿主门槛阻塞，具体版本及失败范围见 [证据入口](../validation/evidence-map.md#配对与空间请求)。协议测试通过不能推广为任意账户上的真实模型验收。
 
@@ -64,6 +68,6 @@ Channel 连接租约只存在内存。STDIO 结束会取消接收请求；Core �
 
 [OpenAI MCP Events 文档](https://developers.openai.com/plugins/build/mcp-events) 当前描述的是支持 MCP 2.0 的插件及 webhook 订阅，宿主范围为 ChatGPT Work Cloud 和 dots。它要求可被该宿主访问的认证 MCP endpoint、订阅管理和签名 webhook，并不是给本机 STDIO 增加通知就能向任意 ChatGPT 会话发送输入。
 
-本实现先提供统一的配对、请求与回执模型，以及本机原生/Claude Channel 适配。**尚未实现 MCP 2.0 `server/discover`、`events/list/subscribe/unsubscribe` 和 ChatGPT webhook 投递**；未发布公网 MCP 服务，也未把本地 Core 暴露到公网。下一阶段需要确定云端接入与身份映射，在保持同一配对界面的前提下增加 MCP Events 适配器，并用真实订阅回调完成接收核验。
+已实现独立事件网关、MCP 2.0 发现/订阅和签名回调，授权、持久化及回执边界由 [空间事件契约](space-events.md) 维护。本机原生投递与 LAN/Tailcat 成员协作不依赖该网关；不配置公网 HTTPS 入口仍可正常加入空间、关联本机会话并接收明确请求。未发布公网服务，真实 ChatGPT Cloud 宿主验收由用户明确暂缓；协议测试不代表云端宿主通过。
 
 实现入口：[Core](../../../../internal/collab/agents.go)、[路由](../../../../internal/collab/agents_http.go)、[MCP](../../../../internal/mcp/agents.go)、[界面](../../../../packages/web/src/components/AgentPairings.tsx)。字段见[协议](../protocol.md#接收会话配对与请求)，验证方法见[验证门槛](../validation/test-gates.md#接收会话配对)。

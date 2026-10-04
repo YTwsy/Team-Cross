@@ -1,5 +1,9 @@
 package mcp
 
+func WorkbenchReadTool(name string) bool {
+	return name == "list_space_targets" || name == "read_space_brief" || name == "list_space_requests" || name == "get_space_request"
+}
+
 func workbenchTools() []map[string]any {
 	space := str("当前有权参与的空间 ID，来自 list_collaborations；不是原生会话 ID")
 	reference := map[string]any{"type": "object", "additionalProperties": false, "properties": map[string]any{"spaceId": space, "kind": choice("material", "annotation"), "materialId": str("材料 ID"), "version": map[string]any{"type": "integer", "minimum": 1}, "annotationId": str("原批注 ID")}, "required": []string{"spaceId", "kind"}}

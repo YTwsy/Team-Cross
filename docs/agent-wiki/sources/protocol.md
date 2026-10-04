@@ -122,7 +122,9 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 | `POST /agent-tools/call` | `{name,arguments,caller,receiverId?}`；仅个人 MCP 的 Core Bearer 凭据可用，拒绝浏览器 Origin；caller 来自工具传输 |
 | `POST /agent-receivers/poll` | `{receiverId}`，同一 Core Bearer 边界；最多等待 25 秒，返回 `{event:null|{kind,pairingId?,challenge?,requestId?}}`；这是本地适配器内部接收通道，不是 MCP Events 规范接口 |
 
-`TCP-` 配对码使用 16 个随机字节的无填充 Base32，仅保存 SHA-256，十分钟有效。`waiting/verifying/unsupported/expired` 均不代表配对成功，只有 `paired` 可投递，投递前还需检查连接与输入状态。`unsupported` 表示本次配对未建立可用的接收路径，结合 `reason` 判断原因；当前触发条件见 [接入范围](decisions/agent-pairing.md#当前接入范围)，不用于定义原生会话种类。会话身份与接收连接不能由模型工具参数指定；配对码首次绑定后不能用于其他会话。
+`TCP-` 配对码使用 16 个随机字节的无填充 Base32，仅保存 SHA-256，十分钟有效。`waiting/verifying/unsupported/expired` 均不代表配对成功；`linked` 只表示空间关联，只有 `paired` 可投递，投递前还需检查连接与输入状态。`linked` 关联不按配对码期限清除。`unsupported` 表示本次配对未建立可用的接收路径，结合 `reason` 判断原因；当前触发条件见 [接入范围](decisions/agent-pairing.md#当前接入范围)，不用于定义原生会话种类。会话身份与接收连接不能由模型工具参数指定；配对码首次绑定后不能用于其他会话。
+
+个人 MCP 与插件模型工具提供 `connect_current_session(spaceId,name?)`，返回 `linked`、`receiving`、配对和目标信息；同空间、同 Provider 与传输会话身份复用关联。Codex/Claude 使用既有原生证明；ChatGPT 使用 `_meta["openai/session"]` 加 subject/org 的 SHA-256，不把这个键当作原生 thread ID。已有 Codex 连接使用 `codex_proxy` 传输，并核对原生已加载会话；原生代理租约不跨 Core 重启。工具不能指定 Provider、Session 或接收连接。空间资源 URI 为 `teamcross://<scope>/space/<id>`，读取返回空间 ID、简报与角色状态，引用本身只读。
 
 个人 MCP 增加 `pair_current_session(code)`、`confirm_pairing(pairingId,challenge)`、`read_agent_request(requestId,offset?)`、`finish_agent_request(requestId,status,summary)`。共享运行时仅加入其中的配对、读取请求和完成请求三个工具，不提供 Channel `confirm_pairing`。运行时调用复用原 `runtime-annotations/:id` 的专用 token，caller 必须与该运行时 Provider/Session 匹配。这组配对工具不任意指定空间或发送其他模型输入；明确的空间间接投递由下节通用工作台工具提供。`analyze_reply` 至少需要一条原批注；共享目标引用全部属于它的空间；读取请求时再次检查访问，正文继续走现有工具。每次返回一项引用和 `offset/total/nextOffset?`，`offset` 为 0–31；分页不改变持久化的完整引用组。
 
@@ -135,12 +137,12 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 | 路由 | 输入与行为 |
 | --- | --- |
 | `GET /collaborations/:id/workbench/view?offset=0` | `{spaceId,selfId,targets,requests,total,nextOffset?,brief,assistant}`；请求按创建时间倒序，每页 40 项 |
-| `GET /collaborations/:id/workbench/request?requestId=…` | 按 ID 返回完整空间请求及不可变启动快照（若有） |
+| `GET /collaborations/:id/workbench/request?requestId=…` | 按 ID 返回完整空间请求及不可变上下文或启动快照 |
 | `POST …/workbench/register` | `{pairingId}`，将本机已有精确配对明确关联到空间；重试复用已持久化目标 ID |
 | `POST …/workbench/remove` | `{targetId}`，仅目标所属成员或空间发起者解除关联；保留记录，取消未投递请求 |
 | `POST …/workbench/send` | `{requestId,targetId,parentRequestId?,references,instruction,intent}`；0–32 项本空间固定材料/公开批注，空引用可用于简报协作；其他限额沿用配对请求 |
 | `POST …/workbench/cancel` | `{requestId}`，仅发起成员或空间发起者取消 `queued` 请求 |
-| `POST …/workbench/brief` | `{baseRevision,brief:{topic,decisions,questions}}`，人工成员确认，CAS 更新；条目为 `{text,sources}` |
+| `POST …/workbench/brief` | `{baseRevision,brief:{topic,decisions,questions}}`，人工成员确认，CAS 更新；条目为 `{text,sources,requestId?}`，引用请求须已完成/失败且有摘要 |
 | `POST …/workbench/assistant` | `{baseEpoch,state,targetId?,requestId?}`，仅空间发起者；`state=initializing|paused|disabled`，初始化需就绪的独立目标和新的请求 ID |
 | `POST …/workbench/create-receiver` | `{requestId,name}`，在当前成员 Core 创建并关联独立 Codex 接收会话；相同 ID 不重复创建 |
 | `GET /space-receivers?spaceId=…` | 当前 Core 自己的接收会话、原生 TUI 命令、运行时确认模型及状态；不通过远端返回 |
@@ -148,17 +150,39 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 | `POST /space-receivers/:id/respond` | `{id,result}`，本机成员回应精确原生审批 |
 | `POST /space-receivers/:id/action` | `{action:"start"}`，显式恢复已保存的同一个原生会话 |
 
-成员 Core 使用已有 TLS 成员访问调用 `POST /v2/workbench/:op`，操作包括上述领域读写以及 `poll/claim/receipt/read/finish/annotations/reply/receiver-check`。空间托管端从访问凭据派生成员身份；只有接收目标的所属成员能领取和报告该目标的请求。浏览器入口将 `actor` 覆盖为人工，MCP 入口从核对后的传输生成会话身份。成员 Core 是该成员的可信边界，不能以自报 `actor.memberId` 冒充其他成员。
+成员 Core 使用已有 TLS 成员访问调用 `POST /v2/workbench/:op`，操作包括上述领域读写以及 `poll/claim/receipt/read/finish/annotations/reply/receiver-check/event-snapshot`。空间托管端从访问凭据派生成员身份；只有接收目标的所属成员能领取和报告该目标的请求。浏览器入口将 `actor` 覆盖为人工，MCP 入口从核对后的传输生成会话身份。成员 Core 是该成员的可信边界，不能以自报 `actor.memberId` 冒充其他成员。
 
 `Record.workbench` 保存 `targets`、`requests`、`brief` 和 `assistant`，最多 256 个目标、4096 条请求。目标公开随机目标 ID、成员、名称、Provider、原生身份的不可逆摘要、是否共同执行、可用性和解除关联状态，不公开私人配对 ID、原生 ID 或凭据。请求保存完整发起身份、接收目标、父请求 ID、固定引用、要求、处理方式、状态、摘要/错误以及创建、更新、读取、结束时间。父请求必须属于当前空间，关联深度不超过 16。
 
 接收 Core 约每 2 秒报告关联目标的接收状态，租约有效期 20 秒。`queued` 最长等待 30 秒；`claim` 先持久化 `unknown` 再进行外部输入，且只能领取一次。随后 `receipt` 报告 `submitted/failed/unknown`；Agent 的 `read_agent_request` 才标为 `received`，读取后 `finish_agent_request` 才可标为 `completed/failed`。同 ID 内容不一致拒绝，已完成结果不同拒绝；原请求可查询，断线或重启不重放。空间关闭后拒绝新的发送/创建等操作，允许保留的本机结果查询和已投递结果收尾；成员凭据撤销仍优先拒绝所有远端访问。
 
-简报议题最多 2000 字，决定/问题各最多 32 条、每条 1000 字，整体 JSON 最大 24 KB，来源同样逐次核对公开范围。`revision` 递增并记录确认成员。专用角色为 `disabled/initializing/ready/paused/failed`，启用、暂停、停用或更换时递增 `epoch`；启动请求保存 `SpaceBootstrap`，包含空间身份、角色版本、完整确认简报、最多 16 份材料的最新固定版本目录、16 个目标、32 个待处理 ID、对应总数及规则。接手必须同时匹配当前 bootstrap ID 和 epoch，先读取再成功完成，不能由送达推断。
+普通请求保存 `briefRevision` 与 `context:{brief,previousBriefRevision?,parent?}`；`parent` 为 `{requestId,state,instruction,summary?}` 的发送时快照。`previousBriefRevision` 按目标最近的读取时间计算，包括角色接手。列表省略 `context`；完整读取保留。创建时为读取封装和后续结果预留 16 KiB，超过读取预算的上下文在外部投递前拒绝；重复请求保持旧快照。
+
+简报议题最多 2000 字，决定/问题各最多 32 条、每条 2000 字，整体 JSON 最大 24 KB，来源同样逐次核对公开范围。`revision` 递增并记录确认成员。专用角色为 `disabled/initializing/ready/paused/failed`，启用、暂停、停用或更换时递增 `epoch`；启动请求保存 `SpaceBootstrap`，包含空间身份、角色版本、完整确认简报、最多 16 份材料的最新固定版本目录、16 个目标、32 个待处理 ID、对应总数及规则。接手必须同时匹配当前 bootstrap ID 和 epoch，先读取再成功完成，不能由送达推断。
 
 个人 MCP 和绑定运行时都提供：`list_space_targets`、`read_space_brief`、`list_space_requests`、`get_space_request`、`send_space_request`。个人工具需要 `spaceId`，绑定运行时移除顶层选择字段并拒绝额外空间选择。请求目录每页最多 10 项，返回短预览和 `nextOffset`，完整正文按 ID 读取。投递是需要用户明确授权的写工具；不因读取材料、简报或收到其他请求自动获得授权。
 
 独立接收会话保存于 `DataDir/receivers/receiver-<requestId>/receiver.json`，专用目录为其 `workspace/`。使用 `thread/start` 并核对实际 ID，不创建空间 `execution`；`runtime-annotations/receiver-…` 使用自己的 token，所有工具调用均验证原生 Provider/Session/Turn 身份。Core 重启不自动启动进程；明确 `start` 沿用原生 ID。配对、成员引用别名与请求回执在接收 Core 桥接，重映射只处理 `spaceId` 字段，不改写用户文本。
+
+## 空间事件网关
+
+授权与行为见 [空间事件契约](decisions/space-events.md)。LAN/Tailcat 成员协作不依赖下列云端入口。
+
+| 本机路由 | 输入与边界 |
+| --- | --- |
+| `GET /event-access` | 本机连接、订阅和最近 50 条事件回执；不返回 token 哈希、签名密钥或基线 |
+| `POST /event-access` | `{requestId,spaceId,name}`；UUID 去重，创建七天有效的 `TC_EVT_…` 凭据，只返回一次；重复 ID 拒绝重新生成 |
+| `POST /event-access/connection/:id` | `{state:"active"|"paused"|"revoked"}`；撤销不可逆 |
+| `POST /event-access/subscription/:id` | 同上；恢复不延长租期，宿主刷新不能解除人工暂停 |
+| `POST /event-gateway` | `{credential,request}`；仅精确 Core Bearer 且无 Origin；返回 `{status,body}`，不向插件 app-only 路由开放 |
+
+`teamcross events` 在独立回环端口只接受 `POST /mcp`，拒绝 Origin、查询参数、其他路径和大于 64 KiB 的请求。外部 Bearer 是空间事件凭据；内部 Core 认证独立。部署时只代理此端点。
+
+MCP 2.0 版本为 `2026-07-28`：`server/discover` 返回 tools/events 能力，`events/list` 声明 `space.brief.updated`、`space.discussion.updated`、`space.request.completed`。订阅参数均有 `spaceId`；讨论可加 `annotationId`，请求可加 `requestId`，拒绝其他筛选。`events/subscribe` 接受 `name,arguments,delivery:{mode:"webhook",url,secret},cursor?,ttlMs?`；cursor 只接受 null，默认租期 24 小时，上限七天且不超过连接授权，返回 `refreshBefore`。订阅 ID 由凭据主体、URL、事件名与规范化参数决定；相同订阅刷新，不建立第二份。`events/unsubscribe` 按同一身份取消，可重复调用。
+
+签名验证使用 `{type:"verification",challenge}`，需 2xx 原样返回 challenge；失败为 `-32015`。实际事件为 `{eventId,name,timestamp,data,cursor:null}`，使用 `webhook-id`、`webhook-timestamp`、`webhook-signature` 和 `X-MCP-Subscription-Id`。`whsec_` 后为 24–64 字节 Base64 密钥；轮换后五分钟内双签，成功 challenge 最多缓存五分钟。回调每次拨号重新验证全部解析地址，仅允许公网 HTTPS，禁重定向与代理。
+
+云端工具只有 `read_space_event`、`finish_space_event`、`read_space_brief`、`get_space_request`、`read_space_discussion`、`read_space_material`，空间由凭据固定。读取和完成事件必须来自同一授权；先读后完成，摘要最多 2000 字。回调 2xx、读取回执和处理完成分开持久化。存储为 `DataDir/space-events/subscriptions.json`，目录 0700、文件 0600；最多 64 份连接、256 项订阅和 2048 条事件，终态七天清理，待投递事件过期/撤销后取消。
 
 ## 共享邀请与传输
 

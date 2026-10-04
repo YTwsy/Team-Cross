@@ -67,7 +67,7 @@ func TestMentionURIBindsCoreAndExactVersion(t *testing.T) {
 	if err != nil || aliased != scope {
 		t.Fatal(aliased, scope, err)
 	}
-	refs := []mentionReference{{Kind: "material", SpaceID: "space", MaterialID: "material", Version: 1}, {Kind: "annotation", SpaceID: "space", AnnotationID: "note"}}
+	refs := []mentionReference{{Kind: "material", SpaceID: "space", MaterialID: "material", Version: 1}, {Kind: "annotation", SpaceID: "space", AnnotationID: "note"}, {Kind: "space", SpaceID: "space"}}
 	for _, ref := range refs {
 		got, err := parseMentionURI(ref.uri(scope), scope)
 		if err != nil || got != ref {
@@ -79,6 +79,7 @@ func TestMentionURIBindsCoreAndExactVersion(t *testing.T) {
 	}
 	base := "teamcross://" + scope
 	for _, uri := range []string{
+		base + "/space/s/extra", base + "/space/s?bind=true", base + "/material/s", base + "/annotation/s",
 		"file:///etc/passwd", "https://localhost/", base + "/context/space/history", base + "/annotation/../x", base + "/annotation/a%2Fb/c",
 		base + "/material/s/m/v/0", base + "/material/s/m/v/01", base + "/material/s/m/v/1.5", base + "/material/s/m/v/-1", base + "/material/s/m/v/9999999999999999999999",
 		base + "/annotation/s/a?", base + "/annotation/s/a#", base + "/annotation/s/a?token=x", base + "/annotation/s/a#fragment", base + "/annotation/s/a/", base + "/annotation/s/汉字",

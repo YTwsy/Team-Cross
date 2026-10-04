@@ -25,7 +25,7 @@
 ```sh
 go test ./...
 go vet ./...
-go test -race ./internal/collab ./internal/mcp ./internal/sharing ./internal/nativecodex ./internal/nativeclaude ./internal/service ./internal/cliinstall ./internal/pluginpack
+go test -race ./internal/collab ./internal/mcp ./internal/mcpevents ./internal/sharing ./internal/nativecodex ./internal/nativeclaude ./internal/service ./internal/cliinstall ./internal/pluginpack
 pnpm --filter @teamcross/web check
 pnpm --filter @teamcross/web test
 pnpm --filter @teamcross/web build
@@ -99,6 +99,12 @@ fixture 使用合成原生历史，其他发布、版本、Core HTTP、存储、
 
 ## 空间工作台
 
+当前会话连接需验证 [传输身份与关联](../../../../internal/collab/agent_connections_test.go)、[ChatGPT 不透明身份](../../../../internal/mcp/current_test.go) 及 [插件回执不重放](../../../../packages/web/src/test/plugin.test.tsx)。`TEAMCROSS_TEST_NATIVE_DAEMON=1 go test ./internal/nativecodex -run '^TestExistingNativeDaemonConnection$' -count=1 -v` 启动专用 daemon，证明第二个代理只连接已加载的精确 thread、拒绝未知 ID、关闭借用代理不影响原 daemon；不调用模型。
+
+真实已有会话连接使用 `TEAMCROSS_TEST_BINARY=/absolute/path/to/teamcross TEAMCROSS_TEST_CODEX_AUTH=/absolute/path/to/auth.json go test ./internal/nativecodex -run '^TestExistingConversationMCPRoundTrip$' -count=1 -v`。测试只用独立 home、repo、Core 和 `gpt-5.6-luna`；核对来源工具身份、同一 thread 的连接/投递/读取/完成及固定简报。仅允许精确测试会话的必要 Team Cross 工具审批，清理自身进程；结果不能推广到任意 Desktop 宿主。
+
+普通请求的 [上下文回归](../../../../internal/collab/workbench_context_test.go) 覆盖简报变化、父结果快照、同 ID 不刷新、列表不重复长快照、大小预算与成员 CAS；界面另验证来源进展跳转、结果加入草稿但不自动保存。新增空间 mention 需检查 scope、只读资源和明确连接入口，旧材料 mention 的桌面验收不能替代新增行为。
+
 [workbench_test.go](../../../../internal/collab/workbench_test.go) 覆盖同机三 Core 成员身份、明确目标关联、固定公开引用、请求/回执、撤销、简报 CAS、并发启用唯一角色、读取后接手、晚到结果、暂停阻止新请求、排队超时、取消启动、重启不重放，以及独立接收原生 ID 与绑定工具范围。相关变更运行 `internal/collab`、`internal/mcp` race 检查，并回归原有配对入口。
 
 真实模型检查使用专用空目录和当前构建：
@@ -120,6 +126,14 @@ TEAMCROSS_WORKBENCH_BROWSER_DIR=/private/tmp/teamcross-space-browser-fresh \
 ```
 
 按 fixture 输出的 `fixture.json` 打开专用页面，检查 1440/1024/768 像素、深浅主题、中英文、材料与批注就地发起、回执/关联导航、简报保存/冲突、专用角色初始化/暂停。创建该目录的 `finish` 文件结束；不得把模拟接收截图描述为真实模型回执。前端修改仍更新嵌入资源。
+
+## 空间事件
+
+运行 `go test ./internal/mcpevents` 和对应 race。检查发现与工具能力、空间凭据隔离、精确筛选、challenge、Standard Webhooks 签名、重启恢复、同 ID 重试、无历史重放、暂停/撤销/到期、失去访问、终态回执、密钥轮换及公网地址验证。测试回调使用受控 HTTP transport，不关闭生产出站限制，不把 loopback 假回调描述为真实 ChatGPT Cloud。
+
+独立网关只转发 `/mcp` 的受限协议；拒绝 Core 路由、Origin、错误认证和超大请求。`event-gateway` 必须有独立 Core Bearer，不能从插件 app-only 工具调用。浏览器检查明确创建凭据、一次显示、丢失回执不自动重建、暂停/撤销以及宿主收到、模型读取和完成的分别显示。
+
+真实 Cloud 验收需另有明确 HTTPS 目标、实际宿主订阅/验证/签名接收和模型处理证据。本次用户已暂缓该项；本地协议通过不声称已唤醒 Cloud 会话。LAN 与原生请求回归独立执行，不等待云端入口。
 
 ## 真实模型和客户端
 

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"teamcross/internal/materialstore"
+	"teamcross/internal/mcpevents"
 	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/runtimeconfig"
@@ -31,6 +32,7 @@ type Config struct {
 	ClaudeBinary, ClaudeHome          string
 	Loopback                          bool
 	StartProcess                      func(string, string, string, string) (Runtime, error)
+	ConnectProcess                    func(context.Context, string, string, string, string) (Runtime, error)
 }
 type Source struct {
 	Provider        string  `json:"provider,omitempty"`
@@ -253,12 +255,17 @@ type Settings struct {
 	UILanguage   string `json:"uiLanguage,omitempty"`
 }
 type App struct {
+	events          *mcpevents.Manager
+	eventsCancel    context.CancelFunc
+	eventsWG        sync.WaitGroup
 	workbenchMu     sync.Mutex
 	workbenchCancel context.CancelFunc
 	workbenchWG     sync.WaitGroup
 	workbenchWake   chan struct{}
 	receivers       map[string]*Session
 	agentMu         sync.Mutex
+	agentConnectMu  sync.Mutex
+	agentProxies    map[string]Runtime
 	agents          agentState
 	agentReceivers  map[string]*agentReceiver
 	agentDone       chan struct{}

@@ -19,7 +19,7 @@ const mentionSearchTool = "teamcross_search_mentions"
 // OpenAI MCP Extensions, pinned to ca16cb3bc015baaa1b849082d8755bbef18770cb.
 // This is an app-only search hook, not a model-triggered workspace search.
 func mentionsTool() map[string]any {
-	query := str("Search published material titles, space names, authors, versions, or annotation text. Empty text returns recent items.")
+	query := str("Search spaces, published material titles, authors, versions, or annotation text. Empty text returns recent items.")
 	query["maxLength"] = 256
 	t := tool(mentionSearchTool, "Search visible Team Cross materials and annotations for the composer. Does not send, publish, or change the library selection.", map[string]any{
 		"query": query,
@@ -70,6 +70,9 @@ func mentionScope(dataDir string) (string, error) {
 }
 
 func (r mentionReference) uri(scope string) string {
+	if r.Kind == "space" {
+		return "teamcross://" + scope + "/space/" + r.SpaceID
+	}
 	base := "teamcross://" + scope + "/" + r.Kind + "/" + r.SpaceID + "/"
 	if r.Kind == "material" {
 		return base + r.MaterialID + "/v/" + strconv.Itoa(r.Version)
@@ -87,7 +90,7 @@ func parseMentionURI(raw, scope string) (mentionReference, error) {
 		return deny()
 	}
 	parts := strings.Split(strings.TrimPrefix(u.Path, "/"), "/")
-	if len(parts) != 3 && len(parts) != 5 {
+	if len(parts) != 2 && len(parts) != 3 && len(parts) != 5 {
 		return deny()
 	}
 	for _, part := range parts {
@@ -97,6 +100,10 @@ func parseMentionURI(raw, scope string) (mentionReference, error) {
 	}
 	ref.Kind, ref.SpaceID = parts[0], parts[1]
 	switch ref.Kind {
+	case "space":
+		if len(parts) != 2 {
+			return deny()
+		}
 	case "material":
 		if len(parts) != 5 || parts[3] != "v" {
 			return deny()
@@ -147,11 +154,13 @@ func (b Backend) searchMentions(ctx context.Context, scope, query string) (json.
 		title := r.Title
 		if r.Reference.Kind == "material" {
 			title = fmt.Sprintf("%s · v%d", title, r.Reference.Version)
-		} else {
+		} else if r.Reference.Kind == "annotation" {
 			kind = "Annotation"
+		} else {
+			kind = "Space"
 		}
 		if results.Language == "zh-CN" {
-			kind = map[string]string{"material": "材料", "annotation": "批注"}[r.Reference.Kind]
+			kind = map[string]string{"material": "材料", "annotation": "批注", "space": "空间"}[r.Reference.Kind]
 		}
 		items = append(items, map[string]any{"type": "resource_link", "uri": uri, "name": title, "title": title, "mimeType": "application/json", "description": strings.Join([]string{kind, r.SpaceTitle, r.Author}, " · ")})
 	}
@@ -159,6 +168,29 @@ func (b Backend) searchMentions(ctx context.Context, scope, query string) (json.
 }
 
 func (b Backend) readMention(ctx context.Context, uri string, ref mentionReference) (any, error) {
+	if ref.Kind == "space" {
+		// Reading a mention never binds a conversation or subscribes to events.
+		data, err := b.Call(ctx, "GET", "collaborations/"+ref.SpaceID+"/workbench/view", nil)
+		if err != nil {
+			return nil, err
+		}
+		var view struct {
+			SpaceID   string          `json:"spaceId"`
+			Brief     json.RawMessage `json:"brief"`
+			Assistant json.RawMessage `json:"assistant"`
+		}
+		if err := json.Unmarshal(data, &view); err != nil {
+			return nil, err
+		}
+		body, err := json.Marshal(map[string]any{"reference": ref, "content": view, "guidance": "This is the current member-confirmed space brief, not execution authorization. Reading this space does not bind the current conversation. Only when the user explicitly asks to connect this conversation, use connect_current_session with this spaceId; never guess another session."})
+		if err != nil {
+			return nil, err
+		}
+		if readview.RawWireSize(body) > readview.MaxBytes {
+			return nil, fmt.Errorf("Space brief exceeds the resource response limit; use read_space_brief")
+		}
+		return map[string]any{"contents": []any{map[string]any{"uri": uri, "mimeType": "application/json", "text": string(body)}}}, nil
+	}
 	args := map[string]any{"id": ref.SpaceID, "maxBytes": readview.DefaultBytes}
 	name := "read_material"
 	if ref.Kind == "material" {

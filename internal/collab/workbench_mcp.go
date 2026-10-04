@@ -22,8 +22,8 @@ func (a *App) invokeWorkbenchTool(ctx context.Context, name string, args map[str
 			return nil, fmt.Errorf("绑定运行时不能选择其他空间")
 		}
 		args["spaceId"] = id
-	} else {
-		if _, err := a.currentSource(ctx, c.Caller); err != nil {
+	} else if !mcp.WorkbenchReadTool(name) {
+		if err := a.verifyConversation(ctx, c.Caller); err != nil {
 			return nil, err
 		}
 	}
@@ -40,6 +40,9 @@ func (a *App) invokeWorkbenchTool(ctx context.Context, name string, args map[str
 		return nil, fmt.Errorf("空间工具参数类型无效: %w", err)
 	}
 	in.Actor = SpaceActor{Kind: "session", Provider: c.Caller.Provider, Session: contentHash([]string{c.Caller.Provider, c.Caller.SourceID})[:24]}
+	if mcp.WorkbenchReadTool(name) {
+		in.Actor = SpaceActor{Kind: "human"}
+	}
 	op := "view"
 	if name == "send_space_request" {
 		op = "send"

@@ -97,6 +97,7 @@ type agentRequestInput struct {
 func (a *App) loadAgents() error {
 	a.agents = agentState{Pairings: map[string]AgentPairing{}, Requests: map[string]AgentRequest{}}
 	a.agentReceivers = map[string]*agentReceiver{}
+	a.agentProxies = map[string]Runtime{}
 	a.agentDone = make(chan struct{})
 	err := readJSON(filepath.Join(a.Config.DataDir, "agent-pairings.json"), &a.agents)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -119,12 +120,17 @@ func (a *App) loadAgents() error {
 
 func (a *App) stopAgentReceivers() {
 	a.agentMu.Lock()
-	defer a.agentMu.Unlock()
 	if a.agentDone != nil {
 		close(a.agentDone)
 		a.agentDone = nil
 	}
 	a.agentReceivers = map[string]*agentReceiver{}
+	proxies := a.agentProxies
+	a.agentProxies = map[string]Runtime{}
+	a.agentMu.Unlock()
+	for _, p := range proxies {
+		p.Close()
+	}
 }
 
 func (a *App) saveAgentsLocked(next agentState) error {
@@ -167,7 +173,7 @@ func (a *App) createAgentPairing(name string) (map[string]any, error) {
 	defer a.agentMu.Unlock()
 	next := libraryClone(a.agents)
 	for id, old := range next.Pairings {
-		if old.State != "paired" && now.After(old.ExpiresAt) {
+		if old.State != "paired" && old.State != "linked" && now.After(old.ExpiresAt) {
 			delete(next.Pairings, id)
 		}
 	}
@@ -265,6 +271,13 @@ func (a *App) pairAgent(ctx context.Context, in agentPairInput, runtimeID string
 			return AgentPairing{}, err
 		}
 		p.State, p.Reason = "unsupported", "此客户端尚无经过验证的主动接收方式，可继续复制读取提示"
+		if in.Caller.Provider == "codex" {
+			if _, err := a.connectCodexReceiver(ctx, in.Caller.SourceID); err == nil {
+				p.Transport, p.State, p.Reason = "codex_proxy", "paired", ""
+			} else {
+				p.Reason = "当前会话身份已核对，但原生接收连接未接通；请在原客户端打开此会话后重新连接"
+			}
+		}
 		if in.Caller.Provider == "claude" && in.ReceiverID != "" {
 			p.Transport, p.State, p.Reason, p.ReceiverID = "claude_channel", "verifying", "等待客户端接收核验；Claude Code 需要启用 Team Cross Channel", in.ReceiverID
 			challenge, err := agentSecret()
@@ -334,7 +347,7 @@ func (a *App) agentPairings() []AgentPairing {
 	a.agentMu.Lock()
 	out := make([]AgentPairing, 0, len(a.agents.Pairings))
 	for _, p := range a.agents.Pairings {
-		if p.State != "paired" && time.Now().After(p.ExpiresAt) {
+		if p.State != "paired" && p.State != "linked" && time.Now().After(p.ExpiresAt) {
 			p.State, p.Reason = "expired", "配对码已到期，请重新生成"
 		}
 		if p.State == "paired" && p.Transport == "claude_channel" {
@@ -347,6 +360,9 @@ func (a *App) agentPairings() []AgentPairing {
 	}
 	a.agentMu.Unlock()
 	for i := range out {
+		if out[i].Transport == "codex_proxy" {
+			out[i].Reason = a.codexReceiverReason(context.Background(), out[i])
+		}
 		if out[i].State == "paired" && out[i].Transport == "native" {
 			out[i].Reason = a.nativeAgentReason(out[i])
 		}
@@ -444,6 +460,11 @@ func (a *App) sendAgentRequest(ctx context.Context, in agentRequestInput) (Agent
 			return AgentRequest{}, fmt.Errorf("%s", reason)
 		}
 	}
+	if p.Transport == "codex_proxy" {
+		if reason := a.codexReceiverReason(ctx, p); reason != "" {
+			return AgentRequest{}, fmt.Errorf("%s", reason)
+		}
+	}
 	now := time.Now()
 	r := AgentRequest{ID: in.RequestID, PairingID: p.ID, References: libraryClone(in.References), Instruction: in.Instruction, Intent: in.Intent, State: "submitting", CreatedAt: now, UpdatedAt: now}
 	r.WorkbenchSpaceID, r.TargetID = in.WorkbenchSpaceID, in.TargetID
@@ -488,6 +509,9 @@ func (a *App) sendAgentRequest(ctx context.Context, in agentRequestInput) (Agent
 		return a.agentDeliveryResult(r.ID, "submitted", "", "")
 	}
 	a.agentMu.Unlock()
+	if p.Transport == "codex_proxy" {
+		return a.deliverCodexRequest(ctx, p, r)
+	}
 	// Only the user's explicit send starts a turn. The existing RPC checks input
 	// ownership again, records requestId before the write, and never replays it.
 	s := a.agentSession(p)

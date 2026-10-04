@@ -42,6 +42,9 @@ func main() {
 }
 func printJSON(v any) error { return json.NewEncoder(os.Stdout).Encode(v) }
 func run(args []string) error {
+	if len(args) > 0 && args[0] == "events" {
+		return runEvents(args[1:])
+	}
 	if len(args) > 0 && args[0] == "plugin" {
 		return runPlugin(args[1:])
 	}
@@ -115,7 +118,7 @@ func run(args []string) error {
 	switch command {
 	case "serve", "join", "mcp", "status", "doctor", "stop", "ui-language":
 	default:
-		return fmt.Errorf("用法: teamcross [serve | join | sources | space | freeze | publication-preview | publish | publication-status | materials | read-material | withdraw-material | preview | create | share | invite | inspect-invitation | collaborations | input | open | end | leave | resume | share-status | cancel-share | mcp | plugin | status | doctor | stop | ui-language | version | cli-status | install-cli | uninstall-cli]")
+		return fmt.Errorf("用法: teamcross [serve | join | sources | space | freeze | publication-preview | publish | publication-status | materials | read-material | withdraw-material | preview | create | share | invite | inspect-invitation | collaborations | input | open | end | leave | resume | share-status | cancel-share | mcp | plugin | events | status | doctor | stop | ui-language | version | cli-status | install-cli | uninstall-cli]")
 	}
 	var e error
 	*data, e = service.Normalize(*data)

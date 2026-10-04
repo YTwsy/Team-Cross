@@ -27,7 +27,7 @@ func RuntimeTools() []map[string]any {
 func runtimeAgentTools() []map[string]any {
 	var out []map[string]any
 	for _, tool := range AgentTools() {
-		if tool["name"] != "confirm_pairing" {
+		if tool["name"] != "confirm_pairing" && tool["name"] != "connect_current_session" {
 			if isWorkbenchTool(tool["name"].(string)) {
 				schema := tool["inputSchema"].(map[string]any)
 				delete(schema["properties"].(map[string]any), "spaceId")

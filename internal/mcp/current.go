@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -43,8 +45,35 @@ func callContext(ctx context.Context, provider string, meta map[string]json.RawM
 		// from an unrelated launcher and must never be used here.
 		c.SourceID = os.Getenv("CLAUDE_CODE_SESSION_ID")
 		_ = json.Unmarshal(meta["claudecode/toolUseId"], &c.ToolUseID)
+	case "":
+		// ChatGPT supplies an opaque correlation key, not a native thread ID.
+		// Retain only its digest; local Core authentication remains authoritative.
+		var session, subject, organization string
+		_ = json.Unmarshal(meta["openai/session"], &session)
+		_ = json.Unmarshal(meta["openai/subject"], &subject)
+		_ = json.Unmarshal(meta["openai/organization"], &organization)
+		if session != "" && len(session) <= 512 && len(subject) <= 512 && len(organization) <= 512 {
+			key, _ := json.Marshal([]string{organization, subject, session})
+			digest := sha256.Sum256(key)
+			c.Provider, c.SourceID = "chatgpt", hex.EncodeToString(digest[:])
+		}
 	}
 	return context.WithValue(ctx, callerSourceKey{}, c)
+}
+
+// Conversation identity permits association only. Native source operations
+// continue to require callerSource and therefore cannot use a ChatGPT key.
+func conversationCaller(ctx context.Context) (CallerSource, error) {
+	c, _ := ctx.Value(callerSourceKey{}).(CallerSource)
+	if c.Provider == "chatgpt" && ChatGPTConversation(c) {
+		return c, nil
+	}
+	return callerSource(ctx)
+}
+
+func ChatGPTConversation(c CallerSource) bool {
+	digest, err := hex.DecodeString(c.SourceID)
+	return c.Provider == "chatgpt" && err == nil && len(digest) == sha256.Size && c.TurnID == "" && c.ToolUseID == ""
 }
 
 func callerSource(ctx context.Context) (CallerSource, error) {

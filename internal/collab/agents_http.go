@@ -91,9 +91,24 @@ func (a *App) agentsHTTP(w http.ResponseWriter, r *http.Request, path string) bo
 	if len(parts) == 3 && parts[0] == "agent-pairings" && parts[2] == "remove" && r.Method == "POST" {
 		a.agentMu.Lock()
 		next := libraryClone(a.agents)
+		removed := next.Pairings[parts[1]]
 		delete(next.Pairings, parts[1])
 		err := a.saveAgentsLocked(next)
+		var proxy Runtime
+		if err == nil && removed.Transport == "codex_proxy" {
+			inUse := false
+			for _, p := range next.Pairings {
+				inUse = inUse || (p.Transport == "codex_proxy" && p.SessionID == removed.SessionID)
+			}
+			if !inUse {
+				proxy = a.agentProxies[removed.SessionID]
+				delete(a.agentProxies, removed.SessionID)
+			}
+		}
 		a.agentMu.Unlock()
+		if proxy != nil {
+			proxy.Close()
+		}
 		respond(w, map[string]bool{"ok": err == nil}, err)
 		return true
 	}
@@ -156,6 +171,8 @@ func (a *App) invokeAgentTool(r *http.Request, name string, args map[string]any,
 	}
 	value := func(key string) string { v, _ := args[key].(string); return v }
 	switch name {
+	case "connect_current_session":
+		return a.connectCurrentSession(r.Context(), c, value("spaceId"), value("name"), runtimeID)
 	case "pair_current_session":
 		return a.pairAgent(r.Context(), agentPairInput{agentCaller: c, Code: value("code")}, runtimeID)
 	case "confirm_pairing":
