@@ -103,6 +103,8 @@ fixture 使用合成原生历史，其他发布、版本、Core HTTP、存储、
 
 仅修改 CLI 发现或错误恢复时，检查 [接收会话路径回归](../../../../internal/collab/receiver_discovery_test.go) 和 [工作台交互](../../../../packages/web/src/test/space-workbench.test.tsx)：设置与助手有效路径一致、设置变化立即生效、历史错误不冒充当前检测、只读刷新不启动会话、明确重试保留同一 ID、未知创建结果不重放。此范围不要求真实模型回合；使用可执行文件发现和模拟原生 RPC 即可。
 
+审批解决通知、跨 thread 隔离、精确轮次停止和 Desktop 打开检查的调查版步骤见[生命周期回归记录](../../tasks/finished_archived/2026-10-05-receiver-lifecycle-validation.md#调查工作树的协议与复现入口)。对应回归文件和脚本仍属于当次未提交工作树，尚未进入 Meta；后续合入实现时一并确认这些检查入口，不以调查版结果证明个人 Desktop 主动推送或侧边栏自动刷新。
+
 当前会话连接需验证 [传输身份与关联](../../../../internal/collab/agent_connections_test.go)、[ChatGPT 不透明身份](../../../../internal/mcp/current_test.go) 及 [插件回执不重放](../../../../packages/web/src/test/plugin.test.tsx)。`TEAMCROSS_TEST_NATIVE_DAEMON=1 go test ./internal/nativecodex -run '^TestExistingNativeDaemonConnection$' -count=1 -v` 启动专用 daemon，证明第二个代理只连接已加载的精确 thread、拒绝未知 ID、关闭借用代理不影响原 daemon；不调用模型。
 
 真实已有会话连接使用 `TEAMCROSS_TEST_BINARY=/absolute/path/to/teamcross TEAMCROSS_TEST_CODEX_AUTH=/absolute/path/to/auth.json go test ./internal/nativecodex -run '^TestExistingConversationMCPRoundTrip$' -count=1 -v`。测试只用独立 home、repo、Core 和 `gpt-5.6-luna`；核对来源工具身份、同一 thread 的连接/投递/读取/完成及固定简报。仅允许精确测试会话的必要 Team Cross 工具审批，清理自身进程；结果不能推广到任意 Desktop 宿主。

@@ -151,6 +151,8 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 | `POST /space-receivers/:id/respond` | `{id,result}`，本机成员回应精确原生审批 |
 | `POST /space-receivers/:id/action` | `{action:"start"}` 恢复已保存的同一个原生会话；`{action:"retry"}` 明确重试已确认尚未发送 `thread/start` 的创建失败 |
 
+本表对应 Meta 已接入的独立接收协议。调查工作树中的 `activeTurnId`、精确轮次中断与 Desktop 打开扩展保留在[生命周期记录](../tasks/finished_archived/2026-10-05-receiver-lifecycle-validation.md#调查工作树的协议与复现入口)；这些字段及操作尚未进入 Meta，不能据此调用当前接收接口。
+
 成员 Core 使用已有 TLS 成员访问调用 `POST /v2/workbench/:op`，操作包括上述领域读写以及 `poll/claim/receipt/read/finish/annotations/reply/receiver-check/event-snapshot`。空间托管端从访问凭据派生成员身份；只有接收目标的所属成员能领取和报告该目标的请求。浏览器入口将 `actor` 覆盖为人工，MCP 入口从核对后的传输生成会话身份。成员 Core 是该成员的可信边界，不能以自报 `actor.memberId` 冒充其他成员。
 
 `Record.workbench` 保存 `targets`、`requests`、`brief` 和 `assistant`，最多 256 个目标、4096 条请求。目标公开随机目标 ID、成员、名称、Provider、原生身份的不可逆摘要、是否共同执行、可用性和解除关联状态，不公开私人配对 ID、原生 ID 或凭据。请求保存完整发起身份、接收目标、父请求 ID、固定引用、要求、处理方式、状态、摘要/错误以及创建、更新、读取、结束时间。父请求必须属于当前空间，关联深度不超过 16。
