@@ -175,6 +175,18 @@ export type Info = {
   binary: string;
   codexVersion: string;
   codexError: string;
+  codexRecovery?: string;
+  settings?: {
+    binary: string;
+    desktopApp: string;
+    claudeBinary: string;
+  };
+  codexInstallation?: {
+    binary: string;
+    source: "custom" | "environment" | "app" | "path" | "common" | "shell" | "";
+    desktopApp?: string;
+    recoveredFrom?: string;
+  };
   desktopApp: string;
   dataDir: string;
   mcpCommand: string;

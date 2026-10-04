@@ -16,6 +16,14 @@ Claude 不增加等价的 Desktop 深链接。受限模式由隔离 runtime 中�
 
 共享运行时自动加载当前协作的批注读取与回复工具，直接客户端无需另开个人辅助会话；读取与保存回复本身不另起模型轮次。该工具集不含发送输入或选择其他协作的能力。Codex 创建和恢复按进程配置接入，Claude 沿用新协作的原生启动配置；旧 worker 的接入边界见 [批注工具协议](../protocol.md#共享运行时的批注工具)。
 
+## CLI 发现与配置
+
+Team Cross 使用本机已有的 Codex 安装，不下载、安装或管理 Codex 的更新。手动 CLI 配置优先于 `TEAMCROSS_CODEX_BIN`；没有手动配置时，环境变量仍是明确的覆盖。自动发现依次检查已选择 Desktop 应用的内置 CLI、当前进程 PATH、系统/用户 Applications 中的 ChatGPT/Codex 应用、常见命令目录，以及登录 Shell 的 PATH。最后一项用于 Finder/App 启动时缺少 nvm 等目录的情况，探测总时限为 3 秒，结果缓存 1 分钟；用户重新检测会立即刷新这项缓存。
+
+应用内探测只识别已知布局：`Contents/Resources/codex` 和 `Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex`，自动发现优先使用后者。已保存的路径失效时，只有它属于已知应用内布局、且 Desktop 未指定其他应用，才在同一 `.app` 中重新定位。普通自定义路径或环境变量失效会明确报告，不静默切换到另一份安装。探测要求文件可执行，忽略 PATH 中的相对目录、无效符号链接与普通文本文件。
+
+设置中的原始值与当前检测结果分开返回和显示。留空代表自动发现；保存语言、Desktop 或 Claude 配置时，不把检测到的 CLI、应用和 Claude 路径自动写成固定值。旧应用内路径自动恢复后仍保留原配置供用户检查，用户可明确选择恢复自动发现并保存。重新检测读取已保存配置，不提交或覆盖未保存的表单。CLI 版本可读取仅显示“CLI 可运行”，不代表专用 Desktop 已连接、已登录或完成原生协议验收。
+
 ## 本机账户与共享执行
 
 本机代理处理客户端账户登录、完成通知与偏好；A 的协作网关负责共享会话和执行。不能把 B 的登录请求转成修改 A 的账户，也不能将 A 的认证 token 或完整个人配置返回 B。
@@ -40,7 +48,7 @@ Codex 版本变化时重做原生客户端验收；引入其他 Provider 时单�
 
 | 修改范围 | 入口 |
 | --- | --- |
-| 客户端检测、启动计划与隔离配置 | [launch.go](../../../../internal/collab/launch.go)、[process.go](../../../../internal/nativecodex/process.go) |
+| 客户端检测、启动计划与隔离配置 | [discovery.go](../../../../internal/nativecodex/discovery.go)、[launch.go](../../../../internal/collab/launch.go)、[process.go](../../../../internal/nativecodex/process.go)、[NativeClientSettings.tsx](../../../../packages/web/src/components/NativeClientSettings.tsx) |
 | 个人 Desktop 深链接 | [personal_desktop.go](../../../../internal/collab/personal_desktop.go)；系统打开成功不代表页面或后续对话已同步 |
 | 本机账户、偏好与信任模式 hook 确认 | [local_client.go](../../../../internal/collab/local_client.go)，转发边界见 [批注工具与运行时配置协议](../protocol.md#共享运行时的批注工具) |
 | 模型继承、确认与写入约束 | [model.go](../../../../internal/collab/model.go)、[rpc.go](../../../../internal/collab/rpc.go) |

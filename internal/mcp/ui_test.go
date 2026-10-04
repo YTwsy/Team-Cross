@@ -78,6 +78,20 @@ func TestUIHandshakeAndEntrypointsWithoutCore(t *testing.T) {
 }
 func mustJSON(value any) []byte { b, _ := json.Marshal(value); return b }
 
+func TestUIClientRecheckKeepsReadOnlyRoute(t *testing.T) {
+	if method, err := uiRoute("info?refreshClients=1", nil, false); err != nil || method != "GET" {
+		t.Fatal(method, err)
+	}
+	for _, path := range []string{"info?binary=/bin/sh", "info?refreshClients=1&refreshClients=1", "info?refreshClients=1&token=secret"} {
+		if _, err := uiRoute(path, nil, false); err == nil {
+			t.Fatal(path)
+		}
+	}
+	if _, err := uiRoute("info?refreshClients=1", map[string]any{"binary": "/bin/sh"}, false); err == nil {
+		t.Fatal("recheck must not write settings")
+	}
+}
+
 func TestPluginConnectionIsAppOnlyAndReadWriteSeparated(t *testing.T) {
 	if _, err := uiRoute("plugin/connection", nil, false); err != nil {
 		t.Fatal(err)

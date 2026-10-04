@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"teamcross/internal/buildinfo"
 	"teamcross/internal/cliinstall"
 	"teamcross/internal/nativeclaude"
@@ -26,13 +27,7 @@ func (a *App) desktop() string {
 	if v != "" {
 		return v
 	}
-	h, _ := os.UserHomeDir()
-	for _, p := range []string{"/Applications/ChatGPT.app", "/Applications/Codex.app", filepath.Join(h, "Applications", "Codex.app"), filepath.Join(h, "Applications", "ChatGPT.app")} {
-		if _, e := os.Stat(p); e == nil {
-			return p
-		}
-	}
-	return ""
+	return nativecodex.DefaultDesktop()
 }
 func (a *App) ClientPlan(ctx context.Context, id, client string, launch bool) (map[string]any, error) {
 	if client != "tui" && client != "desktop" {
@@ -107,15 +102,22 @@ func (a *App) ClientPlan(ctx context.Context, id, client string, launch bool) (m
 }
 func (a *App) Info(ctx context.Context) map[string]any {
 	uiLanguage, resolvedLanguage := a.UILanguage()
-	binary, e := a.binary()
+	a.mu.Lock()
+	settings := a.settings
+	a.mu.Unlock()
+	installation, e := nativecodex.Discover(settings.Binary, settings.DesktopApp)
+	binary := installation.Binary
 	version := ""
-	problem := ""
+	codexError := ""
+	recovery := ""
 	if e != nil {
-		problem = e.Error()
+		codexError = e.Error()
+		recovery = problem.Describe(e).Recovery
 	} else {
 		version, e = nativecodex.Version(ctx, binary)
-		if e != nil {
-			problem = e.Error()
+		if e != nil || !strings.HasPrefix(version, "codex-cli ") {
+			codexError = "无法读取 Codex CLI 版本"
+			recovery = "请检查文件是否为可运行的 Codex CLI，再重新检测"
 		}
 	}
 	executable, _ := os.Executable()
@@ -138,7 +140,7 @@ func (a *App) Info(ctx context.Context) map[string]any {
 		status.ConfigError = claudeConfigError.Error()
 		clients["claude"] = status
 	}
-	return map[string]any{"mcpClients": clients, "claudeBinary": claudeBinary, "claudeVersion": claudeVersion, "claudeError": claudeError, "mcpObservedAt": observed, "mcpProbed": probed, "name": "Team Cross", "version": buildinfo.Version, "installedVersion": service.InstalledVersion(ctx, executable), "cli": cliinstall.Inspect(executable, cliinstall.DefaultDir, os.Getenv("PATH")), "commit": buildinfo.Commit, "host": a.Host, "binary": binary, "codexVersion": version, "codexError": problem, "desktopApp": a.desktop(), "dataDir": a.Config.DataDir, "mcpCommand": mcpCommand, "mcpConfigured": codexConfigured, "uiLanguage": uiLanguage, "resolvedLanguage": resolvedLanguage, "time": time.Now()}
+	return map[string]any{"settings": settings, "codexInstallation": installation, "codexRecovery": recovery, "mcpClients": clients, "claudeBinary": claudeBinary, "claudeVersion": claudeVersion, "claudeError": claudeError, "mcpObservedAt": observed, "mcpProbed": probed, "name": "Team Cross", "version": buildinfo.Version, "installedVersion": service.InstalledVersion(ctx, executable), "cli": cliinstall.Inspect(executable, cliinstall.DefaultDir, os.Getenv("PATH")), "commit": buildinfo.Commit, "host": a.Host, "binary": binary, "codexVersion": version, "codexError": codexError, "desktopApp": a.desktop(), "dataDir": a.Config.DataDir, "mcpCommand": mcpCommand, "mcpConfigured": codexConfigured, "uiLanguage": uiLanguage, "resolvedLanguage": resolvedLanguage, "time": time.Now()}
 }
 func (a *App) SetupMCP(ctx context.Context, provider string) error {
 	provider, e := providerName(provider)

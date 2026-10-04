@@ -17,7 +17,6 @@ import (
 	"teamcross/internal/materialstore"
 	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
-	"teamcross/internal/problem"
 	"teamcross/internal/runtimeconfig"
 	"teamcross/internal/sharing"
 	"teamcross/internal/workspace"
@@ -201,26 +200,12 @@ func (s *Session) saveLocked() error {
 }
 func (a *App) binary() (string, error) {
 	a.mu.Lock()
-	v := a.settings.Binary
+	settings := a.settings
 	a.mu.Unlock()
-	if v != "" {
-		if stat, e := os.Stat(v); e != nil || !stat.Mode().IsRegular() || stat.Mode().Perm()&0111 == 0 {
-			return "", problem.New("client_missing", "Codex 路径不可用", "请在设置中选择可执行的 Codex CLI")
-		}
-		return v, nil
-	}
-	if app := a.desktop(); app != "" {
-		path := filepath.Join(app, "Contents", "Resources", "codex")
-		if st, e := os.Stat(path); e == nil && st.Mode().IsRegular() && st.Mode().Perm()&0111 != 0 {
-			return path, nil
-		}
-	}
-	binary, e := nativecodex.Binary()
-	if e != nil {
-		return "", problem.New("client_missing", "未找到可用的 Codex CLI", "只查看共享上下文无需安装；发起或操作时请安装 Codex 或在设置中指定路径")
-	}
-	return binary, nil
+	installation, err := nativecodex.Discover(settings.Binary, settings.DesktopApp)
+	return installation.Binary, err
 }
+
 func (a *App) startProcess(ctx context.Context, home, cwd, log string, overrides ...string) (Runtime, error) {
 	return a.startProcessWithMode(ctx, home, cwd, log, runtimeconfig.Restricted, overrides...)
 }

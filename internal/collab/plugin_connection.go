@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"teamcross/internal/nativecodex"
 	"teamcross/internal/pluginpack"
 	"teamcross/internal/service"
 	"time"
@@ -36,13 +37,8 @@ func (a *App) pluginConnection(ctx context.Context, action string) (json.RawMess
 	a.mu.Lock()
 	desktop := a.settings.DesktopApp
 	a.mu.Unlock()
-	if desktop != "" {
-		for _, suffix := range []string{"/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex", "/Contents/Resources/codex"} {
-			if info, e := os.Stat(desktop + suffix); e == nil && info.Mode().IsRegular() && info.Mode()&0111 != 0 {
-				args = append(args, "--codex-bin", desktop+suffix)
-				break
-			}
-		}
+	if path := nativecodex.BundledBinary(desktop); desktop != "" && path != "" {
+		args = append(args, "--codex-bin", path)
 	}
 	cmd := exec.CommandContext(ctx, executable, args...)
 	var stderr strings.Builder

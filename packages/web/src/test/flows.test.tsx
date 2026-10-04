@@ -210,6 +210,11 @@ describe("邀请者在个人 Codex 中打开协作", () => {
 describe("个人 Claude Code 辅助模式", () => {
   const info = {
     binary: "/codex",
+    settings: {
+      binary: "/codex",
+      desktopApp: "/Codex.app",
+      claudeBinary: "/claude",
+    },
     claudeBinary: "/claude",
     claudeVersion: "2.1.268 (Claude Code)",
     desktopApp: "/Codex.app",

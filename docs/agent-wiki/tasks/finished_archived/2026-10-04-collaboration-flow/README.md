@@ -52,3 +52,13 @@
 - 最终 WebGUI 的中文浅色和插件英文深色分别检查 1440、1024、768 CSS 像素的请求、简报和参与会话；均无页面横向溢出。实际截图发现并修正添加方式单选框宽度和通知折叠箭头；最终构建再次复核。通知展开只检查可见表单，不创建凭据或订阅。浏览器日志中的 harness favicon 404 不涉及产品资源；首轮合成 fixture 的插件安装状态检查返回 400，最终普通 Core 页面无此问题。
 - 保留最终截图：[添加参与会话](evidence/ui-add-1024-zh.png)、[确认简报](evidence/ui-brief-1024-zh.png)、[请求结果与后续操作](evidence/ui-requests-1440-zh.png)、[英文深色插件](evidence/ui-plugin-sessions-768-en-dark.png)、[插件添加弹窗](evidence/ui-plugin-add-768-en-dark.png)。宿主初始化和 `ui/message` 回执仍由浏览器 harness 模拟，不能替代真实 ChatGPT Desktop / Cloud 宿主验收；本轮没有重跑真实模型与跨 Core LAN 链路。
 - 收尾对空简报的新增计数与待解决事项显示加入空值保护，相关 4 个测试文件的 24 项检查再次通过，并重新生成两套嵌入资源和 CLI；布局与截图一致。283 个文档相对链接、路径、新证据锚点以及 `git diff --check` 通过。两个浏览器会话、fixture、普通 Core 和两个 harness 的 stdio 均已退出，核对已知 PID 无剩余；关闭浏览器时的 harness BrokenPipe 只来自已断开的测试请求。
+
+## Meta PR 整合复核
+
+2026-10-04，将原工作树的 78 个修改或新增文件保存为 `0b1792b`，在独立 worktree 的 `codex/collaboration-flow-meta` 分支整合 `origin/Meta` 的 `c4b72c0`。原工作区的文件、分支和暂存区保留，文件 hash 与快照一致。
+
+- 保留 Meta 的 Codex CLI 自动发现与客户端设置修复。MCP UI 的 `info?refreshClients=1` 只读查询与空间事件路由同时保留；中英消息合并没有重复键。生成资源的重命名冲突通过重新构建两套嵌入资源解决。
+- Go test/vet、验证门槛中 9 个包的 race、CLI build 和 10 项 Homebrew 渲染测试通过。Node `24.18.0`、pnpm `11.19.0` 下 Web check/test/build 通过，1000 条翻译完整，16 个文件的 161 项测试通过；`git diff --check origin/Meta` 通过。
+- 真实浏览器复核中文客户端设置、英文浅色 WebGUI 和英文深色插件。请求、简报、会话列表分别检查 1440/1024/768 CSS 像素，无页面横向溢出；检查添加弹窗和无需填写名称的当前会话连接。插件的重新检测经真实 stdio/HTTP 业务桥成功返回；连接动作只记录一条模拟宿主 `ui/message`，随后禁止重复发送。
+- 截图：[客户端设置](evidence/meta-web-client-settings-1440.png)、[整合后的简报](evidence/meta-web-brief-1024.png)、[插件添加会话](evidence/meta-plugin-add-768-dark.png)。fixture 的原生历史和接收者仍为合成数据；`/usr/bin/true` 测试路径呈现版本检测失败，插件安装状态查询的失败不作为真实宿主安装验收。未重跑真实模型、跨 Core LAN 或 Cloud 宿主验收。
+- `TestChatGPTPluginFixture` 正常通过；两个专用浏览器会话、harness 和 MCP stdio 按自身会话关闭，fixture Core 随测试退出。

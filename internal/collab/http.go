@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"teamcross/internal/nativecodex"
 	"teamcross/internal/problem"
 	"teamcross/internal/readview"
 	"teamcross/internal/sharing"
@@ -225,6 +226,9 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 	}
 	switch path {
 	case "info":
+		if r.Method == "GET" && r.URL.Query().Get("refreshClients") == "1" {
+			nativecodex.RefreshDiscovery()
+		}
 		respond(w, a.Info(ctx), nil)
 		return
 	case "ui-language":

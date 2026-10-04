@@ -47,6 +47,7 @@ ChatGPT 云端事件已实现本地协议和隔离入口，实际宿主接收仍
 
 | 具体路径 | 最近已知结果 | 被测代码与环境 | 证据与适用边界 |
 | --- | --- | --- | --- |
+| Codex 新版应用内 CLI 的发现、失效路径恢复及直接 TUI/MCP | 工程、隔离设置页与真实 TUI/MCP 通过 | 2026-10-04；`def4ab0`（验证时为同一产品代码的未提交差异）及验收脚本读取修正；macOS 14.8.5 arm64，CLI `0.160.0`，应用 `26.930.31730`，Luna，两个同机 Core | [专项报告](../../tasks/finished_archived/2026-10-04-codex-discovery.md)。覆盖保存值/检测值分离、同应用重新定位、输入交接和同 fork 恢复；未重验新版专用 Desktop 全入口、文件工具执行或两台 Mac。首次脚本的摘要读取断言失败与按 ID 修正后的结果分别记录。 |
 | Codex 原目录/worktree 的直接与辅助 TUI/Desktop | 八种组合有真实操作记录，包含执行与原生审批 | 2026-09-09；`codex/session-collaboration` 当次实现；单 Mac，CLI `0.153.1`、Desktop `26.901.31953`、Luna | [原生协作报告](../../tasks/finished_archived/native-collaboration-2026-09-09.md)。八组合未单列精确被测 SHA；`30a4ebb` 是之后的工程与恢复补充，不能当作全部 Desktop 重验。成员/邀请规则随后变化，旧报告不作为当前规则或全入口通过证明。 |
 | Codex 与 Claude 的受限/信任模式、工具继承、批注与同 ID 恢复 | 四轮真实原生 TUI 检查通过 | 2026-09-16；`d3004d2` + 当次实现；macOS 14.8.5、Codex `0.154.0-alpha.6.2`、Claude `2.1.270`、Luna | [信任模式报告](../../tasks/finished_archived/trusted-runtime-2026-09-16.md)。覆盖专用 MCP/hook；不代表全部插件、电脑控制、Desktop 全局能力、OAuth/Keychain 或两台 Mac 已验收。 |
 | Claude fork 进入个人 CLI/TUI 历史、同 worker 输入与恢复 | 真实执行及 `/resume` picker 通过 | 2026-09-14；`dcda482` + v0.1.4 当次实现；单 Mac、两个 Core，Claude `2.1.270`、Luna | [个人历史报告](../../tasks/finished_archived/claude-personal-history-2026-09-14.md)。不覆盖个人 Channel、跨磁盘 fallback、Claude Desktop/Web/Cloud；受限历史路径与后来信任模式按各自契约区分。 |
