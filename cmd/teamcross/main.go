@@ -260,6 +260,9 @@ func run(args []string) error {
 	}
 	s, e := service.Ensure(ctx, *data, "", extra)
 	if e != nil {
+		if *jsonOut {
+			_ = printJSON(problem.Describe(e))
+		}
 		return e
 	}
 	target := s.URL
@@ -376,8 +379,14 @@ func serve(ctx context.Context, stop context.CancelFunc, cfg collab.Config, list
 		public.Token = ""
 		switch {
 		case r.Method == "GET" && r.URL.Path == "/api/control/status":
-			mode, resolved := app.UILanguage()
-			_ = json.NewEncoder(w).Encode(service.Status{Connection: public, Running: true, Active: app.Active(), UILanguage: mode, ResolvedLanguage: resolved, UpgradeSupported: true, UpgradeBlocked: app.UpgradeBusy()})
+			status, err := app.ControlStatus(r.Context())
+			if err != nil {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_ = json.NewEncoder(w).Encode(problem.Describe(err))
+				return
+			}
+			status.Connection = public
+			_ = json.NewEncoder(w).Encode(status)
 		case r.Method == "POST" && r.URL.Path == "/api/control/upgrade":
 			var in struct {
 				Instance string `json:"instance"`
@@ -403,10 +412,18 @@ func serve(ctx context.Context, stop context.CancelFunc, cfg collab.Config, list
 				w.WriteHeader(400)
 				return
 			}
-			if app.Active() > 0 && !in.Force {
-				w.WriteHeader(409)
-				_ = json.NewEncoder(w).Encode(problem.New("active_collaborations", "停止会中断本机活动协作；会话和代码会保留", "确认后使用 stop --force"))
-				return
+			if !in.Force {
+				status, err := app.ControlStatus(r.Context())
+				if err != nil {
+					w.WriteHeader(http.StatusServiceUnavailable)
+					_ = json.NewEncoder(w).Encode(problem.Describe(err))
+					return
+				}
+				if status.Active > 0 {
+					w.WriteHeader(409)
+					_ = json.NewEncoder(w).Encode(problem.New("active_collaborations", "停止会中断本机活动协作；会话和代码会保留", "确认后使用 stop --force"))
+					return
+				}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]bool{"stopping": true})
 			stop()

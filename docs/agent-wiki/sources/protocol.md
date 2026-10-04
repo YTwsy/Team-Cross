@@ -17,7 +17,7 @@
 | `POST /mcp/setup` | `{provider:codex|claude}` 写入个人 MCP 配置，省略默认 Codex（稳定 opt/App 路径） |
 | `POST /mcp/probe` | 运行独立 STDIO 握手与工具枚举探测，不启动模型 |
 | `POST /mcp/observed` | 本机凭据保护，`{provider:codex|claude}` 分别记录实际工具调用时间；未知客户端不记入 |
-| `GET /control/status` | 本机凭据保护，返回实例、版本、控制协议及活动协作数，不启动 Codex |
+| `GET /control/status` | 本机凭据保护，返回实例、版本、控制协议及活动协作数，不启动 Codex；锁竞争在 250 ms 内仍未解除时返回 `core_busy` / 503 |
 | `POST /control/stop` | 本机凭据保护，`{force}`；活动协作未确认返回 409 |
 | `POST /control/upgrade` | 本机凭据保护，`{instance}` 必须匹配当前实例；仍有请求或活动返回 `upgrade_busy` / 409；空闲时停止接受新业务请求并正常收尾，供启动器应用更新 |
 | `POST /invitations/pending` | 本机凭据保护，`{invitation}` 暂存并返回不含 secret 的随机 ID |
@@ -437,7 +437,7 @@ Codex 信任模式支持原生 hook 确认：只含 `hooks.state` 或其子项�
 
 `GET /info` 的 `version/commit` 是运行 Core 的构建，`installedVersion/installedCommit` 来自稳定安装位置上可执行文件的报告；读取失败返回空值，不把运行构建当作已安装构建。`updatePending` 同时比较版本与 commit，覆盖同版本号的开发包。设置页提示活动结束后下一次打开 App 或调用插件时应用更新。
 
-`GET /control/status` 同时返回 `executable/startArgs`（此实例的安装位置和启动参数）、`upgradeSupported`（支持空闲升级入口）和 `upgradeBlocked`（有活动或尚未完成的交互）。公共启动器因活动而延后更新时，其返回值增加 `updatePending/installedVersion/installedCommit`；仅查询 control/status 不发起更新。控制路由不能由插件面板任意调用；新请求在升级收尾期间返回 `core_updating` / 503，业务写入不自动重放。
+`GET /control/status` 同时返回 `executable/startArgs`（此实例的安装位置和启动参数）、`upgradeSupported`（支持空闲升级入口）和 `upgradeBlocked`（有活动或尚未完成的交互）。公共启动器因活动而延后更新时，其返回值增加 `updatePending/installedVersion/installedCommit`；仅查询 control/status 不发起更新。启动器探测失败但运行锁仍被持有时返回 `core_unresponsive`，`recovery` 保留探测错误和日志位置，不重复启动。控制路由不能由插件面板任意调用；新请求在升级收尾期间返回 `core_updating` / 503，业务写入不自动重放。
 
 `POST /control/upgrade` 成功返回 `{stopping:true,startArgs}`；交接参数中的 CLI/Desktop 值采用当前有效设置，包括空值所表示的自动发现，防止旧启动参数覆盖后来保存的路径。接收会话视图另返回 `binary/clientError/canRetryCreation/clientRecovered`，路径和错误来自当前检测；可恢复的历史路径错误不再作为当前 `error` 返回，读取不修改保存记录或重放创建。
 

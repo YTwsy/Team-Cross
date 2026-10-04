@@ -38,6 +38,22 @@ with tempfile.TemporaryDirectory(prefix='teamcross-lifecycle-') as temp:
         result=subprocess.run([binary,'mcp','--data-dir',str(data)],input=invoke,env=env,text=True,capture_output=True,check=True,timeout=30)
         assert json.loads(result.stdout.splitlines()[-1])['result']['isError'] is False
         s=status();assert s['running']
+        # Pause only this fixture's verified Core. A probe timeout must not be
+        # treated as permission to start another process in its data directory.
+        assert json.loads((data/'connection.json').read_text())['pid']==s['pid']
+        before_log=(data/'core.log').read_bytes()
+        os.kill(s['pid'],signal.SIGSTOP)
+        try:
+            failed=call('serve','--no-open','--json',check=False)
+            assert failed.returncode!=0 and json.loads(failed.stdout)['code']=='core_unresponsive', (failed.stdout,failed.stderr)
+            assert 'context deadline exceeded' in json.loads(failed.stdout)['recovery']
+            result=subprocess.run([binary,'mcp','--data-dir',str(data)],input=invoke,env=env,text=True,capture_output=True,check=True,timeout=15)
+            response=json.loads(result.stdout.splitlines()[-1])['result']
+            assert response['isError'] and 'core_unresponsive' in json.dumps(response), response
+            assert (data/'core.log').read_bytes()==before_log, 'unresponsive Core triggered another launch'
+        finally:
+            os.kill(s['pid'],signal.SIGCONT)
+        assert json.loads(call('serve','--no-open','--json').stdout)['service']['pid']==s['pid']
         os.kill(s['pid'],signal.SIGKILL)
         time.sleep(.3)
         restarted=json.loads(call('serve','--no-open','--json').stdout)['service'];assert restarted['pid']!=s['pid'];call('stop','--json')
@@ -47,7 +63,7 @@ with tempfile.TemporaryDirectory(prefix='teamcross-lifecycle-') as temp:
             failed=call('serve','--no-open','--listen',f'127.0.0.1:{occupied.getsockname()[1]}',target=root/'port-error',check=False)
             assert failed.returncode!=0
         assert not (root/'port-error/connection.json').exists()
-        print(json.dumps({'singleInstance':True,'canonicalPath':True,'defaultPortFallback':True,'explicitPortConflict':True,'authenticatedStop':True,'mcpLazyStart':True,'crashRecovery':True,'dataPreserved':True}))
+        print(json.dumps({'singleInstance':True,'canonicalPath':True,'defaultPortFallback':True,'explicitPortConflict':True,'authenticatedStop':True,'mcpLazyStart':True,'unresponsiveCoreNoRespawn':True,'crashRecovery':True,'dataPreserved':True}))
     finally:
         for directory in owned:
             subprocess.run([binary,'stop','--force','--data-dir',str(directory)],env=env,capture_output=True,timeout=30)

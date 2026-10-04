@@ -101,6 +101,18 @@ func TestReceiverRechecksCurrentCLIAndExplicitlyRetriesLegacyPathFailure(t *test
 	if count != 1 {
 		t.Fatal("duplicate native session", f.calls)
 	}
+	// The recovered card must also support its first explicit delivery. This
+	// crosses the persisted-empty-ledger boundary omitted by creation-only tests.
+	request, err := a.sendAgentRequest(ctx, agentRequestInput{
+		RequestID: uuid.NewString(), PairingID: id, Intent: "analyze",
+		Instruction: "Read the synthetic brief", WorkbenchSpaceID: space.record.ID,
+	})
+	if err != nil || request.State != "submitted" || request.TurnID == "" {
+		t.Fatal("first delivery after recovery failed", request, err)
+	}
+	if status, err := a.ControlStatus(ctx); err != nil || status.Active != 1 {
+		t.Fatal("recovered delivery blocked Core status", status, err)
+	}
 }
 
 type receiverLostStart struct{ Runtime }

@@ -259,6 +259,20 @@ func Ensure(ctx context.Context, data, executable string, args []string) (Status
 		if errors.As(e, &p) {
 			return Status{}, e
 		}
+		// A failed HTTP probe does not prove the Core has exited. Never launch
+		// a replacement while its lifetime lock is still held (including startup
+		// and shutdown), and keep the original probe failure for diagnostics.
+		core, lockErr := Lock(data, "core.lock")
+		if errors.Is(lockErr, syscall.EWOULDBLOCK) {
+			return Status{}, problem.New("core_unresponsive", "Team Cross 已在运行，但无法确认服务状态", fmt.Sprintf("状态检查失败：%v；请查看 %s", e, filepath.Join(data, "core.log")))
+		}
+		if lockErr != nil {
+			return Status{}, fmt.Errorf("检查服务运行锁：%w", lockErr)
+		}
+		core.Close()
+		if ctx.Err() != nil {
+			return Status{}, ctx.Err()
+		}
 	}
 	log, e := os.OpenFile(filepath.Join(data, "core.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if e != nil {

@@ -109,7 +109,7 @@ fixture 使用合成原生历史，其他发布、版本、Core HTTP、存储、
 
 普通请求的 [上下文回归](../../../../internal/collab/workbench_context_test.go) 覆盖简报变化、父结果快照、同 ID 不刷新、列表不重复长快照、大小预算与成员 CAS；界面另验证来源进展跳转、结果加入草稿但不自动保存。新增空间 mention 需检查 scope、只读资源和明确连接入口，旧材料 mention 的桌面验收不能替代新增行为。
 
-[workbench_test.go](../../../../internal/collab/workbench_test.go) 覆盖同机三 Core 成员身份、明确目标关联、固定公开引用、请求/回执、撤销、简报 CAS、并发启用唯一角色、读取后接手、晚到结果、暂停阻止新请求、排队超时、取消启动、重启不重放，以及独立接收原生 ID 与绑定工具范围。相关变更运行 `internal/collab`、`internal/mcp` race 检查，并回归原有配对入口。
+[workbench_test.go](../../../../internal/collab/workbench_test.go) 覆盖同机三 Core 成员身份、明确目标关联、固定公开引用、请求/回执、撤销、简报 CAS、并发启用唯一角色、读取后接手、晚到结果、暂停阻止新请求、排队超时、取消启动、重启不重放，以及独立接收原生 ID 与绑定工具范围。相关变更运行 `internal/collab`、`internal/mcp` race 检查，并回归原有配对入口。[恢复回归](../../../../internal/collab/receiver_recovery_test.go) 另覆盖空命令表落盘、Core 重启、显式恢复后的首次投递、同请求去重、异常释放锁和控制状态有界等待；启动器回归覆盖状态超时、连接文件缺失或损坏但运行锁仍被持有时禁止重复启动。
 
 真实模型检查使用专用空目录和当前构建：
 
@@ -119,6 +119,8 @@ python3 scripts/verify-space-workbench.py \
   --teamcross-bin /absolute/path/to/teamcross \
   --codex-bin /absolute/path/to/codex
 ```
+
+恢复相关改动追加 `--reload-failed-receivers`：在两个成员的隔离数据目录种入原生创建前失败且省略空命令表的记录，重启 Core 后核对未自动创建，再明确重试并完成首次投递、后续请求链和 CLI 状态查询。此夹具不证明原生尚未落盘的零回合会话可以在 Core 重启后恢复。
 
 脚本只用 `gpt-5.6-luna` 和隔离原生配置，启动同一台 Mac 上的三个 Core，通过真实 TLS 成员资格关联两名成员的独立接收会话。必须验证启动简报读取和接手、经明确授权的会话到会话 MCP 投递、关联请求及三个成员一致的完成回执、同 ID 去重、暂停/停用保留原生会话，且未启用共同执行。只能回应本测试精确原生会话、工具名称和请求 ID 的必要审批。模型返回摘要按明确指定的标记核对，协议完成不代表正文正确。脚本保留证据并退出自身 Core；不改写个人配置，不等价于两台 Mac 或 ChatGPT MCP Events 验证。
 

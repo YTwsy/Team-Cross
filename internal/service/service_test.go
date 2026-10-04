@@ -3,14 +3,17 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"teamcross/internal/buildinfo"
 	"teamcross/internal/problem"
 	"testing"
+	"time"
 )
 
 func TestProbeIdentityAndProtocol(t *testing.T) {
@@ -196,5 +199,49 @@ func TestStableAppPathSurvivesCaskCommandRemoval(t *testing.T) {
 	}
 	if got := InstalledVersion(context.Background(), stable); got != "0.1.1" {
 		t.Fatal(got)
+	}
+}
+
+func TestEnsureDoesNotSpawnWhileUnresponsiveCoreOwnsLock(t *testing.T) {
+	for _, scenario := range []string{"timeout", "missing-connection", "broken-connection"} {
+		t.Run(scenario, func(t *testing.T) {
+			data, _ := Normalize(t.TempDir())
+			core, err := Lock(data, "core.lock")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer core.Close()
+			if scenario == "timeout" {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-r.Context().Done() }))
+				defer server.Close()
+				if err := Save(data, Connection{URL: server.URL, PID: 42, Instance: "fixture", Token: "private", DataDir: data}); err != nil {
+					t.Fatal(err)
+				}
+			} else if scenario == "broken-connection" {
+				if err := os.WriteFile(filepath.Join(data, "connection.json"), []byte("{"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			marker := filepath.Join(data, "spawned")
+			binary := filepath.Join(data, "helper")
+			if err := os.WriteFile(binary, []byte(fmt.Sprintf("#!/bin/sh\nprintf launched > %q\nexit 1\n", marker)), 0700); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+			_, err = Ensure(ctx, data, binary, nil)
+			if err == nil || problem.Describe(err).Code != "core_unresponsive" {
+				t.Fatal("lost original Core state", err)
+			}
+			if scenario == "timeout" && !strings.Contains(problem.Describe(err).Recovery, "context deadline exceeded") {
+				t.Fatal("lost probe cause", err)
+			}
+			if _, err := os.Stat(marker); !os.IsNotExist(err) {
+				t.Fatal("spawned another Core")
+			}
+			if _, err := os.Stat(filepath.Join(data, "core.log")); !os.IsNotExist(err) {
+				t.Fatal("opened launch log despite held Core lock")
+			}
+		})
 	}
 }

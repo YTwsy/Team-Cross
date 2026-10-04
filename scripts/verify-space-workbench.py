@@ -5,6 +5,7 @@ This fixture creates no shared execution or source fork. It approves only named
 Team Cross calls for its exact receivers. It never resumes personal sessions.
 """
 import argparse
+import datetime
 import importlib.util
 import json
 import os
@@ -46,8 +47,36 @@ def run(args):
         shared = host.api('collaborations/'+sid+'/action',{'action':'share','transport':'lan'})
         jb = b.api('join',{'invitation':shared['invitation']})['id']
         jc = c.api('join',{'invitation':shared['invitation']})['id']
-        rb = b.api('collaborations/'+jb+'/workbench/create-receiver',{'requestId':str(uuid.uuid4()),'name':'Space coordinator fixture'})
-        rc = c.api('collaborations/'+jc+'/workbench/create-receiver',{'requestId':str(uuid.uuid4()),'name':'Peer analysis fixture'})
+        if args.reload_failed_receivers:
+            def restore_failed(index, core, alias, name):
+                # Reproduce a pre-thread CLI failure from an earlier Core. The
+                # omitted empty ledger must survive reload and explicit retry.
+                core.close()
+                (root/'evidence'/(core.label+'.log')).rename(root/'evidence'/(core.label+'-before-restart.log'))
+                request_id=str(uuid.uuid4()); receiver_id='receiver-'+request_id
+                directory=core.data/'receivers'/receiver_id; cwd=directory/'workspace'
+                cwd.mkdir(parents=True)
+                now=datetime.datetime.now(datetime.timezone.utc).isoformat()
+                record={'spaceId':alias,'record':{'schema':3,'id':receiver_id,'title':name,'state':'error',
+                    'error':'Codex 路径不可用','createdAt':now,'updatedAt':now,'annotations':[],'materials':[],
+                    'execution':{'requestId':request_id,'provider':'codex','runtimeMode':'restricted',
+                        'providerHome':str(home),'executionCwd':str(cwd),'workspaceRoot':str(cwd),'workspaceOwned':True}}}
+                (directory/'receiver.json').write_text(json.dumps(record))
+                (directory/'receiver.json').chmod(0o600)
+                replacement=n.Core(core.label,env); cores[index]=replacement
+                replacement.api('settings',{'binary':binary,'claudeBinary':'/usr/bin/false'})
+                restored=next(r for r in replacement.api('space-receivers?spaceId='+alias) if r['id']==receiver_id)
+                assert restored['canRetryCreation'] and not restored['online'] and not restored['sessionId']
+                receiver=replacement.api('space-receivers/'+receiver_id+'/action',{'action':'retry'})
+                assert receiver['id']==receiver_id and receiver['online'] and receiver['sessionId']
+                return replacement,receiver
+            b,rb=restore_failed(1,b,jb,'Space coordinator fixture')
+            c,rc=restore_failed(2,c,jc,'Peer analysis fixture')
+            report['failedReceiversReloadedBeforeFirstDelivery']=True
+            n.emit('failed_receivers_reloaded_before_first_delivery')
+        else:
+            rb = b.api('collaborations/'+jb+'/workbench/create-receiver',{'requestId':str(uuid.uuid4()),'name':'Space coordinator fixture'})
+            rc = c.api('collaborations/'+jc+'/workbench/create-receiver',{'requestId':str(uuid.uuid4()),'name':'Peer analysis fixture'})
         receivers.extend([(b,rb),(c,rc)])
         assert not host.api('collaborations/'+sid)['hasExecution']
         assert rb['sessionId'] != rc['sessionId']
@@ -119,6 +148,11 @@ def run(args):
         assert len(host.api(endpoint+'view')['requests'])==3
         assert b.api('space-receivers?spaceId='+jb)[0]['sessionId']==rb['sessionId']
         report.update({'genericPeerDispatch':True,'threeMembersSeeSameProgress':True,'duplicateDidNotReplay':True,'assistantOptionalAndNoExecution':True,'pauseDisablePreserveHistory':True,'scopedToolApprovals':len(approved),'requests':list(requests.values())})
+        if args.reload_failed_receivers:
+            for core,_ in receivers:
+                status=json.loads(subprocess.check_output([n.BINARY,'status','--json','--data-dir',str(core.data)],env=env,text=True,timeout=5))
+                assert status['running'] and status['pid']==core.p.pid
+            report['coreStatusAfterRestoredDelivery']=True
         n.emit('space_workbench_verified')
     except Exception as error:
         report['error']=type(error).__name__+': '+str(error)
@@ -137,5 +171,6 @@ if __name__=='__main__':
     parser.add_argument('--fixture-dir',type=pathlib.Path,required=True)
     parser.add_argument('--teamcross-bin',type=pathlib.Path,required=True)
     parser.add_argument('--codex-bin',default='codex')
+    parser.add_argument('--reload-failed-receivers',action='store_true',help='Reload legacy pre-thread failures and explicitly retry before their first delivery')
     parser.add_argument('--codex-auth',type=pathlib.Path,default=pathlib.Path.home()/'.codex/auth.json')
     raise SystemExit(run(parser.parse_args()))

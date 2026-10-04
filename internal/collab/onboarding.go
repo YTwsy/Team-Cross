@@ -9,9 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"teamcross/internal/problem"
 	"teamcross/internal/service"
 	"teamcross/internal/sharing"
+	"teamcross/internal/uilanguage"
 	"time"
 )
 
@@ -21,7 +23,24 @@ type pendingInvite struct {
 }
 
 func (a *App) Active() int {
-	a.mu.Lock()
+	n, _ := a.active(false)
+	return n
+}
+
+// Control probes use TryLock snapshots rather than spawning goroutines that
+// could accumulate forever behind one unresponsive session.
+func activityLock(mu *sync.Mutex, nonblocking bool) bool {
+	if nonblocking {
+		return mu.TryLock()
+	}
+	mu.Lock()
+	return true
+}
+
+func (a *App) active(nonblocking bool) (int, bool) {
+	if !activityLock(&a.mu, nonblocking) {
+		return 0, false
+	}
 	ss := []*Session{}
 	js := []*Joined{}
 	jobs := []*shareRequest{}
@@ -41,35 +60,66 @@ func (a *App) Active() int {
 	n := 0
 	activeRequests := map[string]bool{}
 	for _, j := range jobs {
-		r := j.snapshot()
+		if !activityLock(&j.mu, nonblocking) {
+			return 0, false
+		}
+		r := j.record
+		j.mu.Unlock()
 		if shareRequestActive(r.State) {
 			activeRequests[r.ID] = true
 			n++
 		}
 	}
 	for _, s := range ss {
-		s.mu.Lock()
+		if !activityLock(&s.mu, nonblocking) {
+			return 0, false
+		}
 		if !activeRequests[s.record.ID] && (s.online || s.starting || s.share != nil) {
 			n++
 		}
 		s.mu.Unlock()
 	}
 	for _, j := range js {
-		j.mu.Lock()
+		if !activityLock(&j.mu, nonblocking) {
+			return 0, false
+		}
 		if !j.left && !j.ended && j.confirmed {
 			n++
 		}
 		j.mu.Unlock()
 	}
-	return n
+	return n, true
+}
+
+// ControlStatus bounds contention independently of HTTP request cancellation.
+// Unknown activity is an explicit error, never evidence that the Core is idle.
+func (a *App) ControlStatus(ctx context.Context) (service.Status, error) {
+	ctx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+	defer cancel()
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if active, ok := a.active(true); ok && a.mu.TryLock() {
+			mode := uilanguage.Mode(a.settings.UILanguage)
+			a.mu.Unlock()
+			return service.Status{Running: true, Active: active, UILanguage: mode, ResolvedLanguage: uilanguage.Resolve(mode), UpgradeSupported: true, UpgradeBlocked: a.UpgradeBusy()}, nil
+		}
+		select {
+		case <-ctx.Done():
+			return service.Status{}, problem.New("core_busy", "服务仍在运行，但会话状态暂时无法读取", "请稍后重试；持续无响应时查看 Core 日志")
+		case <-ticker.C:
+		}
+	}
 }
 
 // UpgradeBusy protects work not counted as shared execution as well.
 func (a *App) UpgradeBusy() bool {
-	if a.Active() > 0 {
+	if active, known := a.active(true); !known || active > 0 {
 		return true
 	}
-	a.mu.Lock()
+	if !a.mu.TryLock() {
+		return true
+	}
 	for _, p := range a.pending {
 		if time.Now().Before(p.Expires) {
 			a.mu.Unlock()
@@ -77,7 +127,9 @@ func (a *App) UpgradeBusy() bool {
 		}
 	}
 	a.mu.Unlock()
-	a.agentMu.Lock()
+	if !a.agentMu.TryLock() {
+		return true
+	}
 	defer a.agentMu.Unlock()
 	for _, receiver := range a.agentReceivers {
 		if time.Since(receiver.lastSeen) < 45*time.Second {

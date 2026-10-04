@@ -116,35 +116,47 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 		params = map[string]any{}
 	}
 	s.mu.Lock()
+	locked, active := true, false
+	unlock := func() { locked = false; s.mu.Unlock() }
+	defer func() {
+		// A panic during validation or persistence must release the mutex before
+		// finishCall takes it again. The provider call itself runs without it.
+		if locked {
+			s.mu.Unlock()
+		}
+		if active {
+			s.finishCall()
+		}
+	}()
 	p := s.process
 	r := s.snapshotLocked()
 	if !sharing.ExecutionAuthorized(ctx, s.share) {
-		s.mu.Unlock()
+		unlock()
 		return nil, fmt.Errorf("尚未获得执行访问")
 	}
 	if r.ExecutionRecord == nil || p == nil || !s.online {
-		s.mu.Unlock()
+		unlock()
 		return nil, fmt.Errorf("协作运行时未连接，请让发起者恢复运行时")
 	}
 	if role != "owner" && (s.share == nil || !s.share.HasExecutionAccess(role)) {
-		s.mu.Unlock()
+		unlock()
 		return nil, fmt.Errorf("共享已结束")
 	}
 	if !s.callerValidLocked(ctx) {
-		s.mu.Unlock()
+		unlock()
 		return nil, fmt.Errorf("连接或输入归属已变化，请重新连接")
 	}
 	if r.Provider == "claude" {
 		if e := claudeMethod(method, params); e != nil {
-			s.mu.Unlock()
+			unlock()
 			return nil, e
 		}
 	}
 	s.activeCalls++
-	defer s.finishCall()
+	active = true
 	discoveryLookupCwd := ""
 	if method == "thread/list" || method == "thread/loaded/list" {
-		s.mu.Unlock()
+		unlock()
 		var read map[string]any
 		if e := p.Call(ctx, "thread/read", map[string]any{"threadId": r.SessionID, "includeTurns": false}, &read); e != nil {
 			return nil, e
@@ -157,34 +169,34 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	switch method {
 	case "config/value/write", "config/batchWrite":
 		if r.RuntimeMode != runtimeconfig.Trusted || !hookTrustWrite(method, params) {
-			s.mu.Unlock()
+			unlock()
 			return nil, fmt.Errorf("此入口只允许信任模式确认原生 hook")
 		}
 		// Trust is persisted in the owner's default config, never a path chosen
 		// by the remote client. Native reload and optimistic locking still apply.
 		delete(params, "filePath")
 	case "threadSection/list":
-		s.mu.Unlock()
+		unlock()
 		return json.Marshal(map[string]any{"data": []any{}, "nextCursor": nil})
 	case "externalAgentConfig/detect":
-		s.mu.Unlock()
+		unlock()
 		return json.Marshal(map[string]any{"items": []any{}, "connectors": []any{}})
 	case "externalAgentConfig/import/readHistories":
-		s.mu.Unlock()
+		unlock()
 		return json.Marshal(map[string]any{"data": []any{}, "connectors": []any{}})
 	case "permissionProfile/list":
 		if r.RuntimeMode == runtimeconfig.Trusted {
 			params["cwd"] = r.ExecutionCwd
 			break
 		}
-		s.mu.Unlock()
+		unlock()
 		return json.Marshal(map[string]any{"data": []any{map[string]any{"id": nativecodex.Profile, "allowed": true, "description": "协作执行目录"}}, "nextCursor": nil})
 	case "project/list":
-		s.mu.Unlock()
+		unlock()
 		return json.Marshal(map[string]any{"data": []any{map[string]any{"id": r.ID, "name": r.Title, "roots": []any{map[string]any{"path": r.ExecutionCwd}}, "metadata": map[string]string{}, "position": 0, "createdAt": r.CreatedAt.Unix(), "updatedAt": r.UpdatedAt.Unix()}}, "nextCursor": nil})
 	case "fs/readFile":
 		path, _ := params["path"].(string)
-		s.mu.Unlock()
+		unlock()
 		if filepath.IsAbs(path) {
 			var e error
 			path, e = filepath.Rel(r.ExecutionCwd, path)
@@ -204,7 +216,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 		params["refreshToken"] = false
 	case "thread/read", "thread/resume", "thread/turns/list", "thread/items/list", "thread/unsubscribe", "thread/goal/get", "thread/name/set", "thread/settings/update", "turn/start", "turn/steer", "turn/interrupt":
 		if id, ok := params["threadId"]; ok && id != r.SessionID {
-			s.mu.Unlock()
+			unlock()
 			return nil, fmt.Errorf("此连接只访问指定的协作会话")
 		}
 		params["threadId"] = r.SessionID
@@ -226,7 +238,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 			params["cwds"] = []string{r.ExecutionCwd}
 		}
 	default:
-		s.mu.Unlock()
+		unlock()
 		log.Printf("unsupported native method: %s", method)
 		return nil, fmt.Errorf("协作入口暂不支持 %s", method)
 	}
@@ -234,7 +246,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 		if s.direct != nil && s.direct.role == role {
 			s.direct.subscribed = false
 		}
-		s.mu.Unlock()
+		unlock()
 		return json.Marshal(map[string]string{"status": "unsubscribed"})
 	}
 	if method == "thread/resume" && s.direct != nil && s.direct.role == role {
@@ -242,7 +254,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	}
 	write := mutating(method) || hookTrustWrite(method, params) || (method == "thread/resume" && resumeMutates(params))
 	if write && role != s.writer {
-		s.mu.Unlock()
+		unlock()
 		return nil, fmt.Errorf("当前由另一位参与者输入，请先交接输入")
 	}
 	if method == "turn/start" || method == "thread/resume" || method == "thread/settings/update" {
@@ -293,14 +305,14 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	hash := ""
 	if write {
 		if requestID == "" {
-			s.mu.Unlock()
+			unlock()
 			return nil, fmt.Errorf("写入需要 requestId")
 		}
 		b, _ := json.Marshal([]any{method, params})
 		sum := sha256.Sum256(b)
 		hash = hex.EncodeToString(sum[:])
 		if old, ok := s.record.Commands[commandKey]; ok {
-			s.mu.Unlock()
+			unlock()
 			if old.Hash != hash {
 				return nil, fmt.Errorf("requestId 已用于不同输入")
 			}
@@ -310,8 +322,11 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 			return nil, fmt.Errorf("该输入状态为 %s，请读取会话结果后再决定：%s", old.State, old.Error)
 		}
 		if method == "turn/start" && s.busy {
-			s.mu.Unlock()
+			unlock()
 			return nil, fmt.Errorf("会话正在执行，请等待完成或使用补充输入")
+		}
+		if s.record.Commands == nil {
+			s.record.Commands = map[string]Command{}
 		}
 		s.record.Commands[commandKey] = Command{ID: requestID, Hash: hash, State: "pending"}
 		if method == "turn/start" {
@@ -322,11 +337,11 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 			if method == "turn/start" {
 				s.busy = false
 			}
-			s.mu.Unlock()
+			unlock()
 			return nil, err
 		}
 	}
-	s.mu.Unlock()
+	unlock()
 	var result json.RawMessage
 	err := p.Call(ctx, method, params, &result)
 	if (method == "hooks/list" || method == "skills/list") && err == nil && discoveryLookupCwd != "" {
@@ -370,6 +385,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	}
 	if write {
 		s.mu.Lock()
+		locked = true
 		c := s.record.Commands[commandKey]
 		if err != nil {
 			c.State = "unknown"
@@ -387,7 +403,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 		s.record.Commands[commandKey] = c
 		s.record.UpdatedAt = time.Now()
 		_ = s.saveLocked()
-		s.mu.Unlock()
+		unlock()
 	}
 	return result, err
 }
