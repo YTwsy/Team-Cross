@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"teamcross/internal/buildinfo"
@@ -22,14 +23,16 @@ import (
 )
 
 type Connection struct {
-	URL      string `json:"url"`
-	PID      int    `json:"pid"`
-	Instance string `json:"instance"`
-	Token    string `json:"token,omitempty"`
-	Version  string `json:"version"`
-	Commit   string `json:"commit"`
-	Protocol int    `json:"protocol"`
-	DataDir  string `json:"dataDir"`
+	URL        string   `json:"url"`
+	PID        int      `json:"pid"`
+	Instance   string   `json:"instance"`
+	Token      string   `json:"token,omitempty"`
+	Version    string   `json:"version"`
+	Commit     string   `json:"commit"`
+	Protocol   int      `json:"protocol"`
+	DataDir    string   `json:"dataDir"`
+	Executable string   `json:"executable,omitempty"`
+	StartArgs  []string `json:"startArgs,omitempty"`
 }
 type Status struct {
 	Connection
@@ -37,6 +40,11 @@ type Status struct {
 	Active           int    `json:"active"`
 	UILanguage       string `json:"uiLanguage,omitempty"`
 	ResolvedLanguage string `json:"resolvedLanguage,omitempty"`
+	UpgradeSupported bool   `json:"upgradeSupported,omitempty"`
+	UpgradeBlocked   bool   `json:"upgradeBlocked,omitempty"`
+	UpdatePending    bool   `json:"updatePending,omitempty"`
+	InstalledVersion string `json:"installedVersion,omitempty"`
+	InstalledCommit  string `json:"installedCommit,omitempty"`
 }
 
 func Normalize(path string) (string, error) {
@@ -124,7 +132,7 @@ func Probe(ctx context.Context, data string) (Status, error) {
 	if e = c.Call(ctx, "GET", "control/status", nil, &s); e != nil {
 		return s, e
 	}
-	if s.Instance != c.Instance || s.DataDir != data || s.PID != c.PID {
+	if s.Instance != c.Instance || s.DataDir != data || s.PID != c.PID || s.Executable != c.Executable || !slices.Equal(s.StartArgs, c.StartArgs) {
 		return Status{}, problem.New("instance_mismatch", "连接的不是记录中的 Team Cross 实例", "请检查诊断信息")
 	}
 	if s.Protocol != buildinfo.ControlProtocol {
@@ -193,17 +201,62 @@ func Ensure(ctx context.Context, data, executable string, args []string) (Status
 		}
 	}
 	defer lock.Close()
-	if s, e := Probe(ctx, data); e == nil {
-		return s, nil
-	} else {
-		var p *problem.Error
-		if errors.As(e, &p) {
-			return Status{}, e
-		}
-	}
 	if executable == "" {
 		executable, e = os.Executable()
 		if e != nil {
+			return Status{}, e
+		}
+	}
+	executable = StableExecutable(executable)
+	var expected *Build
+	if s, e := Probe(ctx, data); e == nil {
+		// The running instance's installation owns its upgrades. A different
+		// CLI installation must not oscillate this directory between builds.
+		if s.Executable != "" {
+			executable = StableExecutable(s.Executable)
+		}
+		build, err := InstalledBuild(ctx, executable)
+		if err != nil || build.Matches(s.Version, s.Commit) {
+			return s, nil
+		}
+		if build.Protocol != buildinfo.ControlProtocol {
+			return Status{}, problem.New("version_incompatible", "已安装构建的控制协议不兼容", "请先从原版本退出服务")
+		}
+		s.UpdatePending, s.InstalledVersion, s.InstalledCommit = true, build.Version, build.Commit
+		if s.Active > 0 || s.UpgradeBlocked {
+			return s, nil
+		}
+		endpoint := "control/stop" // One-time migration from pre-upgrade Cores.
+		if s.UpgradeSupported {
+			endpoint = "control/upgrade"
+		}
+		var handoff struct {
+			StartArgs []string `json:"startArgs"`
+		}
+		if err = s.Call(ctx, "POST", endpoint, map[string]any{"force": false, "instance": s.Instance}, &handoff); err != nil {
+			var p *problem.Error
+			if errors.As(err, &p) && (p.Code == "active_collaborations" || p.Code == "upgrade_busy") {
+				return s, nil
+			}
+			return Status{}, err
+		}
+		if err = waitStopped(ctx, data); err != nil {
+			return Status{}, err
+		}
+		// Reuse the previous loopback address so an open browser can reconnect.
+		// Preserve the existing instance's overrides instead of the new caller's defaults.
+		u, _ := url.Parse(s.URL)
+		if s.StartArgs != nil {
+			args = s.StartArgs
+		}
+		if handoff.StartArgs != nil {
+			args = handoff.StartArgs
+		}
+		args = append([]string{"--listen", u.Host}, args...)
+		expected = &build
+	} else {
+		var p *problem.Error
+		if errors.As(e, &p) {
 			return Status{}, e
 		}
 	}
@@ -225,6 +278,9 @@ func Ensure(ctx context.Context, data, executable string, args []string) (Status
 	go func() { exited <- cmd.Wait() }()
 	for {
 		if s, e := Probe(ctx, data); e == nil {
+			if expected != nil && !expected.Matches(s.Version, s.Commit) {
+				return Status{}, problem.New("update_not_applied", "服务未运行预期的已安装构建", "请检查安装来源和服务诊断")
+			}
 			return s, nil
 		}
 		select {
@@ -233,6 +289,24 @@ func Ensure(ctx context.Context, data, executable string, args []string) (Status
 		case <-ctx.Done():
 			return Status{}, fmt.Errorf("服务启动超时，请查看 %s", filepath.Join(data, "core.log"))
 		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
+func waitStopped(ctx context.Context, data string) error {
+	for {
+		lock, err := Lock(data, "core.lock")
+		if err == nil {
+			lock.Close()
+			return nil
+		}
+		if !errors.Is(err, syscall.EWOULDBLOCK) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("服务仍在收尾，请稍后重试更新")
+		case <-time.After(50 * time.Millisecond):
 		}
 	}
 }
@@ -260,17 +334,34 @@ func StableExecutable(executable string) string {
 
 // InstalledVersion checks our own executable on disk, not an arbitrary PATH command.
 func InstalledVersion(ctx context.Context, executable string) string {
+	build, _ := InstalledBuild(ctx, executable)
+	return build.Version
+}
+
+type Build struct {
+	Version  string `json:"version"`
+	Commit   string `json:"commit"`
+	Protocol int    `json:"protocol"`
+}
+
+func (b Build) Matches(version, commit string) bool {
+	return b.Version == version && b.Commit == commit
+}
+
+// Inspect the executable on disk, never buildinfo in a long-lived MCP process.
+func InstalledBuild(ctx context.Context, executable string) (Build, error) {
+	var value Build
 	if filepath.Base(executable) != "teamcross" {
-		return ""
+		return value, fmt.Errorf("不是 Team Cross 启动器")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, executable, "version", "--json").Output()
-	var value struct {
-		Version string `json:"version"`
+	if err != nil {
+		return value, err
 	}
-	if err != nil || json.Unmarshal(out, &value) != nil {
-		return ""
+	if err = json.Unmarshal(out, &value); err != nil || value.Version == "" {
+		return value, fmt.Errorf("无法确认已安装的 Team Cross 构建")
 	}
-	return value.Version
+	return value, nil
 }

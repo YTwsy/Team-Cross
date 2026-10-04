@@ -24,6 +24,7 @@ import (
 	"teamcross/internal/cliinstall"
 	"teamcross/internal/collab"
 	"teamcross/internal/mcp"
+	"teamcross/internal/pluginpack"
 	"teamcross/internal/problem"
 	"teamcross/internal/service"
 	"teamcross/internal/webassets"
@@ -42,6 +43,15 @@ func main() {
 }
 func printJSON(v any) error { return json.NewEncoder(os.Stdout).Encode(v) }
 func run(args []string) error {
+	if binary, err := os.Executable(); err == nil {
+		source, err := pluginpack.RuntimeSource(binary)
+		if err != nil {
+			return err
+		}
+		if source != binary {
+			return syscall.Exec(source, append([]string{source}, args...), os.Environ())
+		}
+	}
 	if len(args) > 0 && args[0] == "events" {
 		return runEvents(args[1:])
 	}
@@ -337,8 +347,19 @@ func serve(ctx context.Context, stop context.CancelFunc, cfg collab.Config, list
 	}
 	defer listener.Close()
 	app.URL = "http://" + listener.Addr().String()
-	c := service.Connection{URL: app.URL, PID: os.Getpid(), Instance: uuid.NewString(), Token: app.Token, Version: buildinfo.Version, Commit: buildinfo.Commit, Protocol: buildinfo.ControlProtocol, DataDir: cfg.DataDir}
-	inner := app.Handler(web)
+	executable, _ := os.Executable()
+	c := service.Connection{URL: app.URL, PID: os.Getpid(), Instance: uuid.NewString(), Token: app.Token, Version: buildinfo.Version, Commit: buildinfo.Commit, Protocol: buildinfo.ControlProtocol, DataDir: cfg.DataDir, Executable: service.StableExecutable(executable)}
+	c.StartArgs = []string{"--repo", cfg.Repo}
+	for _, option := range [][2]string{{"--codex-bin", cfg.Binary}, {"--claude-bin", cfg.ClaudeBinary}, {"--desktop-app", cfg.DesktopApp}, {"--dev-web", dev}} {
+		if option[1] != "" {
+			c.StartArgs = append(c.StartArgs, option[0], option[1])
+		}
+	}
+	if cfg.Loopback {
+		c.StartArgs = append(c.StartArgs, "--test-loopback")
+	}
+	admission := &service.Admission{}
+	inner := admission.Handler(app.Handler(web))
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/api/control/") {
 			inner.ServeHTTP(w, r)
@@ -356,7 +377,24 @@ func serve(ctx context.Context, stop context.CancelFunc, cfg collab.Config, list
 		switch {
 		case r.Method == "GET" && r.URL.Path == "/api/control/status":
 			mode, resolved := app.UILanguage()
-			_ = json.NewEncoder(w).Encode(service.Status{Connection: public, Running: true, Active: app.Active(), UILanguage: mode, ResolvedLanguage: resolved})
+			_ = json.NewEncoder(w).Encode(service.Status{Connection: public, Running: true, Active: app.Active(), UILanguage: mode, ResolvedLanguage: resolved, UpgradeSupported: true, UpgradeBlocked: app.UpgradeBusy()})
+		case r.Method == "POST" && r.URL.Path == "/api/control/upgrade":
+			var in struct {
+				Instance string `json:"instance"`
+			}
+			if json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in) != nil || in.Instance != c.Instance {
+				w.WriteHeader(409)
+				_ = json.NewEncoder(w).Encode(problem.New("instance_mismatch", "服务实例已变化", "请重新读取服务状态"))
+				return
+			}
+			if !admission.DrainIfIdle(func() bool { return !app.UpgradeBusy() }) {
+				w.WriteHeader(409)
+				_ = json.NewEncoder(w).Encode(problem.New("upgrade_busy", "服务仍有活动，暂缓更新", "活动结束后下次打开时自动应用更新"))
+				return
+			}
+			restartArgs := append(append([]string{}, c.StartArgs...), app.ClientLaunchArgs()...)
+			_ = json.NewEncoder(w).Encode(map[string]any{"stopping": true, "startArgs": restartArgs})
+			stop()
 		case r.Method == "POST" && r.URL.Path == "/api/control/stop":
 			var in struct {
 				Force bool `json:"force"`

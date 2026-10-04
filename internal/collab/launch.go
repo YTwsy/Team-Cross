@@ -122,6 +122,8 @@ func (a *App) Info(ctx context.Context) map[string]any {
 	}
 	executable, _ := os.Executable()
 	executable = service.StableExecutable(executable)
+	installed, installedErr := service.InstalledBuild(ctx, executable)
+	updatePending := installedErr == nil && !installed.Matches(buildinfo.Version, buildinfo.Commit)
 	mcpCommand := "codex mcp add teamcross -- " + nativecodex.Quote(executable) + " mcp --data-dir " + nativecodex.Quote(a.Config.DataDir)
 	a.mu.Lock()
 	observed, claudeObserved, probed := a.mcpObserved["codex"], a.mcpObserved["claude"], a.mcpProbed
@@ -140,7 +142,7 @@ func (a *App) Info(ctx context.Context) map[string]any {
 		status.ConfigError = claudeConfigError.Error()
 		clients["claude"] = status
 	}
-	return map[string]any{"settings": settings, "codexInstallation": installation, "codexRecovery": recovery, "mcpClients": clients, "claudeBinary": claudeBinary, "claudeVersion": claudeVersion, "claudeError": claudeError, "mcpObservedAt": observed, "mcpProbed": probed, "name": "Team Cross", "version": buildinfo.Version, "installedVersion": service.InstalledVersion(ctx, executable), "cli": cliinstall.Inspect(executable, cliinstall.DefaultDir, os.Getenv("PATH")), "commit": buildinfo.Commit, "host": a.Host, "binary": binary, "codexVersion": version, "codexError": codexError, "desktopApp": a.desktop(), "dataDir": a.Config.DataDir, "mcpCommand": mcpCommand, "mcpConfigured": codexConfigured, "uiLanguage": uiLanguage, "resolvedLanguage": resolvedLanguage, "time": time.Now()}
+	return map[string]any{"settings": settings, "codexInstallation": installation, "codexRecovery": recovery, "mcpClients": clients, "claudeBinary": claudeBinary, "claudeVersion": claudeVersion, "claudeError": claudeError, "mcpObservedAt": observed, "mcpProbed": probed, "name": "Team Cross", "version": buildinfo.Version, "installedVersion": installed.Version, "installedCommit": installed.Commit, "updatePending": updatePending, "cli": cliinstall.Inspect(executable, cliinstall.DefaultDir, os.Getenv("PATH")), "commit": buildinfo.Commit, "host": a.Host, "binary": binary, "codexVersion": version, "codexError": codexError, "desktopApp": a.desktop(), "dataDir": a.Config.DataDir, "mcpCommand": mcpCommand, "mcpConfigured": codexConfigured, "uiLanguage": uiLanguage, "resolvedLanguage": resolvedLanguage, "time": time.Now()}
 }
 func (a *App) SetupMCP(ctx context.Context, provider string) error {
 	provider, e := providerName(provider)

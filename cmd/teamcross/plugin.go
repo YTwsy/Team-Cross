@@ -140,7 +140,7 @@ func runPlugin(args []string) error {
 		if e != nil {
 			return e
 		}
-		p, e := pluginpack.Export(*root, binary, *data, buildinfo.Version)
+		p, e := pluginpack.Export(*root, service.StableExecutable(binary), *data, buildinfo.Version)
 		if e != nil {
 			return e
 		}

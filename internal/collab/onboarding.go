@@ -63,6 +63,48 @@ func (a *App) Active() int {
 	}
 	return n
 }
+
+// UpgradeBusy protects work not counted as shared execution as well.
+func (a *App) UpgradeBusy() bool {
+	if a.Active() > 0 {
+		return true
+	}
+	a.mu.Lock()
+	for _, p := range a.pending {
+		if time.Now().Before(p.Expires) {
+			a.mu.Unlock()
+			return true
+		}
+	}
+	a.mu.Unlock()
+	a.agentMu.Lock()
+	defer a.agentMu.Unlock()
+	for _, receiver := range a.agentReceivers {
+		if time.Since(receiver.lastSeen) < 45*time.Second {
+			return true
+		}
+	}
+	for _, proxy := range a.agentProxies {
+		if proxy.Alive() {
+			return true
+		}
+	}
+	for _, request := range a.agents.Requests {
+		if request.State != "completed" && request.State != "failed" {
+			return true
+		}
+	}
+	return false
+}
+
+// Settings may have changed since the process was launched with CLI overrides.
+// Hand over the effective values, including an explicit return to auto discovery.
+func (a *App) ClientLaunchArgs() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return []string{"--codex-bin", a.settings.Binary, "--claude-bin", a.settings.ClaudeBinary, "--desktop-app", a.settings.DesktopApp}
+}
+
 func (a *App) onboarding(w http.ResponseWriter, r *http.Request, path string) bool {
 	switch {
 	case path == "invitations/pending" && r.Method == "POST":
