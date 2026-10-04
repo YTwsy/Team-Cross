@@ -19,6 +19,7 @@
 | `POST /mcp/observed` | 本机凭据保护，`{provider:codex|claude}` 分别记录实际工具调用时间；未知客户端不记入 |
 | `GET /control/status` | 本机凭据保护，返回实例、版本、控制协议及活动协作数，不启动 Codex |
 | `POST /control/stop` | 本机凭据保护，`{force}`；活动协作未确认返回 409 |
+| `POST /control/upgrade` | 本机凭据保护，`{instance}` 必须匹配当前实例；仍有请求或活动返回 `upgrade_busy` / 409；空闲时停止接受新业务请求并正常收尾，供启动器应用更新 |
 | `POST /invitations/pending` | 本机凭据保护，`{invitation}` 暂存并返回不含 secret 的随机 ID |
 | `POST /invitations/preview` | `{invitation}` 或 `{pendingId}`，只解析显示信息，不连接远端 |
 | `GET /sources?provider=codex|claude&search=&cursor=` | 分页搜索原生来源会话 |
@@ -148,7 +149,7 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 | `GET /space-receivers?spaceId=…` | 当前 Core 自己的接收会话、原生 TUI 命令、运行时确认模型及状态；不通过远端返回 |
 | `GET /space-receivers/:id/events` | 当前本机接收会话事件与待回应审批 |
 | `POST /space-receivers/:id/respond` | `{id,result}`，本机成员回应精确原生审批 |
-| `POST /space-receivers/:id/action` | `{action:"start"}`，显式恢复已保存的同一个原生会话 |
+| `POST /space-receivers/:id/action` | `{action:"start"}` 恢复已保存的同一个原生会话；`{action:"retry"}` 明确重试已确认尚未发送 `thread/start` 的创建失败 |
 
 成员 Core 使用已有 TLS 成员访问调用 `POST /v2/workbench/:op`，操作包括上述领域读写以及 `poll/claim/receipt/read/finish/annotations/reply/receiver-check/event-snapshot`。空间托管端从访问凭据派生成员身份；只有接收目标的所属成员能领取和报告该目标的请求。浏览器入口将 `actor` 覆盖为人工，MCP 入口从核对后的传输生成会话身份。成员 Core 是该成员的可信边界，不能以自报 `actor.memberId` 冒充其他成员。
 
@@ -426,7 +427,7 @@ Codex 信任模式支持原生 hook 确认：只含 `hooks.state` 或其子项�
 
 ## 后台控制与错误分类
 
-控制协议版本为 1，与共享邀请 v3 独立。`connection.json` 包含 `url/pid/instance/token/version/commit/protocol/dataDir`，0600 原子写入；公开状态省略 token。控制接口拒绝 Origin 并校验本机 Bearer token。普通页面继续通过现有同源检查访问管理接口。
+控制协议版本为 1，与共享邀请 v3 独立。`connection.json` 包含 `url/pid/instance/token/version/commit/protocol/dataDir/executable/startArgs`，0600 原子写入；公开状态省略 token。控制接口拒绝 Origin 并校验本机 Bearer token。普通页面继续通过现有同源检查访问管理接口。
 
 主要错误类型包括 `transport_invalid`、`sharing_preparing`、`sharing_cancelled`、`sharing_active`、`invitation_invalid`、`invitation_revoked`、`execution_access_required`、`membership_invalid`、`invitation_expired`、`invitation_pending_expired`、`sharing_ended`、`host_unreachable`、`version_incompatible`、`instance_mismatch`、`client_missing`、`mcp_not_configured`、`input_changed`、`active_collaborations`。未分类错误为 `operation_failed`。远端错误保留 code/recovery，写入失败不自动重试。
 
@@ -434,7 +435,11 @@ Codex 信任模式支持原生 hook 确认：只含 `hooks.state` 或其子项�
 
 ## 命令入口与版本诊断
 
-`GET /info` 的 `version` 是当前运行 Core 的版本，`installedVersion` 是稳定安装位置的可执行文件报告的版本；读取失败返回空值，不把运行版本当作已安装版本。二者不同时，设置页提示退出并重新打开以应用更新。
+`GET /info` 的 `version/commit` 是运行 Core 的构建，`installedVersion/installedCommit` 来自稳定安装位置上可执行文件的报告；读取失败返回空值，不把运行构建当作已安装构建。`updatePending` 同时比较版本与 commit，覆盖同版本号的开发包。设置页提示活动结束后下一次打开 App 或调用插件时应用更新。
+
+`GET /control/status` 同时返回 `executable/startArgs`（此实例的安装位置和启动参数）、`upgradeSupported`（支持空闲升级入口）和 `upgradeBlocked`（有活动或尚未完成的交互）。公共启动器因活动而延后更新时，其返回值增加 `updatePending/installedVersion/installedCommit`；仅查询 control/status 不发起更新。控制路由不能由插件面板任意调用；新请求在升级收尾期间返回 `core_updating` / 503，业务写入不自动重放。
+
+`POST /control/upgrade` 成功返回 `{stopping:true,startArgs}`；交接参数中的 CLI/Desktop 值采用当前有效设置，包括空值所表示的自动发现，防止旧启动参数覆盖后来保存的路径。接收会话视图另返回 `binary/clientError/canRetryCreation/clientRecovered`，路径和错误来自当前检测；可恢复的历史路径错误不再作为当前 `error` 返回，读取不修改保存记录或重放创建。
 
 `cli` 包含 `executable/target/command/source/installed/canInstall/canRemove/conflict/pathReady`；`source` 为 `app/formula/standalone/unavailable`。命令定位与归属检查只读，不修改 shell 配置。`pathReady` 只反映进程实际继承的 PATH；Finder 下额外检查 Homebrew 位置不代表终端已配置这些目录。
 

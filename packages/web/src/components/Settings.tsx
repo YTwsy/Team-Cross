@@ -102,19 +102,29 @@ export function Settings({
                       : t("尚未检测到")}
               </dd>
               <dt>{t("已安装版本")}</dt>
-              <dd>{info.data.installedVersion || t("尚未确认")}</dd>
+              <dd>
+                {info.data.installedVersion || t("尚未确认")}
+                {info.data.installedCommit && info.data.installedCommit !== "unknown" && (
+                  <> · <code>{info.data.installedCommit.slice(0, 12)}</code></>
+                )}
+              </dd>
               <dt>{t("运行中的版本")}</dt>
-              <dd>{info.data.version}</dd>
+              <dd>
+                {info.data.version}
+                {info.data.commit && info.data.commit !== "unknown" && (
+                  <> · <code>{info.data.commit.slice(0, 12)}</code></>
+                )}
+              </dd>
             </dl>
           )}
-          {info.data?.installedVersion &&
-            info.data.installedVersion !== info.data.version && (
-              <p role="status">
-                {t(
-                  "已安装新版本。结束活动协作并退出 Team Cross 后，重新打开以应用更新。",
-                ) + " "}
-              </p>
-            )}
+          {(info.data?.updatePending ||
+            (info.data?.installedVersion && info.data.installedVersion !== info.data.version)) && (
+            <p role="status">
+              {t(
+                "已安装新构建，当前服务仍使用原构建。活动结束后，下次打开 Team Cross 或使用插件时自动应用更新。",
+              ) + " "}
+            </p>
+          )}
           <p>
             {t(
               "通过 DMG 安装后，可从菜单栏的“命令行工具…”安装或移除命令入口。Homebrew 安装由对应渠道管理。",

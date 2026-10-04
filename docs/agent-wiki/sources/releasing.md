@@ -53,4 +53,6 @@ python3 scripts/build-release.py --version X.Y.Z --sign-identity 'Developer ID A
 
 ## 结果与证据
 
+Release 发布完成后，默认通过 GitHub API 查看发布状态、资产清单、来源提交和已有 CI 结果，不再额外下载公开产物做一轮复核。用户明确要求下载排查时再执行。构建阶段使用本地产物的校验、安装，以及流水线内现有的渠道安装验证按各自流程执行。
+
 发布结果须区分本地构建、workflow artifact、公开 GitHub Release、tap PR 与公开安装检查。具体版本的提交、runner、资产校验和未覆盖项按 [任务记录规则](../README.md#任务记录) 保存；改变已知范围时同步 [证据入口](validation/evidence-map.md#网络与分发)。托管 runner 或本机安装不自动证明真实模型、两台 Mac 网络、Apple 公证或 Gatekeeper 首次批准通过。

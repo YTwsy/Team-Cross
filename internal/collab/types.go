@@ -191,6 +191,7 @@ func (d *direct) close() { d.once.Do(func() { close(d.done) }) }
 type Session struct {
 	workbenchPresence map[string]targetPresence
 	receiverSpace     string
+	receiverCreation  string
 	mu                sync.Mutex
 	materialUploadMu  sync.Mutex
 	record            Record

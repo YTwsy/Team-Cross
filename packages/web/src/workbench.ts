@@ -95,6 +95,10 @@ export type SpaceReceiver = {
   state: string;
   error?: string;
   sessionId: string;
+  binary?: string;
+  clientError?: string;
+  canRetryCreation?: boolean;
+  clientRecovered?: boolean;
   online: boolean;
   busy: boolean;
   approvals: number;

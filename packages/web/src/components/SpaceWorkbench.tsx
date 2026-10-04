@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useId,
   useRef,
   useState,
@@ -1264,6 +1265,7 @@ function ReceiverCard({
 }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  useEffect(() => setError(""), [r.binary, r.clientError, r.state, r.error]);
   const events = useResource<{
     approvals: { id: unknown; method: string; params: { message?: string } }[];
   }>(r.approvals ? `space-receivers/${r.id}/events` : null, 2000);
@@ -1292,6 +1294,25 @@ function ReceiverCard({
         {t("仅你可见的原生会话控制")} · {r.model || t("模型尚未确认")}
         {r.reasoningEffort ? ` · ${r.reasoningEffort}` : ""}
       </p>
+      {r.binary && (
+        <p className="small-text muted">
+          Codex CLI: <code>{r.binary}</code>
+        </p>
+      )}
+      {r.clientRecovered && (
+        <p className="notice">
+          {t("Codex CLI 已恢复，尚未创建原生会话。可以重试创建。")}
+        </p>
+      )}
+      {r.canRetryCreation && (
+        <button
+          className="button"
+          disabled={disabled || busy || !r.binary || !!r.clientError}
+          onClick={() => void call("action", { action: "retry" })}
+        >
+          {t("重试创建接收会话")}
+        </button>
+      )}
       {!r.online && r.state === "ready" && (
         <button
           className="button"
@@ -1343,7 +1364,7 @@ function ReceiverCard({
           )}
         </div>
       ))}
-      <ErrorBox message={error || serviceText(r.error)} />
+      <ErrorBox message={error || serviceText(r.clientError || r.error)} />
     </section>
   );
 }

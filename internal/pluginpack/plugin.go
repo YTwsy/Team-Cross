@@ -25,6 +25,7 @@ type Package struct {
 	DataDir string `json:"dataDir"`
 	Version string `json:"version"`
 	Binary  string `json:"binary"`
+	Source  string `json:"source,omitempty"`
 }
 
 func DefaultRoot() string {
@@ -41,10 +42,22 @@ func owned(root string) (Package, error) {
 		return p, e
 	}
 	e = json.Unmarshal(b, &p)
-	if e != nil || p.Format != 1 || p.Root != root {
+	if e != nil || p.Format != 1 || !samePath(p.Root, root) {
 		return p, fmt.Errorf("Not a Team Cross plugin package: %s", root)
 	}
 	return p, nil
+}
+
+func samePath(a, b string) bool {
+	if a == b {
+		return true
+	}
+	x, err := filepath.EvalSymlinks(a)
+	if err != nil {
+		return false
+	}
+	y, err := filepath.EvalSymlinks(b)
+	return err == nil && x == y
 }
 
 // Inspect reads only this package's marker, including its existing Core binding.
@@ -121,6 +134,9 @@ func Export(root, binary, dataDir, version string) (Package, error) {
 	if e != nil {
 		return p, e
 	}
+	if strings.HasPrefix(binary, root+string(filepath.Separator)) {
+		return p, fmt.Errorf("Plugin source must belong to an external Team Cross installation")
+	}
 	source, e := os.Open(binary)
 	if e != nil {
 		return p, e
@@ -136,7 +152,7 @@ func Export(root, binary, dataDir, version string) (Package, error) {
 		}
 	}
 	runtime := filepath.Join(root, "runtime", "teamcross")
-	p = Package{1, root, dataDir, version, runtime}
+	p = Package{Format: 1, Root: root, DataDir: dataDir, Version: version, Binary: runtime, Source: binary}
 	// A failed first export remains explicitly owned and can be retried safely.
 	if _, e = os.Stat(root); os.IsNotExist(e) {
 		if e = jsonFile(filepath.Join(root, marker), p); e != nil {
@@ -197,6 +213,40 @@ func Export(root, binary, dataDir, version string) (Package, error) {
 		return p, e
 	}
 	return p, nil
+}
+
+// RuntimeSource turns the stable plugin command into a bootstrap for its owning
+// installation. Replacing an App must not leave an independently aging Core in
+// the plugin package. Old host caches still invoke this same absolute path.
+func RuntimeSource(binary string) (string, error) {
+	if filepath.Base(binary) != "teamcross" || filepath.Base(filepath.Dir(binary)) != "runtime" {
+		return binary, nil
+	}
+	root := filepath.Dir(filepath.Dir(binary))
+	p, err := owned(root)
+	if os.IsNotExist(err) {
+		return binary, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if !samePath(p.Binary, binary) || p.Source == "" {
+		return "", fmt.Errorf("Team Cross plugin needs synchronization; open the installed Team Cross App")
+	}
+	if !filepath.IsAbs(p.Source) || filepath.Clean(p.Source) == binary || strings.HasPrefix(filepath.Clean(p.Source), root+string(filepath.Separator)) || !executable(p.Source) {
+		return "", fmt.Errorf("Team Cross installation is unavailable; reconnect the plugin from the installed App")
+	}
+	resolved, err := filepath.EvalSymlinks(p.Source)
+	resolvedRoot, rootErr := filepath.EvalSymlinks(root)
+	if err != nil || rootErr != nil || strings.HasPrefix(resolved, resolvedRoot+string(filepath.Separator)) {
+		return "", fmt.Errorf("Invalid Team Cross plugin installation source")
+	}
+	if filepath.Base(filepath.Dir(resolved)) == "runtime" {
+		if _, err := owned(filepath.Dir(filepath.Dir(resolved))); err == nil {
+			return "", fmt.Errorf("A plugin runtime cannot own another plugin runtime")
+		}
+	}
+	return p.Source, nil
 }
 
 type Manager struct {

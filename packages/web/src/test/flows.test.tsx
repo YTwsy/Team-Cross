@@ -361,10 +361,13 @@ describe("个人 Claude Code 辅助模式", () => {
   });
 });
 describe("产品路径", () => {
-  it("安装版本变化时保留运行版本并提示重启，不自动停止服务", async () => {
+  it("相同版本的不同构建显示待更新，页面读取不停止服务", async () => {
     mockFetch(() => ({
-      version: "0.1.1",
+      version: "0.1.2",
       installedVersion: "0.1.2",
+      commit: "aaaaaaaaaaaa1111",
+      installedCommit: "bbbbbbbbbbbb2222",
+      updatePending: true,
       cli: {
         command: "/opt/homebrew/bin/teamcross",
         executable: "/Applications/Team Cross.app/Contents/Resources/teamcross",
@@ -380,11 +383,12 @@ describe("产品路径", () => {
         onLanguageChange={() => {}}
       />,
     );
-    expect(await screen.findByText(/重新打开以应用更新/)).toHaveAttribute(
+    expect(await screen.findByText(/下次打开 Team Cross 或使用插件时自动应用更新/)).toHaveAttribute(
       "role",
       "status",
     );
-    expect(screen.getByText("0.1.2")).toBeVisible();
+    expect(screen.getByText("aaaaaaaaaaaa")).toBeVisible();
+    expect(screen.getByText("bbbbbbbbbbbb")).toBeVisible();
     expect(screen.getByText("/opt/homebrew/bin/teamcross")).toBeVisible();
     expect(calls.every((call) => call.body === undefined)).toBe(true);
   });

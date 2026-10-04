@@ -219,7 +219,7 @@ func (c Connection) inspect(ctx context.Context, s connectionState) (ConnectionS
 				return v, m, err
 			}
 			v.State = "installed"
-			if current != source {
+			if current != source || p.Source != c.Binary {
 				v.State = "update_available"
 			}
 		}

@@ -10292,6 +10292,23 @@ function gw(e) {
   };
 }
 const Vn = gw("local"), Yn = gw("session"), bw = {
+  "不是 Team Cross 启动器": "This is not a Team Cross launcher",
+  已安装构建的控制协议不兼容: "The installed build uses an incompatible control protocol",
+  "无法确认已安装的 Team Cross 构建": "Unable to identify the installed Team Cross build",
+  "服务仍在收尾，请稍后重试更新": "The service is still shutting down; retry the update shortly",
+  "服务仍有活动，暂缓更新": "The service is still active; the update has been deferred",
+  服务实例已变化: "The service instance has changed",
+  服务未运行预期的已安装构建: "The service is not running the expected installed build",
+  本机服务正在更新: "The local service is updating",
+  活动结束后下次打开时自动应用更新: "The update will be applied on the next launch after activity ends",
+  请先从原版本退出服务: "Please stop the service using the previous version first",
+  请检查安装来源和服务诊断: "Please check the installation source and service diagnostics",
+  "请稍后重新读取状态；不要自动重放写入": "Refresh the status shortly; do not automatically replay writes",
+  请重新读取服务状态: "Please refresh the service status",
+  "Codex CLI 已恢复，尚未创建原生会话。可以重试创建。": "Codex CLI is available again. The native session has not been created yet; you can retry creation.",
+  重试创建接收会话: "Retry receiver creation",
+  "原生客户端启动中断，可以重试创建": "Native client startup was interrupted; you can retry creation",
+  仅能重试尚未发送原生会话创建请求的失败记录: "Creation can only be retried before the native session creation request was sent",
   "macOS · 原生会话": "macOS · Native sessions",
   整体意见: "General feedback",
   "会话材料 · 版本 {0}": "Conversation Material · Version {0}",
@@ -11016,7 +11033,7 @@ Materials use read_material to read the fixed version they refer to; annotations
   等待原生交互: "Waiting for native interaction",
   等待审批: "Waiting for approval",
   运行中的版本: "Running version",
-  "已安装新版本。结束活动协作并退出 Team Cross 后，重新打开以应用更新。": "A newer version is installed. End active spaces, quit Team Cross, then reopen it to apply the update.",
+  "已安装新构建，当前服务仍使用原构建。活动结束后，下次打开 Team Cross 或使用插件时自动应用更新。": "A new build is installed while the service is still using the previous build. Once activity ends, the update will apply the next time you open Team Cross or use the plugin.",
   "通过 DMG 安装后，可从菜单栏的“命令行工具…”安装或移除命令入口。Homebrew 安装由对应渠道管理。": "With a DMG installation, use “Command Line Tool…” in the menu bar to install or remove the command. Homebrew manages its own installation.",
   "检测到其他安装的命令：": "A command from another installation was found: ",
   "。切换前请通过原安装渠道处理。": ". Use the original installation method before switching.",
@@ -26236,7 +26253,9 @@ function eA({
   onChanged: t,
   disabled: a
 }) {
-  const [r, s] = j.useState(""), [c, u] = j.useState(!1), p = mt(e.approvals ? `space-receivers/${e.id}/events` : null, 2e3);
+  const [r, s] = j.useState(""), [c, u] = j.useState(!1);
+  j.useEffect(() => s(""), [e.binary, e.clientError, e.state, e.error]);
+  const p = mt(e.approvals ? `space-receivers/${e.id}/events` : null, 2e3);
   async function m(f, b) {
     u(!0), s("");
     try {
@@ -26258,6 +26277,20 @@ function eA({
       e.model || h("模型尚未确认"),
       e.reasoningEffort ? ` · ${e.reasoningEffort}` : ""
     ] }),
+    e.binary && /* @__PURE__ */ l.jsxs("p", { className: "small-text muted", children: [
+      "Codex CLI: ",
+      /* @__PURE__ */ l.jsx("code", { children: e.binary })
+    ] }),
+    e.clientRecovered && /* @__PURE__ */ l.jsx("p", { className: "notice", children: h("Codex CLI 已恢复，尚未创建原生会话。可以重试创建。") }),
+    e.canRetryCreation && /* @__PURE__ */ l.jsx(
+      "button",
+      {
+        className: "button",
+        disabled: a || c || !e.binary || !!e.clientError,
+        onClick: () => void m("action", { action: "retry" }),
+        children: h("重试创建接收会话")
+      }
+    ),
     !e.online && e.state === "ready" && /* @__PURE__ */ l.jsx(
       "button",
       {
@@ -26301,7 +26334,7 @@ function eA({
         )
       ] })
     ] }, JSON.stringify(f.id))),
-    /* @__PURE__ */ l.jsx(Be, { message: r || Jt(e.error) })
+    /* @__PURE__ */ l.jsx(Be, { message: r || Jt(e.clientError || e.error) })
   ] });
 }
 function tA({
@@ -29762,12 +29795,24 @@ function uA({
           /* @__PURE__ */ l.jsx("dt", { children: h("安装来源") }),
           /* @__PURE__ */ l.jsx("dd", { children: s.data.cli.source === "formula" ? "Homebrew Formula" : s.data.cli.source === "app" ? "Team Cross App" : s.data.cli.source === "standalone" ? h("独立命令") : h("尚未检测到") }),
           /* @__PURE__ */ l.jsx("dt", { children: h("已安装版本") }),
-          /* @__PURE__ */ l.jsx("dd", { children: s.data.installedVersion || h("尚未确认") }),
+          /* @__PURE__ */ l.jsxs("dd", { children: [
+            s.data.installedVersion || h("尚未确认"),
+            s.data.installedCommit && s.data.installedCommit !== "unknown" && /* @__PURE__ */ l.jsxs(l.Fragment, { children: [
+              " · ",
+              /* @__PURE__ */ l.jsx("code", { children: s.data.installedCommit.slice(0, 12) })
+            ] })
+          ] }),
           /* @__PURE__ */ l.jsx("dt", { children: h("运行中的版本") }),
-          /* @__PURE__ */ l.jsx("dd", { children: s.data.version })
+          /* @__PURE__ */ l.jsxs("dd", { children: [
+            s.data.version,
+            s.data.commit && s.data.commit !== "unknown" && /* @__PURE__ */ l.jsxs(l.Fragment, { children: [
+              " · ",
+              /* @__PURE__ */ l.jsx("code", { children: s.data.commit.slice(0, 12) })
+            ] })
+          ] })
         ] }),
-        s.data?.installedVersion && s.data.installedVersion !== s.data.version && /* @__PURE__ */ l.jsx("p", { role: "status", children: h(
-          "已安装新版本。结束活动协作并退出 Team Cross 后，重新打开以应用更新。"
+        (s.data?.updatePending || s.data?.installedVersion && s.data.installedVersion !== s.data.version) && /* @__PURE__ */ l.jsx("p", { role: "status", children: h(
+          "已安装新构建，当前服务仍使用原构建。活动结束后，下次打开 Team Cross 或使用插件时自动应用更新。"
         ) + " " }),
         /* @__PURE__ */ l.jsx("p", { children: h(
           "通过 DMG 安装后，可从菜单栏的“命令行工具…”安装或移除命令入口。Homebrew 安装由对应渠道管理。"

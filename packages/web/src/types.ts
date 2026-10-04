@@ -166,6 +166,9 @@ export type Info = {
   host: string;
   version: string;
   installedVersion?: string;
+  commit?: string;
+  installedCommit?: string;
+  updatePending?: boolean;
   cli?: {
     executable: string;
     command?: string;

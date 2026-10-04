@@ -35,6 +35,7 @@ ChatGPT 云端事件已实现本地协议和隔离入口，实际宿主接收仍
 
 | 具体路径 | 最近已知结果 | 被测代码与环境 | 证据与适用边界 |
 | --- | --- | --- | --- |
+| 插件旧 Core 升级与助手 CLI 状态恢复 | 真实旧/新二进制与隔离 stdio 升级通过；助手设置一致性、原 ID 明确重试和未知创建不重放通过 | 2026-10-04；`af9f715` 上 `codex/fix-plugin-core-upgrade` 产品差异；macOS 14.8.5 arm64、CLI `0.160.0` | [专项报告](../../tasks/finished_archived/2026-10-04-core-upgrade.md)。CLI 范围不要求模型或截图；旧 Core 首次迁移只能使用其原有停止保护，不代表已有桌面面板自动重载。 |
 | 完整 WebGUI 的插件资源、原生加载、业务桥和工作台页面 | 原生 app-server 加载与真实 Core/stdio 通过；独立浏览器完成页面、批注、简报等操作 | 2026-10-03；`fed1e0a` + 插件改动，后续集成为 `4556c18` 合入 `7ee5a0a`；macOS 14.8.5 arm64，Codex `0.159.0-alpha.12.1` | [完整界面及集成报告](../../tasks/finished_archived/2026-10-03-meta-plugin-webgui/README.md)。浏览器宿主消息回执为模拟；最终成品的 global/thread 入口、实际摆放及“带回当前对话”投递仍不能由这些检查证明。旧桌面探针不替代该成品。 |
 | Composer mentions 搜索、固定版本/批注资源读取 | stdio、原生 app-server 与桌面兼容参数通过 | 2026-10-03；初版 `9c1c378`，参数修复 `53d3472`；Codex `0.159.0-alpha.12.1`，桌面请求格式来自 ChatGPT `26.930.21537` / build `12776` | [初版](../../tasks/finished_archived/2026-10-03-composer-mentions.md)、[参数修复](../../tasks/finished_archived/2026-10-03-composer-mentions-empty-results.md#修复与验证)。必须包含 `{query,path:[]}`，不能只用 query-only 检查替代实际宿主请求。 |
 | Composer mentions 在桌面输入框搜索、选择和发送显示 | 用户实际确认通过，并发送材料 v1 与原批注引用 | 2026-10-03；`53d3472` 修复后用户重载桌面；原生引用来自已安装 `teamcross-ui` | [用户最终显示验收](../../tasks/finished_archived/2026-10-03-composer-mentions-empty-results.md#用户最终显示验收)。覆盖显示与引用选择，未包含模型正文分析或会话配对验收。不能沿用初版“尚需桌面验收”覆盖此后续结果。 |

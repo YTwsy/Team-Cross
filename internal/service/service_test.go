@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"teamcross/internal/buildinfo"
 	"teamcross/internal/problem"
 	"testing"
@@ -43,6 +44,74 @@ func TestProbeIdentityAndProtocol(t *testing.T) {
 	_, e = Probe(context.Background(), data)
 	if problem.Describe(e).Code != "version_incompatible" {
 		t.Fatal(e)
+	}
+}
+
+func TestEnsureUsesDiskBuildAndDefersWithoutInterrupting(t *testing.T) {
+	for _, scenario := range []string{"active", "busy", "became-busy", "same", "other-installation", "unreadable"} {
+		t.Run(scenario, func(t *testing.T) {
+			data, _ := Normalize(t.TempDir())
+			binary := filepath.Join(t.TempDir(), "teamcross")
+			write := func(path, commit string) {
+				t.Helper()
+				if err := os.WriteFile(path, []byte("#!/bin/sh\nprintf '%s\\n' '{\"version\":\"same-version\",\"commit\":\""+commit+"\",\"protocol\":1}'\n"), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write(binary, "installed")
+			var stops atomic.Int32
+			var advertised Status
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == "POST" {
+					stops.Add(1)
+					if r.URL.Path != "/api/control/upgrade" {
+						t.Error(r.URL.Path)
+					}
+					w.WriteHeader(409)
+					json.NewEncoder(w).Encode(problem.New("upgrade_busy", "busy", ""))
+					return
+				}
+				json.NewEncoder(w).Encode(advertised)
+			}))
+			defer server.Close()
+			c := Connection{URL: server.URL, PID: 42, Instance: "exact-instance", Token: "private", Version: "same-version", Commit: "running", Protocol: 1, DataDir: data, Executable: binary}
+			advertised = Status{Connection: c, Running: true, UpgradeSupported: true}
+			switch scenario {
+			case "active":
+				advertised.Active = 1
+			case "busy":
+				advertised.UpgradeBlocked = true
+			case "same":
+				advertised.Commit = "installed"
+			case "other-installation":
+				advertised.Commit = "installed"
+			case "unreadable":
+				os.Remove(binary)
+			}
+			if err := Save(data, c); err != nil {
+				t.Fatal(err)
+			}
+			caller := binary
+			if scenario == "other-installation" {
+				caller = filepath.Join(t.TempDir(), "teamcross")
+				write(caller, "older-caller")
+			}
+			s, err := Ensure(context.Background(), data, caller, nil)
+			if err != nil || s.Instance != c.Instance {
+				t.Fatal(s, err)
+			}
+			pending := scenario == "active" || scenario == "busy" || scenario == "became-busy"
+			if s.UpdatePending != pending {
+				t.Fatal("wrong build state", s)
+			}
+			wantStops := int32(0)
+			if scenario == "became-busy" {
+				wantStops = 1
+			}
+			if stops.Load() != wantStops {
+				t.Fatal("unexpected stop", stops.Load())
+			}
+		})
 	}
 }
 func TestNormalizeAndStablePath(t *testing.T) {

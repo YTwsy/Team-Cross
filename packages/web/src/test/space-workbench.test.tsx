@@ -6,7 +6,7 @@ import {
   SpaceRequestButton,
 } from "../components/SpaceWorkbench";
 import type { Collaboration } from "../types";
-import type { SpaceRequest, WorkbenchView } from "../workbench";
+import type { SpaceReceiver, SpaceRequest, WorkbenchView } from "../workbench";
 import {
   setCurrentConversation,
   type DeliveryState,
@@ -36,10 +36,12 @@ let view: WorkbenchView;
 let calls: { path: string; body: any }[];
 let lost: boolean;
 let pairs: { id: string; name: string; state: string }[];
+let receivers: SpaceReceiver[];
 beforeEach(() => {
   lost = false;
   calls = [];
   pairs = [];
+  receivers = [];
   view = {
     spaceId: "space",
     selfId: "owner",
@@ -74,7 +76,7 @@ beforeEach(() => {
       let out: any = {};
       if (path.includes("/workbench/view")) out = view;
       else if (path === "agent-pairings") out = pairs;
-      else if (path.startsWith("space-receivers?")) out = [];
+      else if (path.startsWith("space-receivers?")) out = receivers;
       else if (path.endsWith("/workbench/send")) {
         const request: SpaceRequest = {
           ...body,
@@ -113,6 +115,77 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   setCurrentConversation(undefined);
+});
+
+it("shows the recovered CLI and retries the existing receiver only on an explicit click", async () => {
+  receivers = [
+    {
+      id: "receiver-original",
+      spaceId: "space",
+      name: "空间协作助手",
+      state: "error",
+      sessionId: "",
+      online: false,
+      busy: false,
+      approvals: 0,
+      pairingId: "original",
+      binary: "/Applications/ChatGPT.app/new/codex",
+      canRetryCreation: true,
+      clientRecovered: true,
+    },
+  ];
+  render(
+    <SpaceWorkbench collaboration={c} onLocate={() => {}}>
+      reader
+    </SpaceWorkbench>,
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "参与会话" }));
+  expect(
+    await screen.findByText("/Applications/ChatGPT.app/new/codex"),
+  ).toBeVisible();
+  expect(
+    screen.getByText("Codex CLI 已恢复，尚未创建原生会话。可以重试创建。"),
+  ).toBeVisible();
+  expect(screen.queryByText("Codex 路径不可用")).not.toBeInTheDocument();
+  expect(calls.filter((call) => call.body)).toEqual([]);
+  await userEvent.click(
+    screen.getByRole("button", { name: "重试创建接收会话" }),
+  );
+  expect(calls.filter((call) => call.body)).toEqual([
+    {
+      path: "space-receivers/receiver-original/action",
+      body: { action: "retry" },
+    },
+  ]);
+});
+
+it("keeps receiver creation disabled when the current CLI is missing", async () => {
+  receivers = [
+    {
+      id: "receiver-original",
+      spaceId: "space",
+      name: "空间协作助手",
+      state: "error",
+      sessionId: "",
+      online: false,
+      busy: false,
+      approvals: 0,
+      pairingId: "original",
+      canRetryCreation: true,
+      clientError: "Codex CLI 文件不存在",
+    },
+  ];
+  render(
+    <SpaceWorkbench collaboration={c} onLocate={() => {}}>
+      reader
+    </SpaceWorkbench>,
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "参与会话" }));
+  expect(await screen.findByText("Codex CLI 文件不存在")).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "重试创建接收会话" }),
+  ).toBeDisabled();
+  expect(calls.filter((call) => call.body)).toEqual([]);
 });
 
 it("adds an existing conversation only after selection and confirmation in the add dialog", async () => {

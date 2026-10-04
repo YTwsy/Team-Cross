@@ -194,7 +194,7 @@ func (a *App) newSession(r Record) *Session {
 }
 func (s *Session) saveLocked() error {
 	if s.receiverSpace != "" {
-		return writeJSONFile(filepath.Join(s.runtimeDirectory(), "receiver.json"), receiverRecord{SpaceID: s.receiverSpace, Record: s.record})
+		return writeJSONFile(filepath.Join(s.runtimeDirectory(), "receiver.json"), receiverRecord{SpaceID: s.receiverSpace, CreationStage: s.receiverCreation, Record: s.record})
 	}
 	return writeJSONFile(filepath.Join(s.runtimeDirectory(), "collaboration.json"), s.record)
 }

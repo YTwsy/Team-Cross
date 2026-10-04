@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -54,6 +55,81 @@ func TestExportUpgradeHasStableRuntimeAndPreservesOtherFiles(t *testing.T) {
 	}
 	if _, err := owned(root); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRuntimeBootstrapFollowsInstallationWithoutResync(t *testing.T) {
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "Team Cross's App", "teamcross")
+	if err := os.MkdirAll(filepath.Dir(binary), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nprintf old"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Export(filepath.Join(dir, "plugin"), binary, "/data", "same-version")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nprintf new"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	source, err := RuntimeSource(p.Binary)
+	if err != nil || source != binary {
+		t.Fatal(source, err)
+	}
+	out, err := exec.Command(source).Output()
+	if err != nil || string(out) != "new" {
+		t.Fatal(string(out), err)
+	}
+	if err := os.Remove(binary); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RuntimeSource(p.Binary); err == nil {
+		t.Fatal("fell back to outdated plugin binary")
+	}
+	if _, err := Export(p.Root, p.Binary, p.DataDir, "bad"); err == nil {
+		t.Fatal("accepted recursive plugin source")
+	}
+}
+
+func TestRuntimeBootstrapRejectsLoopsAndRequiresOwnedPackage(t *testing.T) {
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "source")
+	os.WriteFile(binary, []byte("#!/bin/sh\nexit 0"), 0700)
+	p, err := Export(filepath.Join(dir, "plugin"), binary, "/data", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Remove(binary)
+	os.Symlink(p.Binary, binary)
+	if _, err := RuntimeSource(p.Binary); err == nil {
+		t.Fatal("accepted source loop")
+	}
+	ordinary := filepath.Join(dir, "runtime", "teamcross")
+	if got, err := RuntimeSource(ordinary); err != nil || got != ordinary {
+		t.Fatal(got, err)
+	}
+}
+
+func TestRuntimeBootstrapAcceptsCanonicalParentAlias(t *testing.T) {
+	dir := t.TempDir()
+	actual := filepath.Join(dir, "actual")
+	os.Mkdir(actual, 0700)
+	alias := filepath.Join(dir, "alias")
+	os.Symlink(actual, alias)
+	binary := filepath.Join(dir, "teamcross")
+	os.WriteFile(binary, []byte("#!/bin/sh\nexit 0"), 0700)
+	p, err := Export(filepath.Join(alias, "package"), binary, "/data", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonical, err := filepath.EvalSymlinks(p.Binary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := RuntimeSource(canonical); err != nil || got != binary {
+		t.Fatal(got, err)
 	}
 }
 

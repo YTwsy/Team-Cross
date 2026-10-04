@@ -20,8 +20,9 @@ import (
 // A receiver reuses the native runtime engine, but is not a shared execution:
 // no source fork, Git checkout, space ExecutionRecord or remote native access.
 type receiverRecord struct {
-	SpaceID string `json:"spaceId"`
-	Record  Record `json:"record"`
+	SpaceID       string `json:"spaceId"`
+	CreationStage string `json:"creationStage,omitempty"`
+	Record        Record `json:"record"`
 }
 
 func (s *Session) runtimeDirectory() string {
@@ -33,7 +34,7 @@ func (s *Session) runtimeDirectory() string {
 }
 
 func (a *App) newReceiver(r receiverRecord) *Session {
-	return &Session{app: a, record: r.Record, receiverSpace: r.SpaceID, writer: "owner", epoch: 1, presence: map[string]memberPresence{}, approvals: map[string]Approval{}}
+	return &Session{app: a, record: r.Record, receiverSpace: r.SpaceID, receiverCreation: r.CreationStage, writer: "owner", epoch: 1, presence: map[string]memberPresence{}, approvals: map[string]Approval{}}
 }
 
 func (a *App) loadSpaceReceivers() error {
@@ -59,6 +60,9 @@ func (a *App) loadSpaceReceivers() error {
 		}
 		if saved.Record.State == "preparing" {
 			saved.Record.State, saved.Record.Error = "error", "原生会话创建结果需核对，保留已有文件，不自动重建"
+			if saved.CreationStage == "client" && saved.Record.SessionID == "" {
+				saved.Record.Error = "原生客户端启动中断，可以重试创建"
+			}
 		}
 		for id, c := range saved.Record.Commands {
 			if c.State == "pending" {
@@ -108,6 +112,10 @@ func (a *App) createSpaceReceiver(ctx context.Context, spaceID, requestID, name 
 		}
 		return a.receiverView(old), nil
 	}
+	// Reject missing clients before allocating another persistent failed card.
+	if _, err := a.binary(); err != nil {
+		return nil, err
+	}
 	home, err := a.providerHome("codex")
 	if err != nil {
 		return nil, err
@@ -118,10 +126,17 @@ func (a *App) createSpaceReceiver(ctx context.Context, spaceID, requestID, name 
 	}
 	now := time.Now()
 	r := Record{Schema: 3, ID: id, Title: name, State: "preparing", CreatedAt: now, UpdatedAt: now, Annotations: []Annotation{}, ExecutionRecord: &ExecutionRecord{RequestID: requestID, RuntimeMode: runtimeconfig.Restricted, Provider: "codex", ProviderHome: home, ExecutionCwd: cwd, WorkspaceRoot: cwd, WorkspaceOwned: true, Commands: map[string]Command{}}}
-	s := a.newReceiver(receiverRecord{SpaceID: spaceID, Record: r})
+	s := a.newReceiver(receiverRecord{SpaceID: spaceID, CreationStage: "client", Record: r})
 	a.mu.Lock()
 	a.receivers[id] = s
 	a.mu.Unlock()
+	return a.initializeSpaceReceiver(ctx, s)
+}
+
+func (a *App) initializeSpaceReceiver(ctx context.Context, s *Session) (any, error) {
+	s.mu.Lock()
+	r, spaceID := s.snapshotLocked(), s.receiverSpace
+	s.mu.Unlock()
 	fail := func(err error) (any, error) {
 		s.mu.Lock()
 		s.record.State, s.record.Error = "error", err.Error()
@@ -130,7 +145,7 @@ func (a *App) createSpaceReceiver(ctx context.Context, spaceID, requestID, name 
 		return a.receiverView(s), err
 	}
 	s.mu.Lock()
-	err = s.saveLocked()
+	err := s.saveLocked()
 	s.mu.Unlock()
 	if err != nil {
 		return fail(err)
@@ -140,8 +155,15 @@ func (a *App) createSpaceReceiver(ctx context.Context, spaceID, requestID, name 
 	}
 	s.mu.Lock()
 	process := s.process
+	// Persist the uncertain-outcome boundary before sending thread/start. Only
+	// failures before this point can be retried without duplicating a session.
+	s.receiverCreation = "thread"
+	err = s.saveLocked()
 	s.mu.Unlock()
-	params := nativecodex.SessionOverrides("", cwd, r.RuntimeMode)
+	if err != nil {
+		return fail(err)
+	}
+	params := nativecodex.SessionOverrides("", r.ExecutionCwd, r.RuntimeMode)
 	delete(params, "threadId")
 	params["persistExtendedHistory"] = true
 	var started struct {
@@ -156,10 +178,10 @@ func (a *App) createSpaceReceiver(ctx context.Context, spaceID, requestID, name 
 	if _, err = uuid.Parse(started.Thread.ID); err != nil {
 		return fail(fmt.Errorf("原生运行时未确认接收会话身份"))
 	}
-	_ = process.Call(ctx, "thread/name/set", map[string]any{"threadId": started.Thread.ID, "name": name}, nil)
+	_ = process.Call(ctx, "thread/name/set", map[string]any{"threadId": started.Thread.ID, "name": r.Title}, nil)
 	s.mu.Lock()
 	s.record.SessionID, s.record.Model, s.record.ModelProvider, s.record.ReasoningEffort = started.Thread.ID, started.Model, started.ModelProvider, started.ReasoningEffort
-	s.record.State = "ready"
+	s.record.State, s.record.Error = "ready", ""
 	err = s.saveLocked()
 	s.mu.Unlock()
 	if err != nil {
@@ -173,7 +195,7 @@ func (a *App) createSpaceReceiver(ctx context.Context, spaceID, requestID, name 
 	}
 	// The exact session is created and verified here, so no copy/paste challenge
 	// is needed. Read/finish of the bootstrap still proves model-level receipt.
-	p := AgentPairing{ID: requestID, Name: name, Provider: "codex", SessionID: started.Thread.ID, SpaceID: spaceID, RuntimeID: id, Transport: "native", State: "paired", CreatedAt: now, Links: map[string]string{}}
+	p := AgentPairing{ID: r.RequestID, Name: r.Title, Provider: "codex", SessionID: started.Thread.ID, SpaceID: spaceID, RuntimeID: r.ID, Transport: "native", State: "paired", CreatedAt: time.Now(), Links: map[string]string{}}
 	a.agentMu.Lock()
 	next := libraryClone(a.agents)
 	if _, exists := next.Pairings[p.ID]; exists || len(next.Pairings) >= 64 {
@@ -192,14 +214,58 @@ func (a *App) createSpaceReceiver(ctx context.Context, spaceID, requestID, name 
 	return a.receiverView(s), nil
 }
 
+func receiverPathFailure(message string) bool {
+	switch message {
+	case "Codex 路径不可用", "Codex CLI 文件不存在", "Codex CLI 文件不可执行", "未找到可用的 Codex CLI":
+		return true
+	}
+	return false
+}
+
+func (s *Session) canRetryReceiverLocked() bool {
+	return s.record.State == "error" && s.record.SessionID == "" &&
+		(s.receiverCreation == "client" || (s.receiverCreation == "" && s.record.Error == "Codex 路径不可用"))
+}
+
+func (a *App) retrySpaceReceiver(ctx context.Context, s *Session) (any, error) {
+	if _, err := a.workbenchCall(ctx, s.receiverSpace, "receiver-check", workbenchInput{}); err != nil {
+		return nil, err
+	}
+	a.spaceCreateMu.Lock()
+	defer a.spaceCreateMu.Unlock()
+	if _, err := a.binary(); err != nil {
+		return a.receiverView(s), err
+	}
+	s.mu.Lock()
+	if !s.canRetryReceiverLocked() {
+		s.mu.Unlock()
+		return a.receiverView(s), fmt.Errorf("仅能重试尚未发送原生会话创建请求的失败记录")
+	}
+	s.record.State, s.record.Error, s.receiverCreation = "preparing", "", "client"
+	s.mu.Unlock()
+	return a.initializeSpaceReceiver(ctx, s)
+}
+
 func (a *App) receiverView(s *Session) map[string]any {
 	s.mu.Lock()
 	r := s.snapshotLocked()
 	out := map[string]any{"id": r.ID, "spaceId": s.receiverSpace, "name": r.Title, "state": r.State, "error": r.Error, "sessionId": r.SessionID, "online": s.online, "busy": s.busy, "approvals": len(s.approvals), "model": r.Model, "modelProvider": r.ModelProvider, "reasoningEffort": r.ReasoningEffort, "pairingId": r.RequestID}
 	process := s.process
+	canRetry := s.canRetryReceiverLocked()
 	s.mu.Unlock()
+	// Settings, creation, resumption and this view share the current resolver.
+	// A saved creation error must never masquerade as current CLI discovery.
+	binary, err := a.binary()
+	out["binary"], out["clientError"], out["canRetryCreation"] = binary, "", canRetry
+	if err != nil {
+		out["clientError"] = err.Error()
+	}
+	if canRetry && receiverPathFailure(r.Error) {
+		out["error"] = ""
+		out["clientRecovered"] = err == nil
+	}
 	if p, ok := process.(interface{ Endpoint() string }); ok {
-		if binary, err := a.binary(); err == nil {
+		if err == nil {
 			out["command"] = nativecodex.Command(binary, r.ProviderHome, r.SessionID, p.Endpoint())
 		}
 	}
@@ -256,8 +322,13 @@ func (a *App) receiversHTTP(w http.ResponseWriter, r *http.Request, path string)
 	if !decode(w, r, &in) {
 		return true
 	}
-	if parts[2] != "action" || in.Action != "start" {
+	if parts[2] != "action" || (in.Action != "start" && in.Action != "retry") {
 		http.NotFound(w, r)
+		return true
+	}
+	if in.Action == "retry" {
+		out, err := a.retrySpaceReceiver(r.Context(), s)
+		respond(w, out, err)
 		return true
 	}
 	if _, err := a.workbenchCall(r.Context(), s.receiverSpace, "receiver-check", workbenchInput{}); err != nil {

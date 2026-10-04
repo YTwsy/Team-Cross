@@ -15,7 +15,7 @@
 | LAN / Tailcat 传输或邀请格式 | 邀请互斥字段、TLS pin、多人共用链接加入、成员重连、取消与资源关闭；Tailcat 另跑显式联网测试，并把同机、两台 Mac 直连和强制 DERP 分开报告 |
 | 原生协议、客户端启动或账户路由 | 除协议测试外，使用专门会话实测对应 TUI/Desktop；分别验证登录、历史、输入、审批和 A 上执行 |
 | 模型与推理设置 | 来源继承、客户端选择、失败不更新显示、通知、恢复与写入归属；真实调用仅使用 Luna |
-| WebGUI | 类型检查（含中英消息完整性检查）、交互测试、production build，更新嵌入式资源，并进行实际浏览器和截图复核 |
+| WebGUI | 类型检查（含中英消息完整性检查）、交互测试、production build，更新两套嵌入式资源；界面是主要改动时进行实际浏览器和截图复核。非界面任务附带的小型状态/文案调整由相关交互测试覆盖，默认省略浏览器与截图 |
 | 菜单栏 App 启动、转交或退出 | Swift 检查和构建；在图形登录会话执行真实双副本并发、数据目录别名、邀请转交与确认重试、无响应恢复、独立目录、异常退出后复用 Core、显式退出停止服务 |
 
 ## 工程命令
@@ -37,6 +37,8 @@ go build -o bin/teamcross ./cmd/teamcross
 旧 Node Agent Bridge 已移除，不再运行或恢复旧 Bridge 的 check/test/build 门槛。
 
 ## 现有自动化入口
+
+Core 升级相关变更另运行 `scripts/verify-core-upgrade.py`：指定旧、新及下一构建的二进制、真实 Codex CLI 与全新输出目录；三个构建使用不同 commit、相同版本号以覆盖开发包。检查旧插件先启动、并发升级、仍存活的旧 MCP 再次启动、新 App 替换后未同步插件、磁盘构建比较、原地址/启动参数与数据保留、源安装缺失和未完成投递延后。隔离 Core/stdio 的行为证据不等于真实模型或桌面面板验收；脚本退出关闭自身进程。
 
 | 文件 | 重点覆盖 |
 | --- | --- |
@@ -98,6 +100,8 @@ fixture 使用合成原生历史，其他发布、版本、Core HTTP、存储、
 真实桌面最后整体检查：global 和 thread 分别打开成品；读取、回复落盘、关闭重开、选择固定版本、点击分析后当前个人会话实际收到并读取正确引用。原生 app-server 成功不能代替宿主 `ui/message` 回执；独立浏览器模拟也不能证明桌面入口显示。禁止通过其他自动化方式绕开 Codex 主窗口控制限制。完成后写入 fixture 的 `finish` 并等待测试退出，关闭精确的浏览器、stdio、app-server 与辅助进程；保留测试数据供成品复核时，后续普通 Core 可读取已持久化材料。
 
 ## 空间工作台
+
+仅修改 CLI 发现或错误恢复时，检查 [接收会话路径回归](../../../../internal/collab/receiver_discovery_test.go) 和 [工作台交互](../../../../packages/web/src/test/space-workbench.test.tsx)：设置与助手有效路径一致、设置变化立即生效、历史错误不冒充当前检测、只读刷新不启动会话、明确重试保留同一 ID、未知创建结果不重放。此范围不要求真实模型回合；使用可执行文件发现和模拟原生 RPC 即可。
 
 当前会话连接需验证 [传输身份与关联](../../../../internal/collab/agent_connections_test.go)、[ChatGPT 不透明身份](../../../../internal/mcp/current_test.go) 及 [插件回执不重放](../../../../packages/web/src/test/plugin.test.tsx)。`TEAMCROSS_TEST_NATIVE_DAEMON=1 go test ./internal/nativecodex -run '^TestExistingNativeDaemonConnection$' -count=1 -v` 启动专用 daemon，证明第二个代理只连接已加载的精确 thread、拒绝未知 ID、关闭借用代理不影响原 daemon；不调用模型。
 
