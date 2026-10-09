@@ -32,13 +32,13 @@ flowchart LR
 
 ## 模块
 
-- `internal/workspace`：Git 预览、干净 worktree、子目录映射、文件读取。
-- `internal/nativecodex`：启动和初始化独立 app-server，通过一个长期 WebSocket 进行 RPC、事件及 server request 分发。
-- `internal/collab`：协作记录、原生协议网关、输入协调、邀请与加入、TUI/Desktop 启动、HTTP 管理接口。
-- `internal/materialstore`：确定性清单、SHA-256 blob、不可变原子写入及内容校验；授权仍由 `internal/collab` 的空间或私有草稿引用决定。
-- `internal/sharing`：`tcx3` 邀请、临时 TLS listener、指纹绑定，以及 LAN / Tailcat 服务端与客户端连接适配。Tailcat 只把虚拟 TCP 443 交给同一 TLS/HTTP 网关。
-- `internal/mcp`：个人辅助 STDIO 与共享运行时批注 STDIO。后者提供当前协作的读取/回复、配对回执、通用空间请求工具及独立凭据，每次调用重新读取 Core 地址，不启动 Core 或复用管理凭据。
-- `packages/web`：新 React/Vite 界面，生产资源编译到 `internal/webassets/dist` 后嵌入 Go 二进制。
+- [internal/workspace](../../../internal/workspace/)：Git 预览、干净 worktree、子目录映射、文件读取。
+- [internal/nativecodex](../../../internal/nativecodex/)：启动和初始化独立 app-server，通过一个长期 WebSocket 进行 RPC、事件及 server request 分发，入口见 [process.go](../../../internal/nativecodex/process.go)。
+- [internal/collab](../../../internal/collab/)：协作记录、原生协议网关、输入协调、邀请与加入、TUI/Desktop 启动、HTTP 管理接口。创建与恢复见 [app.go](../../../internal/collab/app.go)，独立空间、冻结来源与材料版本见 [spaces.go](../../../internal/collab/spaces.go)、[publication.go](../../../internal/collab/publication.go)、[materials.go](../../../internal/collab/materials.go)。
+- [internal/materialstore](../../../internal/materialstore/)：确定性清单、SHA-256 blob、不可变原子写入及内容校验；授权仍由 `internal/collab` 的空间或私有草稿引用决定。
+- [internal/sharing](../../../internal/sharing/)：`tcx3` 邀请、临时 TLS listener、指纹绑定，以及 LAN / Tailcat 服务端与客户端连接适配。Tailcat 只把虚拟 TCP 443 交给同一 TLS/HTTP 网关。
+- [internal/mcp](../../../internal/mcp/)：个人辅助 STDIO 与共享运行时批注 STDIO。后者提供当前协作的读取/回复、配对回执、通用空间请求工具及独立凭据，每次调用重新读取 Core 地址，不启动 Core 或复用管理凭据。
+- [packages/web](../../../packages/web/)：新 React/Vite 界面，生产资源编译到 `internal/webassets/dist` 后嵌入 Go 二进制。
 
 ## 空间工作台
 
@@ -52,7 +52,7 @@ flowchart LR
 
 仅复制 rollout 文件无法替代原生历史数据库。协作记录保存 `sourceId`、已确认的 `sourceTurnId` 和新 `sessionId`。创建调用 `thread/fork`，使用 `lastTurnId` 保留确认过的已完成起点。恢复调用 `thread/resume`，继续同一 ID。
 
-个人 Agent 的当前 Session 分享通过本机持久化请求等待来源本轮完成，不阻塞该 MCP 调用。Codex 原生调用元数据、Claude 的 Session 环境与工具调用历史分别验证来源；独立 Codex 读取进程会重建未结束轮次状态，因此创建前还读取原始 rollout 边界确认完成。工作线程只观察固定轮次；起点漂移、取消或 Core 停止后不自动选新来源或重放。完成后调用既有 Preview/Create/Share；保存部分创建结果，邀请失败可单独恢复。实现见 [current_share.go](../../../internal/collab/current_share.go) 与 [当前 Session 协议](protocol.md#当前-session-与延后分享)。
+个人 Agent 的当前 Session 分享通过本机持久化请求等待来源本轮完成，不阻塞该 MCP 调用。Codex 原生调用元数据、Claude 的 Session 环境与工具调用历史分别验证来源；独立 Codex 读取进程会重建未结束轮次状态，因此创建前还读取原始 rollout 边界确认完成。工作线程只观察固定轮次；起点漂移、取消或 Core 停止后不自动选新来源或重放。完成后调用既有 Preview/Create/Share；保存部分创建结果，邀请失败可单独恢复。实现见 [MCP 当前身份](../../../internal/mcp/current.go)、[延后分享](../../../internal/collab/current_share.go) 与 [来源轮次](../../../internal/nativecodex/source_turn.go)，字段见 [当前 Session 协议](protocol.md#当前-session-与延后分享)。
 
 直接客户端的 `initialize`、会话枚举和请求都经过协作网关。网关只暴露指定协作；固定 `threadId` 与 `cwd`；受限模式固定权限 profile，信任模式沿用原生权限，并允许当前输入者通过原生会话设置选择权限。模型及推理强度继承原生来源和当前输入者的选择。网关与 MCP 共享同一个上游控制连接，避免审批只被某个连接收到而另一入口无法回应。共享仍开放时，直接客户端断开不会终止 app-server。结束共享后，执行、审批、已接收请求和直接连接全部结束才关闭该 Session 的 app-server，释放原生 writer lock；仅 `thread/unsubscribe` 不作为释放依据。关闭过程在会话锁外等待进程退出，恢复等待退出完成，旧进程通知按代次丢弃。
 

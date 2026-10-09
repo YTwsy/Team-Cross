@@ -425,6 +425,8 @@ Codex 信任模式支持原生 hook 确认：只含 `hooks.state` 或其子项�
 
 批注实现见 [annotation.go](../../../internal/collab/annotation.go)、[上下文组件](../../../packages/web/src/components/Context.tsx) 和 [批注组件](../../../packages/web/src/components/Annotations.tsx)。
 
+Agent 按需读取见 [历史与材料投影](../../../internal/collab/agent_read.go)、[批注读取](../../../internal/collab/agent_annotations.go)；个人管理工具见 [management.go](../../../internal/mcp/management.go)。
+
 路由与转发以 [本机 HTTP](../../../internal/collab/http.go)、[共享连接](../../../internal/collab/network.go)、[原生 RPC](../../../internal/collab/rpc.go)、[邀请与 TLS](../../../internal/sharing/sharing.go) 和 [STDIO MCP](../../../internal/mcp/server.go) 为准。协议变化在同一提交中更新本页及对应测试；Wiki 页面引用本页，不另存一份路由表。
 
 ## 后台控制与错误分类

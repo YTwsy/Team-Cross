@@ -76,4 +76,4 @@ Codex 的直接操作与本地辅助可使用 TUI 或 Desktop；Claude 实验性
 
 ## 维护入口
 
-字段以 [协作类型](../../../internal/collab/types.go) 和 [接口说明](protocol.md) 为准。修改用词时同步 [用户流程](product-flows.md)、[产品模型任务页](../wiki/concepts/product-model-and-glossary.md) 与面向用户的文案。
+字段以 [协作类型](../../../internal/collab/types.go) 和 [接口说明](protocol.md) 为准。修改用词时核对 [用户流程](product-flows.md) 与面向用户的文案；只有概念含义、关系、职责边界或入口变化时，才更新 [产品模型概念页](../wiki/concepts/product-model-and-glossary.md)。

@@ -59,7 +59,7 @@
 
 发起、结束协作均不要求提出问题、生成摘要、收集独立 Evidence 或验证成果。是否提交代码、导出 patch、创建 PR，由用户在自己的开发工具中决定。
 
-用户动作变化时更新本页；只有相关摘要或阅读入口也变化时，才更新概念页或索引，按 [Wiki 更新流程](../README.md#更新流程) 维护。原生客户端的具体版本与已知覆盖范围见 [证据入口](validation/evidence-map.md#原生执行与协作模式)，不能将流程描述本身当作实测结果。
+用户动作变化时更新本页；只有概念关系、职责边界或阅读入口也变化时，才更新概念页或索引，按 [Wiki 更新流程](../README.md#更新流程) 维护。原生客户端的具体版本与已知覆盖范围见 [证据入口](validation/evidence-map.md#原生执行与协作模式)，不能将流程描述本身当作实测结果。
 
 ## 首页与创建入口
 
@@ -122,3 +122,9 @@
 ## 首次体验入口
 
 创建并邀请、邀请确认、上下文优先、输入申请和分发流程见 [分发与首次体验](distribution-and-onboarding.md)。启动不要求 repo；App 与 CLI 复用同一数据目录的 Core。
+
+## 实现入口
+
+- 分享范围、预览与确认：[Publisher](../../../packages/web/src/components/Publisher.tsx)、[PublicationReader](../../../packages/web/src/components/PublicationReader.tsx)。
+- 正文阅读、批注与原文位置：[Reading](../../../packages/web/src/components/Reading.tsx)、[Context](../../../packages/web/src/components/Context.tsx)、[位置映射](../../../packages/web/src/reading.ts)。
+- 首页、语言与主题：[App](../../../packages/web/src/App.tsx)、[i18n](../../../packages/web/src/i18n.ts)、[样式](../../../packages/web/src/styles.css)；主要流程回归见 [flows.test.tsx](../../../packages/web/src/test/flows.test.tsx)。
