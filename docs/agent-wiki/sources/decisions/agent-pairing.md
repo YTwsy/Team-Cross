@@ -70,6 +70,8 @@ Channel 连接租约只存在内存。STDIO 结束会取消接收请求；Core �
 
 [OpenAI MCP Events 文档](https://developers.openai.com/plugins/build/mcp-events) 当前描述的是支持 MCP 2.0 的插件及 webhook 订阅，宿主范围为 ChatGPT Work Cloud 和 dots。它要求可被该宿主访问的认证 MCP endpoint、订阅管理和签名 webhook，并不是给本机 STDIO 增加通知就能向任意 ChatGPT 会话发送输入。
 
+本地 `events/stream` 是草案中的另一种投递方式。2026-10-07 所测 Codex `0.160.0` 虽包含实验性 `mcpServer/event/stream/start`，向本地配置的 STDIO MCP 服务调用时仍返回 `MCP event subscriptions are only supported for hosted apps`；启用 MCP 2.0 或 apps 开关均未改变该结果。普通 MCP 身份核对通过不能补足事件订阅；空闲原会话的接收、自动处理和回执未达到验证前提。本次外层客户端为隔离探针，没有新增个人 Desktop UI 或 Cloud 验收；版本、方法和证据见[本地 Events 宿主检查](../../tasks/finished_archived/2026-10-07-local-mcp-events/README.md)。
+
 已实现独立事件网关、MCP 2.0 发现/订阅和签名回调，授权、持久化及回执边界由 [空间事件契约](space-events.md) 维护。本机原生投递与 LAN/Tailcat 成员协作不依赖该网关；不配置公网 HTTPS 入口仍可正常加入空间、关联本机会话并接收明确请求。未发布公网服务，真实 ChatGPT Cloud 宿主验收由用户明确暂缓；协议测试不代表云端宿主通过。
 
 实现入口：[Core](../../../../internal/collab/agents.go)、[路由](../../../../internal/collab/agents_http.go)、[MCP](../../../../internal/mcp/agents.go)、[界面](../../../../packages/web/src/components/AgentPairings.tsx)。字段见[协议](../protocol.md#接收会话配对与请求)，验证方法见[验证门槛](../validation/test-gates.md#接收会话配对)。

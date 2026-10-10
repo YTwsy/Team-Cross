@@ -1,0 +1,284 @@
+{
+  "startedAt": "2026-10-06T18:11:11.889549+00:00",
+  "fixtureDir": "/private/tmp/teamcross-mcp-events-20261007-k24axvn9",
+  "codexVersion": "codex-cli 0.160.0",
+  "model": "gpt-5.6-luna",
+  "environment": "one Mac; isolated test repository and Codex homes",
+  "productionCodeChanged": false,
+  "protocolControl": {
+    "kind": "synthetic protocol control",
+    "modelUsed": false,
+    "passed": true,
+    "subscription": true,
+    "delivery": true,
+    "readReceipt": true,
+    "finishReceipt": true,
+    "replaySameEventId": true,
+    "cleanup": {
+      "pid": 54928,
+      "exitCode": 0,
+      "remainingGroupPids": []
+    }
+  },
+  "nativeCases": [
+    {
+      "kind": "installed Codex app-server with a synthetic outer client",
+      "mcp2026Feature": false,
+      "model": "gpt-5.6-luna",
+      "desktopUiTested": false,
+      "autoTurnStartedByProbe": false,
+      "threadId": "01a11269-9685-7b80-91b8-1e5864c747da",
+      "initialTurnStatus": "completed",
+      "initialTurnId": "01a11269-9e56-7a41-825e-5ac854fe9bc1",
+      "mcpIdentityMatchesThread": true,
+      "streamStartResponse": {
+        "error": {
+          "code": -32600,
+          "message": "MCP event subscriptions are only supported for hosted apps"
+        },
+        "id": 4
+      },
+      "streamStarted": false,
+      "idleDelivery": "not reached: subscription prerequisite rejected",
+      "automaticLaterTurns": [],
+      "eventStreamNotifications": [],
+      "readReceipts": [],
+      "finishReceipts": [],
+      "cleanup": {
+        "pid": 54930,
+        "exitCode": 0,
+        "remainingGroupPids": []
+      },
+      "observedMcpRequests": {
+        "initialize": 1,
+        "notifications/initialized": 1,
+        "tools/list": 1,
+        "tools/call": 1
+      },
+      "serverLifecycle": [
+        {
+          "at": "2026-10-06T18:11:14.162577+00:00",
+          "state": "started",
+          "pid": 54978,
+          "ppid": 54930
+        }
+      ],
+      "appsEnabled": false,
+      "realModelTurn": true,
+      "experimentalApi": true,
+      "identityReceipts": [
+        {
+          "at": "2026-10-06T18:11:24.177610+00:00",
+          "kind": "connected",
+          "threadId": "01a11269-9685-7b80-91b8-1e5864c747da",
+          "metaKeys": [
+            "callId",
+            "itemId",
+            "progressToken",
+            "sessionId",
+            "threadId",
+            "windowId",
+            "x-codex-turn-metadata"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "installed Codex app-server with a synthetic outer client",
+      "mcp2026Feature": true,
+      "model": "gpt-5.6-luna",
+      "desktopUiTested": false,
+      "autoTurnStartedByProbe": false,
+      "threadId": "01a11269-cc2e-73a0-b196-19737ec202cc",
+      "initialTurnStatus": "completed",
+      "initialTurnId": "01a11269-d80d-7a10-972d-0f56d24a41b9",
+      "mcpIdentityMatchesThread": true,
+      "streamStartResponse": {
+        "error": {
+          "code": -32600,
+          "message": "MCP event subscriptions are only supported for hosted apps"
+        },
+        "id": 4
+      },
+      "streamStarted": false,
+      "idleDelivery": "not reached: subscription prerequisite rejected",
+      "automaticLaterTurns": [],
+      "eventStreamNotifications": [],
+      "readReceipts": [],
+      "finishReceipts": [],
+      "cleanup": {
+        "pid": 55551,
+        "exitCode": 0,
+        "remainingGroupPids": []
+      },
+      "observedMcpRequests": {
+        "initialize": 1,
+        "notifications/initialized": 1,
+        "tools/list": 1,
+        "tools/call": 1
+      },
+      "serverLifecycle": [
+        {
+          "at": "2026-10-06T18:11:28.955921+00:00",
+          "state": "started",
+          "pid": 55609,
+          "ppid": 55551
+        }
+      ],
+      "appsEnabled": false,
+      "realModelTurn": true,
+      "experimentalApi": true,
+      "identityReceipts": [
+        {
+          "at": "2026-10-06T18:11:36.906376+00:00",
+          "kind": "connected",
+          "threadId": "01a11269-cc2e-73a0-b196-19737ec202cc",
+          "metaKeys": [
+            "callId",
+            "itemId",
+            "progressToken",
+            "sessionId",
+            "threadId",
+            "windowId",
+            "x-codex-turn-metadata"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "installed Codex app-server with a synthetic outer client",
+      "mcp2026Feature": true,
+      "model": "gpt-5.6-luna",
+      "appsEnabled": true,
+      "realModelTurn": false,
+      "desktopUiTested": false,
+      "autoTurnStartedByProbe": false,
+      "threadId": "01a1126b-4d9f-7a90-abdf-8a3900da1a1f",
+      "directToolCallSucceeded": true,
+      "mcpIdentityMatchesThread": true,
+      "streamStartResponse": {
+        "error": {
+          "code": -32600,
+          "message": "MCP event subscriptions are only supported for hosted apps"
+        },
+        "id": 4
+      },
+      "streamStarted": false,
+      "idleDelivery": "not reached: subscription prerequisite rejected",
+      "automaticLaterTurns": [],
+      "eventStreamNotifications": [],
+      "readReceipts": [],
+      "finishReceipts": [],
+      "cleanup": {
+        "pid": 56953,
+        "exitCode": 0,
+        "remainingGroupPids": []
+      },
+      "observedMcpRequests": {
+        "initialize": 1,
+        "notifications/initialized": 1,
+        "tools/list": 1,
+        "tools/call": 1
+      },
+      "serverLifecycle": [
+        {
+          "at": "2026-10-06T18:13:06.423456+00:00",
+          "state": "started",
+          "pid": 57013,
+          "ppid": 56953
+        }
+      ],
+      "experimentalApi": true,
+      "identityReceipts": [
+        {
+          "at": "2026-10-06T18:13:06.424937+00:00",
+          "kind": "connected",
+          "threadId": "01a1126b-4d9f-7a90-abdf-8a3900da1a1f",
+          "metaKeys": [
+            "progressToken",
+            "threadId"
+          ]
+        }
+      ]
+    }
+  ],
+  "finishedAt": "2026-10-06T18:13:06.629845+00:00",
+  "clientDate": "2026-10-07",
+  "clientTimezone": "Asia/Shanghai",
+  "sourceCommit": "6e9c890f8911ab9ee7990f33ba90d9e3840d28b3",
+  "sourceBranch": "Meta",
+  "probeScriptSha256": "6fa4ffbc9736491edad4c253e1d709afd406675f0bc43057d4ccbfa9f03dcd1f",
+  "codexBinarySha256": "6b582e8813ce7e8ed4c52814ee5cf230dba647bf2292df747a4003f2657ef201",
+  "desktop": {
+    "version": "26.930.51102",
+    "build": "13100",
+    "bundleId": "com.openai.codex",
+    "uiTested": false
+  },
+  "host": {
+    "macOS": "14.8.5",
+    "arch": "arm64"
+  },
+  "cleanupVerification": {
+    "ownedPids": [
+      54928,
+      54930,
+      54978,
+      55551,
+      55609,
+      56953,
+      57013
+    ],
+    "remainingOwnedPids": [],
+    "userDesktopPidsPreserved": {
+      "23930": true,
+      "24427": true
+    },
+    "excludedPreflightOwnedPids": [
+      52997,
+      53043
+    ]
+  },
+  "scope": {
+    "realModelTurns": 3,
+    "syntheticProtocolControl": true,
+    "directRpcAppsEnabledControl": true,
+    "desktopBundleInspected": true,
+    "desktopUiTested": false,
+    "realCloudTested": false,
+    "realIdleEventProcessingTested": false,
+    "validIdentityModelTurns": 2
+  },
+  "excludedPreflight": {
+    "fixtureDir": "/private/tmp/teamcross-mcp-events-20261007-y49q15nq",
+    "model": "gpt-5.6-luna",
+    "threadId": "01a11268-5995-7c91-90e8-2208337565c9",
+    "turnId": "01a11268-60e2-7280-99aa-c2726e9561b2",
+    "turnStatus": "completed",
+    "mcpToolReachedServer": false,
+    "reason": "Probe disabled code_mode_host; corrected before the two valid identity controls. This is not a product Events failure.",
+    "diagnostic": "code-mode host is disabled",
+    "cleanup": {
+      "pid": 52997,
+      "exitCode": 0,
+      "remainingGroupPids": []
+    }
+  },
+  "desktopBundleInspection": {
+    "file": "/Applications/ChatGPT.app/Contents/Resources/app.asar",
+    "eventRoutingModule": ".vite/build/bootstrap-CXJAEjVI.js",
+    "observedMethods": [
+      "mcpServer/event/stream/start",
+      "mcpServer/event/stream/stop",
+      "mcpServer/event/stream/notification"
+    ],
+    "observedWindowMessage": "mcp-event-notification",
+    "interpretation": "Installed routing code exists; static inspection does not establish idle conversation wakeup."
+  },
+  "validation": {
+    "pythonSyntax": true,
+    "relativeLinks": true,
+    "existingFixtureRejectedWithoutMutation": true,
+    "remainingOwnedPids": []
+  }
+}
