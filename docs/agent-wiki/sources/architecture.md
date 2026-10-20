@@ -2,7 +2,9 @@
 
 本页维护模块职责、数据流和进程边界。跨主题理解可从 [运行时架构](../wiki/concepts/runtime-architecture.md) 开始；字段和路由由 [协作接口](protocol.md) 维护，安装后的 App/Core 发现与退出规则见 [分发与首次体验](distribution-and-onboarding.md)，具体路径的已知实测结果见 [证据入口](validation/evidence-map.md)。
 
-Team Cross 管理协作的来源、执行目录、原生 fork、邀请、输入归属与人工批注。模型上下文与工具执行由 A 上的 Codex app-server 持有。
+Core 是 Team Cross 的 Go 本机后台服务，通过 `teamcross serve` 进程提供协作接口；App、CLI 和 MCP 经[公共启动器](../../../internal/service/service.go)发现或启动同一规范化数据目录的 Core。一个 Core 管理多个空间及原生运行时连接，保存协作元数据和已发布材料；原生会话历史由 Provider 的原生存储维护。
+
+空间及材料托管在发起者 A 的 Core，共同执行由 A 上的原生运行时承载；成员自己的会话与接收连接保留本机归属。Codex 使用 app-server，实验性 Claude 使用原生后台 job。下图展示 Codex 共同执行路径。
 
 ```mermaid
 flowchart LR
@@ -33,7 +35,8 @@ flowchart LR
 ## 模块
 
 - [internal/workspace](../../../internal/workspace/)：Git 预览、干净 worktree、子目录映射、文件读取。
-- [internal/nativecodex](../../../internal/nativecodex/)：启动和初始化独立 app-server，通过一个长期 WebSocket 进行 RPC、事件及 server request 分发，入口见 [process.go](../../../internal/nativecodex/process.go)。
+- [internal/service](../../../internal/service/)：CLI、App 和 MCP 共用的 Core 启动、发现、实例协调与退出入口。
+- [internal/nativecodex](../../../internal/nativecodex/)：启动独立 app-server 或连接已有原生服务，通过长期连接进行 RPC、事件及 server request 分发，入口见 [process.go](../../../internal/nativecodex/process.go)。
 - [internal/collab](../../../internal/collab/)：协作记录、原生协议网关、输入协调、邀请与加入、TUI/Desktop 启动、HTTP 管理接口。创建与恢复见 [app.go](../../../internal/collab/app.go)，独立空间、冻结来源与材料版本见 [spaces.go](../../../internal/collab/spaces.go)、[publication.go](../../../internal/collab/publication.go)、[materials.go](../../../internal/collab/materials.go)。
 - [internal/materialstore](../../../internal/materialstore/)：确定性清单、SHA-256 blob、不可变原子写入及内容校验；授权仍由 `internal/collab` 的空间或私有草稿引用决定。
 - [internal/sharing](../../../internal/sharing/)：`tcx3` 邀请、临时 TLS listener、指纹绑定，以及 LAN / Tailcat 服务端与客户端连接适配。Tailcat 只把虚拟 TCP 443 交给同一 TLS/HTTP 网关。
@@ -48,7 +51,9 @@ flowchart LR
 
 ## 原生运行时
 
-浏览来源时按需创建只读用途的 app-server 控制连接；不会自动发送 prompt。每个可操作协作会话有单独的 app-server 进程，以 A 的原生会话库读取来源并执行 fork。受限模式通过命令行参数覆盖原生配置；信任模式加载 A 的原生配置与权限，仅追加当前协作批注 MCP。两种模式启动时都不由 Team Cross 重写 A 的个人配置；信任模式中，当前输入者的原生 hook 确认由 Codex 写回 A 的配置。具体继承与生命周期见 [协作模式](decisions/runtime-modes.md)。
+Codex 浏览来源时按需创建只读用途的 app-server 控制连接；不会自动发送 prompt。每个 Codex 可操作协作会话有单独的 app-server 进程，以 A 的原生会话库读取来源并执行 fork。受限模式通过命令行参数覆盖原生配置；信任模式加载 A 的原生配置与权限，仅追加当前协作批注 MCP。两种模式启动时都不由 Team Cross 重写 A 的个人配置；信任模式中，当前输入者的原生 hook 确认由 Codex 写回 A 的配置。具体继承与生命周期见 [协作模式](decisions/runtime-modes.md)。
+
+[nativecodex.StartWithMode](../../../internal/nativecodex/process.go) 调用本机选定的 Codex 可执行文件，以独立 loopback WebSocket 端点启动 app-server。已有会话接收通过 [agent_connections.go](../../../internal/collab/agent_connections.go) 调用 `nativecodex.ConnectExisting`，利用原生 daemon 代理连接并核对目标 thread 已加载；该连接保留原生服务的生命周期归属。实例管理原则见[原生客户端决策](decisions/native-clients-and-models.md#原生会话连续性与运行实例归属)，连接发现和个人 Desktop 的限制以[配对契约](decisions/agent-pairing.md#当前接入范围)为准。
 
 仅复制 rollout 文件无法替代原生历史数据库。协作记录保存 `sourceId`、已确认的 `sourceTurnId` 和新 `sessionId`。创建调用 `thread/fork`，使用 `lastTurnId` 保留确认过的已完成起点。恢复调用 `thread/resume`，继续同一 ID。
 
@@ -56,7 +61,7 @@ flowchart LR
 
 直接客户端的 `initialize`、会话枚举和请求都经过协作网关。网关只暴露指定协作；固定 `threadId` 与 `cwd`；受限模式固定权限 profile，信任模式沿用原生权限，并允许当前输入者通过原生会话设置选择权限。模型及推理强度继承原生来源和当前输入者的选择。网关与 MCP 共享同一个上游控制连接，避免审批只被某个连接收到而另一入口无法回应。共享仍开放时，直接客户端断开不会终止 app-server。结束共享后，执行、审批、已接收请求和直接连接全部结束才关闭该 Session 的 app-server，释放原生 writer lock；仅 `thread/unsubscribe` 不作为释放依据。关闭过程在会话锁外等待进程退出，恢复等待退出完成，旧进程通知按代次丢弃。
 
-Desktop 使用本机安装版本的指定 WebSocket 入口，配合单独的 `CODEX_HOME` 与 Electron 数据目录，通过 `open -n` 启动。是否所有 Desktop 操作都适合远程执行需要按实际客户端版本验收；不能仅凭 app-server 协议相同宣布完整兼容。
+Desktop 使用本机安装版本的指定 WebSocket 入口，配合单独的 `CODEX_HOME` 与 Electron 数据目录，通过 `open -n` 启动。这些目录隔离本机客户端配置与实例状态，共享会话的原生历史仍由 A 上的执行端使用原生会话库维护。是否所有 Desktop 操作都适合远程执行需要按实际客户端版本验收；不能仅凭 app-server 协议相同宣布完整兼容。
 
 客户端本机代理单独处理 `account/login/start`、登录完成通知、`getAuthStatus` 和客户端偏好写入。读取已有登录状态可以使用 B 的本机账户；修改账户时启动专用客户端配置的本机 app-server，避免改写 B 的普通 Codex 配置。远端共享网关不传出 A 的登录 token、MCP 配置或完整个人配置。登录路由与共享会话执行路由分别验收。
 

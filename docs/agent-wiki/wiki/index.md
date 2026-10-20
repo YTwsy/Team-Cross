@@ -36,7 +36,7 @@
 | --- | --- |
 | 个人会话、材料与共同执行如何关联 | [产品模型与词汇](concepts/product-model-and-glossary.md) |
 | 成员、公开范围、执行访问与输入权怎样区分 | [协作空间](concepts/collaboration-spaces.md) |
-| 空间、Core、原生运行时与成员主机如何分工 | [运行时架构](concepts/runtime-architecture.md) |
+| Core、执行实例与会话历史如何关联，两类交接改变什么 | [运行时架构](concepts/runtime-architecture.md) |
 | 人与 Agent 的入口怎样共用内容、分别接收请求 | [WebGUI 与 MCP](concepts/webgui-and-mcp.md) |
 | 方法、实测结果与当前能力判断怎样关联 | [验证与证据](concepts/validation-gates.md) |
 
