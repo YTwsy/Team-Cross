@@ -40,6 +40,7 @@
 .space-shell {
   --space-sidebar-width: 252px;
   --space-reading-inset: 32px;
+  --space-selection-inset: 16px;
   background: var(--panel);
   color: var(--text);
 }
@@ -57,6 +58,22 @@
 .space-shell .page {
   padding: 0;
   max-width: none;
+}
+.space-shell .selection-tray {
+  left: calc(var(--space-sidebar-width) + var(--space-selection-inset));
+  right: var(--space-selection-inset);
+  bottom: var(--space-selection-inset);
+  border-radius: 9px;
+  box-shadow: var(--space-shadow);
+}
+.space-shell .selection-tray-bar {
+  min-height: 52px;
+  padding: 9px 12px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.space-shell .selection-buttons {
+  flex-wrap: wrap;
 }
 .space-shell .button,
 :root:has(.space-shell) .modal .button {
@@ -1650,6 +1667,11 @@
     z-index: 45;
     box-shadow: -12px 0 35px #0002;
   }
+  .has-selection-tray .space-comments:not([hidden]) {
+    bottom: calc(
+      var(--selection-tray-height, 68px) + var(--space-selection-inset) + 8px
+    );
+  }
   .space-room-title > span {
     display: none;
   }
@@ -1662,6 +1684,7 @@
   .space-shell,
   .space-shell:has(.space-nav-collapsed) {
     --space-sidebar-width: 52px;
+    --space-selection-inset: 10px;
   }
   .space-workbench:not(.space-nav-collapsed) > .space-navigation {
     width: 252px;
@@ -1671,6 +1694,10 @@
     margin: 0;
     z-index: 50;
     box-shadow: 15px 0 35px #0002;
+  }
+  /* The narrow sidebar overlays the page; restore the tray when it closes. */
+  .space-shell:has(.space-workbench:not(.space-nav-collapsed)) .selection-tray {
+    visibility: hidden;
   }
   .space-room-bar {
     padding: 10px 15px;

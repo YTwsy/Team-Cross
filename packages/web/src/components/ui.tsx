@@ -7,6 +7,7 @@ import {
   useId,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { errorText } from "../api";
 import { status, type Collaboration, type Provider } from "../types";
 export type IconName =
@@ -335,7 +336,9 @@ export function Modal({
       });
     };
   }, []);
-  return (
+  // A trigger can be portaled out of a hidden reading pane. Keep its dialog
+  // outside that pane too, or showModal makes the page inert with no visible UI.
+  return createPortal(
     <dialog
       ref={ref}
       className={`modal${wide ? " modal-wide" : ""}`}
@@ -369,7 +372,8 @@ export function Modal({
         </button>
       </div>
       {children}
-    </dialog>
+    </dialog>,
+    document.body,
   );
 }
 export function PageHeading({

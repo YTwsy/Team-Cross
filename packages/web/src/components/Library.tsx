@@ -689,57 +689,59 @@ export function SelectionTray({ quick = false }: { quick?: boolean }) {
           className={`selection-tray ${quick ? "selection-tray-quick" : ""}`}
           aria-label={t("当前选择清单")}
         >
-          {expanded && !!items.length && (
-            <div className="selection-items">
-              <div className="panel-heading">
-                <strong>{t("当前选择")}</strong>
-                <button
-                  className="text-link"
-                  disabled={lib.working}
-                  onClick={() => void lib.change({ action: "clear" })}
-                >
-                  {t("清空选择") + " "}
-                </button>
-              </div>
-              {items.map((r) => (
-                <div className="selection-item" key={r.key}>
-                  <Icon name={kindIcons[r.reference.kind]} size={16} />
-                  <div>
-                    <strong>{r.title}</strong>
-                    <small>
-                      {r.spaceTitle} ·{" "}
-                      {r.reference.version
-                        ? tr`版本 ${r.reference.version}`
-                        : kindName(r.reference.kind)}
-                      {availabilityLabel(r) && ` · ${availabilityLabel(r)}`}
-                    </small>
-                  </div>
+          <div className="selection-tray-content">
+            {expanded && !!items.length && (
+              <div className="selection-items">
+                <div className="panel-heading">
+                  <strong>{t("当前选择")}</strong>
                   <button
-                    className="icon-button"
-                    aria-label={tr`移除 ${r.title}`}
+                    className="text-link"
                     disabled={lib.working}
-                    onClick={() =>
-                      void lib.change({
-                        action: "select",
-                        key: r.key,
-                        enabled: false,
-                      })
-                    }
+                    onClick={() => void lib.change({ action: "clear" })}
                   >
-                    <Icon name="close" size={14} />
+                    {t("清空选择") + " "}
                   </button>
                 </div>
-              ))}
-            </div>
-          )}
-          {mode === "read" && (
-            <SelectionEntry
-              key={entrySerial}
-              resources={snapshot}
-              changed={selectionChanged}
-              onClose={() => setMode(undefined)}
-            />
-          )}
+                {items.map((r) => (
+                  <div className="selection-item" key={r.key}>
+                    <Icon name={kindIcons[r.reference.kind]} size={16} />
+                    <div>
+                      <strong>{r.title}</strong>
+                      <small>
+                        {r.spaceTitle} ·{" "}
+                        {r.reference.version
+                          ? tr`版本 ${r.reference.version}`
+                          : kindName(r.reference.kind)}
+                        {availabilityLabel(r) && ` · ${availabilityLabel(r)}`}
+                      </small>
+                    </div>
+                    <button
+                      className="icon-button"
+                      aria-label={tr`移除 ${r.title}`}
+                      disabled={lib.working}
+                      onClick={() =>
+                        void lib.change({
+                          action: "select",
+                          key: r.key,
+                          enabled: false,
+                        })
+                      }
+                    >
+                      <Icon name="close" size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {mode === "read" && (
+              <SelectionEntry
+                key={entrySerial}
+                resources={snapshot}
+                changed={selectionChanged}
+                onClose={() => setMode(undefined)}
+              />
+            )}
+          </div>
           <div className="selection-tray-bar">
             <button
               className="selection-count"

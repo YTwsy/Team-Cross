@@ -184,6 +184,7 @@ beforeEach(() => {
         }
         result = data;
       } else if (path === "library") result = data;
+      else if (path.startsWith("sources?")) result = { data: [] };
       else if (path === "library/read")
         result = { resource: annotation, content: note };
       else if (path === "library/bundles")
@@ -525,6 +526,50 @@ describe("个人资源库", () => {
       expect(data.selection).toEqual(["material-key", "material-v2"]),
     );
   });
+
+  it.each([false, true])(
+    "can publish from the overview with retained library selections and a reading entry (execution: %s)",
+    async (hasExecution) => {
+      collaboration.hasExecution = hasExecution;
+      data.selection = [material.key, annotation.key];
+      data.resources.forEach((resource) => {
+        resource.selected = data.selection.includes(resource.key);
+      });
+      location.hash = "/collaborations/space";
+      const user = userEvent.setup();
+      render(<App />);
+      const publish = await screen.findByRole("button", {
+        name: "发布会话材料",
+      });
+      await user.click(screen.getByRole("button", { name: "生成读取入口" }));
+      await screen.findByText("TC-TESTBUNDLE");
+      await user.click(screen.getByRole("button", { name: /已选内容/ }));
+      await user.click(screen.getByRole("tab", { name: "空间概览" }));
+      await user.click(publish);
+      const dialog = await screen.findByRole("dialog", {
+        name: "发布会话材料",
+      });
+      expect(dialog).toBeVisible();
+      await user.type(
+        within(dialog).getByRole("textbox", { name: "搜索本机会话" }),
+        "下一份调查",
+      );
+      await user.click(within(dialog).getByRole("button", { name: "关闭" }));
+      await waitFor(() => expect(publish).toHaveFocus());
+      expect(screen.getByText("TC-TESTBUNDLE")).toBeVisible();
+      expect(data.selection).toEqual([material.key, annotation.key]);
+      expect(screen.getByRole("button", { name: /已选内容/ })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+      expect(
+        calls.filter((call) => call.path === "library/bundles"),
+      ).toHaveLength(1);
+      expect(
+        calls.some((call) => call.path.endsWith("/publish-material")),
+      ).toBe(false);
+    },
+  );
 
   it("switches between materials and context with keyboard access while retaining each reader", async () => {
     location.hash = "/collaborations/space";
