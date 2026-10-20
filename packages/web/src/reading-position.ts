@@ -2,8 +2,12 @@
 // A reading pane is deliberately not a scroll container.
 export function readingViewport(element: HTMLElement) {
   const container = element.closest<HTMLElement>(".library-preview, dialog");
-  const workspace = element.closest<HTMLElement>(".collaboration-reading");
-  const heading = workspace?.querySelector<HTMLElement>(".reading-heading");
+  const workspace = element.closest<HTMLElement>(
+    ".space-material-reader, .collaboration-reading",
+  );
+  const heading = workspace?.querySelector<HTMLElement>(
+    ".space-reader-tools, .reading-heading",
+  );
   const stickyTop = workspace
     ? parseFloat(
         getComputedStyle(workspace).getPropertyValue("--reading-sticky-top"),

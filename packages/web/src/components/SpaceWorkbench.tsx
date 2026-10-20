@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { api, errorText, useResource } from "../api";
 import { formatDate, serviceText, t, tr } from "../i18n";
 import { sameReference, type LibraryReference } from "../library";
@@ -29,12 +30,16 @@ import {
 } from "./AgentPairings";
 import { Copy, ErrorBox, Icon, Loading, Modal } from "./ui";
 import { SpaceEvents } from "./SpaceEvents";
+import type { AnnotationRequest } from "./Annotations";
+import { SpaceOverview } from "./SpaceOverview";
+import { SpaceReferencePicker } from "./SpaceReferencePicker";
 
-type Tab = "reading" | "requests" | "brief" | "sessions";
+type Tab = "overview" | "reading" | "requests" | "brief" | "sessions";
 type Send = {
   references: LibraryReference[];
   targetId?: string;
   parentRequestId?: string;
+  instruction?: string;
 };
 const WorkbenchContext = createContext<{
   view?: WorkbenchView;
@@ -42,7 +47,98 @@ const WorkbenchContext = createContext<{
   show: (tab: Tab) => void;
   open: (id: string) => void;
   disabled: boolean;
+  navigation: HTMLDivElement | null;
+  publishing: HTMLDivElement | null;
+  collaboration: Collaboration;
+  commentsOpen: boolean;
+  toggleComments: () => void;
+  commentCount: number;
+  reading: boolean;
 } | null>(null);
+export const useSpaceWorkbench = () => useContext(WorkbenchContext);
+
+export function SpaceMaterialNavigation({
+  children,
+  publish = false,
+}: {
+  children: ReactNode;
+  publish?: boolean;
+}) {
+  const space = useSpaceWorkbench();
+  const target = publish ? space?.publishing : space?.navigation;
+  return target ? createPortal(children, target) : null;
+}
+
+export function SpaceCommentsButton() {
+  const space = useSpaceWorkbench();
+  return space ? (
+    <button
+      className="button small space-comments-toggle"
+      onClick={space.toggleComments}
+      aria-expanded={space.commentsOpen}
+    >
+      <Icon name="comment" size={16} />
+      {space.commentsOpen ? t("收起评论") : t("评论")}
+      <span className="count">{space.commentCount}</span>
+    </button>
+  ) : null;
+}
+
+export function SpaceReadingRequest({
+  reference,
+}: {
+  reference: LibraryReference;
+}) {
+  const space = useSpaceWorkbench();
+  const [instruction, setInstruction] = useState("");
+  const [references, setReferences] = useState([reference]);
+  if (!space) return null;
+  return (
+    <section
+      className="space-reading-request"
+      aria-label={t("基于材料发起请求")}
+    >
+      <div className="space-request-label">
+        <span>
+          <Icon name="request" size={13} />
+          {t("协作请求")}
+        </span>
+        <span>{t("发送给关联会话")}</span>
+      </div>
+      <textarea
+        aria-label={t("基于材料的处理要求")}
+        rows={1}
+        maxLength={4000}
+        placeholder={t("基于这份材料，希望协作者处理什么？")}
+        value={instruction}
+        onChange={(e) => setInstruction(e.target.value)}
+        disabled={space.disabled}
+      />
+      <div className="space-request-footer">
+        <SpaceReferencePicker
+          collaboration={space.collaboration}
+          value={references}
+          onChange={setReferences}
+          disabled={space.disabled}
+          compact
+        />
+        <button
+          className="button primary"
+          disabled={space.disabled}
+          onClick={() =>
+            space.send({
+              references,
+              instruction: instruction.trim() || undefined,
+            })
+          }
+        >
+          <Icon name="request" size={14} />
+          {t("发起请求")}
+        </button>
+      </div>
+    </section>
+  );
+}
 
 export function SpaceRequestButton({
   references,
@@ -135,12 +231,37 @@ export function SpaceWorkbench({
   collaboration: c,
   children,
   onLocate,
+  overview,
+  comments,
+  commentRequest,
+  contextNavigation,
 }: {
   collaboration: Collaboration;
   children: ReactNode;
   onLocate: (ref: LibraryReference) => void;
+  overview?: ReactNode;
+  comments?: ReactNode;
+  commentRequest?: AnnotationRequest;
+  contextNavigation?: ReactNode;
 }) {
   const [tab, setTab] = useState<Tab>("reading");
+  const [navigation, setNavigation] = useState<HTMLDivElement | null>(null);
+  const [publishing, setPublishing] = useState<HTMLDivElement | null>(null);
+  const [collapsed, setCollapsed] = useState(
+    () => window.matchMedia?.("(max-width: 760px)")?.matches ?? false,
+  );
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia?.("(max-width: 760px)");
+    const collapseNarrow = () => {
+      if (query?.matches) setCollapsed(true);
+    };
+    query?.addEventListener("change", collapseNarrow);
+    return () => query?.removeEventListener("change", collapseNarrow);
+  }, []);
+  useEffect(() => {
+    if (commentRequest) setCommentsOpen(true);
+  }, [commentRequest]);
   const [offset, setOffset] = useState(0);
   const data = useResource<WorkbenchView>(
     `collaborations/${c.id}/workbench/view?offset=${offset}`,
@@ -167,6 +288,7 @@ export function SpaceWorkbench({
     (!owner && c.reachable === false);
   const show = (next: Tab) => {
     setTab(next);
+    if (window.matchMedia?.("(max-width: 760px)")?.matches) setCollapsed(true);
     if (next !== "reading")
       heading.current?.scrollIntoView?.({ block: "start" });
   };
@@ -189,7 +311,7 @@ export function SpaceWorkbench({
     }
   }
   const nav: { value: Tab; label: string }[] = [
-    { value: "reading", label: t("阅读与讨论") },
+    { value: "overview", label: t("空间概览") },
     { value: "requests", label: t("协作请求") },
     { value: "brief", label: t("空间简报") },
     { value: "sessions", label: t("参与会话") },
@@ -239,191 +361,322 @@ export function SpaceWorkbench({
         show,
         open: setSelectedRequest,
         disabled,
+        navigation,
+        publishing,
+        collaboration: c,
+        commentsOpen,
+        toggleComments: () => setCommentsOpen((value) => !value),
+        commentCount: c.annotations?.length || 0,
+        reading: tab === "reading",
       }}
     >
-      <div className="workbench-navigation" ref={heading}>
-        <div className="workbench-heading">
-          <div>
-            <span className="eyebrow">{t("空间工作台")}</span>
-            <p className="muted">
-              {t("共享材料、明确请求，保留每次接力的进展。")}
-            </p>
-          </div>
-          <div className="workbench-heading-actions">
+      <div
+        className={`space-workbench ${collapsed ? "space-nav-collapsed" : ""}`}
+      >
+        <aside className="space-navigation" aria-label={t("空间功能与材料")}>
+          <div className="space-navigation-heading">
+            <a
+              href="#/"
+              className="space-brand"
+              aria-label={t("Team Cross 首页")}
+            >
+              <span className="space-brand-symbol">
+                <Icon name="branch" size={18} />
+              </span>
+              <span>Team Cross</span>
+            </a>
             <button
-              className="text-link workbench-assistant-shortcut"
+              className="icon-button"
+              aria-label={collapsed ? t("展开空间侧栏") : t("收起空间侧栏")}
+              aria-expanded={!collapsed}
+              onClick={() => setCollapsed(!collapsed)}
+            >
+              <Icon name="panel" size={16} />
+            </button>
+          </div>
+          <div className="space-publish-slot" ref={setPublishing} />
+          <div
+            className="workbench-tabs"
+            role="tablist"
+            aria-orientation="vertical"
+            aria-label={t("空间工作台")}
+          >
+            {nav.map((item, index) => (
+              <button
+                key={item.value}
+                ref={(el) => {
+                  tabs.current[index] = el;
+                }}
+                id={`${uid}-${item.value}-tab`}
+                role="tab"
+                aria-label={item.label}
+                title={item.label}
+                aria-selected={tab === item.value}
+                aria-controls={`${uid}-${item.value}-panel`}
+                tabIndex={
+                  tab === item.value || (tab === "reading" && index === 0)
+                    ? 0
+                    : -1
+                }
+                onClick={() => show(item.value)}
+                onKeyDown={(e) => {
+                  if (
+                    ![
+                      "ArrowLeft",
+                      "ArrowRight",
+                      "ArrowUp",
+                      "ArrowDown",
+                      "Home",
+                      "End",
+                    ].includes(e.key)
+                  )
+                    return;
+                  e.preventDefault();
+                  const next =
+                    e.key === "Home"
+                      ? 0
+                      : e.key === "End"
+                        ? nav.length - 1
+                        : (index +
+                            (["ArrowLeft", "ArrowUp"].includes(e.key)
+                              ? -1
+                              : 1) +
+                            nav.length) %
+                          nav.length;
+                  setTab(nav[next]!.value);
+                  tabs.current[next]?.focus();
+                }}
+              >
+                <Icon
+                  name={
+                    item.value === "overview"
+                      ? "grid"
+                      : item.value === "reading"
+                        ? "book"
+                        : item.value === "sessions"
+                          ? "people"
+                          : item.value === "brief"
+                            ? "pin"
+                            : "request"
+                  }
+                  size={17}
+                />
+                <span className="space-nav-label">{item.label}</span>
+                {item.value === "requests" && content && (
+                  <span className="count">{content.total}</span>
+                )}
+                {item.value === "brief" && briefDraft && (
+                  <span
+                    className="workbench-draft-dot"
+                    aria-hidden="true"
+                    title={t("草稿尚未保存")}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+          {contextNavigation && (
+            <div
+              className="space-context-navigation"
+              onClick={() => show("reading")}
+            >
+              {contextNavigation}
+            </div>
+          )}
+          <div className="space-material-navigation" ref={setNavigation} />
+          <footer className="space-sidebar-footer">
+            <a
+              href="#/library"
+              className="space-footer-link"
+              title={t("资源库")}
+            >
+              <Icon name="book" size={17} />
+              <span>{t("资源库")}</span>
+            </a>
+            <a
+              href="#/settings"
+              className="space-footer-link"
+              title={t("设置与连接")}
+            >
+              <Icon name="settings" size={17} />
+              <span>{t("设置与连接")}</span>
+            </a>
+            <button
+              className="text-button space-assistant-settings"
+              aria-label={`${t("专用会话")}${content ? ` · ${assistantLabel(content.assistant)}` : ""}`}
+              title={t("专用会话")}
               onClick={() => setAssistant(true)}
               disabled={!content}
             >
-              <Icon name="settings" />
-              {t("专用会话")} ·{" "}
-              {content ? assistantLabel(content.assistant) : t("读取中…")}
+              <Icon name="settings" size={16} />
+              <span>
+                {t("专用会话")}
+                {content ? ` · ${assistantLabel(content.assistant)}` : ""}
+              </span>
             </button>
-            <button
-              className="button primary"
-              disabled={disabled}
-              onClick={() => setSend({ references: [] })}
-            >
-              <Icon name="plus" />
-              {t("发起协作请求")}
-            </button>
+            <div className="space-local-status">
+              <span className={`dot ${disabled ? "" : "green-dot"}`} />
+              <span>{c.hasExecution ? t("共同执行") : t("分享与审阅")}</span>
+            </div>
+          </footer>
+        </aside>
+        <div className="space-workbench-main" ref={heading}>
+          <ErrorBox message={error || data.error} retry={data.reload} />
+          <div
+            id={`${uid}-overview-panel`}
+            role="tabpanel"
+            aria-labelledby={`${uid}-overview-tab`}
+            hidden={tab !== "overview"}
+            className="workbench-pane space-overview"
+          >
+            <SpaceOverview
+              collaboration={c}
+              view={content}
+              onRead={locate}
+              onBrief={() => show("brief")}
+              onRequests={() => show("requests")}
+              onRequest={setSelectedRequest}
+              management={overview}
+            />
+          </div>
+          <div
+            id={`${uid}-reading-panel`}
+            role="tabpanel"
+            aria-label={t("阅读与讨论")}
+            hidden={tab !== "reading"}
+            className={`space-reading-area ${commentsOpen ? "comments-open" : ""}`}
+          >
+            <div className="space-reading-main">{children}</div>
+            {comments && (
+              <aside
+                className="space-comments"
+                hidden={!commentsOpen}
+                aria-label={t("空间评论")}
+              >
+                <div className="space-comments-heading">
+                  <strong>{t("评论")}</strong>
+                  <button
+                    className="icon-button"
+                    aria-label={t("收起评论")}
+                    onClick={() => setCommentsOpen(false)}
+                  >
+                    <Icon name="close" size={16} />
+                  </button>
+                </div>
+                {comments}
+              </aside>
+            )}
+          </div>
+          <div
+            id={`${uid}-requests-panel`}
+            role="tabpanel"
+            aria-labelledby={`${uid}-requests-tab`}
+            hidden={tab !== "requests"}
+            className="workbench-pane"
+          >
+            {content ? (
+              <>
+                <div className="workbench-section-heading">
+                  <div>
+                    <h2>{t("协作请求")}</h2>
+                    <p className="muted">
+                      {t("提交、读取和完成分别记录；结果摘要由接收会话报告。")}
+                    </p>
+                  </div>
+                  <span className="workbench-tag neutral">{tr`共 ${content.total} 条`}</span>
+                  <button
+                    className="button primary"
+                    disabled={disabled}
+                    onClick={() => setSend({ references: [] })}
+                  >
+                    <Icon name="plus" />
+                    {t("发起协作请求")}
+                  </button>
+                </div>
+                {content.requests.length ? (
+                  <div className="workbench-requests">
+                    {content.requests.map(card)}
+                  </div>
+                ) : (
+                  <div className="panel workbench-empty">
+                    <h3>{t("从一条明确的请求开始")}</h3>
+                    <p>
+                      {t(
+                        "选择已发布材料或批注，交给空间中的一个接收会话。也可以直接提出新的问题。",
+                      )}
+                    </p>
+                    <button
+                      className="button"
+                      onClick={() => setTab("sessions")}
+                    >
+                      {t("关联接收会话")}
+                    </button>
+                  </div>
+                )}
+                {content.total > 40 && (
+                  <div className="workbench-pagination">
+                    <button
+                      className="button small"
+                      disabled={offset === 0}
+                      onClick={() => setOffset(Math.max(0, offset - 40))}
+                    >
+                      {t("上一页")}
+                    </button>
+                    <span>{tr`${Math.floor(offset / 40) + 1} / ${Math.max(1, Math.ceil(content.total / 40))}`}</span>
+                    <button
+                      className="button small"
+                      disabled={content.nextOffset === undefined}
+                      onClick={() => setOffset(content.nextOffset!)}
+                    >
+                      {t("下一页")}
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : tab === "requests" ? (
+              <Loading />
+            ) : null}
+          </div>
+          <div
+            id={`${uid}-brief-panel`}
+            role="tabpanel"
+            aria-labelledby={`${uid}-brief-tab`}
+            hidden={tab !== "brief"}
+            className="workbench-pane"
+          >
+            {content && (
+              <BriefPanel
+                key={c.id}
+                c={c}
+                brief={content.brief}
+                draft={briefDraft}
+                setDraft={setBriefDraft}
+                disabled={disabled}
+                onSaved={data.reload}
+                onLocate={locate}
+                onRequest={setSelectedRequest}
+              />
+            )}
+          </div>
+          <div
+            id={`${uid}-sessions-panel`}
+            role="tabpanel"
+            aria-labelledby={`${uid}-sessions-tab`}
+            hidden={tab !== "sessions"}
+            className="workbench-pane"
+          >
+            {content && (
+              <SpaceSessions
+                c={c}
+                view={content}
+                disabled={disabled}
+                onChanged={data.reload}
+                onSend={(targetId) => setSend({ references: [], targetId })}
+                onRemove={(targetId) => void act("remove", { targetId })}
+              />
+            )}
           </div>
         </div>
-        <div
-          className="workbench-tabs"
-          role="tablist"
-          aria-label={t("空间工作台")}
-        >
-          {nav.map((item, index) => (
-            <button
-              key={item.value}
-              ref={(el) => {
-                tabs.current[index] = el;
-              }}
-              id={`${uid}-${item.value}-tab`}
-              role="tab"
-              aria-selected={tab === item.value}
-              aria-controls={`${uid}-${item.value}-panel`}
-              tabIndex={tab === item.value ? 0 : -1}
-              onClick={() => setTab(item.value)}
-              onKeyDown={(e) => {
-                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key))
-                  return;
-                e.preventDefault();
-                const next =
-                  e.key === "Home"
-                    ? 0
-                    : e.key === "End"
-                      ? nav.length - 1
-                      : (index +
-                          (e.key === "ArrowLeft" ? -1 : 1) +
-                          nav.length) %
-                        nav.length;
-                setTab(nav[next]!.value);
-                tabs.current[next]?.focus();
-              }}
-            >
-              {item.label}
-              {item.value === "requests" && content && (
-                <span className="count">{content.total}</span>
-              )}
-              {item.value === "brief" && briefDraft && (
-                <span
-                  className="workbench-draft-dot"
-                  aria-hidden="true"
-                  title={t("草稿尚未保存")}
-                />
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-      <ErrorBox message={error || data.error} retry={data.reload} />
-      <div
-        id={`${uid}-reading-panel`}
-        role="tabpanel"
-        aria-labelledby={`${uid}-reading-tab`}
-        hidden={tab !== "reading"}
-      >
-        {children}
-      </div>
-      <div
-        id={`${uid}-requests-panel`}
-        role="tabpanel"
-        aria-labelledby={`${uid}-requests-tab`}
-        hidden={tab !== "requests"}
-        className="workbench-pane"
-      >
-        {content ? (
-          <>
-            <div className="workbench-section-heading">
-              <div>
-                <h2>{t("协作请求")}</h2>
-                <p className="muted">
-                  {t("提交、读取和完成分别记录；结果摘要由接收会话报告。")}
-                </p>
-              </div>
-              <span className="workbench-tag neutral">{tr`共 ${content.total} 条`}</span>
-            </div>
-            {content.requests.length ? (
-              <div className="workbench-requests">
-                {content.requests.map(card)}
-              </div>
-            ) : (
-              <div className="panel workbench-empty">
-                <h3>{t("从一条明确的请求开始")}</h3>
-                <p>
-                  {t(
-                    "选择已发布材料或批注，交给空间中的一个接收会话。也可以直接提出新的问题。",
-                  )}
-                </p>
-                <button className="button" onClick={() => setTab("sessions")}>
-                  {t("关联接收会话")}
-                </button>
-              </div>
-            )}
-            {content.total > 40 && (
-              <div className="workbench-pagination">
-                <button
-                  className="button small"
-                  disabled={offset === 0}
-                  onClick={() => setOffset(Math.max(0, offset - 40))}
-                >
-                  {t("上一页")}
-                </button>
-                <span>{tr`${Math.floor(offset / 40) + 1} / ${Math.max(1, Math.ceil(content.total / 40))}`}</span>
-                <button
-                  className="button small"
-                  disabled={content.nextOffset === undefined}
-                  onClick={() => setOffset(content.nextOffset!)}
-                >
-                  {t("下一页")}
-                </button>
-              </div>
-            )}
-          </>
-        ) : tab === "requests" ? (
-          <Loading />
-        ) : null}
-      </div>
-      <div
-        id={`${uid}-brief-panel`}
-        role="tabpanel"
-        aria-labelledby={`${uid}-brief-tab`}
-        hidden={tab !== "brief"}
-        className="workbench-pane"
-      >
-        {content && (
-          <BriefPanel
-            key={c.id}
-            c={c}
-            brief={content.brief}
-            draft={briefDraft}
-            setDraft={setBriefDraft}
-            disabled={disabled}
-            onSaved={data.reload}
-            onLocate={locate}
-            onRequest={setSelectedRequest}
-          />
-        )}
-      </div>
-      <div
-        id={`${uid}-sessions-panel`}
-        role="tabpanel"
-        aria-labelledby={`${uid}-sessions-tab`}
-        hidden={tab !== "sessions"}
-        className="workbench-pane"
-      >
-        {content && (
-          <SpaceSessions
-            c={c}
-            view={content}
-            disabled={disabled}
-            onChanged={data.reload}
-            onSend={(targetId) => setSend({ references: [], targetId })}
-            onRemove={(targetId) => void act("remove", { targetId })}
-          />
-        )}
       </div>
       {send && (
         <Modal title={t("发起空间协作")} onClose={() => setSend(undefined)}>
@@ -432,6 +685,8 @@ export function SpaceWorkbench({
             spaceId={c.id}
             initialTargetId={send.targetId}
             parentRequestId={send.parentRequestId}
+            initialInstruction={send.instruction}
+            collaboration={c}
             onSent={data.reload}
           />
         </Modal>

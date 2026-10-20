@@ -31,12 +31,54 @@ func TestWorkbenchBrowserFixture(t *testing.T) {
 	s.mu.Lock()
 	s.record.Title = "接口超时调查 · 协作空间"
 	s.mu.Unlock()
-	d := materialDraft(t, a, f)
+	// Multiple materials and immutable versions exercise sidebar navigation and
+	// reference selection in the real UI. This remains synthetic native history.
+	f.mu.Lock()
+	f.nativeUserContent = true
+	f.history = []MaterialTurn{{ID: "review", Status: "completed", Items: []MaterialItem{{ID: "question", Type: "userMessage", Text: "请复核这次调查的处理范围。核对已确认的结论，以及高并发、断线恢复场景中仍需补充的验证，把结论和待确认项分开记录。"}, {
+		ID: "answer", Type: "agentMessage", Text: "## 并发与断线复核\n\n对照当前处理路径，需要补充三组验证：\n\n1. 同一请求并发提交，只接收一次输入。\n2. 请求送达后断线，查询原请求的状态。\n3. 新绑定生效后，隔离旧绑定晚到的结果。\n\n这些建议等待空间成员确认，尚未成为发布结论。",
+	}}}}
+	f.mu.Unlock()
+	review, err := a.FreezeSource(ctx, "codex", f.source.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err = a.PreviewPublication(PublicationSelection{DraftID: review.ID, Title: "并发与断线复核", StartTurnID: "review", EndTurnID: "review"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = a.Publish(ctx, s.record.ID, PublishInput{PreviewID: review.ID, PreviewHash: review.Hash, RequestID: uuid.NewString()}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.history = []MaterialTurn{{ID: "analysis", Status: "completed", Items: []MaterialItem{{ID: "question", Type: "userMessage", Text: "请复核这次调查的处理范围。核对已确认的结论，以及高并发、断线恢复场景中仍需补充的验证，把结论和待确认项分开记录。"}, {
+		ID: "answer", Type: "agentMessage", Text: "## 连接池等待与重试策略\n\n超时主要发生在请求获取连接之前。我们对照了相同并发下的连接池等待与服务端耗时，先保留观察结果，再讨论调整范围。\n\n### 已完成的验证\n\n| 观测项 | 调整前 | 调整后 |\n| --- | --- | --- |\n| 连接池等待 P95 | 420 ms | 38 ms |\n| 服务端耗时 P95 | 30 ms | 31 ms |\n\n### 处理建议\n\n- 保留材料的固定版本，便于后续复核。\n- 对结果不明的请求查询原始状态，避免重复输入。\n- 补充高并发和断线恢复场景后，再确认发布范围。\n\n> 以上为浏览器验证使用的合成数据，不代表真实网络测试结果。\n\n```go\ntransport.MaxConnsPerHost = 20\n```",
+	}}}}
+	f.mu.Unlock()
+	d, err := a.FreezeSource(ctx, "codex", f.source.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err = a.PreviewPublication(PublicationSelection{DraftID: d.ID, Title: "连接池等待与重试策略", StartTurnID: "analysis", EndTurnID: "analysis"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	pub, err := a.Publish(ctx, s.record.ID, PublishInput{PreviewID: d.ID, PreviewHash: d.Hash, RequestID: uuid.NewString()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	mid := pub.(map[string]any)["materialId"].(string)
+	d, err = a.FreezeSource(ctx, "codex", f.source.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err = a.PreviewPublication(PublicationSelection{DraftID: d.ID, Title: "连接池等待与重试策略 · 复核版", StartTurnID: "analysis", EndTurnID: "analysis"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = a.Publish(ctx, s.record.ID, PublishInput{PreviewID: d.ID, PreviewHash: d.Hash, RequestID: uuid.NewString(), MaterialID: mid, BaseVersion: 1}); err != nil {
+		t.Fatal(err)
+	}
 	ref := LibraryReference{SpaceID: s.record.ID, Kind: "material", MaterialID: mid, Version: 1}
 	note, err := s.annotate(Annotation{Text: "这组验证是否覆盖重试和断线恢复？", Materials: []MaterialReference{{MaterialID: mid, Version: 1}}}, "发起者")
 	if err != nil {

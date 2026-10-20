@@ -454,13 +454,18 @@ describe("个人资源库", () => {
     location.hash = "/collaborations/space";
     render(<App />);
     await userEvent.click(
-      await screen.findByRole("button", { name: "阅读材料" }),
+      await screen.findByRole("button", { name: /^阅读 连接池调查/ }),
     );
     const pane = screen.getByRole("tabpanel", { name: /已发布会话材料/ });
     expect(
       within(pane).getByRole("heading", { name: "连接池调查修订版" }),
     ).toBeVisible();
-    expect(within(pane).getByText(/公开 3 轮/)).toBeVisible();
+    expect(within(pane).getByText(/3 轮对话/)).toBeVisible();
+    await userEvent.click(
+      within(pane).getByText("", {
+        selector: "summary[aria-label='材料操作']",
+      }),
+    );
     expect(
       within(pane).getAllByRole("button", { name: "加入选择" }),
     ).toHaveLength(1);
@@ -474,7 +479,12 @@ describe("个人资源库", () => {
     expect(
       within(pane).queryByText("连接池调查修订版"),
     ).not.toBeInTheDocument();
-    expect(within(pane).getByText(/公开 1 轮/)).toBeVisible();
+    expect(within(pane).getByText(/1 轮对话/)).toBeVisible();
+    await userEvent.click(
+      within(pane).getByText("", {
+        selector: "summary[aria-label='材料操作']",
+      }),
+    );
     await userEvent.click(
       within(pane).getByRole("button", { name: "加入选择" }),
     );
@@ -497,12 +507,17 @@ describe("个人资源库", () => {
         .filter((c) => c.path === "library/state" && c.body.action === "select")
         .at(-1)?.body.reference.version,
     ).toBe(1);
+    await userEvent.click(screen.getByRole("tab", { name: "空间概览" }));
     await userEvent.click(
-      within(pane).getByRole("button", { name: "收起材料" }),
+      screen.getByRole("button", { name: /^阅读 连接池调查/ }),
     );
     expect(
-      within(pane).getAllByRole("button", { name: "加入选择" }),
-    ).toHaveLength(1);
+      within(pane).getByRole("combobox", { name: "查看固定版本" }),
+    ).toHaveValue("1");
+    await userEvent.selectOptions(
+      within(pane).getByRole("combobox", { name: "查看固定版本" }),
+      "2",
+    );
     await userEvent.click(
       within(pane).getByRole("button", { name: "加入选择" }),
     );
@@ -515,7 +530,7 @@ describe("个人资源库", () => {
     location.hash = "/collaborations/space";
     render(<App />);
     await userEvent.click(
-      await screen.findByRole("button", { name: "阅读材料" }),
+      await screen.findByRole("button", { name: /^阅读 连接池调查/ }),
     );
     const text = await findMaterialParagraph();
     const materialPane = screen.getByRole("tabpanel", {
@@ -527,7 +542,9 @@ describe("个人资源库", () => {
       })
       .closest<HTMLElement>(".reading-heading")!;
     expect(
-      within(header).getByRole("button", { name: "发布会话材料" }),
+      within(
+        screen.getByRole("complementary", { name: "空间功能与材料" }),
+      ).getByRole("button", { name: "发布会话材料" }),
     ).toBeVisible();
     expect(
       within(materialPane).queryByRole("heading", { name: /已发布会话材料/ }),
@@ -535,11 +552,12 @@ describe("个人资源库", () => {
     expect(
       screen
         .getByRole("button", { name: "专注阅读" })
-        .closest(".reading-heading"),
+        .closest(".space-reader-tools"),
     ).not.toBeNull();
     expect(
       materialPane.querySelector(".reading-surface > .reader-toolbar"),
     ).toBeNull();
+    await userEvent.click(screen.getByLabelText("材料操作"));
     await userEvent.click(screen.getByRole("button", { name: "专注阅读" }));
     await userEvent.click(screen.getByRole("tab", { name: "协作上下文" }));
     expect(text).not.toBeVisible();
@@ -571,12 +589,14 @@ describe("个人资源库", () => {
     await userEvent.keyboard("{ArrowLeft}");
     expect(screen.getByRole("tab", { name: /已发布会话材料/ })).toHaveFocus();
     expect(text).toBeVisible();
+    await userEvent.click(screen.getByLabelText("材料操作"));
     expect(
       screen.getByRole("button", { name: "退出专注阅读", pressed: true }),
     ).toBeVisible();
     expect(calls.filter((c) => c.path.endsWith("/read-material"))).toHaveLength(
       1,
     );
+    screen.getByRole("tab", { name: /已发布会话材料/ }).focus();
     await userEvent.keyboard("{End}");
     expect(contextTab).toHaveFocus();
     expect(
@@ -601,6 +621,7 @@ describe("个人资源库", () => {
     });
     location.hash = "/collaborations/space";
     render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: /^评论/ }));
     const liveNote = await screen.findByLabelText("批注：核对后续验证");
     await userEvent.click(
       within(liveNote).getByRole("button", { name: /查看原位置/ }),

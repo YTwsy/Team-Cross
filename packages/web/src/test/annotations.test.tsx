@@ -183,13 +183,14 @@ describe("原处批注", () => {
       text: `第 ${index + 1} 条长批注：${"需要继续核对这次协作的上下文。".repeat(8)}`,
     }));
     render(<Detail id="annotations" />);
+    await userEvent.click(await screen.findByRole("button", { name: /^评论/ }));
     const annotations = await screen.findByRole("region", {
       name: "协作批注",
     });
     const execution = document.querySelector<HTMLElement>(".execution-strip")!;
     const sharing = document.querySelector<HTMLElement>(".execution-sharing")!;
-    const workspace = document.querySelector<HTMLElement>(".detail-grid")!;
-    const aside = document.querySelector<HTMLElement>(".detail-aside")!;
+    const overview = document.querySelector<HTMLElement>(".space-overview")!;
+    const aside = screen.getByRole("complementary", { name: "空间评论" });
     const participants = document.querySelector<HTMLElement>(
       ".participants-panel",
     )!;
@@ -200,20 +201,20 @@ describe("原处批注", () => {
     expect(
       within(sharing).getByLabelText("查看共享状态详情"),
     ).toBeInTheDocument();
-    expect(aside).toContainElement(participants);
+    expect(overview).toContainElement(participants);
     expect(
-      within(participants).getByRole("heading", { name: "参与成员" }),
-    ).toBeVisible();
+      within(participants).getByRole("heading", {
+        name: "参与成员",
+        hidden: true,
+      }),
+    ).not.toBeVisible();
     expect(
       participants.compareDocumentPosition(annotations) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(tabs.at(-1)).toHaveTextContent("技术信息");
     expect(document.querySelector(".collaboration-inspector")).toBeNull();
-    expect(
-      execution.compareDocumentPosition(workspace) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(overview).toContainElement(execution);
     expect(aside).toContainElement(annotations);
     expect(screen.getAllByRole("article")).toHaveLength(6);
     expect(
@@ -228,6 +229,7 @@ describe("原处批注", () => {
   it("选中重复片段时保留准确消息与 UTF-16 范围，保存不发送模型输入", async () => {
     const user = userEvent.setup();
     render(<Detail id="annotations" />);
+    await userEvent.click(await screen.findByRole("button", { name: /^评论/ }));
     const message = await screen.findByText(original, {
       selector: "[data-source-start]",
     });
@@ -271,6 +273,7 @@ describe("原处批注", () => {
   it("连续文件行自动引用，返回旧批注时不高亮已变化的同号行", async () => {
     const user = userEvent.setup();
     render(<Detail id="annotations" />);
+    await userEvent.click(await screen.findByRole("button", { name: /^评论/ }));
     await screen.findByText(original, { selector: "[data-source-start]" });
     await user.click(screen.getByRole("tab", { name: "查看文件" }));
     await user.type(screen.getByLabelText("相对执行目录的文件路径"), file.path);
@@ -309,6 +312,7 @@ describe("原处批注", () => {
     const user = userEvent.setup();
     rejectSave = true;
     render(<Detail id="annotations" />);
+    await userEvent.click(await screen.findByRole("button", { name: /^评论/ }));
     await user.click(
       await screen.findByRole("button", { name: "批注这条消息" }),
     );
@@ -332,6 +336,7 @@ describe("原处批注", () => {
   it("直接写整体意见无需按钮或弹窗，回复保持原批注数量和位置", async () => {
     const user = userEvent.setup();
     render(<Detail id="annotations" />);
+    await userEvent.click(await screen.findByRole("button", { name: /^评论/ }));
     await user.type(await screen.findByLabelText("你的意见"), "整体检查意见");
     await user.click(screen.getByRole("button", { name: "保存批注" }));
     const discussion = await screen.findByRole("article", {
@@ -379,6 +384,7 @@ describe("原处批注", () => {
     const user = userEvent.setup();
     current.annotations = [{ ...note(), text: "已有意见" }];
     render(<Detail id="annotations" />);
+    await userEvent.click(await screen.findByRole("button", { name: /^评论/ }));
     await user.click(await screen.findByRole("button", { name: "回复" }));
     await user.type(screen.getByLabelText("回复这条批注"), "暂存回复");
     rejectSave = true;
@@ -439,6 +445,7 @@ describe("原处批注", () => {
       }),
     ];
     render(<Detail id="annotations" />);
+    await userEvent.click(await screen.findByRole("button", { name: /^评论/ }));
     await user.click(await screen.findByRole("button", { name: /查看原位置/ }));
     await screen.findByText("已定位到批注原文。");
     expect(cursors).toContain("older-page");

@@ -66,6 +66,10 @@ it.each([false, true])(
       }),
     );
     render(<Detail id="space" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
     await user.click(await screen.findByRole("button", { name: "关闭空间" }));
     await user.click(screen.getByRole("button", { name: "确认关闭空间" }));
     await screen.findByText(
@@ -115,6 +119,8 @@ it("keeps one reusable invitation and separates link rotation and closure from e
     }),
   );
   render(<Detail id="space" />);
+  await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+  await userEvent.click(screen.getByText("空间管理", { selector: "summary" }));
   await user.click(await screen.findByRole("button", { name: "邀请成员" }));
   expect(screen.getByRole("button", { name: "复制邀请链接" })).toBeVisible();
   expect(screen.queryByText(/为另一位.*生成邀请/)).not.toBeInTheDocument();
@@ -193,6 +199,8 @@ it("keeps a member in discussion after execution is enabled until execution acce
     ),
   );
   render(<Detail id="space" />);
+  await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+  await userEvent.click(screen.getByText("空间管理", { selector: "summary" }));
   await screen.findByText(/发起者已启用共同执行/);
   expect(
     screen.queryByRole("button", { name: "申请输入" }),

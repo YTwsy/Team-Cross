@@ -6,6 +6,7 @@ import { sameReference, useLibrary, type LibraryReference } from "../library";
 import type { WorkbenchView } from "../workbench";
 import { currentConversation } from "../currentConversation";
 import { Copy, ErrorBox, Icon, Loading, Modal } from "./ui";
+import { SpaceReferencePicker } from "./SpaceReferencePicker";
 
 export type AgentPairing = {
   id: string;
@@ -367,18 +368,23 @@ export function AgentRequestStatus({ request }: { request: AgentRequest }) {
 }
 
 export function SendToAgent({
-  references,
+  references: initialReferences,
   spaceId,
   initialTargetId = "",
   parentRequestId,
   onSent,
+  initialInstruction,
+  collaboration,
 }: {
   references: LibraryReference[];
   spaceId?: string;
   initialTargetId?: string;
   parentRequestId?: string;
   onSent?: () => void;
+  initialInstruction?: string;
+  collaboration?: import("../types").Collaboration;
 }) {
+  const [references, setReferences] = useState(initialReferences);
   const library = useLibrary();
   const pairs = useResource<AgentPairing[]>(
     spaceId ? null : "agent-pairings",
@@ -413,7 +419,7 @@ export function SendToAgent({
   );
   const [pairing, setPairing] = useState(false);
   const [instruction, setInstruction] = useState(
-    t("请读取所选内容，核对原文后分析。"),
+    initialInstruction || t("请读取所选内容，核对原文后分析。"),
   );
   const [intent, setIntent] = useState("analyze");
   const [busy, setBusy] = useState(false);
@@ -501,13 +507,70 @@ export function SendToAgent({
     }
   }
   return (
-    <div className="send-to-agent">
+    <div
+      className={`send-to-agent ${collaboration ? "space-request-composer" : ""}`}
+    >
       {spaceId && (
         <p className="notice">
           {t("请求、所选引用和结果摘要将对本空间成员可见。")}
         </p>
       )}
       <p>{tr`本次带入 ${references.length} 项明确引用。原文仍由 Agent 按当前权限读取。`}</p>
+      <label>
+        {t("处理要求")}
+        <textarea
+          aria-label={t("Agent 处理要求")}
+          rows={3}
+          maxLength={4000}
+          value={instruction}
+          disabled={locked}
+          onChange={(e) => setInstruction(e.target.value)}
+        />
+      </label>
+      {collaboration ? (
+        <SpaceReferencePicker
+          collaboration={collaboration}
+          value={references}
+          disabled={locked}
+          onChange={(next) => {
+            setReferences(next);
+            if (!next.some((r) => r.kind === "annotation"))
+              setIntent("analyze");
+          }}
+        />
+      ) : (
+        <details>
+          <summary>{t("查看本次引用")}</summary>
+          <ul>
+            {references.map((ref, i) => {
+              const resource = library?.data?.resources.find((r) =>
+                sameReference(r.reference, ref),
+              );
+              const label =
+                resource?.title ||
+                (ref.kind === "material"
+                  ? t("已发布会话材料")
+                  : ref.kind === "annotation"
+                    ? t("批注")
+                    : t("上下文"));
+              return (
+                <li key={i}>
+                  {resource?.spaceTitle ? `${resource.spaceTitle} · ` : ""}
+                  {label}
+                  {ref.kind === "material"
+                    ? ` · ${tr`版本 ${ref.version}`}`
+                    : ""}
+                </li>
+              );
+            })}
+          </ul>
+          {!references.length && (
+            <p className="muted">
+              {t("未附带材料引用；接收会话可按需读取空间简报。")}
+            </p>
+          )}
+        </details>
+      )}
       <label>
         {t("接收会话")}
         <select
@@ -550,46 +613,6 @@ export function SendToAgent({
           )}
         </select>
       </label>
-      <label>
-        {t("处理要求")}
-        <textarea
-          aria-label={t("Agent 处理要求")}
-          rows={3}
-          maxLength={4000}
-          value={instruction}
-          disabled={locked}
-          onChange={(e) => setInstruction(e.target.value)}
-        />
-      </label>
-      <details>
-        <summary>{t("查看本次引用")}</summary>
-        <ul>
-          {references.map((ref, i) => {
-            const resource = library?.data?.resources.find((r) =>
-              sameReference(r.reference, ref),
-            );
-            const label =
-              resource?.title ||
-              (ref.kind === "material"
-                ? t("已发布会话材料")
-                : ref.kind === "annotation"
-                  ? t("批注")
-                  : t("上下文"));
-            return (
-              <li key={i}>
-                {resource?.spaceTitle ? `${resource.spaceTitle} · ` : ""}
-                {label}
-                {ref.kind === "material" ? ` · ${tr`版本 ${ref.version}`}` : ""}
-              </li>
-            );
-          })}
-        </ul>
-        {!references.length && (
-          <p className="muted">
-            {t("未附带材料引用；接收会话可按需读取空间简报。")}
-          </p>
-        )}
-      </details>
       <ErrorBox message={error || pairs.error || space.error} />
       {!locked && reason && <p className="notice">{reason}</p>}
       {busy && <Loading text={t("正在提交，请勿重复发送…")} />}

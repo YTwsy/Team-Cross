@@ -101,6 +101,8 @@ fixture 使用合成原生历史，其他发布、版本、Core HTTP、存储、
 
 ## 空间工作台
 
+空间导航与阅读布局调整需回归 [材料与统一引用交互](../../../../packages/web/src/test/space-reading.test.tsx) 和 [工作台请求](../../../../packages/web/src/test/space-workbench.test.tsx)：仅加载当前材料、切换保留固定版本与分页缓存、搜索不关闭正文、评论收起保留草稿、引用预览不改变选择、材料与公开批注混合提交、取消不写入，以及提交后锁定引用。使用 [工作台浏览器 fixture](../../../../internal/collab/workbench_browser_test.go) 的多材料与历史版本检查实际界面；执行空间另用 [资源库 fixture](../../../../internal/collab/library_browser_test.go) 检查上下文与成员管理入口。窄窗口核对侧栏收起、评论抽屉、无水平溢出和键盘/弹窗焦点；浅深主题均复核。上述 fixture 使用真实 Core 和合成原生历史，不增加真实模型或跨 Mac 验收范围。
+
 仅修改 CLI 发现或错误恢复时，检查 [接收会话路径回归](../../../../internal/collab/receiver_discovery_test.go) 和 [工作台交互](../../../../packages/web/src/test/space-workbench.test.tsx)：设置与助手有效路径一致、设置变化立即生效、历史错误不冒充当前检测、只读刷新不启动会话、明确重试保留同一 ID、未知创建结果不重放。此范围不要求真实模型回合；使用可执行文件发现和模拟原生 RPC 即可。
 
 接收生命周期修改检查 [审批与停止回归](../../../../internal/collab/receiver_lifecycle_test.go)、[安全交接回归](../../../../internal/collab/receiver_handoff_test.go) 和工作台交互：精确审批解决、跨 thread 隔离、旧 turn 拒绝、停止去重、暂停后投递/RPC 双重拒绝、等当前执行/审批/已接受调用退出、等待进程真正关闭、空历史拒绝、暂停持久化、同 ID/目录/配对恢复、最新模型继承和占用失败保留原状。空间结束后本机清理仍可用，恢复访问仍受限制。
@@ -136,6 +138,8 @@ TEAMCROSS_WORKBENCH_BROWSER_DIR=/private/tmp/teamcross-space-browser-fresh \
 ```
 
 按 fixture 输出的 `fixture.json` 打开专用页面，检查 1440/1024/768 像素、深浅主题、中英文、材料与批注就地发起、回执/关联导航、简报保存/冲突、专用角色初始化/暂停。创建该目录的 `finish` 文件结束；不得把模拟接收截图描述为真实模型回执。前端修改仍更新嵌入资源。
+
+单侧栏布局另检查发布入口、搜索展开、筛选与材料切换、左栏收起、连续对话的用户与 Agent 消息、评论草稿和更多菜单。空间概览检查固定版本材料跳转及折叠管理入口；阅读底部检查处理要求与材料/批注引用进入发送表单，且未确认接收目标前没有投递。引用选择器中的预览版本不得改变已选版本。`workbench_browser_test.go` 的合成用户消息通过原生 `content` 结构读取，避免仅验证 Agent 正文；共同执行的上下文切换另由 `TestLibraryBrowserFixture` 复核。
 
 ## 空间事件
 

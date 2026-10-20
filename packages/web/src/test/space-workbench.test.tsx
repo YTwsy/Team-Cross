@@ -357,7 +357,7 @@ it("keeps chosen fixed sources and an unsaved brief while searching sources and 
   await userEvent.click(
     screen.getByRole("checkbox", { name: "已确认材料 · 版本 2" }),
   );
-  await userEvent.click(screen.getByRole("tab", { name: "阅读与讨论" }));
+  await userEvent.click(screen.getByRole("tab", { name: "空间概览" }));
   await userEvent.click(screen.getByRole("tab", { name: "空间简报" }));
   expect(screen.getByText("草稿尚未保存")).toBeVisible();
   expect(calls.filter((call) => call.body)).toHaveLength(0);
@@ -408,12 +408,13 @@ it("keeps the reader mounted while tabs and keyboard navigation expose shared wo
   );
   await screen.findByRole("button", { name: "专用会话 · 未启用" });
   const reader = screen.getByTestId("reader");
-  const reading = screen.getByRole("tab", { name: "阅读与讨论" });
-  reading.focus();
+  const overview = screen.getByRole("tab", { name: "空间概览" });
+  overview.focus();
   await userEvent.keyboard("{ArrowRight}");
   expect(screen.getByRole("tab", { name: /协作请求/ })).toHaveFocus();
   expect(reader).not.toBeVisible();
-  await userEvent.click(reading);
+  await userEvent.click(overview);
+  await userEvent.click(screen.getByRole("button", { name: /已确认材料/ }));
   expect(screen.getByTestId("reader")).toBe(reader);
   expect(reader).toBeVisible();
   expect(calls.filter((c) => c.body)).toHaveLength(0);
@@ -490,6 +491,53 @@ it("preserves brief sources and submits the revision the member reviewed", async
       decisions: [{ text: "固定材料版本", sources: [ref] }],
     },
   });
+});
+
+it("submits the material and public annotation confirmed in the unified picker", async () => {
+  const note = {
+    id: "public-note",
+    author: "同事",
+    text: "核对重试边界",
+    createdAt: "",
+  };
+  render(
+    <SpaceWorkbench
+      collaboration={{ ...c, annotations: [note] }}
+      onLocate={() => {}}
+    >
+      <SpaceRequestButton references={[ref]} />
+    </SpaceWorkbench>,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "发起空间协作" }));
+  const request = screen.getByRole("dialog");
+  await userEvent.click(
+    within(request).getByRole("button", { name: "添加引用" }),
+  );
+  const picker = screen.getByRole("dialog", { name: "添加引用" });
+  await userEvent.click(within(picker).getByRole("button", { name: /^批注/ }));
+  await userEvent.click(
+    within(picker).getByRole("checkbox", { name: "选择 核对重试边界" }),
+  );
+  await userEvent.click(
+    within(picker).getByRole("button", { name: "添加 2 项引用" }),
+  );
+  expect(calls.filter((call) => call.body)).toHaveLength(0);
+  await userEvent.selectOptions(
+    await within(request).findByRole("combobox", { name: "接收会话" }),
+    "peer",
+  );
+  await userEvent.click(
+    within(request).getByRole("button", { name: "确认发送" }),
+  );
+  const sent = calls.filter((call) => call.path.endsWith("/workbench/send"));
+  expect(sent).toHaveLength(1);
+  expect(sent[0]!.body.references).toEqual([
+    ref,
+    { spaceId: c.id, kind: "annotation", annotationId: note.id },
+  ]);
+  expect(
+    within(request).getByRole("button", { name: "添加引用" }),
+  ).toBeDisabled();
 });
 
 it("keeps source progress nearby and proposes results without saving a decision automatically", async () => {

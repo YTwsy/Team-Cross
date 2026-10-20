@@ -17,20 +17,13 @@ import { Clients } from "./Clients";
 import { Materials } from "./Materials";
 import { InvitationPanel } from "./InvitationPanel";
 import { ReadOnlySpace } from "./ReadOnlySpace";
-import { SpaceWorkbench, WorkbenchReadingShortcut } from "./SpaceWorkbench";
+import { SpaceWorkbench } from "./SpaceWorkbench";
+import { SpacePeople } from "./SpaceIdentity";
 import { Members } from "./Members";
 import { Context } from "./Context";
 import { ReadingTabs, type ReadingTab } from "./ReadingTabs";
 import { Annotations, type AnnotationRequest } from "./Annotations";
-import {
-  Badge,
-  Empty,
-  ErrorBox,
-  Icon,
-  Loading,
-  Modal,
-  PageHeading,
-} from "./ui";
+import { Badge, Empty, ErrorBox, Icon, Loading, Modal } from "./ui";
 
 function TechnicalInformation({
   collaboration: c,
@@ -254,20 +247,20 @@ export function Detail({ id }: { id: string }) {
             : t("会话与代码保留在执行主机上，可随时重新打开。");
   return (
     <>
-      <PageHeading
-        eyebrow={
-          <nav className="detail-breadcrumb" aria-label={t("当前位置")}>
-            <a href="#/" className="back-link">
-              <Icon name="back" size={16} />
-              {t("协作空间") + " "}
-            </a>
-            <span aria-hidden="true">/</span>
-            <span>{`${projectName(c.repo)} / ${owner ? t("我发起的") : t("我加入的")}`}</span>
-          </nav>
-        }
-        title={c.title}
-      >
+      <header className="space-room-bar">
+        <a
+          href="#/"
+          className="space-room-symbol"
+          aria-label={t("返回协作空间")}
+        >
+          <Icon name="people" size={17} />
+        </a>
+        <div className="space-room-title">
+          <h1 tabIndex={-1}>{c.title}</h1>
+          <span>{projectName(c.repo)}</span>
+        </div>
         <Badge collaboration={c} />
+        <SpacePeople collaboration={c} />
         <details className="runtime-mode-details">
           <summary aria-label={t("查看协作模式说明")}>
             {runtimeModeName(c.runtimeMode)}
@@ -281,214 +274,302 @@ export function Detail({ id }: { id: string }) {
             <p>{runtimeModeDescription(c.runtimeMode)}</p>
           </div>
         </details>
-      </PageHeading>
+        {owner && c.state !== "preparing" && (
+          <button
+            className="button small"
+            disabled={!!busy || c.sharingPreparing}
+            onClick={() => setModal("invite")}
+          >
+            {t("邀请成员")}
+          </button>
+        )}
+        {!closed && c.online && (
+          <button
+            className="button small space-open-client"
+            onClick={() => setModal(mine ? "clients" : "assist")}
+          >
+            <Icon name="terminal" size={16} />
+            {mine ? tr`打开 ${agentName}` : t("用自己的客户端辅助")}
+          </button>
+        )}
+      </header>
       <ErrorBox
         message={error || resource.error || (!closed ? c.error : undefined)}
         retry={resource.reload}
       />
-      <div className="execution-strip">
-        <div>
-          <Icon name="desktop" />
-          <span>
-            <small>{t("执行主机")}</small>
-            <strong title={c.host}>{c.host}</strong>
-          </span>
-        </div>
-        <div>
-          <Icon name={c.workspaceMode === "worktree" ? "branch" : "folder"} />
-          <span>
-            <small>
-              {c.workspaceMode === "worktree"
-                ? t("独立 worktree")
-                : t("使用原目录")}
-            </small>
-            <strong className="path" title={c.executionCwd}>
-              {c.executionCwd}
-            </strong>
-          </span>
-        </div>
-        <div>
-          <span className={`avatar ${mine ? "self" : ""}`}>
-            {mine ? t("我") : t("同")}
-          </span>
-          <span>
-            <small>{t("当前输入者")}</small>
-            <strong>
-              {closed ? t("共享已关闭") : mine ? t("我") : writerName}
-            </strong>
-          </span>
-        </div>
-        <div className="execution-sharing">
-          <details className="sharing-inspector">
-            <summary
-              aria-label={t("查看共享状态详情")}
-              title={sharingDescription}
-            >
-              <span className={`share-state-icon ${c.sharing ? "active" : ""}`}>
-                <Icon name="link" size={16} />
-              </span>
-              <span>
-                <small>{t("共享状态")}</small>
-                <strong>{sharingState}</strong>
-              </span>
-              <Icon name="arrow" size={12} />
-            </summary>
-            <div className="sharing-inspector-popover">
-              <div className="sharing-inspector-heading">
-                <h3>{t("共享状态")}</h3>
-                <span className={`dot ${c.sharing ? "green-dot" : ""}`} />
-              </div>
-              <strong className="sharing-inspector-value">
-                {sharingState}
-              </strong>
-              <p>{sharingDescription}</p>
-              {owner && (c.sharing || c.sharingPreparing) ? (
-                <button
-                  className="text-link danger"
-                  onClick={() => setModal("end")}
-                >
-                  {c.sharingPreparing ? t("取消生成邀请") : t("结束共享")}
-                </button>
-              ) : !owner && c.state !== "left" ? (
-                <button
-                  className="text-link"
-                  disabled={!!busy}
-                  onClick={() => void action("leave")}
-                >
-                  {t("离开协作") + " "}
-                </button>
-              ) : null}
-            </div>
-          </details>
-        </div>
-      </div>
-      <section className="action-panel">
-        <div className="action-copy">
-          <span className={`status-orb ${c.online ? "active" : ""}`}>
-            <Icon name={c.online ? "terminal" : "link"} size={24} />
-          </span>
-          <div>
-            <h2>
-              {closed
-                ? c.state === "expired"
-                  ? t("这份邀请已到期")
-                  : c.state === "left"
-                    ? t("你已离开协作")
-                    : t("这次共享已结束")
-                : c.state === "error"
-                  ? t("协作需要处理")
-                  : !c.online
-                    ? owner
-                      ? c.runtimeState === "releasing"
-                        ? t("正在释放协作会话")
-                        : t("恢复协作，继续上次的工作")
-                      : t("正在等待发起者连接")
-                    : waiting
-                      ? tr`${agentName} 需要你的回应`
-                      : c.busy
-                        ? tr`${agentName} 正在执行`
-                        : mine
-                          ? t("准备好继续了")
-                          : t("同事正在掌握输入")}
-            </h2>
-            <p>
-              {closed
-                ? t(
-                    "会话与代码仍保留在发起者的 Mac 上。继续参与时，请向同事获取新邀请。",
-                  )
-                : !c.online
-                  ? owner
-                    ? c.runtimeState === "releasing"
-                      ? t("正在关闭这次协作的后台运行时，会话与代码继续保留。")
-                      : t("恢复同一个会话与目录，不会重新创建分支。")
-                    : c.transport === "tailcat"
-                      ? t(
-                          "确认双方网络可以访问 Tailcat DERP，并让发起者保持共享。",
-                        )
-                      : t("确认两台 Mac 在同一局域网，并让发起者保持共享。")
-                  : waiting
-                    ? tr`请在当前 ${agentName} 客户端中查看并回应请求。`
-                    : c.busy
-                      ? tr`代码操作发生在 ${c.host}，可以在 ${agentName} 中补充或中断。`
-                      : mine
-                        ? c.connected
-                          ? tr`${c.client || agentName} 已连接，继续在客户端中工作。`
-                          : tr`打开 ${agentName} 客户端，接着已有上下文继续。`
-                        : t("先查看下方的共享上下文，需要操作时可以申请输入。")}
-            </p>
-          </div>
-        </div>
-        <div className="action-buttons">
-          {closed ? (
-            <a className="button primary" href="#/join">
-              {t("使用新邀请加入") + " "}
-              <Icon name="join" size={16} />
-            </a>
-          ) : c.state === "error" ? (
-            <a className="button primary" href="#/settings">
-              {t("检查连接设置") + " "}
-            </a>
-          ) : !c.online && owner && c.state === "ready" ? (
-            <button
-              className="button primary"
-              disabled={!!busy || c.runtimeState === "releasing"}
-              onClick={() => void action("start")}
-            >
-              {busy === "start"
-                ? t("正在恢复…")
-                : c.runtimeState === "released"
-                  ? tr`恢复并打开 ${agentName}`
-                  : t("恢复运行时")}
-              <Icon name="refresh" size={16} />
-            </button>
-          ) : (
-            <button
-              className="button primary"
-              onClick={() => setModal(mine ? "clients" : "assist")}
-            >
-              <Icon name={mine ? "terminal" : "people"} size={18} />
-              {mine ? tr`打开 ${agentName}` : t("用自己的客户端辅助")}
-            </button>
-          )}
-          {canOpenPersonalCodex && (
-            <button
-              className="button"
-              disabled={!!busy}
-              onClick={() => void openPersonalCodex()}
-              title={t("直接定位此协作，无需从 Desktop 列表中查找")}
-            >
-              <Icon name="desktop" size={17} />
-              {busy === "personal-desktop"
-                ? t("正在打开…")
-                : canContinueInPersonalCodex
-                  ? t("在个人 Codex 中继续")
-                  : t("在个人 Codex 中打开")}
-            </button>
-          )}
-          {owner && c.state !== "preparing" && (
-            <button
-              className="button"
-              disabled={!!busy || c.sharingPreparing}
-              onClick={() => setModal("invite")}
-            >
-              <Icon name="link" size={17} />
-              {busy === "share"
-                ? t("正在生成…")
-                : c.invitation
-                  ? t("邀请成员")
-                  : t("邀请成员")}
-            </button>
-          )}
-        </div>
-      </section>
-      {personalOpenNote && (
-        <p className="notice" role="status">
-          {personalOpenNote}
-        </p>
-      )}
       <SpaceWorkbench
         key={c.id}
         collaboration={c}
+        overview={
+          <>
+            <div className="execution-strip">
+              <div>
+                <Icon name="desktop" />
+                <span>
+                  <small>{t("执行主机")}</small>
+                  <strong title={c.host}>{c.host}</strong>
+                </span>
+              </div>
+              <div>
+                <Icon
+                  name={c.workspaceMode === "worktree" ? "branch" : "folder"}
+                />
+                <span>
+                  <small>
+                    {c.workspaceMode === "worktree"
+                      ? t("独立 worktree")
+                      : t("使用原目录")}
+                  </small>
+                  <strong className="path" title={c.executionCwd}>
+                    {c.executionCwd}
+                  </strong>
+                </span>
+              </div>
+              <div>
+                <span className={`avatar ${mine ? "self" : ""}`}>
+                  {mine ? t("我") : t("同")}
+                </span>
+                <span>
+                  <small>{t("当前输入者")}</small>
+                  <strong>
+                    {closed ? t("共享已关闭") : mine ? t("我") : writerName}
+                  </strong>
+                </span>
+              </div>
+              <div className="execution-sharing">
+                <details className="sharing-inspector">
+                  <summary
+                    aria-label={t("查看共享状态详情")}
+                    title={sharingDescription}
+                  >
+                    <span
+                      className={`share-state-icon ${c.sharing ? "active" : ""}`}
+                    >
+                      <Icon name="link" size={16} />
+                    </span>
+                    <span>
+                      <small>{t("共享状态")}</small>
+                      <strong>{sharingState}</strong>
+                    </span>
+                    <Icon name="arrow" size={12} />
+                  </summary>
+                  <div className="sharing-inspector-popover">
+                    <div className="sharing-inspector-heading">
+                      <h3>{t("共享状态")}</h3>
+                      <span className={`dot ${c.sharing ? "green-dot" : ""}`} />
+                    </div>
+                    <strong className="sharing-inspector-value">
+                      {sharingState}
+                    </strong>
+                    <p>{sharingDescription}</p>
+                    {owner && (c.sharing || c.sharingPreparing) ? (
+                      <button
+                        className="text-link danger"
+                        onClick={() => setModal("end")}
+                      >
+                        {c.sharingPreparing ? t("取消生成邀请") : t("结束共享")}
+                      </button>
+                    ) : !owner && c.state !== "left" ? (
+                      <button
+                        className="text-link"
+                        disabled={!!busy}
+                        onClick={() => void action("leave")}
+                      >
+                        {t("离开协作") + " "}
+                      </button>
+                    ) : null}
+                  </div>
+                </details>
+              </div>
+            </div>
+            <section className="action-panel">
+              <div className="action-copy">
+                <span className={`status-orb ${c.online ? "active" : ""}`}>
+                  <Icon name={c.online ? "terminal" : "link"} size={24} />
+                </span>
+                <div>
+                  <h2>
+                    {closed
+                      ? c.state === "expired"
+                        ? t("这份邀请已到期")
+                        : c.state === "left"
+                          ? t("你已离开协作")
+                          : t("这次共享已结束")
+                      : c.state === "error"
+                        ? t("协作需要处理")
+                        : !c.online
+                          ? owner
+                            ? c.runtimeState === "releasing"
+                              ? t("正在释放协作会话")
+                              : t("恢复协作，继续上次的工作")
+                            : t("正在等待发起者连接")
+                          : waiting
+                            ? tr`${agentName} 需要你的回应`
+                            : c.busy
+                              ? tr`${agentName} 正在执行`
+                              : mine
+                                ? t("准备好继续了")
+                                : t("同事正在掌握输入")}
+                  </h2>
+                  <p>
+                    {closed
+                      ? t(
+                          "会话与代码仍保留在发起者的 Mac 上。继续参与时，请向同事获取新邀请。",
+                        )
+                      : !c.online
+                        ? owner
+                          ? c.runtimeState === "releasing"
+                            ? t(
+                                "正在关闭这次协作的后台运行时，会话与代码继续保留。",
+                              )
+                            : t("恢复同一个会话与目录，不会重新创建分支。")
+                          : c.transport === "tailcat"
+                            ? t(
+                                "确认双方网络可以访问 Tailcat DERP，并让发起者保持共享。",
+                              )
+                            : t(
+                                "确认两台 Mac 在同一局域网，并让发起者保持共享。",
+                              )
+                        : waiting
+                          ? tr`请在当前 ${agentName} 客户端中查看并回应请求。`
+                          : c.busy
+                            ? tr`代码操作发生在 ${c.host}，可以在 ${agentName} 中补充或中断。`
+                            : mine
+                              ? c.connected
+                                ? tr`${c.client || agentName} 已连接，继续在客户端中工作。`
+                                : tr`打开 ${agentName} 客户端，接着已有上下文继续。`
+                              : t(
+                                  "先查看下方的共享上下文，需要操作时可以申请输入。",
+                                )}
+                  </p>
+                </div>
+              </div>
+              <div className="action-buttons">
+                {closed ? (
+                  <a className="button primary" href="#/join">
+                    {t("使用新邀请加入") + " "}
+                    <Icon name="join" size={16} />
+                  </a>
+                ) : c.state === "error" ? (
+                  <a className="button primary" href="#/settings">
+                    {t("检查连接设置") + " "}
+                  </a>
+                ) : !c.online && owner && c.state === "ready" ? (
+                  <button
+                    className="button primary"
+                    disabled={!!busy || c.runtimeState === "releasing"}
+                    onClick={() => void action("start")}
+                  >
+                    {busy === "start"
+                      ? t("正在恢复…")
+                      : c.runtimeState === "released"
+                        ? tr`恢复并打开 ${agentName}`
+                        : t("恢复运行时")}
+                    <Icon name="refresh" size={16} />
+                  </button>
+                ) : (
+                  <button
+                    className="button primary"
+                    onClick={() => setModal(mine ? "clients" : "assist")}
+                  >
+                    <Icon name={mine ? "terminal" : "people"} size={18} />
+                    {mine ? tr`打开 ${agentName}` : t("用自己的客户端辅助")}
+                  </button>
+                )}
+                {canOpenPersonalCodex && (
+                  <button
+                    className="button"
+                    disabled={!!busy}
+                    onClick={() => void openPersonalCodex()}
+                    title={t("直接定位此协作，无需从 Desktop 列表中查找")}
+                  >
+                    <Icon name="desktop" size={17} />
+                    {busy === "personal-desktop"
+                      ? t("正在打开…")
+                      : canContinueInPersonalCodex
+                        ? t("在个人 Codex 中继续")
+                        : t("在个人 Codex 中打开")}
+                  </button>
+                )}
+              </div>
+            </section>
+            {personalOpenNote && (
+              <p className="notice" role="status">
+                {personalOpenNote}
+              </p>
+            )}
+            <Members
+              collaboration={c}
+              busy={!!busy}
+              closed={closed}
+              onAction={(value, memberId) =>
+                void action(value, undefined, memberId)
+              }
+              onRemove={(memberId) =>
+                void manage("remove-member", { memberId })
+              }
+              onExecutionAccess={(memberId, allowed) =>
+                void manage("execution-access", { memberId, allowed })
+              }
+              onAssist={() => setModal("assist")}
+            />
+          </>
+        }
+        comments={
+          <Annotations
+            key={id}
+            id={id}
+            annotations={c.annotations || []}
+            materials={c.materials}
+            onLocateMaterial={(ref) =>
+              locateAnnotation({
+                target: {
+                  kind: "material",
+                  materialId: ref.materialId,
+                  version: ref.version,
+                  turnId: ref.turnId,
+                  quote: "",
+                },
+                serial: Date.now(),
+              })
+            }
+            request={annotationRequest}
+            disabled={!owner && (c.reachable === false || closed)}
+            onSaved={(annotation) => {
+              resource.setData((current) =>
+                current
+                  ? {
+                      ...current,
+                      annotations: current.annotations?.some(
+                        (item) => item.id === annotation.id,
+                      )
+                        ? current.annotations.map((item) =>
+                            item.id === annotation.id ? annotation : item,
+                          )
+                        : [...(current.annotations || []), annotation],
+                    }
+                  : current,
+              );
+              resource.reload();
+            }}
+            onLocate={(annotation) =>
+              locateAnnotation({
+                target: annotation.target,
+                serial: Date.now(),
+              })
+            }
+          />
+        }
+        commentRequest={annotationRequest}
+        contextNavigation={
+          <button
+            className="text-button"
+            onClick={() => setReadingTab("context")}
+          >
+            <Icon name="terminal" size={16} />
+            <span>{t("协作上下文")}</span>
+          </button>
+        }
         onLocate={(ref) => {
           if (ref.kind === "material")
             locateAnnotation({
@@ -511,140 +592,69 @@ export function Detail({ id }: { id: string }) {
           }
         }}
       >
-        <div className="detail-grid">
-          <div className="detail-main">
-            <ReadingTabs
-              active={
-                readingTab ??
-                (c.materials?.some((m) => !m.withdrawnAt)
-                  ? "materials"
-                  : "context")
-              }
-              onChange={setReadingTab}
-              materialCount={
-                c.materials?.filter((m) => !m.withdrawnAt).length || 0
-              }
-              navigationKey={annotationLocation?.serial}
-              materials={
-                <Materials
-                  collaboration={c}
-                  reload={resource.reload}
-                  onAnnotate={(target, origin) =>
-                    setAnnotationRequest({ target, origin, serial: Date.now() })
-                  }
-                  location={annotationLocation}
-                  onDiscuss={(annotationId, origin) =>
-                    setAnnotationRequest({
-                      annotationId,
-                      origin,
-                      serial: Date.now(),
-                    })
-                  }
-                />
-              }
-              context={
-                <Context
-                  id={id}
-                  sessionId={c.sessionId}
-                  agentName={agentName}
-                  technical={
-                    <TechnicalInformation
-                      collaboration={c}
-                      agentName={agentName}
-                    />
-                  }
-                  canAnnotate={owner || (c.online && !closed)}
-                  onAnnotate={(target, origin) =>
-                    setAnnotationRequest({ target, origin, serial: Date.now() })
-                  }
-                  location={
-                    annotationLocation?.target?.kind === "material"
-                      ? undefined
-                      : annotationLocation
-                  }
-                  online={
-                    c.online ||
-                    (owner &&
-                      c.state === "ready" &&
-                      c.runtimeState !== "releasing" &&
-                      c.runtimeState !== "starting")
-                  }
-                  annotations={c.annotations}
-                  onDiscuss={(annotationId, origin) =>
-                    setAnnotationRequest({
-                      annotationId,
-                      origin,
-                      serial: Date.now(),
-                    })
-                  }
-                  sequence={c.sequence}
-                  closed={closed}
-                />
-              }
-            />
-          </div>
-          <aside className="detail-aside">
-            <WorkbenchReadingShortcut />
-            <Members
+        <ReadingTabs
+          active={
+            readingTab ??
+            (c.materials?.some((m) => !m.withdrawnAt) ? "materials" : "context")
+          }
+          onChange={setReadingTab}
+          materialCount={c.materials?.filter((m) => !m.withdrawnAt).length || 0}
+          navigationKey={annotationLocation?.serial}
+          materials={
+            <Materials
               collaboration={c}
-              busy={!!busy}
-              closed={closed}
-              onAction={(value, memberId) =>
-                void action(value, undefined, memberId)
+              reload={resource.reload}
+              onActivate={() => setReadingTab("materials")}
+              onAnnotate={(target, origin) =>
+                setAnnotationRequest({ target, origin, serial: Date.now() })
               }
-              onRemove={(memberId) =>
-                void manage("remove-member", { memberId })
+              location={annotationLocation}
+              onDiscuss={(annotationId, origin) =>
+                setAnnotationRequest({
+                  annotationId,
+                  origin,
+                  serial: Date.now(),
+                })
               }
-              onExecutionAccess={(memberId, allowed) =>
-                void manage("execution-access", { memberId, allowed })
-              }
-              onAssist={() => setModal("assist")}
             />
-            <Annotations
-              key={id}
+          }
+          context={
+            <Context
               id={id}
-              annotations={c.annotations || []}
-              materials={c.materials}
-              onLocateMaterial={(ref) =>
-                locateAnnotation({
-                  target: {
-                    kind: "material",
-                    materialId: ref.materialId,
-                    version: ref.version,
-                    turnId: ref.turnId,
-                    quote: "",
-                  },
+              sessionId={c.sessionId}
+              agentName={agentName}
+              technical={
+                <TechnicalInformation collaboration={c} agentName={agentName} />
+              }
+              canAnnotate={owner || (c.online && !closed)}
+              onAnnotate={(target, origin) =>
+                setAnnotationRequest({ target, origin, serial: Date.now() })
+              }
+              location={
+                annotationLocation?.target?.kind === "material"
+                  ? undefined
+                  : annotationLocation
+              }
+              online={
+                c.online ||
+                (owner &&
+                  c.state === "ready" &&
+                  c.runtimeState !== "releasing" &&
+                  c.runtimeState !== "starting")
+              }
+              annotations={c.annotations}
+              onDiscuss={(annotationId, origin) =>
+                setAnnotationRequest({
+                  annotationId,
+                  origin,
                   serial: Date.now(),
                 })
               }
-              request={annotationRequest}
-              disabled={!owner && (c.reachable === false || closed)}
-              onSaved={(annotation) => {
-                resource.setData((current) =>
-                  current
-                    ? {
-                        ...current,
-                        annotations: current.annotations?.some(
-                          (item) => item.id === annotation.id,
-                        )
-                          ? current.annotations.map((item) =>
-                              item.id === annotation.id ? annotation : item,
-                            )
-                          : [...(current.annotations || []), annotation],
-                      }
-                    : current,
-                );
-                resource.reload();
-              }}
-              onLocate={(annotation) =>
-                locateAnnotation({
-                  target: annotation.target,
-                  serial: Date.now(),
-                })
-              }
+              sequence={c.sequence}
+              closed={closed}
             />
-          </aside>
-        </div>
+          }
+        />
       </SpaceWorkbench>
       {modal && (
         <Modal

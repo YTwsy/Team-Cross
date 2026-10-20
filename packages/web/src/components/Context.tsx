@@ -1,6 +1,7 @@
 import { t, tr } from "../i18n";
 import { ResourceActions } from "../library";
 import { ReadingPanelHeading, ReadingPanelTools } from "./ReadingTabs";
+import { SpaceCommentsButton } from "./SpaceWorkbench";
 import {
   useEffect,
   useLayoutEffect,
@@ -649,6 +650,7 @@ export function Context({
   return (
     <section className="panel context-panel" ref={panel}>
       <ReadingPanelHeading title={t("协作上下文")}>
+        <SpaceCommentsButton />
         <ResourceActions
           reference={{ spaceId: id, kind: "context" }}
           disabled={!online || closed}

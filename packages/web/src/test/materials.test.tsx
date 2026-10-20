@@ -55,7 +55,7 @@ beforeEach(() => {
   sessionStorage.clear();
 });
 
-it("a read-only space lists metadata without native context or automatic material reads", async () => {
+it("opens only the selected material by default, with navigation on the left and comments folded", async () => {
   const calls: string[] = [];
   vi.stubGlobal(
     "fetch",
@@ -63,18 +63,39 @@ it("a read-only space lists metadata without native context or automatic materia
       const path = String(input);
       calls.push(path);
       if (path === "/api/collaborations/space") return json(readonly);
+      if (path.endsWith("/read-material"))
+        return json({
+          materialId: "m1",
+          version: material.versions[0],
+          segments: [],
+          turns: [],
+          nextCursor: "",
+        });
       return json({});
     }),
   );
   render(<Detail id="space" />);
   await screen.findByRole("heading", { name: "多人调查" });
-  expect(screen.getByRole("button", { name: "发布会话材料" })).toBeEnabled();
+  const navigation = screen.getByRole("complementary", {
+    name: "空间功能与材料",
+  });
   expect(
-    screen.queryByRole("button", { name: /恢复运行时|申请输入|接回输入/ }),
+    within(navigation).getByRole("button", { name: "发布会话材料" }),
+  ).toBeEnabled();
+  expect(
+    within(navigation).getByRole("button", { name: "阅读 网络验证" }),
+  ).toHaveAttribute("aria-current", "page");
+  expect(screen.getByRole("button", { name: /^评论/ })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  expect(
+    screen.queryByRole("complementary", { name: "空间评论" }),
   ).not.toBeInTheDocument();
-  expect(
-    calls.some((c) => c.includes("context") || c.includes("read-material")),
-  ).toBe(false);
+  expect(calls.some((c) => c.includes("context"))).toBe(false);
+  await waitFor(() =>
+    expect(calls.filter((c) => c.includes("read-material"))).toHaveLength(1),
+  );
 });
 
 it("folds long tool output and reads the selected item without advancing the stream", async () => {
@@ -240,9 +261,9 @@ it("reads inside the selected card with one title and collapse action, and switc
   expect(
     within(card).getByRole("button", { name: "阅读材料" }),
   ).toHaveAttribute("aria-expanded", "false");
-  expect(
-    screen.getByRole("combobox", { name: "切换已发布材料" }),
-  ).toHaveValue("m2");
+  expect(screen.getByRole("combobox", { name: "切换已发布材料" })).toHaveValue(
+    "m2",
+  );
   expect(
     screen.getByRole("combobox", { name: "切换已发布材料" }),
   ).toHaveFocus();

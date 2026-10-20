@@ -113,7 +113,7 @@ function AppShell() {
   if (quick) return <QuickLook />;
   return (
     <div
-      className={`app-shell ${libraryRoute === "/library" ? "library-shell" : ""}`}
+      className={`app-shell ${libraryRoute === "/library" ? "library-shell" : ""} ${detailId ? "space-shell" : ""}`}
     >
       <a
         className="skip-link"
@@ -145,26 +145,32 @@ function AppShell() {
                 : ""
             }
             href="#/"
+            aria-label={t("协作空间")}
+            title={t("协作空间")}
             aria-current={route === "/" ? "page" : undefined}
           >
             <Icon name="grid" />
-            {t("协作空间") + " "}
+            <span>{t("协作空间")}</span>
           </a>
           <a
             className={libraryRoute === "/library" ? "active" : ""}
             href="#/library"
+            aria-label={t("资源库")}
+            title={t("资源库")}
             aria-current={libraryRoute === "/library" ? "page" : undefined}
           >
             <Icon name="book" />
-            {t("资源库") + " "}
+            <span>{t("资源库")}</span>
           </a>
           <a
             className={route === "/settings" ? "active" : ""}
             href="#/settings"
+            aria-label={t("设置与连接")}
+            title={t("设置与连接")}
             aria-current={route === "/settings" ? "page" : undefined}
           >
             <Icon name="settings" />
-            {t("设置与连接") + " "}
+            <span>{t("设置与连接")}</span>
           </a>
         </nav>
         <div className="sidebar-bottom">

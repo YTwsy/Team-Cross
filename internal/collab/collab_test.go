@@ -21,19 +21,20 @@ import (
 )
 
 type fakeRuntime struct {
-	history          []MaterialTurn
-	mu               sync.Mutex
-	source           Source
-	calls            []string
-	forks            int
-	handler          func(nativecodex.Message)
-	last             map[string]any
-	fail             bool
-	alive            bool
-	threads          map[string]Source
-	requests         map[string]map[string]any
-	sourceTurnID     string
-	sourceTurnStatus string
+	nativeUserContent bool
+	history           []MaterialTurn
+	mu                sync.Mutex
+	source            Source
+	calls             []string
+	forks             int
+	handler           func(nativecodex.Message)
+	last              map[string]any
+	fail              bool
+	alive             bool
+	threads           map[string]Source
+	requests          map[string]map[string]any
+	sourceTurnID      string
+	sourceTurnStatus  string
 }
 
 func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error {
@@ -99,6 +100,22 @@ func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error 
 		result = map[string]any{"data": []any{map[string]any{"id": turn, "status": status}}}
 		if f.history != nil {
 			result = map[string]any{"data": f.history}
+			if f.nativeUserContent {
+				// Browser fixtures use the native input shape before export.
+				raw, _ := json.Marshal(f.history)
+				var turns []map[string]any
+				_ = json.Unmarshal(raw, &turns)
+				for _, turn := range turns {
+					for _, value := range turn["items"].([]any) {
+						item := value.(map[string]any)
+						if item["type"] == "userMessage" {
+							item["content"] = []any{map[string]any{"type": "text", "text": item["text"]}}
+							delete(item, "text")
+						}
+					}
+				}
+				result = map[string]any{"data": turns}
+			}
 		}
 	case "thread/fork", "thread/start":
 		if method == "thread/fork" {

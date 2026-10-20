@@ -7,6 +7,7 @@ import { ErrorBox } from "./components/ui";
 import { browserLanguage, setLanguageInfo, type LanguageInfo } from "./i18n";
 import "./styles.css";
 import "./library.css";
+import "./space.css";
 const root = createRoot(document.getElementById("root")!);
 try {
   await initializeEnvironment();

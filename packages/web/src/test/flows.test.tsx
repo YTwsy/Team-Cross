@@ -122,6 +122,10 @@ describe("邀请者在个人 Codex 中打开协作", () => {
     });
     const user = userEvent.setup();
     render(<Detail id="c1" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
     const button = await screen.findByRole("button", {
       name: "在个人 Codex 中打开",
     });
@@ -148,7 +152,11 @@ describe("邀请者在个人 Codex 中打开协作", () => {
         : { ...collaboration, ...overrides },
     );
     render(<Detail id="c1" />);
-    await screen.findByRole("heading", { name: "协作" });
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
+    await screen.findByRole("heading", { name: "协作", level: 1 });
     expect(
       screen.queryByRole("button", { name: /在个人 Codex 中/ }),
     ).not.toBeInTheDocument();
@@ -175,6 +183,9 @@ describe("邀请者在个人 Codex 中打开协作", () => {
             },
       );
       render(<Detail id="c1" />);
+      await userEvent.click(
+        await screen.findByRole("tab", { name: "空间概览" }),
+      );
       expect(await screen.findByRole("button", { name: label })).toBeEnabled();
     },
   );
@@ -194,6 +205,10 @@ describe("邀请者在个人 Codex 中打开协作", () => {
     });
     const user = userEvent.setup();
     render(<Detail id="c1" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
     const button = await screen.findByRole("button", {
       name: "在个人 Codex 中打开",
     });
@@ -383,10 +398,9 @@ describe("产品路径", () => {
         onLanguageChange={() => {}}
       />,
     );
-    expect(await screen.findByText(/下次打开 Team Cross 或使用插件时自动应用更新/)).toHaveAttribute(
-      "role",
-      "status",
-    );
+    expect(
+      await screen.findByText(/下次打开 Team Cross 或使用插件时自动应用更新/),
+    ).toHaveAttribute("role", "status");
     expect(screen.getByText("aaaaaaaaaaaa")).toBeVisible();
     expect(screen.getByText("bbbbbbbbbbbb")).toBeVisible();
     expect(screen.getByText("/opt/homebrew/bin/teamcross")).toBeVisible();
@@ -404,6 +418,11 @@ describe("产品路径", () => {
     );
     const user = userEvent.setup();
     render(<Detail id="c1" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
+    await user.click(screen.getByRole("button", { name: "协作上下文" }));
     await user.click(await screen.findByRole("tab", { name: "技术信息" }));
     expect(screen.getByText("fixture-selected-model")).toBeVisible();
     expect(screen.getByText("xhigh")).toBeVisible();
@@ -421,6 +440,10 @@ describe("产品路径", () => {
       error: "这份邀请不再有效",
     }));
     render(<Detail id="c1" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
     expect(await screen.findByRole("heading", { name: heading })).toBeVisible();
     expect(
       screen.getByRole("link", { name: /使用新邀请加入/ }),
@@ -457,6 +480,10 @@ describe("产品路径", () => {
     );
     const user = userEvent.setup();
     render(<Detail id="c1" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
     expect(await screen.findByText("暂时离线")).toBeVisible();
     await user.click(screen.getByLabelText("查看共享状态详情"));
     expect(
@@ -478,6 +505,10 @@ describe("产品路径", () => {
     );
     const user = userEvent.setup();
     render(<Detail id="c1" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
     await user.click(await screen.findByLabelText("查看共享状态详情"));
     expect(
       await screen.findByText("邀请尚未使用且已到期，可以重新邀请同事。"),
@@ -511,15 +542,21 @@ describe("产品路径", () => {
           },
     );
     render(<Detail id="c1" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "协作上下文" }));
     expect(
       await screen.findByText("释放后保留的对话", {
         selector: "[data-source-start]",
       }),
     ).toBeVisible();
     expect(calls.every((c) => c.body === undefined)).toBe(true);
-    await userEvent
-      .setup()
-      .click(screen.getByRole("button", { name: "恢复并打开 Codex" }));
+    await userEvent.click(screen.getByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "恢复并打开 Codex" }),
+    );
     expect(calls.filter((c) => c.body?.action === "start")).toHaveLength(1);
   });
   it("首页首次使用展示两个明确入口", async () => {
@@ -697,6 +734,10 @@ describe("产品路径", () => {
         : { ...collaboration, role: "remote", runtimeMode: "trusted" },
     );
     render(<Detail id="c1" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
     const mode = await screen.findByLabelText("查看协作模式说明");
     expect(mode).toHaveTextContent("信任模式");
     expect(screen.getByText(/沿用邀请者的原生配置与权限/)).not.toBeVisible();
@@ -819,6 +860,10 @@ describe("首次使用连续路径", () => {
     );
     const user = userEvent.setup();
     render(<Detail id="c1" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
     await user.click(await screen.findByLabelText("查看共享状态详情"));
     await user.click(screen.getByRole("button", { name: "取消生成邀请" }));
     expect(
@@ -861,6 +906,10 @@ describe("首次使用连续路径", () => {
     );
     const user = userEvent.setup();
     render(<Detail id="c1" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
     await user.click(await screen.findByRole("button", { name: "申请输入" }));
     await waitFor(() =>
       expect(calls.some((c) => c.body?.action === "request_input")).toBe(true),
@@ -1001,6 +1050,10 @@ describe("Claude 原生协作", () => {
           },
     );
     render(<Detail id="c1" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
     expect(
       await screen.findByRole("heading", { name: "Claude Code 需要你的回应" }),
     ).toBeVisible();
@@ -1044,6 +1097,10 @@ describe("多人成员与邀请", () => {
     );
     const user = userEvent.setup();
     render(<Detail id="c1" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
     await user.click(
       await screen.findByRole("button", { name: "将输入交给Carol" }),
     );
@@ -1055,7 +1112,11 @@ describe("多人成员与邀请", () => {
           call.body.epoch === 1,
       ),
     ).toBe(true);
-    expect(screen.getByText("Bob")).toBeVisible();
+    expect(
+      screen
+        .getAllByText("Bob")
+        .find((element) => element.closest(".participants-panel")),
+    ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "邀请成员" }));
     await user.click(screen.getByRole("button", { name: "重新开放链接" }));
     expect(
@@ -1072,6 +1133,10 @@ describe("多人成员与邀请", () => {
     );
     const user = userEvent.setup();
     render(<Detail id="c1" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await userEvent.click(
+      screen.getByText("空间管理", { selector: "summary" }),
+    );
     await user.click(await screen.findByRole("button", { name: "申请输入" }));
     expect(calls.some((call) => call.body?.action === "request_input")).toBe(
       true,

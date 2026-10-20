@@ -1,15 +1,15 @@
 import { t, tr } from "../i18n";
 import { useState } from "react";
 import { api, errorText } from "../api";
-import { transportName, type Collaboration } from "../types";
+import { type Collaboration } from "../types";
 import { Annotations, type AnnotationRequest } from "./Annotations";
 import { Materials } from "./Materials";
-import { ReadingTabs } from "./ReadingTabs";
 import { Members } from "./Members";
 import { Clients } from "./Clients";
 import { InvitationPanel } from "./InvitationPanel";
-import { SpaceWorkbench, WorkbenchReadingShortcut } from "./SpaceWorkbench";
-import { Badge, ErrorBox, Modal, PageHeading } from "./ui";
+import { SpaceWorkbench } from "./SpaceWorkbench";
+import { SpacePeople } from "./SpaceIdentity";
+import { Badge, ErrorBox, Icon, Modal, PageHeading } from "./ui";
 
 export function ReadOnlySpace({
   collaboration: c,
@@ -76,113 +76,93 @@ export function ReadOnlySpace({
   }
   return (
     <>
-      <a href="#/" className="back-link">
-        {t("返回协作空间") + " "}
-      </a>
-      <PageHeading
-        title={c.title}
-        subtitle={tr`托管主机：${c.host} · ${closed ? t("空间已关闭") : !owner && c.reachable === false ? t("连接中断，等待重连") : c.sharing ? tr`${transportName(c.transport)}共享中` : t("尚未开放邀请")}`}
-      >
-        <Badge collaboration={c} />
-      </PageHeading>
+      <header className="space-room-bar">
+        <a
+          href="#/"
+          className="space-room-symbol"
+          aria-label={t("返回协作空间")}
+        >
+          <Icon name="people" size={17} />
+        </a>
+        <div className="space-room-title">
+          <h1 tabIndex={-1}>{c.title}</h1>
+          <span>{t("分享与审阅")}</span>
+        </div>
+        {closed && <Badge collaboration={c} />}
+        <SpacePeople collaboration={c} />
+        {owner && (
+          <button
+            className="button small"
+            disabled={busy}
+            onClick={() => setModal("invite")}
+          >
+            <Icon name="people" size={16} />
+            {closed ? t("重新开放空间") : t("邀请成员")}
+          </button>
+        )}
+      </header>
       <ErrorBox message={error || (!closed ? c.error : undefined)} />
       {closed && (
         <p className="notice">
           {t("空间已关闭。材料和讨论保留，重新开放后可以继续邀请同事。") + " "}
         </p>
       )}
-      <section className="panel readonly-intro">
-        <div>
-          <h2>{t("分享与审阅")}</h2>
-          <p>
-            {t(
-              "空间保存已发布材料和讨论。每个人可以用自己的 Agent 分析，再把新的调查附回来。",
-            ) + " "}
-          </p>
-        </div>
-        <div className="material-actions">
-          {owner ? (
-            <>
-              <button
-                className="button primary"
-                disabled={busy}
-                onClick={() => setModal("invite")}
-              >
-                {closed ? t("重新开放空间") : t("邀请成员")}
-              </button>
-              {!closed && (
-                <button
-                  className="button"
-                  disabled={busy}
-                  onClick={() => setModal("end")}
-                >
-                  {t("关闭空间") + " "}
-                </button>
-              )}
-            </>
-          ) : (
-            !closed && (
-              <button
-                className="button"
-                disabled={busy}
-                onClick={() => void manage("action", { action: "leave" })}
-              >
-                {t("离开空间") + " "}
-              </button>
-            )
-          )}
-          <button
-            className="button"
-            disabled={disabled}
-            onClick={() => setModal("assist")}
-          >
-            {t("使用自己的 Agent 辅助") + " "}
-          </button>
-        </div>
-      </section>
       <SpaceWorkbench
         key={c.id}
         collaboration={c}
-        onLocate={(ref) => {
-          if (ref.kind === "material")
-            setLocation({
-              target: {
-                kind: "material",
-                materialId: ref.materialId,
-                version: ref.version,
-                quote: "",
-              },
-              serial: Date.now(),
-            });
-          else {
-            const note = c.annotations?.find((a) => a.id === ref.annotationId);
-            setRequest({ annotationId: ref.annotationId, serial: Date.now() });
-            if (note?.target)
-              setLocation({ target: note.target, serial: Date.now() });
-          }
-        }}
-      >
-        <div className="detail-grid">
-          <div className="detail-main">
-            <ReadingTabs
-              active="materials"
-              onChange={() => {}}
-              materialCount={
-                c.materials?.filter((m) => !m.withdrawnAt).length || 0
+        overview={
+          <>
+            <section className="panel readonly-intro">
+              <div>
+                <h2>{t("分享与审阅")}</h2>
+                <p>
+                  {t(
+                    "空间保存已发布材料和讨论。每个人可以用自己的 Agent 分析，再把新的调查附回来。",
+                  ) + " "}
+                </p>
+              </div>
+              <div className="material-actions">
+                {owner ? (
+                  <>
+                    {!closed && (
+                      <button
+                        className="button"
+                        disabled={busy}
+                        onClick={() => setModal("end")}
+                      >
+                        {t("关闭空间") + " "}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  !closed && (
+                    <button
+                      className="button"
+                      disabled={busy}
+                      onClick={() => void manage("action", { action: "leave" })}
+                    >
+                      {t("离开空间") + " "}
+                    </button>
+                  )
+                )}
+                <button
+                  className="button"
+                  disabled={disabled}
+                  onClick={() => setModal("assist")}
+                >
+                  {t("使用自己的 Agent 辅助") + " "}
+                </button>
+              </div>
+            </section>
+            <Members
+              collaboration={c}
+              busy={busy}
+              closed={closed}
+              onAction={() => {}}
+              onRemove={(memberId) =>
+                void manage("remove-member", { memberId })
               }
-              materials={
-                <Materials
-                  collaboration={c}
-                  reload={reload}
-                  onAnnotate={(target, origin) =>
-                    setRequest({ target, origin, serial: Date.now() })
-                  }
-                  onDiscuss={(annotationId, origin) =>
-                    setRequest({ annotationId, origin, serial: Date.now() })
-                  }
-                  location={location}
-                />
-              }
+              onAssist={() => setModal("assist")}
             />
             <section className="panel optional-execution">
               <h2>{t("共同继续执行")}</h2>
@@ -206,44 +186,64 @@ export function ReadOnlySpace({
                 ) + " "}
               </p>
             </section>
-          </div>
-          <aside className="detail-aside">
-            <WorkbenchReadingShortcut />
-            <Members
-              collaboration={c}
-              busy={busy}
-              closed={closed}
-              onAction={() => {}}
-              onRemove={(memberId) =>
-                void manage("remove-member", { memberId })
-              }
-              onAssist={() => setModal("assist")}
-            />
-            <Annotations
-              id={c.id}
-              annotations={c.annotations || []}
-              materials={c.materials}
-              request={request}
-              disabled={disabled}
-              onSaved={reload}
-              onLocate={(annotation) =>
-                setLocation({ target: annotation.target, serial: Date.now() })
-              }
-              onLocateMaterial={(ref) =>
-                setLocation({
-                  target: {
-                    kind: "material",
-                    materialId: ref.materialId,
-                    version: ref.version,
-                    turnId: ref.turnId,
-                    quote: "",
-                  },
-                  serial: Date.now(),
-                })
-              }
-            />
-          </aside>
-        </div>
+          </>
+        }
+        comments={
+          <Annotations
+            id={c.id}
+            annotations={c.annotations || []}
+            materials={c.materials}
+            request={request}
+            disabled={disabled}
+            onSaved={reload}
+            onLocate={(annotation) =>
+              setLocation({ target: annotation.target, serial: Date.now() })
+            }
+            onLocateMaterial={(ref) =>
+              setLocation({
+                target: {
+                  kind: "material",
+                  materialId: ref.materialId,
+                  version: ref.version,
+                  turnId: ref.turnId,
+                  quote: "",
+                },
+                serial: Date.now(),
+              })
+            }
+          />
+        }
+        commentRequest={request}
+        onLocate={(ref) => {
+          if (ref.kind === "material")
+            setLocation({
+              target: {
+                kind: "material",
+                materialId: ref.materialId,
+                version: ref.version,
+                quote: "",
+              },
+              serial: Date.now(),
+            });
+          else {
+            const note = c.annotations?.find((a) => a.id === ref.annotationId);
+            setRequest({ annotationId: ref.annotationId, serial: Date.now() });
+            if (note?.target)
+              setLocation({ target: note.target, serial: Date.now() });
+          }
+        }}
+      >
+        <Materials
+          collaboration={c}
+          reload={reload}
+          onAnnotate={(target, origin) =>
+            setRequest({ target, origin, serial: Date.now() })
+          }
+          onDiscuss={(annotationId, origin) =>
+            setRequest({ annotationId, origin, serial: Date.now() })
+          }
+          location={location}
+        />
       </SpaceWorkbench>
       {modal && (
         <Modal

@@ -86,6 +86,7 @@ export function Discussion({
   const [pending, setPending] = useState(false);
   const [saved, setSaved] = useState(false);
   const editor = useRef<HTMLTextAreaElement>(null);
+  const actions = useRef<HTMLDetailsElement>(null);
   const submitting = useRef(false);
   const attempt = useRef<
     | { text: string; requestId: string; materials?: MaterialReference[] }
@@ -94,6 +95,14 @@ export function Discussion({
   useEffect(() => {
     if (open) editor.current?.focus();
   }, [open]);
+  useEffect(() => {
+    const close = (event: PointerEvent) => {
+      if (actions.current && !actions.current.contains(event.target as Node))
+        actions.current.open = false;
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, []);
 
   async function save() {
     if (submitting.current || disabled || !text.trim()) return;
@@ -220,40 +229,6 @@ export function Discussion({
         </Modal>
       )}
       <div className="annotation-actions">
-        {!annotation.target || annotation.target.kind === "material" ? (
-          <SpaceRequestButton
-            references={[
-              { spaceId: id, kind: "annotation", annotationId: annotation.id },
-            ]}
-            disabled={disabled}
-            fallback={
-              <button
-                className="button small"
-                disabled={disabled}
-                onClick={() => setSendToAgent(true)}
-              >
-                {t("交给 Agent")}
-              </button>
-            }
-          />
-        ) : (
-          <button
-            className="button small"
-            disabled={disabled}
-            onClick={() => setSendToAgent(true)}
-          >
-            {t("交给 Agent")}
-          </button>
-        )}
-        <ResourceActions
-          reference={{
-            spaceId: id,
-            kind: "annotation",
-            annotationId: annotation.id,
-          }}
-          disabled={disabled}
-          selectedLabel={t("已选择")}
-        />
         <button
           className="button small annotation-reply-action"
           aria-expanded={open}
@@ -268,11 +243,74 @@ export function Discussion({
           <Icon name="comment" size={14} />
           {open ? t("收起") : text ? t("继续") : t("回复")}
         </button>
-        <Copy
-          label={t("复制提示")}
-          ariaLabel={t("复制处理提示")}
-          text={tr`请使用 Team Cross 读取协作 ${id} 的批注 ${annotation.id} 及回复。共享会话使用 read_annotations；个人辅助会话使用 read_context（kind=annotations）。核对 target 与 quote 对应的当前原文，再分析这条意见；需要答复时使用 reply_to_annotation 回复原批注。`}
-        />
+        <details
+          className="annotation-more"
+          ref={actions}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && event.currentTarget.open) {
+              event.stopPropagation();
+              event.currentTarget.open = false;
+              event.currentTarget.querySelector("summary")?.focus();
+            }
+          }}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget))
+              event.currentTarget.open = false;
+          }}
+        >
+          <summary
+            tabIndex={0}
+            aria-label={t("更多批注操作")}
+            title={t("更多批注操作")}
+          >
+            <Icon name="more" size={17} />
+          </summary>
+          <div className="annotation-more-menu">
+            {!annotation.target || annotation.target.kind === "material" ? (
+              <SpaceRequestButton
+                references={[
+                  {
+                    spaceId: id,
+                    kind: "annotation",
+                    annotationId: annotation.id,
+                  },
+                ]}
+                disabled={disabled}
+                fallback={
+                  <button
+                    className="button small"
+                    disabled={disabled}
+                    onClick={() => setSendToAgent(true)}
+                  >
+                    {t("交给 Agent")}
+                  </button>
+                }
+              />
+            ) : (
+              <button
+                className="button small"
+                disabled={disabled}
+                onClick={() => setSendToAgent(true)}
+              >
+                {t("交给 Agent")}
+              </button>
+            )}
+            <ResourceActions
+              reference={{
+                spaceId: id,
+                kind: "annotation",
+                annotationId: annotation.id,
+              }}
+              disabled={disabled}
+              selectedLabel={t("已选择")}
+            />
+            <Copy
+              label={t("复制提示")}
+              ariaLabel={t("复制处理提示")}
+              text={tr`请使用 Team Cross 读取协作 ${id} 的批注 ${annotation.id} 及回复。共享会话使用 read_annotations；个人辅助会话使用 read_context（kind=annotations）。核对 target 与 quote 对应的当前原文，再分析这条意见；需要答复时使用 reply_to_annotation 回复原批注。`}
+            />
+          </div>
+        </details>
       </div>
       {saved && (
         <p className="annotation-saved" role="status">

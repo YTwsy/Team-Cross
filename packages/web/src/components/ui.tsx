@@ -4,11 +4,20 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useId,
   type ReactNode,
 } from "react";
 import { errorText } from "../api";
 import { status, type Collaboration, type Provider } from "../types";
 export type IconName =
+  | "clock"
+  | "file"
+  | "layers"
+  | "edit"
+  | "panel"
+  | "more"
+  | "attach"
+  | "request"
   | "star"
   | "book"
   | "pin"
@@ -35,6 +44,49 @@ export type IconName =
   | "moon"
   | "chevron";
 const paths: Record<IconName, ReactNode> = {
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  file: (
+    <>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 2v6h6M8 13h8M8 17h5" />
+    </>
+  ),
+  layers: (
+    <>
+      <path d="m12 3 10 5-10 5L2 8Zm-9 10 9 5 9-5M3 18l9 5 9-5" />
+    </>
+  ),
+  edit: (
+    <>
+      <path d="M12 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-7M16 3l5 5M9 15l2-6 7-7 5 5-7 7Z" />
+    </>
+  ),
+  panel: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M9 3v18m7-13-3 4 3 4" />
+    </>
+  ),
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+    </>
+  ),
+  attach: (
+    <path d="m21 11-9 9a6 6 0 0 1-8-8L15 1a4 4 0 0 1 6 6L10 18a2 2 0 0 1-3-3L17 5" />
+  ),
+  request: (
+    <>
+      <path d="M4 19v-7a4 4 0 0 1 4-4h12m-5-5 5 5-5 5" />
+    </>
+  ),
   star: (
     <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z" />
   ),
@@ -262,12 +314,15 @@ export function Modal({
   title,
   children,
   onClose,
+  wide = false,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useLayoutEffect(() => {
     const el = ref.current;
     const previous = document.activeElement;
@@ -283,8 +338,12 @@ export function Modal({
   return (
     <dialog
       ref={ref}
-      className="modal"
-      onCancel={onClose}
+      className={`modal${wide ? " modal-wide" : ""}`}
+      onCancel={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           const r = e.currentTarget.getBoundingClientRect();
@@ -297,10 +356,10 @@ export function Modal({
             onClose();
         }
       }}
-      aria-labelledby="modal-title"
+      aria-labelledby={titleId}
     >
       <div className="modal-heading">
-        <h2 id="modal-title">{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <button
           className="icon-button"
           aria-label={t("关闭")}

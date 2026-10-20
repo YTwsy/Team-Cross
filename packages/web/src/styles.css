@@ -1984,10 +1984,9 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
   gap: 8px;
 }
 .annotation-actions {
-  display: grid;
-  grid-template-columns: repeat(3, max-content);
+  display: flex;
   justify-content: space-between;
-  gap: 4px;
+  gap: 8px;
   margin-top: 12px;
   padding-top: 10px;
   border-top: 1px solid var(--line);
@@ -2026,6 +2025,57 @@ details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
 }
 .annotation-actions > [role="alert"] {
   grid-column: 1 / -1;
+}
+.annotation-more {
+  position: relative;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.annotation-more > summary {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 6px;
+  list-style: none;
+}
+.annotation-thread details.annotation-more[open] > summary {
+  margin-bottom: 0;
+}
+.annotation-more > summary::-webkit-details-marker {
+  display: none;
+}
+.annotation-more > summary:hover,
+.annotation-more[open] > summary {
+  background: var(--soft);
+  color: var(--text);
+}
+.annotation-more-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 7px);
+  z-index: 46;
+  width: 210px;
+  max-width: calc(100vw - 72px);
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--space-shadow, var(--shadow));
+}
+.annotation-more-menu .workbench-source-actions {
+  display: grid;
+  gap: 2px;
+}
+.annotation-actions .annotation-more-menu .button,
+.annotation-actions .annotation-more-menu .text-link {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 7px 9px;
+  text-align: left;
 }
 .annotation-composer-heading {
   font-size: 11px;
@@ -4516,13 +4566,6 @@ mark[data-annotation-highlight] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.annotation-actions:has(> .workbench-source-actions) {
-  display: flex;
-  gap: 4px 8px;
-}
-.annotation-actions > .workbench-source-actions {
-  flex-basis: 100%;
-}
 .workbench-heading .eyebrow {
   color: var(--text);
   font-size: 16px;
@@ -5191,14 +5234,25 @@ mark[data-annotation-highlight] {
   }
 }
 
-.client-detection, .client-source-options {
+.client-detection,
+.client-source-options {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   margin: 18px 0 10px;
 }
-.client-installation { margin: 18px 0; }
-.client-installation summary { cursor: pointer; font-size: 12px; }
-.client-installation dl { margin-top: 12px; }
-.client-installation dd { overflow-wrap: anywhere; min-width: 0; }
+.client-installation {
+  margin: 18px 0;
+}
+.client-installation summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+.client-installation dl {
+  margin-top: 12px;
+}
+.client-installation dd {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
