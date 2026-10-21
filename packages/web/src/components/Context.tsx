@@ -716,24 +716,28 @@ export function Context({
               </button>
             ))}
           </div>
-          <div className="context-reading-tools" ref={setReadingToolbar} />
-          {conversation && (
-            <div className="context-reading-actions">
-              <ResourceActions
-                reference={{ ...resourceScope(id), kind: "context" }}
-                disabled={!online || closed}
-              />
-              {tab !== "technical" && (
-                <button
-                  className="icon-button"
-                  aria-label={t("刷新上下文")}
-                  disabled={!online}
-                  onClick={refresh}
-                >
-                  <Icon name="refresh" size={17} />
-                </button>
-              )}
+          {conversation ? (
+            <div className="context-reading-toolbar">
+              <div className="context-reading-tools" ref={setReadingToolbar} />
+              <div className="context-reading-actions">
+                <ResourceActions
+                  reference={{ ...resourceScope(id), kind: "context" }}
+                  disabled={!online || closed}
+                />
+                {tab !== "technical" && (
+                  <button
+                    className="icon-button"
+                    aria-label={t("刷新上下文")}
+                    disabled={!online}
+                    onClick={refresh}
+                  >
+                    <Icon name="refresh" size={17} />
+                  </button>
+                )}
+              </div>
             </div>
+          ) : (
+            <div className="context-reading-tools" ref={setReadingToolbar} />
           )}
         </div>
       </ReadingPanelTools>

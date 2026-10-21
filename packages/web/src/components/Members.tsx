@@ -120,16 +120,18 @@ export function Members({
       >
         <div className="participants-body-inner">
           <div className="aside-participant-list">
-            <div className="participant">
-              <span className="avatar self">{owner ? t("我") : "A"}</span>
-              <div>
-                <strong>{owner ? t("我") : t("发起者")}</strong>
-                <span>
-                  {execution ? t("执行主机") : t("托管主机")} ·{" "}
-                  {execution && c.writer === "owner"
-                    ? t("正在输入")
-                    : t("可查看")}
-                </span>
+            <div className={compact ? "member-entry member-owner" : undefined}>
+              <div className="participant">
+                <span className="avatar self">{owner ? t("我") : "A"}</span>
+                <div>
+                  <strong>{owner ? t("我") : t("发起者")}</strong>
+                  <span>
+                    {execution ? t("执行主机") : t("托管主机")} ·{" "}
+                    {execution && c.writer === "owner"
+                      ? t("正在输入")
+                      : t("可查看")}
+                  </span>
+                </div>
               </div>
             </div>
             {members.map((member) => (
