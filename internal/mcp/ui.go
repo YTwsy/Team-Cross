@@ -215,7 +215,7 @@ func uiRoute(path string, body any, write bool) (string, error) {
 			}
 			if parts[0] == "collaborations" {
 				switch parts[2] {
-				case "action", "invitations", "revoke-invitation", "remove-member", "execution-access", "personal-desktop", "open", "assist", "annotations", "annotation-replies", "materials", "withdraw-material":
+				case "action", "invitations", "revoke-invitation", "remove-member", "personal-desktop", "open", "assist", "annotations", "annotation-replies", "materials", "withdraw-material":
 					allowed = true
 				}
 			}
@@ -224,6 +224,22 @@ func uiRoute(path string, body any, write bool) (string, error) {
 			switch parts[3] {
 			case "register", "send", "brief", "assistant", "cancel", "remove", "create-receiver":
 				allowed = true
+			}
+		}
+	}
+	if parts[0] == "collaborations" && len(parts) >= 3 && parts[2] == "sessions" {
+		if !write && method == "GET" && (len(parts) == 3 || len(parts) == 4) {
+			allowed = true
+		}
+		if len(parts) == 5 {
+			if !write && method == "GET" && parts[4] == "context" {
+				allowed, queries = true, "kind path after cursor view toolOutputs turnLimit maxBytes annotationId compact offset includeQuote turnId itemId startOffset"
+			}
+			if write && method == "POST" {
+				switch parts[4] {
+				case "action", "personal-desktop", "open", "assist", "annotations", "annotation-replies":
+					allowed = true
+				}
 			}
 		}
 	}

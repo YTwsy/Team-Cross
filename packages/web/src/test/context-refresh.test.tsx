@@ -1,3 +1,4 @@
+import { spaceWithExecution } from "./execution-fixture";
 import {
   act,
   cleanup,
@@ -114,7 +115,7 @@ beforeEach(() => {
         contextRequests.push(path);
         return readContext(new URL(path, "http://localhost"));
       }
-      return response(current);
+      return response(spaceWithExecution(current));
     }),
   );
 });
@@ -127,7 +128,7 @@ afterEach(() => {
 
 async function openDetail() {
   await act(async () => {
-    render(<Detail id={current.id} />);
+    render(<Detail id={current.id} executionId={`execution-${current.id}`} />);
   });
 }
 
@@ -215,7 +216,7 @@ describe("协作上下文刷新", () => {
     const changes = deferred();
     readContext = () => changes.promise;
     await act(async () => {
-      fireEvent.click(screen.getByRole("tab", { name: "代码改动" }));
+      fireEvent.click(screen.getByRole("tab", { name: "工作目录改动" }));
     });
     expect(
       screen.queryByText("已加载的对话", { selector: "[data-source-start]" }),
@@ -268,19 +269,17 @@ describe("协作上下文刷新", () => {
         ? response({ diff: "+新改动", status: "M src/a.ts", stat: "" })
         : history();
     await openDetail();
-    const workspace = document.querySelector<HTMLElement>(
-      ".collaboration-reading",
-    )!;
+    const workspace = document.querySelector<HTMLElement>(".execution-pane")!;
     vi.spyOn(workspace, "getBoundingClientRect").mockImplementation(
       () => ({ top: 500 - pageY, height: 1200 }) as DOMRect,
     );
     await act(async () => {
-      fireEvent.click(screen.getByRole("tab", { name: "协作上下文" }));
+      fireEvent.click(screen.getByRole("tab", { name: "最近对话" }));
     });
 
     pageY = 210;
     await act(async () => {
-      fireEvent.click(screen.getByRole("tab", { name: "代码改动" }));
+      fireEvent.click(screen.getByRole("tab", { name: "工作目录改动" }));
     });
     expect(screen.getByText("+新改动")).toBeVisible();
     expect(pageY).toBe(210);
@@ -293,7 +292,7 @@ describe("协作上下文刷新", () => {
 
     pageY = 290;
     await act(async () => {
-      fireEvent.click(screen.getByRole("tab", { name: "代码改动" }));
+      fireEvent.click(screen.getByRole("tab", { name: "工作目录改动" }));
     });
     expect(pageY).toBe(290);
   });
@@ -505,7 +504,7 @@ describe("协作对话目录导航", () => {
     readContext = () =>
       response({ diff: "+当前代码改动", status: "M src/a.ts", stat: "" });
     await act(async () => {
-      fireEvent.click(screen.getByRole("tab", { name: "代码改动" }));
+      fireEvent.click(screen.getByRole("tab", { name: "工作目录改动" }));
     });
     await act(async () => next.resolve(outlinedHistory(2)));
     expect(screen.getByText("+当前代码改动")).toBeVisible();

@@ -66,15 +66,19 @@ func (a *App) active(nonblocking bool) (int, bool) {
 		r := j.record
 		j.mu.Unlock()
 		if shareRequestActive(r.State) {
-			activeRequests[r.ID] = true
+			activeRequests[creationSpaceID(r.Input.CreateInput)] = true
 			n++
 		}
 	}
 	for _, s := range ss {
-		if !activityLock(&s.mu, nonblocking) {
+		if !activityLock(s.mu, nonblocking) {
 			return 0, false
 		}
-		if !activeRequests[s.record.ID] && (s.online || s.starting || s.share != nil) {
+		active := s.online || s.starting || s.stopping != nil || s.share != nil
+		for _, child := range s.executions {
+			active = active || child.online || child.starting || child.stopping != nil
+		}
+		if !activeRequests[s.record.ID] && active {
 			n++
 		}
 		s.mu.Unlock()

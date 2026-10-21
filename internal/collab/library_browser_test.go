@@ -28,7 +28,7 @@ func TestLibraryBrowserFixture(t *testing.T) {
 	a, f, _ := fixture(t)
 	a.Host = "资源库验证 · 本机"
 	ctx := context.Background()
-	var main *Session
+	var main, mainExecution *Session
 	for i, name := range []string{"接口超时调查", "发布前检查"} {
 		f.mu.Lock()
 		f.source.ID = uuid.NewString()
@@ -67,7 +67,7 @@ func TestLibraryBrowserFixture(t *testing.T) {
 				t.Fatal(err)
 			}
 			in.PreviewHash = preview.Hash
-			if _, err = a.Create(ctx, in); err != nil {
+			if mainExecution, err = a.Create(ctx, in); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -84,7 +84,7 @@ func TestLibraryBrowserFixture(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		paired, err := a.pairAgent(ctx, agentPairInput{Code: created["code"].(string), agentCaller: agentCaller{Caller: mcp.CallerSource{Provider: "codex", SourceID: main.record.SessionID, TurnID: "turn-fixture"}}}, main.record.ID)
+		paired, err := a.pairAgent(ctx, agentPairInput{Code: created["code"].(string), agentCaller: agentCaller{Caller: mcp.CallerSource{Provider: "codex", SourceID: mainExecution.record.SessionID, TurnID: "turn-fixture"}}}, mainExecution.record.ID)
 		if err != nil {
 			t.Fatal(err)
 		}

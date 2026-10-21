@@ -1,0 +1,5 @@
+=== RUN   TestMultipleExecutionsBrowserFixture
+    executions_browser_test.go:84: multi-session fixture ready <dedicated-fixture>
+--- PASS: TestMultipleExecutionsBrowserFixture (104.59s)
+PASS
+ok  	teamcross/internal/collab	105.109s

@@ -59,8 +59,8 @@ func TestRuntimeModeBindsPreviewCreationRetryAndRestore(t *testing.T) {
 	if err = s.Share(ctx, "lan"); err != nil {
 		t.Fatal(err)
 	}
-	inv, err := sharing.Decode(s.share.Token())
-	if err != nil || inv.RuntimeMode != runtimeconfig.Trusted {
+	inv, err := sharing.Decode(s.sharedRuntime().Token())
+	if err != nil || inv.RuntimeMode != "" || !inv.ReadOnly {
 		t.Fatal(inv.RuntimeMode, err)
 	}
 	sessionID := s.record.SessionID
@@ -181,7 +181,7 @@ func TestTrustedClientDoesNotSendRestrictedDefaults(t *testing.T) {
 		t.Fatal(string(b), err)
 	}
 	var record map[string]any
-	b, _ = os.ReadFile(filepath.Join(a.Config.DataDir, "collaborations", s.record.ID, "collaboration.json"))
+	b, _ = os.ReadFile(filepath.Join(s.runtimeDirectory(), "execution.json"))
 	_ = json.Unmarshal(b, &record)
 	if record["execution"].(map[string]any)["runtimeMode"] != "trusted" {
 		t.Fatal(record["execution"])

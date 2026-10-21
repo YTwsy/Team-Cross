@@ -76,11 +76,11 @@ def run(keep_seconds):
         before = guard.generation_count()
         body = {'provider': 'claude', 'sourceId': source, 'workspaceMode': 'existing', 'requestId': str(uuid.uuid4()), 'title': 'Claude 个人辅助 · MCP 实测'}
         body['previewHash'] = a.api('preview', body)['previewHash']
-        c = a.api('collaborations', body); base = 'collaborations/'+c['id']
-        def action(name): return a.api(base+'/action', {'action': name, 'epoch': a.api(base)['epoch']})
-        joined = b.api('join', {'invitation': action('share')['invitation']}); bbase = 'collaborations/'+joined['id']
+        c = a.api('collaborations', body); spacebase = 'collaborations/'+c['spaceId']; base = spacebase+'/sessions/'+c['executionId']
+        def action(name): return a.api((spacebase if name=='share' else base)+'/action', {'action': name, 'epoch': a.api(base)['epoch']})
+        joined = b.api('join', {'invitation': action('share')['invitation']}); bbase = 'collaborations/'+joined['id']+'/sessions/'+c['executionId']
         shared_home = home
-        runtime = root/'core-a/collaborations'/c['id']/'claude-runtime'
+        runtime = root/'core-a/collaborations'/c['spaceId']/'sessions'/c['executionId']/'claude-runtime'
         worker_env = dict(env); worker_env['CLAUDE_CONFIG_DIR'] = str(runtime)
         def job(): return next(x for x in json.loads(n.cli(worker_env, ['agents', '--json', '--all'])) if x['id'] == c['nativeJobId'])
         report['worker_before'] = job()
@@ -113,7 +113,7 @@ def run(keep_seconds):
             n.wait_until(lambda: assistant_has(bhome, marker), seconds, t)
             t.read(.8)
             n.emit('personal_turn', marker=marker)
-        turn(f'Use Team Cross MCP tools to list collaborations, then read_context for collaboration {joined["id"]}, kind=file, path=baseline.txt. Also read its history and annotations. Use no other tools and do not send input. Reply TCX_READ_DONE and include the file content.', 'TCX_READ_DONE')
+        turn(f'Use Team Cross MCP tools to list collaborations, then read_context for collaboration id={joined["id"]}, executionId={c["executionId"]}, kind=file, path=baseline.txt. Also read its history and annotations. Use no other tools and do not send input. Reply TCX_READ_DONE and include the file content.', 'TCX_READ_DONE')
         text = json.dumps(rows(bhome))
         assert 'ONLY_ON_A_MCP_PROOF' in text and 'ONLY_ON_B_DO_NOT_READ_LOCALLY' not in text
         assert 'TCX_AUX_SOURCE_OK' in text
@@ -122,7 +122,7 @@ def run(keep_seconds):
         assert actual['mcpClients']['codex']['observedAt'].startswith('0001')
         report['personal_read_only_before_handoff'] = True; report['client_observation_separate'] = True
         denied_id = str(uuid.uuid4())
-        turn(f'Use Team Cross add_annotation for collaboration {joined["id"]}, text TCX_AUX_ANNOTATION. Then attempt send_input once with id={joined["id"]}, mode=start, requestId={denied_id}, text="Reply exactly TCX_MUST_NOT_RUN. Do not use tools." This is a permission-denial test: if it fails, do not retry or work around it. Reply TCX_DENIED_DONE and the result.', 'TCX_DENIED_DONE')
+        turn(f'Use Team Cross add_annotation for collaboration id={joined["id"]}, executionId={c["executionId"]}, text TCX_AUX_ANNOTATION. Then attempt send_input once with id={joined["id"]}, executionId={c["executionId"]}, mode=start, requestId={denied_id}, text="Reply exactly TCX_MUST_NOT_RUN. Do not use tools." This is a permission-denial test: if it fails, do not retry or work around it. Reply TCX_DENIED_DONE and the result.', 'TCX_DENIED_DONE')
         assert any(x['text'] == 'TCX_AUX_ANNOTATION' for x in a.api(base+'/context?kind=annotations')['annotations'])
         assert not any('TCX_MUST_NOT_RUN' in json.dumps(x.get('message', {})) for x in rows(shared_home))
         results = [v for x in rows(bhome) for v in x.get('message', {}).get('content', []) if isinstance(v, dict) and v.get('type') == 'tool_result']
@@ -130,7 +130,7 @@ def run(keep_seconds):
         report['annotation_from_personal_client'] = True; report['non_writer_send_denied'] = True
         action('handoff')
         request_id = str(uuid.uuid4())
-        dispatch = f'Use Team Cross send_input exactly once: id={joined["id"]}, mode=start, requestId={request_id}, text="Reply exactly TCX_AUX_SHARED_OK. Do not use tools." Do not use other tools. Reply TCX_DISPATCH_DONE after the tool returns.'
+        dispatch = f'Use Team Cross send_input exactly once: id={joined["id"]}, executionId={c["executionId"]}, mode=start, requestId={request_id}, text="Reply exactly TCX_AUX_SHARED_OK. Do not use tools." Do not use other tools. Reply TCX_DISPATCH_DONE after the tool returns.'
         turn(dispatch, 'TCX_DISPATCH_DONE')
         n.wait_until(lambda: assistant_has(shared_home, 'TCX_AUX_SHARED_OK'), 60, t)
         n.wait_until(lambda: not a.api(base)['busy'], 20, t)
@@ -163,7 +163,7 @@ def run(keep_seconds):
             n.emit('preview_available', seconds=keep_seconds, stop_file=str(root/'finish-preview'))
             while time.monotonic() < end and not (root/'finish-preview').exists(): t.read(.2)
         action('end')
-        turn(f'Use Team Cross read_context once for collaboration {joined["id"]}, kind=file, path=baseline.txt. Sharing has ended; do not retry or use other tools if refused. Reply TCX_REVOKED_DONE with the result.', 'TCX_REVOKED_DONE')
+        turn(f'Use Team Cross read_context once for collaboration id={joined["id"]}, executionId={c["executionId"]}, kind=file, path=baseline.txt. Sharing has ended; do not retry or use other tools if refused. Reply TCX_REVOKED_DONE with the result.', 'TCX_REVOKED_DONE')
         latest = [v for x in rows(bhome) for v in x.get('message', {}).get('content', []) if isinstance(v, dict) and v.get('type') == 'tool_result'][-1]
         assert latest.get('is_error'), 'ended share remained readable through personal MCP'
         report['ended_share_access_revoked'] = True

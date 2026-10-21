@@ -1,3 +1,4 @@
+import { spaceWithExecution } from "./execution-fixture";
 import {
   fireEvent,
   render,
@@ -56,7 +57,11 @@ const annotation: LibraryResource = {
 const context: LibraryResource = {
   ...material,
   key: "context-key",
-  reference: { spaceId: "space", kind: "context" },
+  reference: {
+    spaceId: "space",
+    executionId: "execution-space",
+    kind: "context",
+  },
   title: "协作上下文",
   summary: "实时内容",
   sessionId: "fork",
@@ -220,7 +225,22 @@ beforeEach(() => {
           pairingId: "paired",
           state: "submitted",
         };
-      else if (path === "collaborations/space") result = collaboration;
+      else if (path === "collaborations/space") {
+        const root = spaceWithExecution(collaboration);
+        root.annotations = collaboration.annotations.filter(
+          (n: any) => n.target?.kind === "material",
+        );
+        root.sessions![0]!.annotations = collaboration.annotations.filter(
+          (n: any) => n.target?.kind !== "material",
+        );
+        result = root;
+      } else if (path === "collaborations/space/sessions/execution-space")
+        result = {
+          ...collaboration,
+          spaceId: "space",
+          executionId: "execution-space",
+          id: "execution-space",
+        };
       else if (path === "collaborations") result = collaborations;
       else if (path === "collaborations/space/read-material") result = page;
       else if (path.includes("context?kind=history"))
@@ -457,7 +477,7 @@ describe("个人资源库", () => {
     await userEvent.click(
       await screen.findByRole("button", { name: /^阅读 连接池调查/ }),
     );
-    const pane = screen.getByRole("tabpanel", { name: /已发布会话材料/ });
+    const pane = document.querySelector<HTMLElement>(".space-material-reader")!;
     expect(
       within(pane).getByRole("heading", { name: "连接池调查修订版" }),
     ).toBeVisible();
@@ -571,82 +591,41 @@ describe("个人资源库", () => {
     },
   );
 
-  it("switches between materials and context with keyboard access while retaining each reader", async () => {
+  it("switches between material and session from the sidebar while retaining each reader", async () => {
     location.hash = "/collaborations/space";
     render(<App />);
-    await userEvent.click(
-      await screen.findByRole("button", { name: /^阅读 连接池调查/ }),
-    );
-    const text = await findMaterialParagraph();
-    const materialPane = screen.getByRole("tabpanel", {
-      name: /已发布会话材料/,
+    const materialButton = await screen.findByRole("button", {
+      name: /^阅读 连接池调查/,
     });
-    const header = screen
-      .getByRole("tablist", {
-        name: "协作阅读内容",
-      })
-      .closest<HTMLElement>(".reading-heading")!;
-    expect(
-      within(
-        screen.getByRole("complementary", { name: "空间功能与材料" }),
-      ).getByRole("button", { name: "发布会话材料" }),
-    ).toBeVisible();
-    expect(
-      within(materialPane).queryByRole("heading", { name: /已发布会话材料/ }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen
-        .getByRole("button", { name: "专注阅读" })
-        .closest(".space-reader-tools"),
-    ).not.toBeNull();
-    expect(
-      materialPane.querySelector(".reading-surface > .reader-toolbar"),
-    ).toBeNull();
-    await userEvent.click(screen.getByLabelText("材料操作"));
-    await userEvent.click(screen.getByRole("button", { name: "专注阅读" }));
-    await userEvent.click(screen.getByRole("tab", { name: "协作上下文" }));
-    expect(text).not.toBeVisible();
-    expect(
-      within(header).getByRole("button", { name: "刷新上下文" }),
-    ).toBeVisible();
-    expect(
-      within(header).queryByRole("button", { name: "发布会话材料" }),
-    ).not.toBeInTheDocument();
+    await userEvent.click(materialButton);
+    const text = await findMaterialParagraph();
+    const sessionButton = within(
+      screen.getByRole("navigation", { name: "协作会话" }),
+    ).getByRole("button", { name: /超时问题/ });
+    sessionButton.focus();
+    await userEvent.keyboard("{Enter}");
     expect(
       await screen.findByText("共享会话的后续验证", {
         selector: "[data-source-start]",
       }),
     ).toBeVisible();
-    expect(
-      screen
-        .getByRole("button", { name: "专注阅读" })
-        .closest(".context-reader-heading"),
-    ).not.toBeNull();
+    expect(text).not.toBeVisible();
     await userEvent.click(screen.getByRole("tab", { name: "查看文件" }));
     await userEvent.type(
       screen.getByRole("textbox", { name: "相对执行目录的文件路径" }),
       "src/main.ts",
     );
-    const contextTab = screen.getByRole("tab", {
-      name: "协作上下文",
-    });
-    contextTab.focus();
-    await userEvent.keyboard("{ArrowLeft}");
-    expect(screen.getByRole("tab", { name: /已发布会话材料/ })).toHaveFocus();
-    expect(text).toBeVisible();
-    await userEvent.click(screen.getByLabelText("材料操作"));
-    expect(
-      screen.getByRole("button", { name: "退出专注阅读", pressed: true }),
-    ).toBeVisible();
+    await userEvent.click(materialButton);
+    await waitFor(() => expect(text).toBeVisible());
     expect(calls.filter((c) => c.path.endsWith("/read-material"))).toHaveLength(
       1,
     );
-    screen.getByRole("tab", { name: /已发布会话材料/ }).focus();
-    await userEvent.keyboard("{End}");
-    expect(contextTab).toHaveFocus();
-    expect(
-      screen.getByRole("textbox", { name: "相对执行目录的文件路径" }),
-    ).toHaveValue("src/main.ts");
+    await userEvent.click(sessionButton);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: "相对执行目录的文件路径" }),
+      ).toHaveValue("src/main.ts"),
+    );
   });
 
   it("opens the matching reading tab when locating a material or live context annotation", async () => {
@@ -664,7 +643,7 @@ describe("个人资源库", () => {
         endOffset: 10,
       },
     });
-    location.hash = "/collaborations/space";
+    location.hash = "/collaborations/space/sessions/execution-space";
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: /^评论/ }));
     const liveNote = await screen.findByLabelText("批注：核对后续验证");
@@ -672,15 +651,15 @@ describe("个人资源库", () => {
       within(liveNote).getByRole("button", { name: /查看原位置/ }),
     );
     expect(
-      screen.getByRole("tab", { name: "协作上下文", selected: true }),
+      screen.getByRole("tab", { name: "最近对话", selected: true }),
     ).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: /^阅读 连接池调查/ }),
+    );
     const materialNote = screen.getByLabelText("批注：请核对采样范围");
     await userEvent.click(
       within(materialNote).getByRole("button", { name: /查看原位置/ }),
     );
-    expect(
-      screen.getByRole("tab", { name: /已发布会话材料/, selected: true }),
-    ).toBeVisible();
     expect(await findMaterialParagraph()).toBeVisible();
   });
 

@@ -50,6 +50,8 @@ const WorkbenchContext = createContext<{
   navigation: HTMLDivElement | null;
   publishing: HTMLDivElement | null;
   collaboration: Collaboration;
+  commentsTarget: HTMLDivElement | null;
+  openComments: () => void;
   commentsOpen: boolean;
   toggleComments: () => void;
   commentCount: number;
@@ -67,6 +69,25 @@ export function SpaceMaterialNavigation({
   const space = useSpaceWorkbench();
   const target = publish ? space?.publishing : space?.navigation;
   return target ? createPortal(children, target) : null;
+}
+
+// Keep each session's composer mounted while sharing one right-hand column.
+export function SpaceSessionComments({
+  active,
+  children,
+}: {
+  active: boolean;
+  children: ReactNode;
+}) {
+  const space = useSpaceWorkbench();
+  return space?.commentsTarget
+    ? createPortal(
+        <div className="space-comment-content" hidden={!active}>
+          {children}
+        </div>,
+        space.commentsTarget,
+      )
+    : null;
 }
 
 export function SpaceCommentsButton() {
@@ -235,6 +256,7 @@ export function SpaceWorkbench({
   comments,
   commentRequest,
   contextNavigation,
+  readingSession,
 }: {
   collaboration: Collaboration;
   children: ReactNode;
@@ -243,6 +265,7 @@ export function SpaceWorkbench({
   comments?: ReactNode;
   commentRequest?: AnnotationRequest;
   contextNavigation?: ReactNode;
+  readingSession?: Collaboration;
 }) {
   const [tab, setTab] = useState<Tab>("reading");
   const [navigation, setNavigation] = useState<HTMLDivElement | null>(null);
@@ -250,7 +273,25 @@ export function SpaceWorkbench({
   const [collapsed, setCollapsed] = useState(
     () => window.matchMedia?.("(max-width: 760px)")?.matches ?? false,
   );
-  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentsTarget, setCommentsTarget] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const [wide, setWide] = useState(
+    () => window.matchMedia?.("(min-width: 1101px)")?.matches ?? false,
+  );
+  const [commentVisibility, setCommentVisibility] = useState<
+    Partial<Record<"wide" | "narrow", boolean>>
+  >({});
+  const layout = wide ? "wide" : "narrow";
+  const commentsOpen = commentVisibility[layout] ?? wide;
+  const setCommentsOpen = (open: boolean) =>
+    setCommentVisibility((current) => ({ ...current, [layout]: open }));
+  useEffect(() => {
+    const query = window.matchMedia?.("(min-width: 1101px)");
+    const update = () => setWide(query?.matches ?? false);
+    query?.addEventListener("change", update);
+    return () => query?.removeEventListener("change", update);
+  }, []);
   useEffect(() => {
     const query = window.matchMedia?.("(max-width: 760px)");
     const collapseNarrow = () => {
@@ -364,10 +405,12 @@ export function SpaceWorkbench({
         navigation,
         publishing,
         collaboration: c,
+        commentsTarget,
+        openComments: () => setCommentsOpen(true),
         commentsOpen,
-        toggleComments: () => setCommentsOpen((value) => !value),
-        commentCount: c.annotations?.length || 0,
-        reading: tab === "reading",
+        toggleComments: () => setCommentsOpen(!commentsOpen),
+        commentCount: (readingSession || c).annotations?.length || 0,
+        reading: tab === "reading" && !readingSession,
       }}
     >
       <div
@@ -516,7 +559,11 @@ export function SpaceWorkbench({
             </button>
             <div className="space-local-status">
               <span className={`dot ${disabled ? "" : "green-dot"}`} />
-              <span>{c.hasExecution ? t("共同执行") : t("分享与审阅")}</span>
+              <span>
+                {c.sessions?.length || c.hasExecution
+                  ? t("共同执行")
+                  : t("分享与审阅")}
+              </span>
             </div>
           </footer>
         </aside>
@@ -551,7 +598,7 @@ export function SpaceWorkbench({
               <aside
                 className="space-comments"
                 hidden={!commentsOpen}
-                aria-label={t("空间评论")}
+                aria-label={readingSession ? t("会话评论") : t("空间评论")}
               >
                 <div className="space-comments-heading">
                   <strong>{t("评论")}</strong>
@@ -563,7 +610,13 @@ export function SpaceWorkbench({
                     <Icon name="close" size={16} />
                   </button>
                 </div>
-                {comments}
+                <div
+                  className="space-comment-content"
+                  hidden={!!readingSession}
+                >
+                  {comments}
+                </div>
+                <div ref={setCommentsTarget} />
               </aside>
             )}
           </div>
@@ -1319,7 +1372,7 @@ function SpaceSessions({
                     <h3>{target.name}</h3>
                     <p className="muted small-text">
                       {target.member} · {target.provider}
-                      {target.execution ? ` · ${t("共同执行")}` : ""}
+                      {target.executionId ? ` · ${t("共同执行")}` : ""}
                     </p>
                     <span
                       className={
@@ -1751,7 +1804,7 @@ function AssistantSetup({
             >
               <option value="">{t("选择接收会话")}</option>
               {view.targets
-                .filter((t) => !t.removed && !t.execution)
+                .filter((t) => !t.removed && !t.executionId)
                 .map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name} · {t.member}

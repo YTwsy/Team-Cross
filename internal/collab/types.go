@@ -60,6 +60,8 @@ type CreateInput struct {
 	RequestID     string             `json:"requestId"`
 }
 type Preview struct {
+	SpaceID           string             `json:"spaceId,omitempty"`
+	ExecutionID       string             `json:"executionId,omitempty"`
 	RuntimeMode       runtimeconfig.Mode `json:"runtimeMode"`
 	SourceFingerprint string             `json:"-"`
 	TargetDirectory   string             `json:"targetDirectory"`
@@ -70,15 +72,16 @@ type Preview struct {
 	Hash              string             `json:"previewHash"`
 }
 type Annotation struct {
-	Materials []MaterialReference `json:"materials,omitempty"`
-	ID        string              `json:"id"`
-	Text      string              `json:"text"`
-	Reference string              `json:"reference,omitempty"`
-	Target    *AnnotationTarget   `json:"target,omitempty"`
-	Author    string              `json:"author"`
-	AuthorID  string              `json:"authorId"`
-	CreatedAt time.Time           `json:"createdAt"`
-	Replies   []AnnotationReply   `json:"replies,omitempty"`
+	ExecutionID string              `json:"executionId,omitempty"`
+	Materials   []MaterialReference `json:"materials,omitempty"`
+	ID          string              `json:"id"`
+	Text        string              `json:"text"`
+	Reference   string              `json:"reference,omitempty"`
+	Target      *AnnotationTarget   `json:"target,omitempty"`
+	Author      string              `json:"author"`
+	AuthorID    string              `json:"authorId"`
+	CreatedAt   time.Time           `json:"createdAt"`
+	Replies     []AnnotationReply   `json:"replies,omitempty"`
 }
 
 // Replies belong to a root annotation, never to another reply or source range.
@@ -102,6 +105,7 @@ type AnnotationReplyInput struct {
 // AnnotationTarget describes the content as it was displayed when selected.
 // ContentHash is a SHA-256 of the complete file or displayed diff, not Git HEAD.
 type AnnotationTarget struct {
+	ExecutionID  string `json:"executionId,omitempty"`
 	MaterialID   string `json:"materialId,omitempty"`
 	Version      int    `json:"version,omitempty"`
 	Kind         string `json:"kind"`
@@ -138,6 +142,7 @@ type Command struct {
 	Error  string          `json:"error,omitempty"`
 }
 type ExecutionRecord struct {
+	Paused              bool               `json:"paused,omitempty"`
 	RequestID           string             `json:"requestId"`
 	RuntimeMode         runtimeconfig.Mode `json:"runtimeMode"`
 	ProviderDefaultHome bool               `json:"providerDefaultHome,omitempty"`
@@ -162,6 +167,7 @@ type ExecutionRecord struct {
 	Commands            map[string]Command `json:"commands,omitempty"`
 }
 type Record struct {
+	SpaceID          string           `json:"spaceId,omitempty"`
 	Workbench        *WorkbenchRecord `json:"workbench,omitempty"`
 	Materials        []Material       `json:"materials"`
 	Schema           int              `json:"schema"`
@@ -188,13 +194,17 @@ type direct struct {
 
 func (d *direct) close() { d.once.Do(func() { close(d.done) }) }
 
+// Space and its executions share a short-lived state lock. Provider calls never
+// hold it; runtime state, writers, command ledgers and clients remain independent.
 type Session struct {
+	space             *Session
+	executions        map[string]*Session
 	workbenchPresence map[string]targetPresence
 	receiverSpace     string
 	receiverCreation  string
 	receiverActionMu  sync.Mutex
 	receiverPaused    bool
-	mu                sync.Mutex
+	mu                *sync.Mutex
 	materialUploadMu  sync.Mutex
 	record            Record
 	app               *App
@@ -228,29 +238,35 @@ type Session struct {
 	starting          bool
 	presence          map[string]memberPresence
 }
+type executionEndpoint struct {
+	url    string
+	server *http.Server
+}
+
 type Joined struct {
-	app           *App
-	ended         bool
-	mu            sync.Mutex
-	ID            string
-	Invitation    sharing.Invitation
-	Credential    string
-	confirmed     bool
-	URL           string
-	Client        *http.Client
-	Connection    *sharing.Connection
-	Last          map[string]any
-	Error         string
-	listener      net.Listener
-	server        *http.Server
-	endpoint      string
-	left          bool
-	closed        bool
-	closeOnce     sync.Once
-	done          chan struct{}
-	heartbeatOnce sync.Once
-	statusChecked bool
-	refreshing    bool
+	executionEndpoints map[string]*executionEndpoint
+	app                *App
+	ended              bool
+	mu                 sync.Mutex
+	ID                 string
+	Invitation         sharing.Invitation
+	Credential         string
+	confirmed          bool
+	URL                string
+	Client             *http.Client
+	Connection         *sharing.Connection
+	Last               map[string]any
+	Error              string
+	listener           net.Listener
+	server             *http.Server
+	endpoint           string
+	left               bool
+	closed             bool
+	closeOnce          sync.Once
+	done               chan struct{}
+	heartbeatOnce      sync.Once
+	statusChecked      bool
+	refreshing         bool
 }
 type Settings struct {
 	ClaudeBinary string `json:"claudeBinary"`
@@ -291,6 +307,10 @@ type App struct {
 	reader          Runtime
 	readerMu        sync.Mutex
 	sessions        map[string]*Session
+	executions      map[string]*Session
+	creationMu      sync.Mutex
+	directoryMu     sync.Mutex
+	directoryOwners map[string]string
 	joined          map[string]*Joined
 	closed          bool
 	pending         map[string]pendingInvite

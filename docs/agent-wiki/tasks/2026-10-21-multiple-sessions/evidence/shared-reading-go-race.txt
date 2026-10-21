@@ -1,0 +1,9 @@
+ok  	teamcross/internal/collab	44.842s
+ok  	teamcross/internal/mcp	2.508s
+ok  	teamcross/internal/mcpevents	3.790s
+ok  	teamcross/internal/sharing	2.572s
+ok  	teamcross/internal/nativecodex	5.355s
+ok  	teamcross/internal/nativeclaude	40.247s
+ok  	teamcross/internal/service	6.537s
+ok  	teamcross/internal/cliinstall	5.306s
+ok  	teamcross/internal/pluginpack	10.174s

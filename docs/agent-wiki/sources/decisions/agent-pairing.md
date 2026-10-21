@@ -39,14 +39,14 @@ sequenceDiagram
 空间内的公开批注与材料可以通过工作台发起空间请求。成员需将配对明确关联到空间；接收目标可分布于不同成员的 Core，记录和结果由空间托管端保存。此路径不自动公开个人配对列表或旧请求，也不要求把 A 的配对码粘贴到 B 的 Core。需要另起上下文时，可按需新建会话并绑定返回的原生 ID。详细语义见 [空间工作台](space-workbench.md)。
 
 - Codex 身份来自 MCP `_meta` 中的当前 thread/turn；Claude 来自进程的 `CLAUDE_CODE_SESSION_ID` 和本次 `_meta.claudecode/toolUseId`。个人 Claude 的配对、接收核验和请求读取/完成都核对工具调用确实存在于该会话最新 transcript，防止恢复会话后使用过期进程身份。工具参数不能指定 Provider、Session 或接收连接。
-- Codex 通过原生连接向确定的 `threadId` 提交输入；`thread/start`、`thread/fork` 和 `thread/resume` 分别建立或继续会话，后续均使用 `turn/start`。当前投递复用 `Session.RPC(turn/start)`，检查连接、输入授权、空闲状态及审批，同一请求 ID 不重复执行。投递到共同执行目标时，另遵守其输入归属和本空间引用范围。原生接口见 [App Server 文档](https://learn.chatgpt.com/docs/app-server)。
+- Codex 通过原生连接向确定的 `threadId` 提交输入；`thread/start`、`thread/fork` 和 `thread/resume` 分别建立或继续会话，后续均使用 `turn/start`。当前投递复用 `Session.RPC(turn/start)`，检查连接、输入授权、空闲状态及审批，同一请求 ID 不重复执行。投递到共同执行目标时，配对保存 spaceId 和 executionId，另遵守空间成员资格、该会话输入归属与暂停状态和本空间引用范围。目标注册、发送及领取时均重新核对，不从空间推断唯一执行实例。原生接口见 [App Server 文档](https://learn.chatgpt.com/docs/app-server)。
 - 个人 Claude 使用独立于共享运行时的实验性 Channel 适配器。STDIO 声明 `experimental["claude/channel"]`，Core 将最小事件送到该连接，再发 `notifications/claude/channel`。首次配对必须收到通知中的随机挑战并通过 `confirm_pairing` 回传，写入 STDIO 本身不是接收证明。未开启 Channel、账户/组织不支持或宿主丢弃通知时，状态停留在 `verifying`，到期失效。
 - 配对绑定用户选定的原生会话，不隐式新建会话或切换目标。创建与恢复运行时按明确操作执行，核对原生 ID，不猜测默认 app-server，也不把普通 MCP 日志通知当作模型唤醒。[工作台的新建入口](space-workbench.md#按需新建接收会话)是可选操作，不是接收请求的前提。
 - 配对码、会话目标和选择引用均属于当前 Core 数据目录。跨设备配对码路由尚未接入，不能把 A 上的码直接交给只连接 B Core 的工具。已有 `joined-…` 引用仍按本机成员权限读取。
 
 ### 当前接入范围
 
-已有 Codex 会话除 `a.sessions` / `a.receivers` 外，还可通过当前原生 daemon 的 `codex app-server proxy` 建立连接。它是字节隧道上的 WebSocket；先核对 `thread/loaded/list` 包含当前 MCP 证明的精确 thread，再向同一 thread 提交输入。连接发现不启动 daemon，不调用 `thread/start/fork/resume`，不改写当前模型或原生审批。目标忙碌或原生连接不可用时显示原因；解除关联只关闭 Team Cross 自己的代理，不结束用户的 daemon 或会话。Core 重启后需明确重新连接，不自动恢复借用的连接。实现见 [当前会话连接](../../../../internal/collab/agent_connections.go) 与 [原生代理](../../../../internal/nativecodex/process.go)。
+已有 Codex 会话除 `a.executions` / `a.receivers` 外，还可通过当前原生 daemon 的 `codex app-server proxy` 建立连接。它是字节隧道上的 WebSocket；先核对 `thread/loaded/list` 包含当前 MCP 证明的精确 thread，再向同一 thread 提交输入。连接发现不启动 daemon，不调用 `thread/start/fork/resume`，不改写当前模型或原生审批。目标忙碌或原生连接不可用时显示原因；解除关联只关闭 Team Cross 自己的代理，不结束用户的 daemon 或会话。Core 重启后需明确重新连接，不自动恢复借用的连接。实现见 [当前会话连接](../../../../internal/collab/agent_connections.go) 与 [原生代理](../../../../internal/nativecodex/process.go)。
 
 这条代理只接入提供控制 socket 的 daemon。个人 Codex Desktop 可以使用独立 STDIO app-server；其 MCP thread 身份有效，并不表示默认 daemon 持有该 thread。当前没有接入这种 Desktop 进程的主动推送通道，单纯打开或重启 Desktop 不会补上它。已验证的 daemon 路径不能推广为个人 Desktop 推送通过；现场阻塞、调查工作树中的诊断及重试去重修复见[接收会话调查](../../tasks/2026-10-05-receiver-lifecycle.md)，该批生命周期修复尚未合入 Meta。
 

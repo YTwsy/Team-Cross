@@ -14,9 +14,14 @@ func (a *App) invokeWorkbenchTool(ctx context.Context, name string, args map[str
 		id := runtimeID
 		a.mu.Lock()
 		receiver := a.receivers[runtimeID]
+		execution := a.executions[runtimeID]
 		a.mu.Unlock()
 		if receiver != nil {
 			id = receiver.receiverSpace
+		} else if execution != nil {
+			id = execution.record.SpaceID
+		} else {
+			return nil, fmt.Errorf("绑定运行时不存在")
 		}
 		if _, supplied := args["spaceId"]; supplied {
 			return nil, fmt.Errorf("绑定运行时不能选择其他空间")

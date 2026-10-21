@@ -104,7 +104,7 @@ def run(args):
             for core in (a,b): core.api('settings',{'binary':args.codex_bin, 'claudeBinary':n.CLI})
         body = {'provider':args.provider,'runtimeMode':args.runtime_mode,'sourceId':source,'workspaceMode':'existing','requestId':str(uuid.uuid4()),'title':('信任模式验证' if trusted else '批注闭环验证')+' · '+args.provider}
         body['previewHash'] = a.api('preview',body)['previewHash']
-        c = a.api('collaborations',body); base='collaborations/'+c['id']
+        c = a.api('collaborations',body); spacebase='collaborations/'+c['spaceId']; base=spacebase+'/sessions/'+c['executionId']
         assert c['runtimeMode']==args.runtime_mode
         if trusted and args.provider=='codex':
             # `codex exec` seeds with approval=never. Exercise the native
@@ -112,8 +112,8 @@ def run(args):
             a.api(base+'/rpc',{'method':'thread/settings/update','params':{'permissions':'trusted-fixture','approvalPolicy':'on-request','approvalsReviewer':'user'},'requestId':'fixture-native-permissions'})
             report['native_permissions_selected']=True
         report.update({'id':c['id'],'sessionId':c['sessionId'],'core':a.url,'detail':a.url+'/#/'+base})
-        def action(value): return a.api(base+'/action',{'action':value,'epoch':a.api(base)['epoch']})
-        shared=action('share'); joined=b.api('join',{'invitation':shared['invitation']}); bbase='collaborations/'+joined['id']
+        def action(value): return a.api((spacebase if value=='share' else base)+'/action',{'action':value,'epoch':a.api(base)['epoch']})
+        shared=action('share'); joined=b.api('join',{'invitation':shared['invitation']}); bbase='collaborations/'+joined['id']+'/sessions/'+c['executionId']
         annotation=b.api(bbase+'/annotations',{'text':'请核对批注读取结果：TCX_NATIVE_NOTE_SECRET_729。需要在这里回复处理结果。'})
         b.api(bbase+'/annotation-replies',{'annotationId':annotation['id'],'text':'协作者补充：TCX_HUMAN_REPLY_483','requestId':'human-reply'})
         action('handoff')

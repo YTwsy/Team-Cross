@@ -75,12 +75,15 @@ func decode(w http.ResponseWriter, r *http.Request, out any) bool {
 }
 func (a *App) View(ctx context.Context, id string) (map[string]any, error) {
 	a.mu.Lock()
-	s, j := a.sessions[id], a.joined[id]
+	s, j, executionID := a.targetLocked(id)
 	a.mu.Unlock()
 	if s != nil {
-		return s.view(), nil
+		return s.viewFor(ctx), nil
 	}
 	if j != nil {
+		if executionID != "" {
+			return j.executionView(ctx, executionID)
+		}
 		return j.view(ctx), nil
 	}
 	return nil, fmt.Errorf("没有找到协作")
@@ -115,6 +118,14 @@ func (s *Session) annotate(in Annotation, author string, contexts ...context.Con
 	if len(contexts) > 0 && !s.callerValidLocked(contexts[0]) {
 		return Annotation{}, fmt.Errorf("共享已结束")
 	}
+	if s.space != nil {
+		if (in.ExecutionID != "" && in.ExecutionID != s.record.ID) || (len(contexts) > 0 && !sharing.ExecutionAuthorized(contexts[0], s.sharedRuntime(), s.record.ID)) {
+			return Annotation{}, fmt.Errorf("批注不属于可访问的协作会话")
+		}
+		in.ExecutionID = s.record.ID
+	} else if in.ExecutionID != "" {
+		return Annotation{}, fmt.Errorf("会话批注需要具体协作会话入口")
+	}
 	if err := s.validateReferencesLocked(in.Materials); err != nil {
 		return Annotation{}, err
 	}
@@ -123,13 +134,17 @@ func (s *Session) annotate(in Annotation, author string, contexts ...context.Con
 			return Annotation{}, err
 		}
 	} else if in.Target != nil {
-		if s.record.ExecutionRecord == nil || (len(contexts) > 0 && !sharing.ExecutionAuthorized(contexts[0], s.share)) {
+		if s.record.ExecutionRecord == nil || (len(contexts) > 0 && !sharing.ExecutionAuthorized(contexts[0], s.sharedRuntime(), s.record.ID)) {
 			return Annotation{}, fmt.Errorf("只读空间不能引用原生会话或目录")
 		}
 		if in.Target.SessionID != "" && in.Target.SessionID != s.record.SessionID {
 			return Annotation{}, fmt.Errorf("批注不属于当前协作会话")
 		}
+		if in.Target.ExecutionID != "" && in.Target.ExecutionID != s.record.ID {
+			return Annotation{}, fmt.Errorf("批注不属于当前协作会话")
+		}
 		in.Target.SessionID = s.record.SessionID
+		in.Target.ExecutionID = s.record.ID
 	}
 	previousUpdatedAt := s.record.UpdatedAt
 	s.record.Annotations = append(s.record.Annotations, in)
@@ -143,11 +158,11 @@ func (s *Session) annotate(in Annotation, author string, contexts ...context.Con
 }
 func (a *App) target(ctx context.Context, id, method, path string, input any) (any, error) {
 	a.mu.Lock()
-	s, j := a.sessions[id], a.joined[id]
+	s, j, executionID := a.targetLocked(id)
 	a.mu.Unlock()
 	if j != nil {
 		var out json.RawMessage
-		e := j.request(ctx, method, "/v2/"+path, input, &out)
+		e := j.request(ctx, method, remoteExecutionPath(executionID, path), input, &out)
 		return out, e
 	}
 	if s == nil {
@@ -373,6 +388,40 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := parts[1]
+	a.mu.Lock()
+	bareExecution := a.executions[id] != nil
+	a.mu.Unlock()
+	if bareExecution {
+		respond(w, nil, fmt.Errorf("请使用空间 ID 与 executionId 定位协作会话"))
+		return
+	}
+	if len(parts) >= 3 && parts[2] == "sessions" {
+		if len(parts) == 3 && r.Method == "GET" {
+			view, err := a.View(ctx, id)
+			if err != nil {
+				respond(w, nil, err)
+			} else {
+				respond(w, view["sessions"], nil)
+			}
+			return
+		}
+		if len(parts) != 4 && len(parts) != 5 {
+			http.NotFound(w, r)
+			return
+		}
+		id = executionAddress(id, parts[3])
+		if len(parts) == 4 {
+			parts = []string{"collaborations", id}
+		} else {
+			switch parts[4] {
+			case "context", "action", "rpc", "respond", "endpoint", "open", "assist", "personal-desktop", "annotations", "annotation-replies":
+			default:
+				http.NotFound(w, r)
+				return
+			}
+			parts = []string{"collaborations", id, parts[4]}
+		}
+	}
 	if len(parts) == 2 && r.Method == "GET" {
 		out, e := a.View(ctx, id)
 		respond(w, out, e)
@@ -413,9 +462,9 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		}
 		if in.Action == "leave" {
 			a.mu.Lock()
-			j := a.joined[id]
+			_, j, executionID := a.targetLocked(id)
 			a.mu.Unlock()
-			if j != nil {
+			if j != nil && executionID == "" {
 				e := j.leave(ctx)
 				respond(w, map[string]bool{"ok": e == nil}, e)
 				return
@@ -423,11 +472,11 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 		}
 		if in.Action == "return" || in.Action == "request_input" || in.Action == "cancel_input" {
 			a.mu.Lock()
-			j := a.joined[id]
+			_, j, executionID := a.targetLocked(id)
 			a.mu.Unlock()
 			if j != nil {
 				var result any
-				e := j.request(ctx, "POST", "/v2/"+in.Action, map[string]uint64{"epoch": in.Epoch}, &result)
+				e := j.request(ctx, "POST", remoteExecutionPath(executionID, in.Action), map[string]uint64{"epoch": in.Epoch}, &result)
 				respond(w, result, e)
 				return
 			}
@@ -453,14 +502,13 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 			e = s.ActionFor(ctx, in.Action, in.MemberID, in.Epoch)
 		}
 		respond(w, s.view(), e)
-	case "invitations", "revoke-invitation", "remove-member", "execution-access":
+	case "invitations", "revoke-invitation", "remove-member":
 		var in struct {
 			Transport    string `json:"transport"`
 			RequestID    string `json:"requestId"`
 			MemberID     string `json:"memberId"`
 			InvitationID string `json:"invitationId"`
 			Reset        bool   `json:"reset"`
-			Allowed      *bool  `json:"allowed"`
 		}
 		if !decode(w, r, &in) {
 			return
@@ -493,13 +541,7 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 			}
 			respond(w, out, e)
 		} else {
-			if action == "execution-access" {
-				if in.Allowed == nil {
-					e = fmt.Errorf("请明确是否开放执行访问")
-				} else {
-					e = s.SetExecutionAccess(in.MemberID, *in.Allowed)
-				}
-			} else if action == "remove-member" {
+			if action == "remove-member" {
 				e = s.RevokeMember(in.MemberID)
 			} else {
 				e = s.RevokeInvitation(in.InvitationID)

@@ -1,0 +1,4 @@
+=== RUN   TestLiveTailcatCollaboration
+--- PASS: TestLiveTailcatCollaboration (3.47s)
+PASS
+ok  	teamcross/internal/collab	3.943s

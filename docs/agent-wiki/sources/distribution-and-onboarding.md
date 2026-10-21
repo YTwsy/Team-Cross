@@ -50,9 +50,9 @@ DMG 替换 App 后，公共启动器读取安装位置上二进制的 `version -
 
 首次协作可先分享材料讨论，也可创建带执行的空间；来源选择、创建与邀请失败后的处理见 [产品流程](product-flows.md)，成员与执行权限见 [协作空间契约](decisions/collaboration-spaces.md)。本节维护邀请在本机的打开方式与客户端就绪检查。启动不要求 `--repo`；此高级参数只设置本机辅助上下文。
 
-邀请同时给出 `teamcross://join?invite=…`、原始 `tcx3.` 内容及安装指引。App 将邀请经带本机凭据的接口暂存，浏览器只携带随机 pending ID。暂存最多 32 项、10 分钟，仍受原邀请期限约束。邀请声明的名称、主机和 `lan|tailcat` 在预览显示，实际加入使用相同 TLS pin 验证；预览只做本地格式和版本校验，不联系远端、不启动模型。Tailcat 邀请还包含其地址及预共享密钥，安装指引和页面明确提醒用户把整份邀请码视为秘密。
+邀请同时给出 `teamcross://join?invite=…`、原始 `tcx4.` 内容及安装指引。App 将邀请经带本机凭据的接口暂存，浏览器只携带随机 pending ID。暂存最多 32 项、10 分钟，仍受原邀请期限约束。邀请声明的名称、主机和 `lan|tailcat` 在预览显示，实际加入使用相同 TLS pin 验证；预览只做本地格式和版本校验，不联系远端、不启动模型。Tailcat 邀请还包含其地址及预共享密钥，安装指引和页面明确提醒用户把整份邀请码视为秘密。
 
-加入后进入所获授权的空间上下文；页面关闭不停止本机 Core 的在线心跳。多人参与、成员资格与执行访问按 [协作空间契约](decisions/collaboration-spaces.md) 判断，申请和交接按 [输入协调](decisions/input-and-sharing.md) 处理；心跳周期、在线窗口与请求字段统一维护在 [共享协议](protocol.md#共享邀请与传输)。
+加入后进入所获授权的空间上下文；页面关闭不停止本机 Core 的在线心跳。多人参与、成员资格与共同阅读按 [协作空间契约](decisions/collaboration-spaces.md) 判断，申请和交接按 [输入协调](decisions/input-and-sharing.md) 处理；心跳周期、在线窗口与请求字段统一维护在 [共享协议](protocol.md#共享邀请与传输)。
 
 直接客户端以连接建立、成功读取或恢复对应 thread 区分 `connected` 和 `session_ready`。Desktop 仍需手动打开会话时如实说明。设置页区分自动发现、手动配置与当前检测结果，并提供重新检测、错误恢复和同一应用内 CLI 迁移提示；保存时不固定自动发现的路径。发现顺序与失效处理由 [原生客户端决策](decisions/native-clients-and-models.md#cli-发现与配置) 维护。实际版本可诊断，实验 Desktop 接口不视为公开稳定合同。
 

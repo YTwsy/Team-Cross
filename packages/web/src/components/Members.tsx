@@ -10,23 +10,24 @@ export function Members({
   onAction,
   onRemove,
   onAssist,
-  onExecutionAccess,
+  compact = false,
 }: {
   collaboration: Collaboration;
   busy: boolean;
   closed: boolean;
   onAction: (action: string, memberId?: string) => void;
-  onRemove: (memberId: string) => void;
+  onRemove?: (memberId: string) => void;
   onAssist: () => void;
-  onExecutionAccess?: (memberId: string, allowed: boolean) => void;
+  compact?: boolean;
 }) {
   const panel = useRef<HTMLElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const bodyId = useId();
   const [reading, setReading] = useState(false);
   const [manual, setManual] = useState<boolean>();
-  const expanded = manual ?? !reading;
+  const expanded = compact || (manual ?? !reading);
   useEffect(() => {
+    if (compact) return;
     const grid = panel.current?.closest<HTMLElement>(".detail-grid");
     if (!grid) return;
     const aside = panel.current?.closest<HTMLElement>(".detail-aside");
@@ -78,7 +79,7 @@ export function Members({
       current?.removeEventListener("focusout", schedule);
       releaseHeight();
     };
-  }, [c.id]);
+  }, [c.id, compact]);
   const owner = c.role === "owner";
   const selfId = c.selfId || c.role;
   const execution = c.hasExecution !== false;
@@ -88,24 +89,26 @@ export function Members({
   return (
     <section
       ref={panel}
-      className={`panel participants-panel ${expanded ? "" : "is-collapsed"}`}
+      className={`panel participants-panel ${compact ? "participants-compact" : ""} ${expanded ? "" : "is-collapsed"}`}
     >
       <div className="panel-heading">
-        <h2>{t("参与成员")}</h2>
+        <h2>{c.executionId ? t("输入交接") : t("参与成员")}</h2>
         <div className="participants-heading-actions">
           <span className="participants-caption">
             {active.length + 1}
             {" " + t("人")}
           </span>
-          <button
-            className="icon-button"
-            aria-expanded={expanded}
-            aria-controls={bodyId}
-            aria-label={expanded ? t("收起成员") : t("展开成员")}
-            onClick={() => setManual(!expanded)}
-          >
-            <Icon name="chevron" size={14} />
-          </button>
+          {!compact && (
+            <button
+              className="icon-button"
+              aria-expanded={expanded}
+              aria-controls={bodyId}
+              aria-label={expanded ? t("收起成员") : t("展开成员")}
+              onClick={() => setManual(!expanded)}
+            >
+              <Icon name="chevron" size={14} />
+            </button>
+          )}
         </div>
       </div>
       <div
@@ -152,46 +155,32 @@ export function Members({
                         member.inputRequested &&
                         t(" · 正在申请输入")}
                     </span>
-                    <small className="muted">
-                      {member.executionAccess
-                        ? t("可参与共同执行")
-                        : t("阅读与讨论")}
-                    </small>
                   </div>
                 </div>
                 {owner && member.active && c.sharing && (
                   <div className="member-actions">
-                    {execution && onExecutionAccess && (
-                      <button
-                        className="text-link"
-                        disabled={busy || c.state !== "ready"}
-                        onClick={() =>
-                          onExecutionAccess(member.id, !member.executionAccess)
-                        }
-                      >
-                        {member.executionAccess
-                          ? t("收回执行访问")
-                          : t("开放执行访问")}
-                      </button>
-                    )}
-                    {mine && member.executionAccess !== false && (
+                    {mine && execution && (
                       <button
                         className="button small"
+                        aria-label={t("将输入交给") + member.name}
                         disabled={busy || c.busy || !c.online}
                         onClick={() => onAction("handoff", member.id)}
                       >
-                        {t("将输入交给")}
-                        {member.name}
+                        {compact
+                          ? t("交出输入")
+                          : t("将输入交给") + member.name}
                       </button>
                     )}
-                    <button
-                      className="text-link danger small-text"
-                      disabled={busy}
-                      onClick={() => onRemove(member.id)}
-                      aria-label={tr`移除成员 ${member.name}`}
-                    >
-                      {t("移除") + " "}
-                    </button>
+                    {onRemove && (
+                      <button
+                        className="text-link danger small-text"
+                        disabled={busy}
+                        onClick={() => onRemove(member.id)}
+                        aria-label={tr`移除成员 ${member.name}`}
+                      >
+                        {t("移除") + " "}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -202,13 +191,6 @@ export function Members({
               </p>
             )}
           </div>
-          {owner && execution && active.some((m) => !m.executionAccess) && (
-            <p className="small-text muted">
-              {t(
-                "开放执行访问会共享这个协作会话的完整原生历史和工作目录；实际输入仍需单独交接。",
-              ) + " "}
-            </p>
-          )}
           <div className="participants-actions">
             {execution && owner && c.sharing && !mine && (
               <button

@@ -53,8 +53,14 @@ function AppShell() {
   });
   useEffect(() => {
     const handler = () => {
-      setRoute(location.hash.slice(1) || "/");
-      window.scrollTo(0, 0);
+      const next = location.hash.slice(1) || "/";
+      setRoute((previous) => {
+        const space = (path: string) =>
+          path.match(/^\/collaborations\/([^/]+)/)?.[1];
+        if (!space(previous) || space(previous) !== space(next))
+          window.scrollTo(0, 0);
+        return next;
+      });
     };
     window.addEventListener("hashchange", handler);
     return () => window.removeEventListener("hashchange", handler);
@@ -82,7 +88,11 @@ function AppShell() {
   }, [route]);
   const libraryRoute = route.split("?")[0];
   const quick = libraryRoute === "/library/quick";
-  const detailId = route.match(/^\/collaborations\/([^/]+)$/)?.[1];
+  const detailMatch = route.match(
+    /^\/collaborations\/([^/]+)(?:\/sessions\/([^/]+))?$/,
+  );
+  const detailId = detailMatch?.[1];
+  const executionId = detailMatch?.[2];
   const page =
     libraryRoute === "/library" ? (
       <Library
@@ -106,7 +116,7 @@ function AppShell() {
         onLanguageChange={adoptLanguage}
       />
     ) : detailId ? (
-      <Detail key={detailId} id={detailId} />
+      <Detail key={detailId} id={detailId} executionId={executionId} />
     ) : (
       <Home />
     );
@@ -220,7 +230,7 @@ function AppShell() {
             </span>
           </div>
         )}
-        <div className="page" key={route}>
+        <div className="page" key={detailId || route}>
           {page}
         </div>
         <SelectionTray />

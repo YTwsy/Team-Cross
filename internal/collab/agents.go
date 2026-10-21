@@ -23,21 +23,22 @@ import (
 // Pairings name an exact receiving conversation. They confer no additional
 // resource access or execution ownership. This state is local to one Core.
 type AgentPairing struct {
-	Links      map[string]string `json:"links,omitempty"`
-	RuntimeID  string            `json:"runtimeId,omitempty"`
-	ID         string            `json:"id"`
-	Name       string            `json:"name"`
-	Provider   string            `json:"provider,omitempty"`
-	SessionID  string            `json:"sessionId,omitempty"`
-	SpaceID    string            `json:"spaceId,omitempty"`
-	Transport  string            `json:"transport,omitempty"`
-	State      string            `json:"state"`
-	Reason     string            `json:"reason,omitempty"`
-	CreatedAt  time.Time         `json:"createdAt"`
-	ExpiresAt  time.Time         `json:"expiresAt"`
-	CodeHash   string            `json:"codeHash,omitempty"`
-	ReceiverID string            `json:"receiverId,omitempty"`
-	Challenge  string            `json:"challenge,omitempty"`
+	ExecutionID string            `json:"executionId,omitempty"`
+	Links       map[string]string `json:"links,omitempty"`
+	RuntimeID   string            `json:"runtimeId,omitempty"`
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Provider    string            `json:"provider,omitempty"`
+	SessionID   string            `json:"sessionId,omitempty"`
+	SpaceID     string            `json:"spaceId,omitempty"`
+	Transport   string            `json:"transport,omitempty"`
+	State       string            `json:"state"`
+	Reason      string            `json:"reason,omitempty"`
+	CreatedAt   time.Time         `json:"createdAt"`
+	ExpiresAt   time.Time         `json:"expiresAt"`
+	CodeHash    string            `json:"codeHash,omitempty"`
+	ReceiverID  string            `json:"receiverId,omitempty"`
+	Challenge   string            `json:"challenge,omitempty"`
 }
 
 type AgentRequest struct {
@@ -203,7 +204,7 @@ func (a *App) pairAgent(ctx context.Context, in agentPairInput, runtimeID string
 		return AgentPairing{}, fmt.Errorf("配对码无效或已到期，请在 Team Cross 重新生成")
 	}
 	if p.SessionID != "" {
-		if p.SessionID != in.Caller.SourceID || p.Provider != in.Caller.Provider || (runtimeID != "" && p.SpaceID != runtimeID) || (p.Transport == "claude_channel" && p.ReceiverID != in.ReceiverID) {
+		if p.SessionID != in.Caller.SourceID || p.Provider != in.Caller.Provider || (runtimeID != "" && p.ExecutionID != runtimeID && p.RuntimeID != runtimeID) || (p.Transport == "claude_channel" && p.ReceiverID != in.ReceiverID) {
 			return AgentPairing{}, fmt.Errorf("此配对码已由另一个会话使用")
 		}
 		return pairingPublic(p), nil
@@ -228,8 +229,8 @@ func (a *App) pairAgent(ctx context.Context, in agentPairInput, runtimeID string
 	}
 	var bound *Session
 	a.mu.Lock()
-	sessions := make([]*Session, 0, len(a.sessions))
-	for _, s := range a.sessions {
+	sessions := make([]*Session, 0, len(a.executions))
+	for _, s := range a.executions {
 		sessions = append(sessions, s)
 	}
 	a.mu.Unlock()
@@ -245,7 +246,7 @@ func (a *App) pairAgent(ctx context.Context, in agentPairInput, runtimeID string
 	p.Provider, p.SessionID = in.Caller.Provider, in.Caller.SourceID
 	if bound != nil {
 		bound.mu.Lock()
-		p.SpaceID = bound.record.ID
+		p.SpaceID, p.ExecutionID = bound.spaceID(), bound.record.ID
 		online := bound.online && bound.process != nil && bound.process.Alive()
 		bound.mu.Unlock()
 		if !online {
@@ -381,7 +382,11 @@ func (a *App) agentSession(p AgentPairing) *Session {
 	if p.RuntimeID != "" {
 		return a.receivers[p.RuntimeID]
 	}
-	return a.sessions[p.SpaceID]
+	s := a.executions[p.ExecutionID]
+	if s == nil || s.record.SpaceID != p.SpaceID {
+		return nil
+	}
+	return s
 }
 
 func (a *App) nativeAgentReasonFor(p AgentPairing, role string) string {
@@ -394,7 +399,7 @@ func (a *App) nativeAgentReasonFor(p AgentPairing, role string) string {
 	if s.record.ExecutionRecord == nil || s.record.SessionID != p.SessionID || s.record.Provider != p.Provider {
 		return "接收会话身份已变化，请重新配对"
 	}
-	if s.receiverPaused {
+	if s.receiverPaused || s.record.Paused {
 		return "接收已暂停，请恢复接收会话后再发送"
 	}
 	if s.closed || !s.online || s.process == nil || !s.process.Alive() {
@@ -439,7 +444,7 @@ func (a *App) sendAgentRequest(ctx context.Context, in agentRequestInput) (Agent
 	}
 	if p.SpaceID != "" {
 		for _, ref := range in.References {
-			if ref.SpaceID != p.SpaceID {
+			if ref.SpaceID != p.SpaceID || (ref.ExecutionID != "" && ref.ExecutionID != p.ExecutionID) {
 				return AgentRequest{}, fmt.Errorf("这个接收会话只能读取它所在空间的内容，请选择其他已配对会话")
 			}
 		}
@@ -557,7 +562,7 @@ func (a *App) agentRequestFor(c agentCaller, id, runtimeID string) (AgentRequest
 	defer a.agentMu.Unlock()
 	r, ok := a.agents.Requests[id]
 	p, paired := a.agents.Pairings[r.PairingID]
-	if !ok || !paired || p.State != "paired" || p.Provider != c.Caller.Provider || p.SessionID != c.Caller.SourceID || (runtimeID != "" && runtimeID != p.SpaceID && runtimeID != p.RuntimeID) || (p.Transport == "claude_channel" && p.ReceiverID != c.ReceiverID) {
+	if !ok || !paired || p.State != "paired" || p.Provider != c.Caller.Provider || p.SessionID != c.Caller.SourceID || (runtimeID != "" && runtimeID != p.ExecutionID && runtimeID != p.RuntimeID) || (p.Transport == "claude_channel" && p.ReceiverID != c.ReceiverID) {
 		return AgentRequest{}, AgentPairing{}, fmt.Errorf("此请求不属于当前已配对会话，或配对已移除")
 	}
 	return libraryClone(r), p, nil

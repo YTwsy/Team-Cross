@@ -31,17 +31,17 @@ type SpaceActor struct {
 }
 
 type SpaceTarget struct {
-	Session   string    `json:"session,omitempty"`
-	ID        string    `json:"id"`
-	MemberID  string    `json:"memberId"`
-	Member    string    `json:"member"`
-	Name      string    `json:"name"`
-	Provider  string    `json:"provider"`
-	Execution bool      `json:"execution,omitempty"`
-	Removed   bool      `json:"removed,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
-	Available bool      `json:"available"`
-	Reason    string    `json:"reason,omitempty"`
+	Session     string    `json:"session,omitempty"`
+	ID          string    `json:"id"`
+	MemberID    string    `json:"memberId"`
+	Member      string    `json:"member"`
+	Name        string    `json:"name"`
+	Provider    string    `json:"provider"`
+	ExecutionID string    `json:"executionId,omitempty"`
+	Removed     bool      `json:"removed,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
+	Available   bool      `json:"available"`
+	Reason      string    `json:"reason,omitempty"`
 }
 
 type SpaceRequest struct {
@@ -127,7 +127,7 @@ type workbenchInput struct {
 	PairingID       string               `json:"pairingId,omitempty"`
 	Name            string               `json:"name,omitempty"`
 	Provider        string               `json:"provider,omitempty"`
-	Execution       bool                 `json:"execution,omitempty"`
+	ExecutionID     string               `json:"executionId,omitempty"`
 	Actor           SpaceActor           `json:"actor"`
 	ParentRequestID string               `json:"parentRequestId,omitempty"`
 	References      []LibraryReference   `json:"references,omitempty"`
@@ -180,7 +180,7 @@ func (s *Session) workbenchRefsLocked(refs []LibraryReference) error {
 		if err := ref.validate(); err != nil {
 			return err
 		}
-		if ref.SpaceID != s.record.ID || ref.Kind == "context" {
+		if ref.SpaceID != s.record.ID || ref.Kind == "context" || ref.ExecutionID != "" {
 			return fmt.Errorf("空间请求只能引用本空间已发布的材料和批注")
 		}
 		if seen[libraryKey(ref)] {
@@ -222,7 +222,7 @@ func (s *Session) spaceTargetLocked(t SpaceTarget) SpaceTarget {
 	if t.Removed {
 		t.Available, t.Reason = false, "已解除关联"
 	}
-	if t.MemberID != "owner" && (s.share == nil || !s.share.HasMember(t.MemberID)) {
+	if t.MemberID != "owner" && (s.sharedRuntime() == nil || !s.sharedRuntime().HasMember(t.MemberID)) {
 		t.Available, t.Reason = false, "成员已离开或共享已结束"
 	}
 	return t
@@ -259,7 +259,7 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed || !s.callerValidLocked(ctx) {
+	if s.closed || s.record.State == "unsupported" || s.space != nil || !s.callerValidLocked(ctx) {
 		return nil, fmt.Errorf("共享已结束或成员已移除")
 	}
 	if s.record.State == "ended" && op != "view" && op != "request" && op != "annotations" && op != "poll" && op != "receipt" && op != "finish" {
@@ -339,7 +339,7 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 			return nil, fmt.Errorf("接收会话信息无效")
 		}
 		if target.ID != "" {
-			if target.MemberID != member || target.Name != in.Name || target.Provider != in.Provider || target.Execution != in.Execution || target.Session != in.Session {
+			if target.MemberID != member || target.Name != in.Name || target.Provider != in.Provider || target.ExecutionID != in.ExecutionID || target.Session != in.Session {
 				return nil, fmt.Errorf("关联标识已使用，请重新关联")
 			}
 			if target.Removed {
@@ -351,10 +351,10 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 		if len(b.Targets) >= 256 {
 			return nil, fmt.Errorf("空间接收会话已达上限")
 		}
-		if in.Execution && (member != "owner" || s.record.ExecutionRecord == nil) {
+		if in.ExecutionID != "" && (member != "owner" || s.executions[in.ExecutionID] == nil) {
 			return nil, fmt.Errorf("共同执行会话只能由空间发起者关联")
 		}
-		target = SpaceTarget{ID: in.TargetID, MemberID: member, Member: actor.Name, Name: in.Name, Provider: in.Provider, Execution: in.Execution, CreatedAt: now, Session: in.Session}
+		target = SpaceTarget{ID: in.TargetID, MemberID: member, Member: actor.Name, Name: in.Name, Provider: in.Provider, ExecutionID: in.ExecutionID, CreatedAt: now, Session: in.Session}
 		b.Targets[target.ID], changed = target, true
 		return target, nil
 	case "remove":
@@ -420,8 +420,8 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 		if target.ID == "" || !s.spaceTargetLocked(target).Available {
 			return nil, fmt.Errorf("接收会话未就绪，请刷新会话状态")
 		}
-		if target.Execution && (s.writer != member || (member != "owner" && (s.share == nil || !s.share.HasExecutionAccess(member)))) {
-			return nil, fmt.Errorf("向共同执行会话投递需要当前输入权和执行访问")
+		if target.ExecutionID != "" && !s.executionWriterLocked(target.ExecutionID, member) {
+			return nil, fmt.Errorf("向共同执行会话投递需要有效空间成员资格和该会话当前输入权")
 		}
 		if b.Assistant.TargetID == target.ID && b.Assistant.State != "ready" && b.Assistant.State != "disabled" {
 			return nil, fmt.Errorf("专用会话尚未接手或已暂停")
@@ -483,7 +483,7 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 			if request.State != "queued" {
 				return nil, fmt.Errorf("请求已接手，不能重复投递")
 			}
-			if target.Execution && (s.writer != request.Actor.MemberID || (request.Actor.MemberID != "owner" && (s.share == nil || !s.share.HasExecutionAccess(request.Actor.MemberID)))) {
+			if target.ExecutionID != "" && !s.executionWriterLocked(target.ExecutionID, request.Actor.MemberID) {
 				return nil, fmt.Errorf("投递前输入权已变化")
 			}
 			if err = s.workbenchRefsLocked(request.References); err != nil {
@@ -602,7 +602,7 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 		if in.State != "initializing" || target.ID == "" || !s.spaceTargetLocked(target).Available {
 			return nil, fmt.Errorf("请选择已就绪的空间接收会话")
 		}
-		if target.Execution {
+		if target.ExecutionID != "" {
 			return nil, fmt.Errorf("专用会话应与共同执行会话分开，请创建独立接收会话")
 		}
 		if _, e := uuid.Parse(in.RequestID); e != nil || exists {

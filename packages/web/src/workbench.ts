@@ -6,7 +6,7 @@ export type SpaceTarget = {
   member: string;
   name: string;
   provider: string;
-  execution?: boolean;
+  executionId?: string;
   removed?: boolean;
   available: boolean;
   reason?: string;

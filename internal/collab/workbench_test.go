@@ -79,11 +79,11 @@ func TestSpaceWorkbenchThreeCoresPreserveIdentityScopeAndResults(t *testing.T) {
 	c, fc, _ := fixture(t)
 	stopWorkbenchPump(b)
 	stopWorkbenchPump(c)
-	jb, err := b.Join(ctx, s.share.Token())
+	jb, err := b.Join(ctx, s.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal(err)
 	}
-	jc, err := c.Join(ctx, s.share.Token())
+	jc, err := c.Join(ctx, s.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,7 +353,7 @@ func TestIndependentReceiverDoesNotEnableExecutionAndScopesNativeTools(t *testin
 	}
 	a.pumpWorkbench(ctx)
 	view := workbenchDecode[WorkbenchView](wb(t, a, s.record.ID, "view", workbenchInput{}))
-	if len(view.Targets) != 1 || !view.Targets[0].Available || view.Targets[0].Execution {
+	if len(view.Targets) != 1 || !view.Targets[0].Available || view.Targets[0].ExecutionID != "" {
 		t.Fatal(view)
 	}
 	caller := mcp.CallerSource{Provider: "codex", SourceID: receiver.record.SessionID, TurnID: "turn-fixture"}

@@ -171,7 +171,7 @@ it("enables execution in the existing space without sharing again or generating 
   render(<Create spaceId="space" />);
   await user.click(await screen.findByRole("radio", { name: /来源会话/ }));
   await user.click(screen.getByRole("button", { name: /下一步/ }));
-  const enable = await screen.findByRole("button", { name: "启用共同执行" });
+  const enable = await screen.findByRole("button", { name: "新增协作会话" });
   await waitFor(() => expect(enable).toBeEnabled());
   expect(screen.queryByText("选择连接方式")).not.toBeInTheDocument();
   await user.click(enable);
@@ -186,25 +186,62 @@ it("enables execution in the existing space without sharing again or generating 
   expect(sessionStorage.getItem("teamcross.invite.space")).toBeNull();
 });
 
-it("keeps a member in discussion after execution is enabled until execution access is granted", async () => {
+it("lets a space member read a new session and request input without another grant", async () => {
+  const session = {
+    ...space,
+    id: "session",
+    spaceId: "space",
+    executionId: "session",
+    title: "一起复核",
+    hasExecution: true,
+    sessionId: "native",
+    online: true,
+    writer: "owner",
+    epoch: 1,
+    sharing: true,
+  };
+  const calls: { path: string; body?: any }[] = [];
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () =>
-      json({
+    vi.fn(async (input: string, init?: RequestInit) => {
+      calls.push({
+        path: input,
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      });
+      if (input.includes("/context?"))
+        return json({ thread: {}, turns: [], segments: [] });
+      if (input.includes("/workbench/view"))
+        return json({
+          targets: [],
+          requests: [],
+          total: 0,
+          brief: { revision: 0, topic: "", decisions: [], questions: [] },
+          assistant: { epoch: 0, state: "disabled" },
+        });
+      if (input.includes("space-receivers") || input.endsWith("agent-pairings"))
+        return json([]);
+      return json({
         ...space,
         role: "remote",
-        executionAvailable: true,
+        selfId: "member",
+        sessions: [session],
         sharing: true,
-      }),
-    ),
+      });
+    }),
   );
-  render(<Detail id="space" />);
-  await userEvent.click(await screen.findByRole("tab", { name: "空间概览" }));
-  await userEvent.click(screen.getByText("空间管理", { selector: "summary" }));
-  await screen.findByText(/发起者已启用共同执行/);
+  render(<Detail id="space" executionId="session" />);
   expect(
-    screen.queryByRole("button", { name: "申请输入" }),
-  ).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "发布会话材料" })).toBeEnabled();
-  expect(screen.queryByText("这次共享已结束")).not.toBeInTheDocument();
+    await screen.findByRole("heading", { name: "一起复核" }),
+  ).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "输入交接" }));
+  await userEvent.click(screen.getByRole("button", { name: "申请输入" }));
+  await waitFor(() =>
+    expect(calls).toContainEqual({
+      path: "/api/collaborations/space/sessions/session/action",
+      body: { action: "request_input", epoch: 1 },
+    }),
+  );
+  expect(calls.some((call) => call.path.endsWith("execution-access"))).toBe(
+    false,
+  );
 });

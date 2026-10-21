@@ -15,7 +15,7 @@ import (
 )
 
 func annotationVisible(a Annotation, execution bool) bool {
-	return execution || a.Target == nil || a.Target.Kind == "material"
+	return execution || (a.ExecutionID == "" && (a.Target == nil || a.Target.Kind == "material"))
 }
 func visibleAnnotations(annotations []Annotation, execution bool) []Annotation {
 	if execution {
@@ -31,6 +31,19 @@ func visibleAnnotations(annotations []Annotation, execution bool) []Annotation {
 }
 
 func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, author string) (Annotation, error) {
+	if _, bound := ctx.Value(runtimeAnnotationKey{}).(string); bound && s.space != nil {
+		s.mu.Lock()
+		public := false
+		if s.callerValidLocked(ctx) {
+			for _, note := range s.space.record.Annotations {
+				public = public || note.ID == in.AnnotationID
+			}
+		}
+		s.mu.Unlock()
+		if public {
+			return s.space.replyAnnotation(ctx, in, author)
+		}
+	}
 	in.Text = strings.TrimSpace(in.Text)
 	if !utf8.ValidString(in.Text) || in.Text == "" || utf8.RuneCountInString(in.Text) > 4000 {
 		return Annotation{}, fmt.Errorf("请输入 1–4000 字的回复")
@@ -40,13 +53,13 @@ func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, 
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed || !s.callerValidLocked(ctx) {
+	if s.closed || !s.callerValidLocked(ctx) || (s.space != nil && !sharing.ExecutionAuthorized(ctx, s.sharedRuntime(), s.record.ID)) {
 		return Annotation{}, fmt.Errorf("共享已结束或连接已变化")
 	}
 	authorID := sharing.MemberID(ctx)
 	index := -1
 	for i, annotation := range s.record.Annotations {
-		if !annotationVisible(annotation, sharing.ExecutionAuthorized(ctx, s.share)) {
+		if !annotationVisible(annotation, sharing.ExecutionAuthorized(ctx, s.sharedRuntime(), s.record.ID)) {
 			continue
 		}
 		if annotation.ID == in.AnnotationID {
@@ -90,7 +103,7 @@ func (t *AnnotationTarget) validate() error {
 	if !utf8.ValidString(t.Quote) || t.Quote == "" || utf8.RuneCountInString(t.Quote) > 8000 {
 		return fmt.Errorf("请选择 1–8000 字的原文")
 	}
-	if len(t.SessionID) > 200 || len(t.TurnID) > 200 || len(t.ItemID) > 200 || len(t.Cursor) > 4000 {
+	if len(t.ExecutionID) > 200 || len(t.SessionID) > 200 || len(t.TurnID) > 200 || len(t.ItemID) > 200 || len(t.Cursor) > 4000 {
 		return fmt.Errorf("批注定位过长")
 	}
 	if t.Kind != "material" && (t.MaterialID != "" || t.Version != 0) {

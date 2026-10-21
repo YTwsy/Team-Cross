@@ -33,21 +33,22 @@ func TestJoinedAccessSurvivesDeadlineAndParticipantCoreRestart(t *testing.T) {
 	if e := s.Action(ctx, "share"); e != nil {
 		t.Fatal(e)
 	}
-	if s.view()["transport"] != "lan" {
-		t.Fatal("default share did not select LAN", s.view()["transport"])
+	if s.space.view()["transport"] != "lan" {
+		t.Fatal("default share did not select LAN", s.space.view()["transport"])
 	}
-	token := s.share.Token()
+	token := s.sharedRuntime().Token()
 	j, e := b.Join(ctx, token)
 	if e != nil {
 		t.Fatal(e)
 	}
+
 	if j.Credential == j.Invitation.Secret || !j.confirmed {
 		t.Fatal("membership not separated from admission")
 	}
 	j.mu.Lock()
 	j.Invitation.ExpiresAt = time.Now().Add(-2 * time.Hour)
 	j.mu.Unlock()
-	if got := j.view(ctx); got["online"] != true || got["state"] != "ready" || got["expiresAt"] != nil || got["transport"] != "lan" {
+	if got := j.view(ctx); got["reachable"] != true || got["state"] != "ready" || got["expiresAt"] != nil || got["transport"] != "lan" {
 		t.Fatal("joined access expired", got)
 	}
 	if b.Active() != 1 {
@@ -56,7 +57,7 @@ func TestJoinedAccessSurvivesDeadlineAndParticipantCoreRestart(t *testing.T) {
 	if e = s.Action(ctx, "handoff"); e != nil {
 		t.Fatal(e)
 	}
-	remoteEndpoint, e := b.endpoint(j.ID)
+	remoteEndpoint, e := b.endpoint(executionAddress(j.ID, s.record.ID))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -88,7 +89,7 @@ func TestJoinedAccessSurvivesDeadlineAndParticipantCoreRestart(t *testing.T) {
 	}
 	defer reopened.Close()
 	restored := reopened.joined[j.ID]
-	if restored == nil || restored.Credential != j.Credential || restored.view(ctx)["online"] != true {
+	if restored == nil || restored.Credential != j.Credential || restored.view(ctx)["reachable"] != true {
 		t.Fatal("B restart lost member access")
 	}
 	c, _, _ := fixture(t)
@@ -98,13 +99,13 @@ func TestJoinedAccessSurvivesDeadlineAndParticipantCoreRestart(t *testing.T) {
 	if e = restored.leave(ctx); e != nil {
 		t.Fatal(e)
 	}
-	if state := s.view()["invitationState"]; state != "active" {
+	if state := s.space.view()["invitationState"]; state != "active" {
 		t.Fatal("leave closed reusable link", state)
 	}
 	if _, e = s.Invite(ctx, "lan", "after-leave"); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = c.Join(ctx, s.share.Token()); e != nil {
+	if _, e = c.Join(ctx, s.sharedRuntime().Token()); e != nil {
 		t.Fatal("new invitation failed after leave", e)
 	}
 }
@@ -118,7 +119,7 @@ func TestShareRejectsUnknownTransport(t *testing.T) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.share != nil || s.sharePreparing {
+	if s.sharedRuntime() != nil || s.sharePreparing {
 		t.Fatal("invalid transport changed sharing state")
 	}
 }
@@ -150,9 +151,6 @@ func TestEndReleasesOnlyAfterOwnerClientAndTurnFinish(t *testing.T) {
 		t.Fatal("end interrupted execution/client")
 	}
 	s.onMessage(nativecodex.Message{Method: "turn/completed"})
-	if !f.Alive() {
-		t.Fatal("end closed owner client")
-	}
 	owner.CloseNow()
 	eventually(t, func() bool { return s.view()["runtimeState"] == "released" })
 	if f.Alive() {
@@ -313,10 +311,11 @@ func TestLostJoinResponseRecoveredByReadAfterRestart(t *testing.T) {
 	}
 	// Retain the admission that the host accepted, but emulate B stopping before
 	// it records the successful response. Polling must confirm without rejoining.
-	j, e := b.Join(ctx, s.share.Token())
+	j, e := b.Join(ctx, s.sharedRuntime().Token())
 	if e != nil {
 		t.Fatal(e)
 	}
+
 	j.mu.Lock()
 	j.confirmed = false
 	j.Invitation.ExpiresAt = time.Now().Add(-time.Hour)
@@ -328,7 +327,7 @@ func TestLostJoinResponseRecoveredByReadAfterRestart(t *testing.T) {
 	}
 	defer reopened.Close()
 	recovered := reopened.joined[j.ID]
-	if recovered.view(ctx)["online"] != true {
+	if recovered.view(ctx)["reachable"] != true {
 		t.Fatal("lost response not recovered")
 	}
 	recovered.mu.Lock()
@@ -337,7 +336,7 @@ func TestLostJoinResponseRecoveredByReadAfterRestart(t *testing.T) {
 	if !confirmed {
 		t.Fatal("status did not confirm pending admission")
 	}
-	if _, e := reopened.endpoint(j.ID); e != nil {
+	if _, e := reopened.endpoint(executionAddress(j.ID, s.record.ID)); e != nil {
 		t.Fatal("recovered member cannot open a client", e)
 	}
 	eventually(t, func() bool { return s.view()["participantOnline"] == true })

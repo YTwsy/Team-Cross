@@ -13,7 +13,7 @@
 | 判断定位、产品范围或命名 | [项目简报](../sources/project-brief.md)、[核心词汇](../sources/product-core-and-glossary.md) | [协作类型](../../../internal/collab/types.go) |
 | 修改只读分享、三人以上与多会话材料 | [空间契约](../sources/decisions/collaboration-spaces.md)、[材料协议](../sources/protocol.md#已发布会话材料) | [空间](../../../internal/collab/spaces.go)、[材料](../../../internal/collab/materials.go)、[MCP](../../../internal/mcp/materials.go) |
 | 调整模块、启动或数据路径 | [架构](../sources/architecture.md)、[协议](../sources/protocol.md) | [CLI](../../../cmd/teamcross/main.go)、[协作核心](../../../internal/collab/app.go) |
-| 修改原目录、worktree、fork 或恢复 | [目录与生命周期](../sources/decisions/workspace-and-lifecycle.md) | [workspace](../../../internal/workspace/)、[app.go](../../../internal/collab/app.go) |
+| 修改多会话、原目录、worktree、fork 或恢复 | [目录与生命周期](../sources/decisions/workspace-and-lifecycle.md) | [workspace](../../../internal/workspace/)、[app.go](../../../internal/collab/app.go)、[会话隔离](../../../internal/collab/executions.go) |
 | 修改 TUI/Desktop、登录、模型或原生接入 | [原生客户端与模型](../sources/decisions/native-clients-and-models.md) | [nativecodex](../../../internal/nativecodex/)、[本机路由](../../../internal/collab/local_client.go) |
 | 修改受限/信任模式与原生配置继承 | [协作模式](../sources/decisions/runtime-modes.md) | [模式定义](../../../internal/runtimeconfig/mode.go)、[创建与恢复](../../../internal/collab/app.go) |
 | 修改实验性 Claude TUI 或辅助入口 | [Claude 接入契约](../sources/decisions/claude-native-tui.md) | [nativeclaude](../../../internal/nativeclaude/)、[协作适配](../../../internal/collab/claude.go) |
@@ -35,7 +35,7 @@
 | 理解的问题 | 概念页 |
 | --- | --- |
 | 个人会话、材料与共同执行如何关联 | [产品模型与词汇](concepts/product-model-and-glossary.md) |
-| 成员、公开范围、执行访问与输入权怎样区分 | [协作空间](concepts/collaboration-spaces.md) |
+| 空间成员、共同阅读与会话输入权怎样区分 | [协作空间](concepts/collaboration-spaces.md) |
 | Core、执行实例与会话历史如何关联，两类交接改变什么 | [运行时架构](concepts/runtime-architecture.md) |
 | 人与 Agent 的入口怎样共用内容、分别接收请求 | [WebGUI 与 MCP](concepts/webgui-and-mcp.md) |
 | 方法、实测结果与当前能力判断怎样关联 | [验证与证据](concepts/validation-gates.md) |

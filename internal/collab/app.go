@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,7 +49,7 @@ func Open(cfg Config) (*App, error) {
 		}
 	}
 	host, _ := os.Hostname()
-	a := &App{Config: cfg, Host: host, Token: uuid.NewString(), sessions: map[string]*Session{}, joined: map[string]*Joined{}}
+	a := &App{Config: cfg, Host: host, Token: uuid.NewString(), sessions: map[string]*Session{}, executions: map[string]*Session{}, joined: map[string]*Joined{}}
 	if err := a.loadAgents(); err != nil {
 		return nil, err
 	}
@@ -65,41 +66,8 @@ func Open(cfg Config) (*App, error) {
 	if cfg.DesktopApp != "" {
 		a.settings.DesktopApp = cfg.DesktopApp
 	}
-	entries, _ := os.ReadDir(filepath.Join(cfg.DataDir, "collaborations"))
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		var r Record
-		if readJSON(filepath.Join(cfg.DataDir, "collaborations", entry.Name(), "collaboration.json"), &r) == nil && r.ID == entry.Name() && r.Schema == 3 {
-			if r.State == "preparing" {
-				r.State = "error"
-				r.Error = "上次创建被中断。已保留会话和目录，请先核实创建结果。"
-			}
-			if r.ExecutionRecord != nil && r.Commands == nil {
-				r.Commands = map[string]Command{}
-			}
-			for id, c := range executionCommands(r) {
-				if c.State == "pending" {
-					c.State = "unknown"
-					c.Error = "服务曾重启，请先查看会话结果"
-					r.Commands[id] = c
-				}
-			}
-			if r.Workbench != nil {
-				for id, request := range r.Workbench.Requests {
-					if request.State == "queued" {
-						request.State, request.Error = "failed", "Core 已重启，未自动投递，请核对后明确新建请求"
-						r.Workbench.Requests[id] = request
-					}
-				}
-				if r.Workbench.Assistant.State == "initializing" {
-					r.Workbench.Assistant.State = "failed"
-				}
-			}
-			s := a.newSession(r)
-			a.sessions[r.ID] = s
-		}
+	if err = a.loadSpaces(); err != nil {
+		return nil, err
 	}
 	var guests []joinedRecord
 	if readJSON(filepath.Join(cfg.DataDir, "joined.json"), &guests) == nil {
@@ -188,15 +156,24 @@ func writeJSONFile(path string, value any) error {
 }
 func (a *App) newSession(r Record) *Session {
 	root := filepath.Join(a.Config.DataDir, "collaborations", r.ID, "materials")
-	session := &Session{app: a, record: r, materialStore: materialstore.New(root), writer: "owner", epoch: 1, presence: map[string]memberPresence{}, approvals: map[string]Approval{}}
-	_, _, _ = session.cleanupAndMeasureUploads(time.Now(), "")
+	session := &Session{mu: &sync.Mutex{}, executions: map[string]*Session{}, app: a, record: r, materialStore: materialstore.New(root), writer: "owner", epoch: 1, presence: map[string]memberPresence{}, approvals: map[string]Approval{}}
+	if r.Schema == 4 {
+		_, _, _ = session.cleanupAndMeasureUploads(time.Now(), "")
+	}
 	return session
 }
 func (s *Session) saveLocked() error {
 	if s.receiverSpace != "" {
 		return writeJSONFile(filepath.Join(s.runtimeDirectory(), "receiver.json"), receiverRecord{SpaceID: s.receiverSpace, CreationStage: s.receiverCreation, ReceivingPaused: s.receiverPaused, Record: s.record})
 	}
-	return writeJSONFile(filepath.Join(s.runtimeDirectory(), "collaboration.json"), s.record)
+	if s.record.Schema != 4 || s.record.State == "unsupported" {
+		return fmt.Errorf("旧空间格式不支持写入，请新建空间；原数据已保留")
+	}
+	name := "collaboration.json"
+	if s.space != nil {
+		name = "execution.json"
+	}
+	return writeJSONFile(filepath.Join(s.runtimeDirectory(), name), s.record)
 }
 func (a *App) binary() (string, error) {
 	a.mu.Lock()
@@ -321,18 +298,17 @@ func (a *App) preview(ctx context.Context, in CreateInput, allowActive bool) (Pr
 		return p, e
 	}
 	p.Workspace = w
+	if _, e := uuid.Parse(in.RequestID); e == nil {
+		p.SpaceID, p.ExecutionID = creationSpaceID(in), in.RequestID
+	}
 	p.TargetDirectory = w.SourceCwd
 	if in.WorkspaceMode == "worktree" {
 		if _, e := uuid.Parse(in.RequestID); e == nil {
-			targetID := in.RequestID
-			if in.SpaceID != "" {
-				targetID = in.SpaceID
-			}
-			p.TargetDirectory = filepath.Join(a.Config.DataDir, "collaborations", targetID, "worktree", w.RelativeCwd)
+			p.TargetDirectory = filepath.Join(a.Config.DataDir, "collaborations", creationSpaceID(in), "sessions", in.RequestID, "worktree", w.RelativeCwd)
 		}
 	}
 	// Dirty contents are informational and never captured or copied.
-	b, _ := json.Marshal([]any{provider, mode, in.SpaceID, in.SourceID, p.SourceTurnID, p.SourceFingerprint, w.Mode, w.Repo, w.SourceCwd, w.Head, w.Branch})
+	b, _ := json.Marshal([]any{provider, mode, creationSpaceID(in), in.RequestID, in.SourceID, p.SourceTurnID, p.SourceFingerprint, w.Mode, w.Repo, w.SourceCwd, w.Head, w.Branch})
 	sum := sha256.Sum256(b)
 	p.Hash = hex.EncodeToString(sum[:])
 	return p, nil
@@ -350,35 +326,37 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 	if _, e := uuid.Parse(in.RequestID); e != nil {
 		return nil, fmt.Errorf("创建请求缺少唯一标识")
 	}
+	a.creationMu.Lock()
+	defer a.creationMu.Unlock()
 	a.mu.Lock()
-	if a.closed {
-		a.mu.Unlock()
+	closed, old := a.closed, a.executions[in.RequestID]
+	space := a.sessions[creationSpaceID(in)]
+	spaceCollision := a.sessions[in.RequestID] != nil || in.RequestID == creationSpaceID(in)
+	a.mu.Unlock()
+	if closed {
 		return nil, fmt.Errorf("Core 已退出")
 	}
-	targetID := in.RequestID
-	if in.SpaceID != "" {
-		targetID = in.SpaceID
-	}
-	old := a.sessions[targetID]
-	a.mu.Unlock()
-	if in.SpaceID != "" && old == nil {
-		return nil, fmt.Errorf("请选择本机托管的空间")
+	if spaceCollision {
+		return nil, fmt.Errorf("requestId 已用于空间，请为新协作会话选择新的标识")
 	}
 	if old != nil {
 		old.mu.Lock()
-		execution := old.record.ExecutionRecord
-		if execution == nil {
-			old.mu.Unlock()
-			if in.SpaceID == "" {
-				return nil, fmt.Errorf("该标识已属于只读空间")
-			}
-		} else {
-			matches := execution.RequestID == in.RequestID && execution.Provider == provider && execution.RuntimeMode == mode && execution.SourceID == in.SourceID && execution.PreviewHash == in.PreviewHash
-			old.mu.Unlock()
-			if !matches {
-				return nil, fmt.Errorf("空间已有关联执行，或 requestId 已用于其他起点")
-			}
-			return old, nil
+		r := old.snapshotLocked()
+		old.mu.Unlock()
+		if r.SpaceID != creationSpaceID(in) || r.Provider != provider || r.RuntimeMode != mode || r.SourceID != in.SourceID || r.PreviewHash != in.PreviewHash || r.WorkspaceMode != in.WorkspaceMode {
+			return nil, fmt.Errorf("requestId 已用于其他协作会话或起点")
+		}
+		return old, nil
+	}
+	if in.SpaceID != "" && space == nil {
+		return nil, fmt.Errorf("请选择本机托管的空间")
+	}
+	if space != nil {
+		space.mu.Lock()
+		valid := !space.closed && space.record.Schema == 4 && space.record.State != "unsupported"
+		space.mu.Unlock()
+		if !valid {
+			return nil, fmt.Errorf("空间不可用，请新建空间")
 		}
 	}
 	p, e := a.Preview(ctx, in)
@@ -403,58 +381,43 @@ func (a *App) Create(ctx context.Context, in CreateInput) (*Session, error) {
 		title = "新的协作"
 	}
 	now := time.Now()
-	r := Record{Schema: 3, ID: targetID, Title: title, State: "preparing", CreatedAt: now, UpdatedAt: now, Annotations: []Annotation{}, ExecutionRecord: &ExecutionRecord{RequestID: in.RequestID, Provider: provider, SourceID: in.SourceID, SourceTurnID: p.SourceTurnID, WorkspaceMode: in.WorkspaceMode, Repo: p.Workspace.Repo, ExecutionCwd: p.Workspace.SourceCwd, WorkspaceRoot: p.Workspace.Repo, WorkspaceOwned: in.WorkspaceMode == "worktree", Head: p.Workspace.Head, Branch: p.Workspace.Branch, ProviderHome: home, PreviewHash: p.Hash, Commands: map[string]Command{}}}
+	r := Record{Schema: 4, ID: in.RequestID, SpaceID: creationSpaceID(in), Title: title, State: "preparing", CreatedAt: now, UpdatedAt: now, Annotations: []Annotation{}, ExecutionRecord: &ExecutionRecord{RequestID: in.RequestID, Provider: provider, SourceID: in.SourceID, SourceTurnID: p.SourceTurnID, WorkspaceMode: in.WorkspaceMode, Repo: p.Workspace.Repo, ExecutionCwd: p.Workspace.SourceCwd, WorkspaceRoot: p.Workspace.Repo, WorkspaceOwned: in.WorkspaceMode == "worktree", Head: p.Workspace.Head, Branch: p.Workspace.Branch, ProviderHome: home, PreviewHash: p.Hash, Commands: map[string]Command{}}}
 	r.RuntimeMode = mode
 	if provider == "claude" && mode == runtimeconfig.Trusted {
 		r.ProviderDefaultHome = a.Config.ClaudeHome == "" && os.Getenv("CLAUDE_CONFIG_DIR") == ""
 	}
-	dir := filepath.Join(a.Config.DataDir, "collaborations", r.ID)
+	if space == nil {
+		space, e = a.createSpace(ctx, SpaceInput{RequestID: r.SpaceID, Title: title})
+		if e != nil {
+			return nil, e
+		}
+	}
+	s := a.newExecution(space, r)
+	dir := s.runtimeDirectory()
 	if e = os.MkdirAll(dir, 0700); e != nil {
 		return nil, e
 	}
-	var s *Session
-	if in.SpaceID != "" {
-		s = old
-		s.mu.Lock()
-		if s.closed || s.record.ExecutionRecord != nil {
-			s.mu.Unlock()
-			return nil, fmt.Errorf("空间已变化，请刷新")
-		}
-		// Keep the space and its members connected. Their original material-only
-		// grants remain unchanged until the owner explicitly opens execution access.
-		previous := s.record
-		s.record.ExecutionRecord, s.record.State, s.record.Error = r.ExecutionRecord, "preparing", ""
-		s.record.UpdatedAt = now
-		e = s.saveLocked()
-		if e != nil {
-			s.record = previous
-		}
-		title = s.record.Title
-		s.mu.Unlock()
-	} else {
-		s = a.newSession(r)
-		a.mu.Lock()
-		if a.closed {
-			a.mu.Unlock()
-			return nil, fmt.Errorf("Core 已退出")
-		}
-		if a.sessions[r.ID] != nil {
-			a.mu.Unlock()
-			return a.Create(ctx, in)
-		}
-		a.sessions[r.ID] = s
-		a.mu.Unlock()
-		s.mu.Lock()
-		e = s.saveLocked()
-		s.mu.Unlock()
+	s.mu.Lock()
+	e = s.saveLocked()
+	if e == nil {
+		space.executions[r.ID] = s
 	}
+	s.mu.Unlock()
 	if e != nil {
 		return nil, e
 	}
+	a.mu.Lock()
+	if a.executions == nil {
+		a.executions = map[string]*Session{}
+	}
+	a.executions[r.ID] = s
+	a.mu.Unlock()
 	fail := func(err error) (*Session, error) {
 		s.mu.Lock()
 		s.record.State = "error"
 		s.record.Error = err.Error()
+		s.releaseWhenIdle = true
+		s.releaseIfIdleLocked()
 		_ = s.saveLocked()
 		s.mu.Unlock()
 		return s, err
@@ -554,6 +517,14 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 		return fmt.Errorf("Core 已退出")
 	}
 	if s.process != nil && s.process.Alive() {
+		previous := s.record.Paused
+		s.record.Paused = false
+		if err := s.saveLocked(); err != nil {
+			s.record.Paused = previous
+			s.mu.Unlock()
+			return err
+		}
+		s.releaseWhenIdle = false
 		s.annotationAccess = true
 		s.mu.Unlock()
 		return nil
@@ -575,15 +546,36 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 		return fmt.Errorf("该协作尚未成功创建，请检查创建失败原因")
 	}
 	old := s.process
+	previousRelease := s.releaseWhenIdle
 	s.generation++
 	generation := s.generation
 	s.online = false
 	s.releaseWhenIdle = false
+	s.record.Paused = false
 	s.mu.Unlock()
-	defer func() { s.mu.Lock(); s.starting = false; s.releaseIfIdleLocked(); s.mu.Unlock() }()
+	started := false
+	defer func() {
+		s.mu.Lock()
+		if !started {
+			s.record.Paused = s.record.Paused || r.Paused
+			s.releaseWhenIdle = s.releaseWhenIdle || previousRelease
+		}
+		s.starting = false
+		s.releaseIfIdleLocked()
+		s.mu.Unlock()
+	}()
 	if old != nil {
 		old.Close()
 	}
+	if err := s.acquireDirectory(r.ExecutionCwd); err != nil {
+		return err
+	}
+	keepLease := false
+	defer func() {
+		if !keepLease {
+			s.releaseDirectory()
+		}
+	}()
 	var p Runtime
 	var e error
 	if r.Provider == "claude" {
@@ -650,6 +642,14 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 	s.mu.Lock()
 	if s.process == p && !s.closed {
 		s.online = p.Alive()
+		if e = s.saveLocked(); e != nil {
+			s.online = false
+			s.mu.Unlock()
+			p.Close()
+			return e
+		}
+		keepLease = true
+		started = true
 	}
 	s.mu.Unlock()
 	return nil
@@ -696,6 +696,9 @@ func (a *App) Close() {
 	for _, s := range a.receivers {
 		sessions = append(sessions, s)
 	}
+	for _, s := range a.executions {
+		sessions = append(sessions, s)
+	}
 	joined := make([]*Joined, 0, len(a.joined))
 	for _, j := range a.joined {
 		joined = append(joined, j)
@@ -722,6 +725,7 @@ func (a *App) Close() {
 		}
 		if p != nil {
 			p.Close()
+			s.releaseDirectory()
 		}
 		if stopping != nil {
 			<-stopping
@@ -749,7 +753,7 @@ func shortText(s string, n int) string {
 func (a *App) owned(id string) (*Session, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	s := a.sessions[id]
+	s := a.localSessionLocked(id)
 	if s == nil {
 		return nil, errors.New("没有找到这次协作")
 	}
@@ -761,22 +765,17 @@ func (s *Session) view() map[string]any {
 func (s *Session) viewFor(ctx context.Context) map[string]any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.viewLocked(ctx)
+}
+func (s *Session) viewLocked(ctx context.Context) map[string]any {
 	if !s.callerValidLocked(ctx) {
 		return map[string]any{"state": "ended", "hasExecution": false}
 	}
 	r := s.snapshotLocked()
 	hasExecution := r.ExecutionRecord != nil
-	executionAccess := sharing.ExecutionAuthorized(ctx, s.share)
-	if !executionAccess {
-		r.ExecutionRecord = nil
-		r.Annotations = visibleAnnotations(r.Annotations, false)
-		if hasExecution {
-			r.State, r.Error = "ready", ""
-		}
-	}
-	out := map[string]any{"id": r.ID, "title": r.Title, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "sharing": s.share != nil, "sharingPreparing": s.sharePreparing, "annotations": r.Annotations, "hasExecution": r.ExecutionRecord != nil, "reachable": true}
+	out := map[string]any{"id": r.ID, "title": r.Title, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "sharing": s.sharedRuntime() != nil, "sharingPreparing": s.sharePreparing, "annotations": r.Annotations, "hasExecution": r.ExecutionRecord != nil, "reachable": true}
 	if r.ExecutionRecord != nil {
-		execution := map[string]any{"id": r.ID, "title": r.Title, "sourceId": r.SourceID, "sourceTurnId": r.SourceTurnID, "sessionId": r.SessionID, "workspaceMode": r.WorkspaceMode, "executionCwd": r.ExecutionCwd, "repo": r.Repo, "head": r.Head, "branch": r.Branch, "workspaceOwned": r.WorkspaceOwned, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "writer": s.writer, "busy": s.busy, "online": s.online, "epoch": s.epoch, "sharing": s.share != nil, "sharingPreparing": s.sharePreparing, "connected": s.direct != nil, "sequence": s.sequence, "approvals": len(s.approvals), "annotations": r.Annotations, "model": r.Model, "modelProvider": r.ModelProvider, "reasoningEffort": r.ReasoningEffort}
+		execution := map[string]any{"id": r.ID, "title": r.Title, "sourceId": r.SourceID, "sourceTurnId": r.SourceTurnID, "sessionId": r.SessionID, "workspaceMode": r.WorkspaceMode, "executionCwd": r.ExecutionCwd, "repo": r.Repo, "head": r.Head, "branch": r.Branch, "workspaceOwned": r.WorkspaceOwned, "state": r.State, "error": r.Error, "createdAt": r.CreatedAt, "updatedAt": r.UpdatedAt, "host": s.app.Host, "role": "owner", "writer": s.writer, "busy": s.busy, "online": s.online, "epoch": s.epoch, "sharing": s.sharedRuntime() != nil, "sharingPreparing": s.sharePreparing, "connected": s.direct != nil, "sequence": s.sequence, "approvals": len(s.approvals), "annotations": r.Annotations, "model": r.Model, "modelProvider": r.ModelProvider, "reasoningEffort": r.ReasoningEffort}
 		for key, value := range execution {
 			out[key] = value
 		}
@@ -790,9 +789,18 @@ func (s *Session) viewFor(ctx context.Context) map[string]any {
 			out["capabilities"] = map[string]bool{"nativeTui": true, "nativeDesktop": false, "sendInput": true, "steerInput": false, "interruptTurn": false, "respondToRequest": false}
 		}
 	}
+	if s.space != nil {
+		out["spaceId"], out["executionId"] = r.SpaceID, r.ID
+	} else if s.record.ExecutionRecord == nil {
+		out["sessions"] = s.executionViewsLocked(ctx)
+		out["sessionCount"] = len(s.executions)
+	}
 	out["materials"] = s.materialDirectoryLocked()
 	out["executionAvailable"] = hasExecution
-	out["selfId"] = "owner"
+	out["selfId"] = sharing.MemberID(ctx)
+	if sharing.MemberID(ctx) != "owner" {
+		out["role"] = "remote"
+	}
 	out["members"] = s.membersLocked()
 	out["participantOnline"], out["participantJoined"], out["inputRequested"] = false, false, false
 	for _, m := range s.membersLocked() {
@@ -807,23 +815,23 @@ func (s *Session) viewFor(ctx context.Context) map[string]any {
 		}
 	}
 	out["clientState"] = "disconnected"
-	if s.direct != nil && executionAccess {
+	if s.direct != nil {
 		out["clientState"] = "connected"
 		if s.direct.ready {
 			out["clientState"] = "session_ready"
 		}
 		out["client"] = s.direct.kind
 	}
-	if s.share != nil {
-		out["transport"] = string(s.share.Transport())
-		state := s.share.InvitationState()
+	if s.sharedRuntime() != nil && s.space == nil && sharing.MemberID(ctx) == "owner" {
+		out["transport"] = string(s.sharedRuntime().Transport())
+		state := s.sharedRuntime().InvitationState()
 		out["invitationState"] = state
-		invite, _ := s.share.IssueInvitation("")
+		invite, _ := s.sharedRuntime().IssueInvitation("")
 		out["invitationId"] = invite.ID
-		out["invitationReadOnly"] = s.share.Invitation.ReadOnly
-		out["invitations"] = s.share.Invitations()
+		out["invitationReadOnly"] = s.sharedRuntime().Invitation.ReadOnly
+		out["invitations"] = s.sharedRuntime().Invitations()
 		if state == "active" {
-			out["invitation"] = s.share.Token()
+			out["invitation"] = s.sharedRuntime().Token()
 			if !invite.ExpiresAt.IsZero() {
 				out["expiresAt"] = invite.ExpiresAt
 			}
@@ -834,8 +842,9 @@ func (s *Session) viewFor(ctx context.Context) map[string]any {
 	if r.ExecutionRecord == nil {
 		return out
 	}
+	out["paused"] = r.Paused
 	out["runtimeState"] = "offline"
-	out["releasePending"] = s.releaseWhenIdle && s.share == nil && s.online
+	out["releasePending"] = s.releaseWhenIdle && s.online
 	if s.online {
 		out["runtimeState"] = "running"
 	}
@@ -862,7 +871,7 @@ func (a *App) List(ctx context.Context) []map[string]any {
 	a.mu.Unlock()
 	list := []map[string]any{}
 	for _, s := range ss {
-		list = append(list, s.view())
+		list = append(list, s.viewFor(ctx))
 	}
 	for _, j := range js {
 		list = append(list, j.cachedView())

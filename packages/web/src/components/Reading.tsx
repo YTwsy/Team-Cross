@@ -1,5 +1,6 @@
 import { serviceText, t } from "../i18n";
 import { ResourceActions } from "../library";
+import { resourceScope } from "../execution";
 import {
   useCallback,
   useEffect,
@@ -671,7 +672,11 @@ export function ReaderMessage({
                     materialId: selected.target.materialId,
                     version: selected.target.version,
                   }
-                : { spaceId, kind: "context", target: selected.target }
+                : {
+                    ...resourceScope(spaceId),
+                    kind: "context",
+                    target: selected.target,
+                  }
             }
           />
         )}

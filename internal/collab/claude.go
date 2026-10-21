@@ -156,7 +156,16 @@ func (s *Session) createClaude(ctx context.Context, preview Preview, title strin
 	if err != nil {
 		return err
 	}
-	dir := filepath.Join(s.app.Config.DataDir, "collaborations", r.ID)
+	if err := s.acquireDirectory(r.ExecutionCwd); err != nil {
+		return err
+	}
+	keepLease := false
+	defer func() {
+		if !keepLease {
+			s.releaseDirectory()
+		}
+	}()
+	dir := s.runtimeDirectory()
 	mcpConfig := launch.claudeConfig()
 	if r.RuntimeMode == runtimeconfig.Trusted {
 		mcpConfig = launch.claudeConfigNamed("teamcross_annotations_" + strings.ReplaceAll(r.ID, "-", ""))
@@ -188,6 +197,8 @@ func (s *Session) createClaude(ctx context.Context, preview Preview, title strin
 	s.mu.Unlock()
 	if err != nil {
 		p.Close()
+	} else {
+		keepLease = true
 	}
 	return err
 }
@@ -196,7 +207,7 @@ func (a *App) restoreClaude(ctx context.Context, r Record) (*claudeRuntime, erro
 	if err != nil {
 		return nil, err
 	}
-	dir := filepath.Join(a.Config.DataDir, "collaborations", r.ID)
+	dir := filepath.Join(a.Config.DataDir, "collaborations", r.SpaceID, "sessions", r.ID)
 	p, err := nativeclaude.Restore(ctx, nativeclaude.Config{Binary: binary, Home: r.ProviderHome, RuntimeDir: filepath.Join(dir, "claude-runtime"), Cwd: r.ExecutionCwd, Log: filepath.Join(dir, "runtime.log"), Trusted: r.RuntimeMode == runtimeconfig.Trusted, DefaultHome: r.ProviderDefaultHome}, r.SessionID)
 	if err != nil {
 		return nil, err
@@ -414,7 +425,7 @@ func (a *App) claudeClientPlan(ctx context.Context, id, client string, launch bo
 }
 func (a *App) dialClaude(ctx context.Context, id string) (*websocket.Conn, error) {
 	a.mu.Lock()
-	s, j := a.sessions[id], a.joined[id]
+	s, j, executionID := a.targetLocked(id)
 	closed := a.closed
 	a.mu.Unlock()
 	if closed {
@@ -436,7 +447,7 @@ func (a *App) dialClaude(ctx context.Context, id string) (*websocket.Conn, error
 		}
 		url, client, credential := j.URL, j.Client, j.Credential
 		j.mu.Unlock()
-		conn, _, err := websocket.Dial(ctx, strings.Replace(url, "https:", "wss:", 1)+"/v2/connect", &websocket.DialOptions{HTTPClient: client, HTTPHeader: http.Header{"Authorization": []string{"Bearer " + credential}}})
+		conn, _, err := websocket.Dial(ctx, strings.Replace(url, "https:", "wss:", 1)+remoteExecutionPath(executionID, "connect"), &websocket.DialOptions{HTTPClient: client, HTTPHeader: http.Header{"Authorization": []string{"Bearer " + credential}}})
 		return conn, err
 	}
 	return nil, fmt.Errorf("没有找到协作")

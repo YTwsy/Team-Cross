@@ -63,15 +63,15 @@ func str(description string) map[string]any {
 	return map[string]any{"type": "string", "description": description}
 }
 func Tools() []map[string]any {
-	id := str("list_collaborations 返回的本机协作 ID")
+	id := str("list_collaborations 返回的本机空间 ID")
 	line := map[string]any{"type": "integer", "minimum": 1}
 	offset := map[string]any{"type": "integer", "minimum": 0}
 	target := map[string]any{
 		"type": "object", "additionalProperties": false, "required": []string{"kind", "quote"},
 		"description": "可选的结构化原文位置。history 使用 turnId/itemId 和 UTF-16 startOffset/endOffset（左闭右开）；file/changes 使用相对 executionCwd 的 path、1 起始且含首尾的行范围和读取结果的 contentHash。changes 另需 old/new 一侧与 baseRevision。quote 保存当时的原文；这些是引用快照，不代表当前内容仍未变化。",
 		"properties": map[string]any{
-			"kind":       map[string]any{"type": "string", "enum": []string{"history", "file", "changes", "material"}},
-			"materialId": str("已发布材料 ID，仅 kind=material"), "version": line, "sessionId": str("所属协作 fork；省略时由主机绑定"), "quote": str("所选原文，最多 8000 字；代码使用完整行，不带 diff 的 +/- 前缀"),
+			"kind":        map[string]any{"type": "string", "enum": []string{"history", "file", "changes", "material"}},
+			"executionId": str("所属协作会话 ID；与 native sessionId 不同"), "materialId": str("已发布材料 ID，仅 kind=material"), "version": line, "sessionId": str("所属协作 fork；省略时由主机绑定"), "quote": str("所选原文，最多 8000 字；代码使用完整行，不带 diff 的 +/- 前缀"),
 			"path": str("相对执行目录的文件路径"), "startLine": line, "endLine": line,
 			"side":        map[string]any{"type": "string", "enum": []string{"old", "new"}},
 			"contentHash": str("read_context 返回的 SHA-256；不能用 Git HEAD 代替"), "baseRevision": str("changes 返回的基准提交"),
@@ -79,7 +79,7 @@ func Tools() []map[string]any {
 			"cursor": str("读取该历史页时使用的 cursor；最近一页省略"),
 		},
 	}
-	return append([]map[string]any{
+	return executionToolSchemas(append([]map[string]any{
 		selectionTool(),
 		tool("list_collaborations", "列出本机发起和已加入的协作；不创建会话或发送输入。", map[string]any{}, []string{}, true),
 		tool("get_collaboration", "轻量查询主机、目录、输入归属、运行与审批状态、批注数量，不附带批注或材料正文。已有明确引用时直接读取对应资源；执行或交接前需要此状态。", map[string]any{"id": id}, []string{"id"}, true),
@@ -94,7 +94,7 @@ func Tools() []map[string]any {
 		tool("respond_to_request", "回应 events 中的原生审批或用户输入请求；Claude 当前使用原生 TUI 回应。先向用户展示请求与选择，不代替用户批准未知操作；result 使用该请求类型的原生响应结构。", map[string]any{"id": id, "requestId": map[string]any{"type": []string{"string", "number"}}, "result": map[string]any{"type": "object"}}, []string{"id", "requestId", "result"}, false),
 		tool("add_annotation", "为共享上下文保存一条人工意见，不会自动转为 Agent 输入。建议用 target 携带已读取的原文与位置；整体意见可以不指定 target。", map[string]any{"id": id, "text": str("意见内容"), "reference": str("可选的人工参考说明，不用于自动定位"), "target": target, "materials": materialReferencesSchema()}, []string{"id", "text"}, false),
 		tool("reply_to_annotation", "回复已知批注；已有足够上下文时可直接回复。返回 status=saved 和本次 reply，成功后无需回读整段讨论。保留 requestId；仅结果不明时按 annotationId 查询，重试保持相同 requestId。不启动模型。", map[string]any{"id": id, "annotationId": str("原批注 ID，不能使用回复 ID"), "text": str("回复内容，最多 4000 字"), "requestId": str("本次回复唯一标识，重试保持相同"), "materials": materialReferencesSchema()}, []string{"id", "annotationId", "text", "requestId"}, false),
-	}, append(append(append(managementTools(), currentTools()...), materialTools()...), AgentTools()...)...)
+	}, append(append(append(managementTools(), currentTools()...), materialTools()...), AgentTools()...)...))
 }
 func (b Backend) Invoke(ctx context.Context, name string, args map[string]any) (json.RawMessage, error) {
 	if handled, out, err := b.invokeAgent(ctx, name, args); handled {
@@ -126,7 +126,10 @@ func (b Backend) Invoke(ctx context.Context, name string, args map[string]any) (
 	if name != "list_collaborations" && (id == "" || strings.ContainsAny(id, "/?#\\")) {
 		return nil, fmt.Errorf("请选择有效的协作 ID")
 	}
-	base := "collaborations/" + url.PathEscape(id)
+	base, scopeErr := scopedToolPath(name, args)
+	if scopeErr != nil {
+		return nil, scopeErr
+	}
 	if action, ok := inputActions[name]; ok {
 		epoch, err := inputEpoch(args["epoch"])
 		if err != nil {

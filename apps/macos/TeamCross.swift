@@ -454,7 +454,7 @@ private final class ResourceQuickLook: NSObject, WKNavigationDelegate, WKScriptM
         web.configuration.userContentController.removeScriptMessageHandler(forName: "teamcross")
     }
     private func open(_ route: String) {
-        guard route == "/" || route == "/settings" || route == "/library" || route.range(of: "^/library\\?item=[a-f0-9]{32}$", options: .regularExpression) != nil || route.range(of: "^/collaborations/[A-Za-z0-9-]+$", options: .regularExpression) != nil else { return }
+        guard route == "/" || route == "/settings" || route == "/library" || route.range(of: "^/library\\?item=[a-f0-9]{32}$", options: .regularExpression) != nil || route.range(of: "^/collaborations/[A-Za-z0-9-]+(?:/sessions/[A-Za-z0-9-]+)?$", options: .regularExpression) != nil else { return }
         var target = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
         target.path = "/"; target.fragment = route
         if let url = target.url { NSWorkspace.shared.open(url) }

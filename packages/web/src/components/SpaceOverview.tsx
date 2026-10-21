@@ -33,6 +33,10 @@ export function SpaceOverview({
     ["unknown", "failed", "queued", "submitted", "received"].includes(r.state),
   );
   const members = spaceMembers(c);
+  const sessions = c.sessions || [];
+  const needsAttention = sessions.filter(
+    (s) => s.error || s.approvals > 0 || s.nativeWaiting || s.inputRequested,
+  );
   return (
     <>
       <div className="workbench-section-heading space-overview-heading">
@@ -41,6 +45,36 @@ export function SpaceOverview({
           <p className="muted">{t("当前共识、待确认的问题与最近动态。")}</p>
         </div>
       </div>
+      <section className="space-session-overview" aria-label={t("协作会话")}>
+        <div className="space-section-heading">
+          <h3>{t("协作会话")}</h3>
+          <span>{c.sessions?.length || 0}</span>
+        </div>
+        <div className="execution-overview-counts">
+          <span>{tr`${sessions.filter((s) => s.busy).length} 个正在执行`}</span>
+          <span>{tr`${needsAttention.length} 个需要处理`}</span>
+          <span>{tr`${sessions.filter((s) => s.paused).length} 个已暂停`}</span>
+        </div>
+        {needsAttention.map((s) => (
+          <button
+            key={s.id}
+            className="execution-attention"
+            onClick={() =>
+              onRead({ spaceId: c.id, executionId: s.id, kind: "context" })
+            }
+          >
+            <strong>{s.title}</strong>
+            <span>
+              {s.error
+                ? t("运行需要处理")
+                : s.approvals > 0 || s.nativeWaiting
+                  ? t("等待回应")
+                  : t("有人申请输入")}
+            </span>
+            <Icon name="arrow" size={16} />
+          </button>
+        ))}
+      </section>
       <div className="space-overview-grid">
         <div className="space-overview-column">
           <section className="space-overview-topic">
@@ -199,7 +233,9 @@ export function SpaceOverview({
               })}
             </div>
             <p className="space-overview-mode">
-              {c.hasExecution ? t("共同执行") : t("分享与审阅")}
+              {c.sessions?.length || c.hasExecution
+                ? t("共同执行")
+                : t("分享与审阅")}
             </p>
           </section>
         </aside>

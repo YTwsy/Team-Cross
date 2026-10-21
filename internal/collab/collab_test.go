@@ -220,7 +220,7 @@ func TestCreateAndRecoverWithoutPrompt(t *testing.T) {
 				t.Fatal(e)
 			}
 			defer b.Close()
-			restored := b.sessions[s.record.ID]
+			restored := b.executions[s.record.ID]
 			if restored == nil || restored.record.SessionID != s.record.SessionID {
 				t.Fatal("session lost on restart")
 			}
@@ -436,14 +436,15 @@ func TestParticipantLoginStaysLocal(t *testing.T) {
 	if e := s.Action(ctx, "share"); e != nil {
 		t.Fatal(e)
 	}
-	j, e := b.Join(ctx, s.share.Token())
+	j, e := b.Join(ctx, s.sharedRuntime().Token())
 	if e != nil {
 		t.Fatal(e)
 	}
+
 	if e = s.Action(ctx, "handoff"); e != nil {
 		t.Fatal(e)
 	}
-	endpoint, e := b.endpoint(j.ID)
+	endpoint, e := b.endpoint(executionAddress(j.ID, s.record.ID))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -500,7 +501,7 @@ func TestParticipantLoginStaysLocal(t *testing.T) {
 	if e != nil || bytes.Contains(config, []byte("secret")) {
 		t.Fatal("share exported private config", e)
 	}
-	if e = s.Action(ctx, "end"); e != nil {
+	if e = s.space.Action(ctx, "end"); e != nil {
 		t.Fatal(e)
 	}
 	view := j.view(ctx)

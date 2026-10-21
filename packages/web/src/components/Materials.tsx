@@ -310,6 +310,20 @@ export function MaterialReader({
     !!navigation && materialChoices.length > 1 && materialIndex >= 0;
   const outline = page?.turns || [];
   const joinedSegments = joinMaterialSegments(page?.segments || []);
+  const readingStart = !!v?.readingStartId && !turn && (
+    <button
+      className={`text-link ${conversation ? "space-reading-start" : ""}`}
+      aria-label={t("跳到发布者建议的阅读起点")}
+      title={t("跳到发布者建议的阅读起点")}
+      onClick={() => {
+        pendingTurn.current = v.readingStartId!;
+        setTurn(v.readingStartId!);
+      }}
+    >
+      {conversation && <Icon name="arrow" size={13} />}
+      {conversation ? t("建议阅读起点") : t("跳到发布者建议的阅读起点")}
+    </button>
+  );
   const copyHint = (
     <Copy
       label={t("复制 Agent 阅读提示")}
@@ -387,6 +401,7 @@ export function MaterialReader({
                 </option>
               ))}
             </select>
+            {readingStart}
           </div>
         </header>
       ) : (
@@ -522,17 +537,7 @@ export function MaterialReader({
           )}
         </blockquote>
       )}
-      {!!v?.readingStartId && !turn && (
-        <button
-          className="text-link"
-          onClick={() => {
-            pendingTurn.current = v.readingStartId!;
-            setTurn(v.readingStartId!);
-          }}
-        >
-          {t("跳到发布者建议的阅读起点") + " "}
-        </button>
-      )}
+      {!conversation && readingStart}
       <ErrorBox message={error} />
       {page && (
         <ReadingLayout

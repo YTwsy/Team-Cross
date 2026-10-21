@@ -88,7 +88,7 @@ func (a *App) registerSpacePairing(ctx context.Context, id, pairingID string) (a
 		}
 	}
 	a.agentMu.Unlock()
-	out, err := a.workbenchCall(ctx, id, "register", workbenchInput{TargetID: p.Links[id], Name: p.Name, Provider: p.Provider, Session: contentHash([]string{p.Provider, p.SessionID})[:24], Execution: p.Transport == "native" && p.RuntimeID == ""})
+	out, err := a.workbenchCall(ctx, id, "register", workbenchInput{TargetID: p.Links[id], Name: p.Name, Provider: p.Provider, Session: contentHash([]string{p.Provider, p.SessionID})[:24], ExecutionID: p.ExecutionID})
 	if err == nil {
 		a.wakeWorkbench()
 	}
@@ -248,7 +248,7 @@ func (a *App) pumpWorkbench(ctx context.Context) {
 			} // A lost claim is never replayed.
 			request = workbenchDecode[SpaceRequest](raw)
 			role := "owner"
-			if p.RuntimeID == "" && p.Transport == "native" {
+			if p.ExecutionID != "" && p.Transport == "native" {
 				role = request.Actor.MemberID
 			}
 			r, err := a.sendAgentRequest(ctx, agentRequestInput{RequestID: request.ID, PairingID: p.ID, References: request.References, Instruction: request.Instruction, Intent: request.Intent, WorkbenchSpaceID: id, TargetID: request.TargetID, Role: role})

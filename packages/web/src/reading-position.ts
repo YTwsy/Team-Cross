@@ -3,10 +3,10 @@
 export function readingViewport(element: HTMLElement) {
   const container = element.closest<HTMLElement>(".library-preview, dialog");
   const workspace = element.closest<HTMLElement>(
-    ".space-material-reader, .collaboration-reading",
+    ".space-material-reader, .collaboration-reading, .execution-pane",
   );
   const heading = workspace?.querySelector<HTMLElement>(
-    ".space-reader-tools, .reading-heading",
+    ".space-reader-tools, .reading-heading, .context-reader-heading",
   );
   const stickyTop = workspace
     ? parseFloat(

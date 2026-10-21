@@ -59,7 +59,7 @@ type panicRPCInput struct{}
 func (panicRPCInput) MarshalJSON() ([]byte, error) { panic("synthetic encoding failure") }
 
 func TestRPCReleasesSessionAfterPanic(t *testing.T) {
-	s := &Session{online: true, writer: "owner", process: &fakeRuntime{alive: true},
+	s := &Session{mu: &sync.Mutex{}, online: true, writer: "owner", process: &fakeRuntime{alive: true},
 		record: Record{ExecutionRecord: &ExecutionRecord{Provider: "codex", SessionID: "fixture"}},
 	}
 	done := make(chan any, 1)
@@ -104,7 +104,7 @@ func TestControlStatusBoundsSessionAndAppContention(t *testing.T) {
 	for _, kind := range []string{"app", "session", "receiver", "joined", "share-request"} {
 		t.Run(kind, func(t *testing.T) {
 			a := &App{settings: Settings{UILanguage: "en"}}
-			session := &Session{online: true}
+			session := &Session{mu: &sync.Mutex{}, online: true}
 			joined := &Joined{confirmed: true}
 			job := &shareRequest{record: shareRequestRecord{State: "waiting"}}
 			var lock *sync.Mutex
@@ -113,10 +113,10 @@ func TestControlStatusBoundsSessionAndAppContention(t *testing.T) {
 				lock = &a.mu
 			case "session":
 				a.sessions = map[string]*Session{"test": session}
-				lock = &session.mu
+				lock = session.mu
 			case "receiver":
 				a.receivers = map[string]*Session{"test": session}
-				lock = &session.mu
+				lock = session.mu
 			case "joined":
 				a.joined = map[string]*Joined{"test": joined}
 				lock = &joined.mu

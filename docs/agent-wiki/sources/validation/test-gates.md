@@ -48,7 +48,7 @@ Core 升级相关变更另运行 `scripts/verify-core-upgrade.py`：指定旧、
 | [workspace_test.go](../../../../internal/workspace/workspace_test.go) | 两种目录模式、Git 现场保留、文件路径范围 |
 | [collab_test.go](../../../../internal/collab/collab_test.go) | 创建恢复不发送 prompt、输入归属、去重、审批、原生与工具并行、访问范围、本机登录路由 |
 | [lifecycle_test.go](../../../../internal/collab/lifecycle_test.go) / [membership_test.go](../../../../internal/sharing/membership_test.go) | 链接重置与关闭、持久成员、丢失响应、主动离开、空闲释放、并发请求和旧连接隔离 |
-| [invitation_test.go](../../../../internal/sharing/invitation_test.go) / [tailcat_test.go](../../../../internal/sharing/tailcat_test.go) | `tcx3` 传输字段互斥、Tailcat 地址与精确版本检查、回调 listener 关闭并发 |
+| [invitation_test.go](../../../../internal/sharing/invitation_test.go) / [tailcat_test.go](../../../../internal/sharing/tailcat_test.go) | `tcx4` 传输字段互斥、Tailcat 地址与精确版本检查、回调 listener 关闭并发 |
 | [runtime_mode_test.go](../../../../internal/collab/runtime_mode_test.go) | 创建模式与预览绑定、不可切换、原生权限、hook 确认归属、同 ID 恢复和结束访问 |
 | [model_test.go](../../../../internal/collab/model_test.go) | 模型继承、设置更新、拒绝请求、恢复与通知 |
 | [process_test.go](../../../../internal/nativecodex/process_test.go) | 客户端配置与启动不强制模型 |
@@ -149,6 +149,27 @@ TEAMCROSS_WORKBENCH_BROWSER_DIR=/private/tmp/teamcross-space-browser-fresh \
 
 真实 Cloud 验收需另有明确 HTTPS 目标、实际宿主订阅/验证/签名接收和模型处理证据。本次用户已暂缓该项；本地协议通过不声称已唤醒 Cloud 会话。LAN 与原生请求回归独立执行，不等待云端入口。
 
+## 一个空间多个协作会话
+
+回归入口为 [执行隔离](../../../../internal/collab/executions_test.go)、[成员授权](../../../../internal/sharing/membership_test.go)、[MCP 目标校验](../../../../internal/mcp/execution_scope_test.go) 和 [界面切换](../../../../packages/web/src/test/multiple-executions.test.tsx)。必须覆盖：
+
+- 同空间三个成员均可读取两个会话及后来新增的会话；输入归属、请求去重、审批与事件独立，相同 requestId 或原生审批 ID 不串线。非输入者写入被拒绝。
+- 错误父空间、裸 executionId、空间/会话 ID 冲突被拒绝；会话意见保留 executionId，不混入根空间讨论。移除成员取消所有旧请求，重新加入不能复活原凭据。
+- 创建失败、暂停、结束共享和恢复只影响目标会话；关闭空间才取消所有成员访问。Core 重启保留 ID、模式及目录，不自动重放输入。
+- 目录租约识别真实路径、符号链接及同 worktree 子目录；不同 worktree 可并行，租约等待进程退出后释放。
+- 固定材料引用、会话批注、资源库读取编号、配对和请求目标均保存准确的 executionId。
+- 快速切换、旧响应晚到、后台保存与授权撤销不串正文；保留每会话草稿、文件与滚动状态，以及空间简报草稿。
+- schema 4 持久化分别保存空间与会话；旧格式仅报告 unsupported，文件与原生目录保持原样。
+
+真实浏览器使用最终嵌入资源和三成员合成 fixture：
+
+```sh
+TEAMCROSS_MULTI_BROWSER_DIR=/private/tmp/teamcross-multiple-sessions-fresh \
+  go test ./internal/collab -run '^TestMultipleExecutionsBrowserFixture$' -v -count=1 -timeout=27m
+```
+
+读取该目录的 fixture.json，核对 owner/B/C 对所有会话共同可读、不同输入者的操作差异、空间标题、可折叠会话列表、独立操作区、概览、材料返回和草稿保留；核对宽屏评论默认展开、窄屏默认收起及手动选择保留；检查 1440/1024/768 宽度、中英及深浅主题。结束后关闭本次浏览器页面并写入同目录 finish，等待 fixture 完整退出。合成历史只证明界面与真实 Core/存储，原生执行另按下节脚本验证。
+
 ## 真实模型和客户端
 
 个人 MCP 当前 Session 分享与 CLI 接力使用 [verify-agent-cli.py](../../../../scripts/verify-agent-cli.py)，每次选择新的空测试目录：
@@ -163,7 +184,7 @@ python3 scripts/verify-agent-cli.py \
 
 另以 `--provider claude --claude-bin /absolute/path/to/claude` 使用新的 fixture 重跑；Claude 要求已配置的本机 CliProxyAPI 路由，默认只读 `~/.claude/settings.json` 的授权用于内存转发，证据不保存真实密钥。两者限定 Luna，使用专用个人配置和会话；Codex fixture 仅为本次获授权的 `share_current_session` 设置[单工具批准](https://learn.chatgpt.com/docs/extend/mcp)，Claude 使用精确工具 allowlist，不修改用户个人 MCP 权限。
 
-检查实际个人 MCP 的来源身份、登记后本轮完成、新 fork 包含最后 assistant 答复、CLI 无浏览器加入、批注/回复、非输入者拒绝、申请/交接/交还/接回、直接 TUI 连接、工具任务与重复 requestId、结束后同 fork 恢复。Claude 在首次输入持久化 fork 后核对完整历史。脚本退出精确关闭自身 Core、PTY 与测试 daemon，保留证据。它是同机两个 Core 的 loopback TLS 验证，不证明两台 Mac、Tailcat 或 Desktop。
+检查实际个人 MCP 的来源身份、登记后本轮完成、新 fork 包含最后 assistant 答复、CLI 无浏览器加入、批注/回复、非输入者拒绝、申请/交接/交还/接回、直接 TUI 连接、工具任务与重复 requestId、结束后同 fork 恢复。Claude 在首次输入持久化 fork 后核对完整历史。脚本退出精确关闭自身 Core、PTY 与测试 daemon，保留证据。脚本另在同一空间创建第二个 worktree 会话，全部成员可读两个会话，第三个 Core 持有第二会话输入；检查两会话同 requestId 独立执行、历史不串线、停止一个后另一个继续、恢复保留共同阅读且不自动交还输入。它是同机三个 Core、两个会话的 loopback TLS 验证，不证明两台 Mac、Tailcat 或 Desktop。
 
 [TestLiveCodex](../../../../internal/collab/live_test.go) 默认跳过。显式选择一个新的专用测试目录后运行：
 

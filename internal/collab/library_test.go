@@ -107,7 +107,7 @@ func TestLibraryChecksRevocationAndWithdrawnMaterialOnEveryRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _, _ := fixture(t)
-	j, err := b.Join(ctx, s.share.Token())
+	j, err := b.Join(ctx, s.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -22,10 +22,11 @@ func TestPresenceAndInputRequest(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer b.Close()
-	j, e := b.Join(ctx, s.view()["invitation"].(string))
+	j, e := b.Join(ctx, s.space.view()["invitation"].(string))
 	if e != nil {
 		t.Fatal(e)
 	}
+
 	deadline := time.Now().Add(3 * time.Second)
 	for s.view()["participantOnline"] != true && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
@@ -33,16 +34,16 @@ func TestPresenceAndInputRequest(t *testing.T) {
 	if s.view()["participantOnline"] != true {
 		t.Fatal("Core heartbeat did not establish presence")
 	}
-	if e = j.request(ctx, "POST", "/v2/request_input", map[string]uint64{"epoch": s.epoch}, nil); e != nil {
+	if e = j.request(ctx, "POST", remoteExecutionPath(s.record.ID, "request_input"), map[string]uint64{"epoch": s.epoch}, nil); e != nil {
 		t.Fatal(e)
 	}
 	if s.view()["inputRequested"] != true || s.view()["writer"] != "owner" {
 		t.Fatal(s.view())
 	}
-	if e = j.request(ctx, "POST", "/v2/request_input", map[string]uint64{"epoch": 999}, nil); e == nil {
+	if e = j.request(ctx, "POST", remoteExecutionPath(s.record.ID, "request_input"), map[string]uint64{"epoch": 999}, nil); e == nil {
 		t.Fatal("accepted stale request")
 	}
-	if e = j.request(ctx, "POST", "/v2/cancel_input", map[string]uint64{"epoch": s.epoch}, nil); e != nil {
+	if e = j.request(ctx, "POST", remoteExecutionPath(s.record.ID, "cancel_input"), map[string]uint64{"epoch": s.epoch}, nil); e != nil {
 		t.Fatal(e)
 	}
 	if s.view()["inputRequested"] != false {
@@ -66,7 +67,7 @@ func TestPendingInvitationIsLocalAndPreviewOnly(t *testing.T) {
 	if e := s.Action(context.Background(), "share"); e != nil {
 		t.Fatal(e)
 	}
-	token := s.view()["invitation"].(string)
+	token := s.space.view()["invitation"].(string)
 	handler := a.Handler(http.NotFoundHandler())
 	post := func(path, body, auth string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest("POST", "http://127.0.0.1:1/api/"+path, bytes.NewBufferString(body))
@@ -90,7 +91,7 @@ func TestPendingInvitationIsLocalAndPreviewOnly(t *testing.T) {
 		t.Fatal("secret in pending response")
 	}
 	w = post("invitations/preview", `{"pendingId":"`+pending.ID+`"}`, "")
-	if w.Code != 200 || bytes.Contains(w.Body.Bytes(), []byte("tcx3.")) {
+	if w.Code != 200 || bytes.Contains(w.Body.Bytes(), []byte("tcx4.")) {
 		t.Fatal(w.Body.String())
 	}
 	a.mu.Lock()

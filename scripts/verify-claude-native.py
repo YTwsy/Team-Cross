@@ -281,7 +281,7 @@ def run(keep_seconds):
             assert view['sessionId']!=source and view['provider']=='claude',view
             native_history=list(home.glob('projects/*/'+view['sessionId']+'.jsonl'))
             if native_history:assert len(native_history)==1 and 'TCX_SOURCE_OK' in native_history[0].read_text(),'native fork history is invalid'
-            runtime=ROOT/'core-a/collaborations'/view['id']/'claude-runtime'
+            runtime=ROOT/'core-a/collaborations'/view['spaceId']/'sessions'/view['executionId']/'claude-runtime'
             assert (runtime/'settings.json').is_file() and (runtime/'teamcross-runtime.json').is_file()
             assert (runtime/'projects').is_dir() and not (runtime/'projects').is_symlink(),'runtime projects is not isolated'
             snapshots=list(runtime.glob('projects/*/'+source+'.jsonl'))
@@ -292,21 +292,22 @@ def run(keep_seconds):
             assert (cwd/'baseline.txt').read_text()==('unstaged\n' if mode=='existing' else 'committed\n')
             if mode=='worktree':assert not (cwd/'untracked.txt').exists() and not (cwd/'ignored.txt').exists()
             if native_history:
-                history=a.api('collaborations/'+view['id']+'/context?kind=history')
+                history=a.api('collaborations/'+view['spaceId']+'/sessions/'+view['executionId']+'/context?kind=history')
                 assert history['thread']['id']==view['sessionId'] and 'TCX_SOURCE_OK' in json.dumps(history)
         assert guard.generation_count()==count,'fork/read/restore triggered generation'
         assert before=={'head':git('rev-parse','HEAD'),'branch':git('branch','--show-current'),'index':git('show',':baseline.txt'),'working':(repo/'baseline.txt').read_text()}
-        report['workspace_and_native_fork']=True;report['preinput_history_optional']=True;report['collaborations']={k:{'id':v['id'],'sessionId':v['sessionId'],'cwd':v['executionCwd'],'jobId':v['nativeJobId']} for k,v in views.items()}
+        report['workspace_and_native_fork']=True;report['preinput_history_optional']=True;report['collaborations']={k:{'spaceId':v['spaceId'],'executionId':v['executionId'],'sessionId':v['sessionId'],'cwd':v['executionCwd'],'jobId':v['nativeJobId']} for k,v in views.items()}
         emit('forks_verified',generation_requests=0,source_preserved=True,native_personal_history=True)
-        c=views['existing'];base='collaborations/'+c['id'];runtime=ROOT/'core-a/collaborations'/c['id']/'claude-runtime'
+        c=views['existing'];spacebase='collaborations/'+c['spaceId'];base=spacebase+'/sessions/'+c['executionId'];runtime=ROOT/'core-a/collaborations'/c['spaceId']/'sessions'/c['executionId']/'claude-runtime'
         job=c['nativeJobId']
         def job_for(view):
-            worker_env=dict(env);worker_env['CLAUDE_CONFIG_DIR']=str(ROOT/'core-a/collaborations'/view['id']/'claude-runtime')
+            worker_env=dict(env);worker_env['CLAUDE_CONFIG_DIR']=str(ROOT/'core-a/collaborations'/view['spaceId']/'sessions'/view['executionId']/'claude-runtime')
             return next(x for x in json.loads(cli(worker_env,['agents','--json','--all'])) if x['id']==view['nativeJobId'])
         def job_info():return job_for(c)
         before_job=job_info();report['worker_before']=before_job
-        def action(value):return a.api(base+'/action',{'action':value,'epoch':a.api(base)['epoch']})
-        shared=action('share');joined=b.api('join',{'invitation':shared['invitation']});assert joined['provider']=='claude';bbase='collaborations/'+joined['id']
+        def action(value):return a.api((spacebase if value=='share' else base)+'/action',{'action':value,'epoch':a.api(base)['epoch']})
+        shared=action('share');joined=b.api('join',{'invitation':shared['invitation']});bbase='collaborations/'+joined['id']+'/sessions/'+c['executionId']
+        assert b.api(bbase)['provider']=='claude'
         action('handoff');plan=b.api(bbase+'/open',{'client':'tui','launch':False});bt=Terminal('native-b',plan['command'],benv);terms.append(bt)
         wait_until(lambda:a.api(base)['clientState']=='session_ready',30,bt)
         assert 'TCX_SOURCE_OK' in bt.read(.3),'B did not render shared source'
@@ -348,7 +349,7 @@ def run(keep_seconds):
         at.send('\r');at.read(1);assert guard.generation_count()==before_effort
         wait_until(lambda:job_info().get('status') not in ('busy','waiting') and not job_info().get('waitingFor'),15,at)
         send={'method':'turn/start','params':{'input':[{'type':'text','text':'Reply exactly TCX_CONTROL_OK. Do not use tools.'}]},'requestId':'controller-send-once'}
-        messages=[{'jsonrpc':'2.0','id':1,'method':'initialize','params':{}},{'jsonrpc':'2.0','id':2,'method':'tools/call','params':{'name':'send_input','arguments':{'id':c['id'],'text':send['params']['input'][0]['text'],'mode':'start','requestId':send['requestId']}}}]
+        messages=[{'jsonrpc':'2.0','id':1,'method':'initialize','params':{}},{'jsonrpc':'2.0','id':2,'method':'tools/call','params':{'name':'send_input','arguments':{'id':c['spaceId'],'executionId':c['executionId'],'text':send['params']['input'][0]['text'],'mode':'start','requestId':send['requestId']}}}]
         mcp=subprocess.run([BINARY,'mcp','--data-dir',str(a.data)],input=''.join(json.dumps(m)+'\n' for m in messages),env=env,capture_output=True,text=True,timeout=40)
         assert mcp.returncode==0,clean(mcp.stderr)
         response=next(json.loads(line) for line in mcp.stdout.splitlines() if json.loads(line).get('id')==2)
@@ -387,7 +388,7 @@ def run(keep_seconds):
         assert worktree_job['pid']>0 and worktree_job.get('state') not in ('stopped','failed'),'ending one collaboration stopped another collaboration runtime job'
         report['close_stops_only_owned_job']=True
         assert 'TCX_CONTROL_OK' in json.dumps(a.api(base+'/context?kind=history'))
-        assert b.api(bbase)['state'] in ('ended','expired')
+        assert b.api(bbase)['state']=='restricted'
         guard.allow_generation=False;before_restore=guard.generation_count();restored=action('start')
         assert restored['sessionId']==c['sessionId'] and restored['nativeJobId']==job
         assert guard.generation_count()==before_restore
@@ -400,7 +401,7 @@ def run(keep_seconds):
         rt.close();report['effort_selection_restored']=True
         report['restore_after_input']=True;report['same_worker']=True;report['source_unchanged']=True;report['b_history_files']=0
         # Verify actual execution in the selected worktree, not just its metadata.
-        wc=views['worktree'];wbase='collaborations/'+wc['id'];a.api(wbase+'/action',{'action':'start'})
+        wc=views['worktree'];wbase='collaborations/'+wc['spaceId']+'/sessions/'+wc['executionId'];a.api(wbase+'/action',{'action':'start'})
         wplan=a.api(wbase+'/open',{'client':'tui','launch':False});wt=Terminal('native-worktree',wplan['command'],env);terms.append(wt)
         wait_until(lambda:a.api(wbase)['clientState']=='session_ready',30,wt)
         wtarget=pathlib.Path(wc['executionCwd'])/'worktree-proof.txt';guard.allow_generation=True

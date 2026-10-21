@@ -90,7 +90,7 @@ func TestWorkbenchBrowserFixture(t *testing.T) {
 	b, _, _ := fixture(t)
 	b.Host = "同事 B 的 Mac"
 	stopWorkbenchPump(b)
-	j, err := b.Join(ctx, s.share.Token())
+	j, err := b.Join(ctx, s.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal(err)
 	}

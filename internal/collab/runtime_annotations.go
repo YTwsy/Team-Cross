@@ -87,7 +87,7 @@ func (c annotationLaunch) claudeConfigNamed(name string) string {
 
 func (a *App) runtimeAnnotationsHTTP(w http.ResponseWriter, r *http.Request, id string) {
 	a.mu.Lock()
-	s := a.sessions[id]
+	s := a.executions[id]
 	receiver := a.receivers[id]
 	a.mu.Unlock()
 	if receiver != nil {

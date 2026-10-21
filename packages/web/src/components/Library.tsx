@@ -1,3 +1,4 @@
+import { referenceAddress } from "../execution";
 import { currentConversation } from "../currentConversation";
 import { formatDate, t, tr } from "../i18n";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -445,7 +446,7 @@ function LibraryReader({
   const lib = useLibrary()!;
   const c = useResource<Collaboration>(
     r.availability === "available"
-      ? `collaborations/${r.reference.spaceId}`
+      ? `collaborations/${referenceAddress(r.reference)}`
       : null,
     5000,
   );
@@ -516,7 +517,7 @@ function LibraryReader({
       <div className="library-reader-links">
         <a
           className="text-link"
-          href={`#/collaborations/${r.reference.spaceId}`}
+          href={`#/collaborations/${referenceAddress(r.reference)}`}
         >
           {t("打开所在空间") + " "}
           <Icon name="arrow" size={14} />
@@ -549,7 +550,7 @@ function LibraryReader({
             !error && <Loading text={t("正在读取批注及回复…")} />}
           {space && discussion && (
             <Discussion
-              id={space.id}
+              id={referenceAddress(r.reference)}
               annotation={discussion}
               disabled={discussionDisabled}
               onSaved={reload}
@@ -567,7 +568,7 @@ function LibraryReader({
             ) : material ? (
               <MaterialReader
                 key={`${reading.materialId}:${reading.version}:${reading.turnId || ""}:${location?.serial || 0}`}
-                spaceId={space.id}
+                spaceId={r.reference.spaceId}
                 material={material}
                 reference={reading}
                 memory={memory}
@@ -592,7 +593,7 @@ function LibraryReader({
             (r.reference.kind === "context" ||
               (location?.target && location.target.kind !== "material")) && (
               <Context
-                id={space.id}
+                id={referenceAddress(r.reference)}
                 sessionId={space.sessionId}
                 sequence={space.sequence}
                 online={space.online}
@@ -614,7 +615,7 @@ function LibraryReader({
           {space && (request || r.reference.kind !== "annotation") && (
             <div className="library-discussions">
               <Annotations
-                id={space.id}
+                id={referenceAddress(r.reference)}
                 annotations={
                   space.annotations?.filter((a) =>
                     reading

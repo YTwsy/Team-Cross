@@ -14,6 +14,7 @@ export type AgentPairing = {
   provider?: string;
   sessionId?: string;
   spaceId?: string;
+  executionId?: string;
   state:
     | "waiting"
     | "verifying"
@@ -442,7 +443,12 @@ export function SendToAgent({
       ? pairingState(target)
       : target.reason
         ? pairingReason(target)
-        : target.spaceId && references.some((r) => r.spaceId !== target.spaceId)
+        : target.spaceId &&
+            references.some(
+              (r) =>
+                r.spaceId !== target.spaceId ||
+                (r.executionId && r.executionId !== target.executionId),
+            )
           ? t("这个接收会话只能读取它所在空间的内容，请选择其他已配对会话。")
           : "";
   const locked = busy || !!request || !!unknownID;

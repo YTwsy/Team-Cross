@@ -1,3 +1,4 @@
+import { resourceScope } from "../execution";
 import { t, tr } from "../i18n";
 import { ResourceActions } from "../library";
 import { AnchoredNote, type AnnotationOrigin } from "./Reading";
@@ -6,6 +7,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useId,
   type KeyboardEvent,
 } from "react";
 import { api, errorText } from "../api";
@@ -218,12 +220,17 @@ export function Discussion({
         <Modal title={t("交给 Agent")} onClose={() => setSendToAgent(false)}>
           <SendToAgent
             spaceId={
-              !annotation.target || annotation.target.kind === "material"
+              !annotation.executionId &&
+              (!annotation.target || annotation.target.kind === "material")
                 ? id
                 : undefined
             }
             references={[
-              { spaceId: id, kind: "annotation", annotationId: annotation.id },
+              {
+                ...resourceScope(id),
+                kind: "annotation",
+                annotationId: annotation.id,
+              },
             ]}
           />
         </Modal>
@@ -266,11 +273,12 @@ export function Discussion({
             <Icon name="more" size={17} />
           </summary>
           <div className="annotation-more-menu">
-            {!annotation.target || annotation.target.kind === "material" ? (
+            {!annotation.executionId &&
+            (!annotation.target || annotation.target.kind === "material") ? (
               <SpaceRequestButton
                 references={[
                   {
-                    spaceId: id,
+                    ...resourceScope(id),
                     kind: "annotation",
                     annotationId: annotation.id,
                   },
@@ -297,7 +305,7 @@ export function Discussion({
             )}
             <ResourceActions
               reference={{
-                spaceId: id,
+                ...resourceScope(id),
                 kind: "annotation",
                 annotationId: annotation.id,
               }}
@@ -307,7 +315,11 @@ export function Discussion({
             <Copy
               label={t("复制提示")}
               ariaLabel={t("复制处理提示")}
-              text={tr`请使用 Team Cross 读取协作 ${id} 的批注 ${annotation.id} 及回复。共享会话使用 read_annotations；个人辅助会话使用 read_context（kind=annotations）。核对 target 与 quote 对应的当前原文，再分析这条意见；需要答复时使用 reply_to_annotation 回复原批注。`}
+              text={
+                resourceScope(id).executionId
+                  ? tr`请使用 Team Cross 读取空间 id=${resourceScope(id).spaceId}、executionId=${resourceScope(id).executionId} 的批注 ${annotation.id}。个人辅助工具传入这两个标识；绑定此会话的工具使用 read_annotations。核对原文后用 reply_to_annotation 回复。`
+                  : tr`请使用 Team Cross 读取协作 ${id} 的批注 ${annotation.id} 及回复。共享会话使用 read_annotations；个人辅助会话使用 read_context（kind=annotations）。核对 target 与 quote 对应的当前原文，再分析这条意见；需要答复时使用 reply_to_annotation 回复原批注。`
+              }
             />
           </div>
         </details>
@@ -339,7 +351,7 @@ export function Discussion({
             onKeyDown={(event) => saveShortcut(event, () => void save())}
           />
           <MaterialReferencePicker
-            spaceId={id}
+            spaceId={resourceScope(id).spaceId}
             materials={materials}
             value={refs}
             disabled={pending || disabled}
@@ -400,6 +412,7 @@ export function Annotations({
   }>();
   const closeInspection = useCallback(() => setInspection(undefined), []);
   const closeEditor = useCallback(() => setActive(general), []);
+  const editorID = useId();
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -513,11 +526,11 @@ export function Annotations({
           <blockquote>{draft.target.quote}</blockquote>
         </div>
       )}
-      <label htmlFor="annotation-text" className="sr-only">
+      <label htmlFor={editorID} className="sr-only">
         {t("你的意见") + " "}
       </label>
       <textarea
-        id="annotation-text"
+        id={editorID}
         ref={editor}
         rows={3}
         maxLength={4000}
@@ -539,7 +552,7 @@ export function Annotations({
         onKeyDown={(event) => saveShortcut(event, () => void save())}
       />
       <MaterialReferencePicker
-        spaceId={id}
+        spaceId={resourceScope(id).spaceId}
         materials={materials}
         value={draft.materials || []}
         disabled={pending || disabled}

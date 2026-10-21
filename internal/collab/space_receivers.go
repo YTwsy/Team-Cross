@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,6 +28,9 @@ type receiverRecord struct {
 }
 
 func (s *Session) runtimeDirectory() string {
+	if s.space != nil {
+		return filepath.Join(s.app.Config.DataDir, "collaborations", s.record.SpaceID, "sessions", s.record.ID)
+	}
 	group := "collaborations"
 	if s.receiverSpace != "" {
 		group = "receivers"
@@ -40,7 +44,7 @@ func (a *App) newReceiver(r receiverRecord) *Session {
 	if r.Record.ExecutionRecord != nil && r.Record.Commands == nil {
 		r.Record.Commands = map[string]Command{}
 	}
-	return &Session{app: a, record: r.Record, receiverSpace: r.SpaceID, receiverCreation: r.CreationStage, receiverPaused: r.ReceivingPaused, releaseWhenIdle: r.ReceivingPaused, writer: "owner", epoch: 1, presence: map[string]memberPresence{}, approvals: map[string]Approval{}}
+	return &Session{mu: &sync.Mutex{}, app: a, record: r.Record, receiverSpace: r.SpaceID, receiverCreation: r.CreationStage, receiverPaused: r.ReceivingPaused, releaseWhenIdle: r.ReceivingPaused, writer: "owner", epoch: 1, presence: map[string]memberPresence{}, approvals: map[string]Approval{}}
 }
 
 func (a *App) loadSpaceReceivers() error {

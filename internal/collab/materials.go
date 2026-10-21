@@ -39,6 +39,9 @@ func versionInfo(v MaterialVersion) map[string]any {
 }
 
 func (s *Session) materialDirectoryLocked() []map[string]any {
+	if s.space != nil {
+		return s.space.materialDirectoryLocked()
+	}
 	out := []map[string]any{}
 	for _, material := range s.record.Materials {
 		versions := make([]map[string]any, 0, len(material.Versions))
@@ -307,6 +310,9 @@ func (s *Session) withdrawMaterial(ctx context.Context, id string) (any, error) 
 }
 
 func (s *Session) materialVersionLocked(ref MaterialReference) (MaterialVersion, error) {
+	if s.space != nil {
+		return s.space.materialVersionLocked(ref)
+	}
 	for _, material := range s.record.Materials {
 		if material.ID != ref.MaterialID {
 			continue
@@ -659,6 +665,9 @@ func (s *Session) readMaterialStream(version MaterialVersion, manifest materials
 }
 
 func (s *Session) readMaterial(ctx context.Context, in MaterialRead) (any, error) {
+	if s.space != nil {
+		return s.space.readMaterial(ctx, in)
+	}
 	s.mu.Lock()
 	if s.closed || !s.callerValidLocked(ctx) {
 		s.mu.Unlock()

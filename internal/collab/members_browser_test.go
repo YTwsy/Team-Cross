@@ -35,7 +35,7 @@ func TestMembersBrowserFixture(t *testing.T) {
 	}
 	server := httptest.NewServer(a.Handler(http.FileServer(http.FS(assets))))
 	defer server.Close()
-	manifest := map[string]string{"owner": server.URL + "/#/collaborations/" + s.record.ID, "ownerApi": server.URL, "id": s.record.ID}
+	manifest := map[string]string{"owner": server.URL + "/#/collaborations/" + s.record.SpaceID + "/sessions/" + s.record.ID, "ownerApi": server.URL, "id": s.record.SpaceID, "executionId": s.record.ID}
 	for _, name := range []string{"Bob", "Carol"} {
 		_, err := s.Invite(context.Background(), "lan", name)
 		if err != nil {
@@ -47,14 +47,15 @@ func TestMembersBrowserFixture(t *testing.T) {
 		}
 		defer app.Close()
 		app.Host = name
-		j, err := app.Join(context.Background(), s.share.Token())
+		j, err := app.Join(context.Background(), s.sharedRuntime().Token())
 		if err != nil {
 			t.Fatal(err)
 		}
-		_ = j.request(context.Background(), "POST", "/v2/request_input", map[string]any{"epoch": s.view()["epoch"]}, nil)
+
+		_ = j.request(context.Background(), "POST", "/v2/sessions/"+s.record.ID+"/request_input", map[string]any{"epoch": s.view()["epoch"]}, nil)
 		guest := httptest.NewServer(app.Handler(http.FileServer(http.FS(assets))))
 		defer guest.Close()
-		manifest[name] = guest.URL + "/#/collaborations/" + j.ID
+		manifest[name] = guest.URL + "/#/collaborations/" + j.ID + "/sessions/" + s.record.ID
 	}
 	if err = writeJSONFile(filepath.Join(dir, "fixture.json"), manifest); err != nil {
 		t.Fatal(err)

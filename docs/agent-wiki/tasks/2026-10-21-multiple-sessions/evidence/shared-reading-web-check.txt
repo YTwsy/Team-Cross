@@ -1,0 +1,5 @@
+
+> @teamcross/web@0.1.4 check
+> tsc -b --pretty false && node scripts/check-i18n.mjs
+
+Checked 1049 translated UI messages.
