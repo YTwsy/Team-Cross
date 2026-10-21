@@ -153,6 +153,11 @@ func TestUIWebGUIRoutesKeepNativeShapeAndSeparateWrites(t *testing.T) {
 		{"collaborations/a/workbench/create-receiver", map[string]any{"requestId": "create-fixed", "name": "Explicit receiver"}, true},
 		{"space-receivers/receiver/action", map[string]any{"action": "start"}, true},
 		{"space-receivers/receiver/respond", map[string]any{"id": "approval", "result": map[string]any{"decision": "decline"}}, true},
+		{"collaborations/a/shadows/view?shadowId=b&offset=100", nil, false},
+		{"shadows/b/local", nil, false},
+		{"collaborations/a/shadows/create", map[string]any{"requestId": "fixed"}, true},
+		{"collaborations/a/shadows/send", map[string]any{"shadowId": "b"}, true},
+		{"shadows/b/action", map[string]any{"action": "pause"}, true},
 	}
 	for _, request := range requests {
 		out, err := b.uiRequest(context.Background(), request.path, request.body, request.write)
@@ -173,6 +178,8 @@ func TestUIWebGUIRoutesKeepNativeShapeAndSeparateWrites(t *testing.T) {
 		"collaborations/a/workbench/view?offset=0&offset=25", "collaborations/a/workbench/view?token=secret",
 		"collaborations/a/workbench/send?requestId=fixed", "space-receivers?spaceId=a&spaceId=b",
 		"space-receivers/receiver/rpc", "space-receivers/receiver/events?after=0",
+		"collaborations/a/shadows/sync", "collaborations/a/shadows/register", "collaborations/a/shadows/check",
+		"collaborations/a/shadows/view?shadowId=b&shadowId=c", "shadows/b/rpc", "shadows/b/local?token=secret",
 	} {
 		for _, write := range []bool{false, true} {
 			for _, body := range []any{nil, map[string]any{}} {

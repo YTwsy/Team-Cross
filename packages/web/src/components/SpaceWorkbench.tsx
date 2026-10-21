@@ -33,8 +33,15 @@ import { SpaceEvents } from "./SpaceEvents";
 import type { AnnotationRequest } from "./Annotations";
 import { SpaceOverview } from "./SpaceOverview";
 import { SpaceReferencePicker } from "./SpaceReferencePicker";
+import { SpaceShadows } from "./SpaceShadows";
 
-type Tab = "overview" | "reading" | "requests" | "brief" | "sessions";
+type Tab =
+  | "overview"
+  | "reading"
+  | "requests"
+  | "brief"
+  | "sessions"
+  | "shadows";
 type Send = {
   references: LibraryReference[];
   targetId?: string;
@@ -353,6 +360,7 @@ export function SpaceWorkbench({
   }
   const nav: { value: Tab; label: string }[] = [
     { value: "overview", label: t("空间概览") },
+    { value: "shadows", label: t("本机数字分身") },
     { value: "requests", label: t("协作请求") },
     { value: "brief", label: t("空间简报") },
     { value: "sessions", label: t("参与会话") },
@@ -568,6 +576,17 @@ export function SpaceWorkbench({
           </footer>
         </aside>
         <div className="space-workbench-main" ref={heading}>
+          <div
+            id={`${uid}-shadows-panel`}
+            role="tabpanel"
+            aria-labelledby={`${uid}-shadows-tab`}
+            hidden={tab !== "shadows"}
+            className="workbench-pane"
+          >
+            {tab === "shadows" && (
+              <SpaceShadows key={c.id} spaceId={c.id} disabled={disabled} />
+            )}
+          </div>
           <ErrorBox message={error || data.error} retry={data.reload} />
           <div
             id={`${uid}-overview-panel`}

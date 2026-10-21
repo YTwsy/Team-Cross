@@ -1,0 +1,14 @@
+{
+  "scope": "one Mac, three Cores, TLS member transport, new native Codex shadow",
+  "model": "gpt-5.6-luna",
+  "allMembersShareAuthoredHistory": true,
+  "durableReceiptAndSameIdDeduplication": true,
+  "offlineManualRetryOnly": true,
+  "exactNativeThreadAndMemoryAfterCoreRestart": true,
+  "nativeThread": "01a15ef9-7d62-7902-8f45-10a39bf9e541",
+  "stdioMCPSharedRead": true,
+  "cliVersion": "0.163.0-alpha.11",
+  "sourceBase": "4d33a78",
+  "sourceScope": "base plus local-shadow task implementation",
+  "date": "2026-10-21"
+}

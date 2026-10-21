@@ -10,6 +10,12 @@
 
 当前原生结果为单 Mac、三个 Core、两个 Codex 会话、CLI `0.163.0-alpha.11`、`gpt-5.6-luna`：真实个人 MCP 当前会话分享、直接 TUI、成员共同读取、独立输入与去重、结束一会话保留另一个、同 fork 恢复通过。前一实现阶段的 Tailcat 传输层与协作层同机联网检查通过，原生运行时为替身；本次读取与 UI 调整没有重跑 Tailcat。Claude `2.1.270` 的新 fixture 在来源创建阶段被本机模型代理连接失败阻塞，未进入多会话执行；本任务不重验专用 Desktop 八组合、两台 Mac、跨 NAT 或强制 DERP。旧 schema 3 / tcx3 报告不能直接证明当前新协议已通过。
 
+## 本机数字分身
+
+2026-10-21，`codex/meta-to-main-20261021` / `4d33a78` 加本任务实现：Core 状态、共享传输、MCP 和 Web 回归通过，实际浏览器复核聊天输入、记忆与运行状态。Codex CLI `0.163.0-alpha.11`、`gpt-5.6-luna` 的专用真实会话验证配置/MCP 继承、主会话与独立 W 同时执行、CM、原生压缩、S1 → S2 后晚到结果、记忆纠正/忘掉与准确 thread 恢复。单 Mac 三 Core / TLS 验证全体成员共享历史、持久送达、同 ID 去重、离线失败不自动重发、Core 重启后手动重发与 stdio MCP 读取。
+
+完整命令、结构化结果、夹具修正和未覆盖项见[实现与验证记录](../../tasks/2026-10-21-local-shadow-design/implementation.md)。这是开发版 Codex 路径；没有验证 Claude、第三方模型、任意 hooks/插件组合、两台 Mac、跨 NAT/DERP、长期统计质量或 ChatGPT 插件宿主界面。默认分段阈值尚未经过质量与成本调优，测试降低的触发线不能当作生产最优值。实际行为及复验方法分别由[领域契约](../decisions/local-shadows.md)和[验证门槛](test-gates.md#本机数字分身)维护。
+
 ## 如何使用和更新
 
 1. 先确定具体路径：Provider、目标主机、客户端、接收方式和网络环境。原生平台有某个接口、Team Cross 已有适配、实际宿主通过验收分别判断。

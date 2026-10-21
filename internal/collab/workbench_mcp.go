@@ -36,6 +36,28 @@ func (a *App) invokeWorkbenchTool(ctx context.Context, name string, args map[str
 		return nil, err
 	}
 	id, _ := args["spaceId"].(string)
+	if name == "list_space_shadows" || name == "read_space_shadow" || name == "send_space_shadow" {
+		var payload struct {
+			ID        string `json:"shadowId"`
+			Offset    int    `json:"offset"`
+			MessageID string `json:"messageId"`
+			Text      string `json:"text"`
+		}
+		encoded, err := json.Marshal(args)
+		if err != nil {
+			return nil, err
+		}
+		if err = json.Unmarshal(encoded, &payload); err != nil {
+			return nil, err
+		}
+		in := shadowInput{ID: payload.ID, Offset: payload.Offset}
+		op := "view"
+		if name == "send_space_shadow" {
+			op = "send"
+			in.Message.ID, in.Message.Text = payload.MessageID, payload.Text
+		}
+		return a.shadowCall(ctx, id, op, in)
+	}
 	var in workbenchInput
 	encoded, err := json.Marshal(args)
 	if err != nil {

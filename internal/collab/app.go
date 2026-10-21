@@ -99,11 +99,16 @@ func Open(cfg Config) (*App, error) {
 		a.Close()
 		return nil, err
 	}
+	if err = a.loadShadows(); err != nil {
+		a.Close()
+		return nil, err
+	}
 	a.startWorkbench()
 	if err := a.startSpaceEvents(); err != nil {
 		a.Close()
 		return nil, err
 	}
+	a.startShadows()
 	return a, nil
 }
 func readJSON(path string, out any) error {
@@ -655,6 +660,8 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 	return nil
 }
 func (a *App) Close() {
+	a.shadowCreateMu.Lock()
+	defer a.shadowCreateMu.Unlock()
 	a.mu.Lock()
 	if a.closed {
 		a.mu.Unlock()
@@ -674,6 +681,13 @@ func (a *App) Close() {
 		clients = append(clients, c)
 	}
 	a.mu.Unlock()
+	if a.shadowCancel != nil {
+		a.shadowCancel()
+		a.shadowWG.Wait()
+	}
+	for _, e := range a.shadows {
+		e.Close()
+	}
 	if a.eventsCancel != nil {
 		a.eventsCancel()
 		a.eventsWG.Wait()

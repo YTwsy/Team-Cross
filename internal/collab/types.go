@@ -13,6 +13,7 @@ import (
 	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/runtimeconfig"
+	"teamcross/internal/shadow"
 	"teamcross/internal/sharing"
 	"teamcross/internal/workspace"
 )
@@ -167,10 +168,11 @@ type ExecutionRecord struct {
 	Commands            map[string]Command `json:"commands,omitempty"`
 }
 type Record struct {
-	SpaceID          string           `json:"spaceId,omitempty"`
-	Workbench        *WorkbenchRecord `json:"workbench,omitempty"`
-	Materials        []Material       `json:"materials"`
-	Schema           int              `json:"schema"`
+	Shadows          map[string]ShadowShared `json:"shadows,omitempty"`
+	SpaceID          string                  `json:"spaceId,omitempty"`
+	Workbench        *WorkbenchRecord        `json:"workbench,omitempty"`
+	Materials        []Material              `json:"materials"`
+	Schema           int                     `json:"schema"`
 	*ExecutionRecord `json:"execution,omitempty"`
 	ID               string       `json:"id"`
 	Title            string       `json:"title"`
@@ -275,6 +277,10 @@ type Settings struct {
 	UILanguage   string `json:"uiLanguage,omitempty"`
 }
 type App struct {
+	shadows         map[string]*shadow.Engine
+	shadowCancel    context.CancelFunc
+	shadowWG        sync.WaitGroup
+	shadowCreateMu  sync.Mutex
 	events          *mcpevents.Manager
 	eventsCancel    context.CancelFunc
 	eventsWG        sync.WaitGroup

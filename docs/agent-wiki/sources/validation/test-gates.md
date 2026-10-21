@@ -25,7 +25,7 @@
 ```sh
 go test ./...
 go vet ./...
-go test -race ./internal/collab ./internal/mcp ./internal/mcpevents ./internal/sharing ./internal/nativecodex ./internal/nativeclaude ./internal/service ./internal/cliinstall ./internal/pluginpack
+go test -race ./internal/shadow ./internal/collab ./internal/mcp ./internal/mcpevents ./internal/sharing ./internal/nativecodex ./internal/nativeclaude ./internal/service ./internal/cliinstall ./internal/pluginpack
 pnpm --filter @teamcross/web check
 pnpm --filter @teamcross/web test
 pnpm --filter @teamcross/web build
@@ -140,6 +140,31 @@ TEAMCROSS_WORKBENCH_BROWSER_DIR=/private/tmp/teamcross-space-browser-fresh \
 按 fixture 输出的 `fixture.json` 打开专用页面，检查 1440/1024/768 像素、深浅主题、中英文、材料与批注就地发起、回执/关联导航、简报保存/冲突、专用角色初始化/暂停。创建该目录的 `finish` 文件结束；不得把模拟接收截图描述为真实模型回执。前端修改仍更新嵌入资源。
 
 单侧栏布局另检查发布入口、搜索展开、筛选与材料切换、左栏收起、连续对话的用户与 Agent 消息、评论草稿和更多菜单。空间概览检查固定版本材料跳转及折叠管理入口；阅读底部检查处理要求与材料/批注引用进入发送表单，且未确认接收目标前没有投递。引用选择器中的预览版本不得改变已选版本。`workbench_browser_test.go` 的合成用户消息通过原生 `content` 结构读取，避免仅验证 Agent 正文；共同执行的上下文切换另由 `TestLibraryBrowserFixture` 复核。
+
+## 本机数字分身
+
+领域契约见[本机数字分身](../decisions/local-shadows.md)。回归入口：[状态与故障接续](../../../../internal/shadow/engine_test.go)、[三 Core 成员与送达](../../../../internal/collab/shadows_test.go)、[共享聊天界面](../../../../packages/web/src/test/shadows.test.tsx)。检查持久化成功才送达、同 ID 手动重发、真实成员归属和跨空间隔离；S1 → S2 后未决项与独立 W/J 不变；纠正/忘掉的版本、候选水位与晚到结果不覆盖当前状态；丢失创建/投递回执时不自动重放；压缩完成后废弃旧 CM 决定并等待新用量，CM 超时忽略晚到建议；空间结束和成员退出停止精确所属进程，暂停则保留已接收工作。
+
+真实 Codex 接续与空间产品流程分别运行，输出目录必须全新：
+
+```sh
+python3 scripts/verify-shadow-native.py \
+  --fixture-dir /private/tmp/teamcross-shadow-native-fresh \
+  --codex-bin /absolute/path/to/codex \
+  --codex-auth /absolute/path/to/auth.json
+
+python3 scripts/verify-local-shadow.py \
+  --fixture-dir /private/tmp/teamcross-shadow-core-fresh \
+  --teamcross-bin /absolute/path/to/teamcross \
+  --codex-bin /absolute/path/to/codex \
+  --codex-auth /absolute/path/to/auth.json
+```
+
+第一个脚本创建隔离 home/repo，固定测试模型 `gpt-5.6-luna`，用可控的只读 MCP 工具让 W 跨越主会话回答、原生压缩和 S2 接手；同时验证继承标记、显式记忆变更、准确 thread 恢复和空闲整理水位。只降低 Core 的 CM 触发线，真实窗口和原生压缩保持不变；CM 若选择 compact，再显式触发换段以确定性覆盖两条路径。这证明机制接通，不证明默认阈值最优。
+
+第二个脚本运行单 Mac 三个 Core 与真实 TLS，成员 B 创建分身、C 发消息，三方读取相同作者和完成结果；停止 B 后验证失败消息不补发，重启后手动同 ID 重发，核对原生 thread 和记忆仍在，再通过真实 stdio MCP 读取结果。可加 `--keep-browser` 暂留现场，按 `fixture.json` 进入实际 WebGUI，检查共享聊天、回执、失败重发、记忆/任务和本机控制。创建 fixture 的 `finish` 文件结束并清理脚本进程。浏览器复核使用构建后的嵌入资源，不把单 Mac 当成两台 Mac，也不把普通浏览器当成 ChatGPT 插件宿主验收。
+
+后续 eval 以固定回放样本、配置和模型版本为基线，分别记录：约束保留、记忆归属/纠正、任务接续、重复副作用和错误送达次数，以及延迟与 token 用量。先要求错误归属、重复执行和错误送达为零，再评估质量与成本；每轮只调整一个阈值或提示词，对训练回放和保留样本同时比较，有回退才替换基线。当前接续验收不是统计质量分数；长期对话、第三方模型、hooks/插件组合与跨 Mac 另立对应样本，不从测试 MCP 推导全覆盖。
 
 ## 空间事件
 

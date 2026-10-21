@@ -297,6 +297,16 @@ When every selected item belongs to the same space, you can also choose **Send t
 
 Left-click the menu bar icon to open the collaboration quick view, or press `Control + Option + T` when the shortcut is available. Switch between **Current spaces** and **Resources**. The first shows ongoing collaborations and their state; click to open details. The second shares the browser's selection and supports search, favorites, and read-entry generation. Switching views preserves resource filters and selections. You can pin the quick view as a small floating window; full material and long discussions open in the WebGUI. Lists scroll with the page. **Service and Settings** appears on the filter row, and right-clicking the menu bar icon also opens the service menu for settings, CLI management, and quitting.
 
+## Local digital shadows (current development build)
+
+Open **Local digital shadows** in a space and choose **Create my shadow**. Enter a name and a local working directory. The first version uses local Codex with its configured model, sign-in, permissions, hooks, plugins, MCP and native memory. Existing personal chats are not imported. The owner's Mac must keep Core running; all space members share the same conversation.
+
+Ask questions and follow up naturally without choosing a topic or session. Delegate longer work in the background and continue chatting. **Memories and tasks** shows progress, personal ownership and unconfirmed memory candidates. Ask the shadow to remember, correct or forget information. Forgetting stops using it as active memory; the original conversation and native history remain.
+
+**Delivered** means the shadow's Mac has durably saved the message, not that the work is complete. After an offline or failed attempt, **Resend** reuses that message's ID. Reconnection does not automatically resend it. Native approval requests are handled only on the shadow's Mac. **Pause reception** lets work already started finish; **Check native state** reconciles uncertain outcomes without automatically repeating actions.
+
+This feature is separate from shared execution and its input handoff. See the [contract](agent-wiki/sources/decisions/local-shadows.md) and [verification record](agent-wiki/tasks/2026-10-21-local-shadow-design/implementation.md) for versions and tested environments. This development feature is not implied to exist in the current stable installer.
+
 ## End and resume sharing
 
 When sharing ends for a read-only space, material and discussions remain on the host. Reopen invitations to continue; no model runtime needs to be resumed. Enabling execution or resetting a link preserves member identities within the same sharing period. After sharing has fully ended, joining again creates a new identity. That identity cannot update material published under the old identity, but it can publish new independent material. The native-runtime rules below apply only to spaces with an executable session.

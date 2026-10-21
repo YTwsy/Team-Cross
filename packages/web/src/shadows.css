@@ -1,0 +1,202 @@
+.shadow-workspace {
+  max-width: 1380px;
+  margin: 0 auto;
+}
+.shadow-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+.shadow-picker .dot {
+  margin-left: 8px;
+}
+.shadow-chat-layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+}
+.shadow-chat {
+  flex: 1;
+  min-width: 340px;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 260px);
+  min-height: 440px;
+}
+.space-shell .workbench-pane .shadow-chat {
+  padding: 0;
+}
+.shadow-chat-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 22px 12px;
+}
+.shadow-chat-heading > div {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.shadow-chat-heading span,
+.shadow-shared-note,
+.shadow-message time,
+.shadow-message footer,
+.shadow-fact > span,
+.shadow-composer span,
+.shadow-thinking {
+  color: var(--muted);
+  font-size: 12px;
+}
+.shadow-shared-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 0 22px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.shadow-messages {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 100px;
+  padding: 22px;
+}
+.shadow-composer,
+.shadow-chat-heading,
+.shadow-shared-note {
+  flex-shrink: 0;
+}
+.shadow-greeting {
+  margin: 100px auto;
+  max-width: 300px;
+  text-align: center;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.shadow-message {
+  margin: 0 0 24px;
+}
+.shadow-message header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.shadow-message header strong {
+  font-size: 13px;
+}
+.shadow-message p {
+  line-height: 1.7;
+}
+.shadow-user-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+.shadow-question {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--soft);
+}
+.shadow-answer {
+  padding: 0 5px;
+}
+.shadow-message footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.shadow-composer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--line);
+}
+.shadow-composer textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 76px;
+}
+.shadow-composer > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+.shadow-thinking {
+  padding: 8px 22px;
+}
+.shadow-details {
+  width: 310px;
+  padding: 20px;
+  max-height: 80vh;
+  overflow: auto;
+}
+.shadow-details h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+.shadow-details h3:not(:first-child) {
+  margin-top: 28px;
+}
+.shadow-details p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.shadow-fact {
+  border-bottom: 1px solid var(--line);
+  padding: 12px 0;
+  overflow-wrap: anywhere;
+}
+.shadow-fact strong,
+.shadow-fact > span {
+  display: block;
+  margin-bottom: 4px;
+}
+.shadow-fact p {
+  margin: 0 0 6px;
+}
+.shadow-fact details {
+  font-size: 12px;
+  margin-top: 10px;
+}
+.shadow-diagnostics {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  margin-top: 24px;
+  font-size: 13px;
+}
+.shadow-diagnostics .button {
+  margin: 4px 4px 0 0;
+}
+.shadow-path {
+  overflow-wrap: anywhere;
+  font-family: monospace;
+}
+.shadow-approvals {
+  flex-basis: 100%;
+  padding: 20px;
+}
+.shadow-native-request {
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.shadow-native-request pre {
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.shadow-native-request textarea {
+  display: block;
+  width: 100%;
+  min-height: 80px;
+}
