@@ -173,6 +173,8 @@ func TestReceiverFailedResumePreservesPauseAndCanRetry(t *testing.T) {
 	if v["receivingPaused"] != true || v["online"] != false || v["sessionId"] != id || f.Alive() {
 		t.Fatal("failed resume changed ownership", v)
 	}
+	// A failed resume closes the process before asynchronous release finishes.
+	waitReceiverReleased(t, s)
 	a.Config.StartProcess = start
 	if w := receiverAction(t, a, s, map[string]any{"action": "start"}); w.Code != 200 {
 		t.Fatal(w.Body.String())
