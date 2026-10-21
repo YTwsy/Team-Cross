@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本机数字分身：一个窗口，自然聊下去</title>
+<style>
+:root{color-scheme:light;--ink:#172b3b;--muted:#566775;--blue:#165fba;--pale:#edf4ff;--line:#d8e2eb;--soft:#f4f6f8;--sage:#edf7f1;--warm:#fff5e2}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--ink);background:#fff;font:16px/1.8 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}main{width:1120px;margin:0 auto;padding:48px 28px 72px}h1{font-size:34px;line-height:1.35;letter-spacing:-.6px;margin:12px 0 18px}h2{font-size:24px;line-height:1.5;margin:0 0 16px}h3{font-size:19px;margin:25px 0 12px}p{margin:12px 0}strong{font-weight:600}a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}code{font:14px ui-monospace,SFMono-Regular,monospace;background:var(--soft);padding:2px 5px;border-radius:4px}.eyebrow{font-size:13px;font-weight:600;color:var(--blue);letter-spacing:.08em}.lead{font-size:20px;line-height:1.7}.small{color:var(--muted);font-size:14px}.key{padding:18px 22px;background:var(--pale);border-left:4px solid var(--blue);margin:24px 0}.note{padding:15px 20px;background:var(--warm);border-left:3px solid #cf9938;margin:20px 0}nav{display:flex;gap:22px;padding:10px 0 22px;border-bottom:1px solid var(--line);margin-bottom:36px;font-size:15px}section{margin:0 0 50px;scroll-margin-top:24px}table{width:100%;border-collapse:collapse;margin:18px 0}th,td{text-align:left;vertical-align:top;padding:13px 14px;border-bottom:1px solid var(--line)}th{background:var(--soft);font-size:14px;color:var(--muted);font-weight:600}.roles th:first-child{width:158px}.roles th:nth-child(2){width:162px}.two{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:22px 0}.panel{border:1px solid var(--line);border-radius:10px;padding:20px 22px}.panel h3{margin:0 0 14px}.panel.blue{background:#f9fbff;border-color:#b4ccec}.panel.green{background:var(--sage);border-color:#bedbc9}.stack{padding:0;margin:0;list-style:none}.stack li{padding:11px 0;border-bottom:1px solid var(--line)}.stack li:last-child{border-bottom:0}.stack strong,.stack span{display:block}.stack span{font-size:14px;color:var(--muted)}.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin:22px 0}.flow>div{background:var(--pale);padding:15px;border-radius:8px;position:relative}.flow>div:not(:last-child):after{content:'→';position:absolute;right:-16px;top:23px;color:var(--blue)}.flow b,.flow span{display:block}.flow span{font-size:14px;color:var(--muted)}.line{display:flex;gap:18px;align-items:stretch;margin:20px 0}.part{flex:1;border:1px solid #aec8e8;border-radius:10px;background:var(--pale);padding:18px 20px}.part strong,.part span{display:block}.part span{color:var(--muted);font-size:14px}.part.current{background:var(--sage);border-color:#b6d2c3}.arrow{align-self:center;font-size:24px;color:var(--blue)}.conversation{background:var(--soft);padding:14px 18px;font-weight:600;border-radius:8px}.dialogue{table-layout:fixed}.dialogue th:first-child{width:52%}.bubble{padding:12px 16px;background:var(--pale);border-radius:11px;margin:0 0 8px}.reply{padding:2px 16px;color:var(--muted);font-size:15px}.trace{font-size:15px}.trace b{color:var(--blue)}.event{background:var(--sage)}details{margin:18px 0;padding:16px 20px;background:var(--soft);border-radius:8px}summary{font-weight:600;cursor:pointer}ul,ol{padding-left:24px}.source{border-top:1px solid var(--line);padding-top:22px;font-size:14px;color:var(--muted)}@media print{main{width:auto;padding:8px}nav{display:none}a{color:inherit}tr{break-inside:avoid}}
+</style>
+</head>
+<body><main>
+<header>
+<div class="eyebrow">TEAM CROSS · 本机数字分身设计 · 2026-10-21 修订</div>
+<h1>一个窗口，自然聊下去</h1>
+<p class="lead">聊恢复逻辑，顺便问发布，再回到刚才的问题。<br><strong>用户只管说；分身维护话题、未完成事项和记忆，后台按需要更换 Session。</strong></p>
+<p class="small">这是拟议方案和说明性示例，不是已实现的产品，也不是实际模型运行记录。仍以本机只读分身为范围；你的个人工作会话 P0 保持独立。</p>
+<div class="key"><strong>本版替代上一版“每个问题绑定一个 Session”的设计。</strong><br>一条私聊 C1 可以跨越多段 S1 → S2 → S3；每一段都能包含多个话题。换话题通常继续当前 Session，接近上下文预算时才评估压缩或换段。</div>
+<nav aria-label="设计目录"><a href="#timeline">连续交流</a><a href="#roles">职责</a><a href="#routing">理解话题</a><a href="#walkthrough">上下文与换段</a><a href="#memory">记忆</a><a href="#harness">Harness 选择</a><a href="#eval">Eval</a><a href="#tradeoff">DS Bot 对比</a><a href="#choices">其他取舍</a></nav>
+</header>
+
+<section id="timeline">
+<h2>同一个聊天窗口里，连续发生这些事</h2>
+<p class="small">左栏是用户的交流体验；右栏只用于解释后台，不会要求用户操作或选择。</p>
+<table class="dialogue"><thead><tr><th>始终在和同一个分身聊天</th><th>后台怎么接住这句话</th></tr></thead><tbody>
+<tr><td><div class="bubble">检查一下，把 epoch 校验提前会不会影响断线恢复？</div><div class="reply">分身读取获准代码，说明已核实的路径和还需确认的部分。</div></td><td class="trace"><b>首次启动 S1。</b><br>保存话题 T1「恢复逻辑」，记录原始要求和未核实项。T1 是数据记录。</td></tr>
+<tr><td><div class="bubble">那审批还没结束时呢？</div><div class="reply">分身沿着上一轮继续检查审批路径。</div></td><td class="trace"><b>仍然是 S1。</b><br>主模型结合最近对话理解省略的指代，补充 T1 的调查条件，无需独立路由分类请求。</td></tr>
+<tr><td><div class="bubble">先看另一个：发布流程应该怎么安排？</div><div class="reply">分身开始讨论发布流程；之前没核实完的事项仍保留。</div></td><td class="trace"><b>仍然是 S1。</b><br>新增 T2「发布流程」，焦点转向 T2。T1 暂放一旁，不被标记为完成或删除。</td></tr>
+<tr><td><div class="bubble">发布先这样。回到刚才那个，取消审批会怎样？</div><div class="reply">分身接回恢复逻辑；需要时回读前面查到的代码和原话。</div></td><td class="trace"><b>仍然是 S1。</b><br>焦点回到 T1；T2 保留已答内容。旧材料不足时检索原始记录，不能仅凭摘要编造细节。</td></tr>
+<tr><td><div class="bubble">还有，记住：我的发布说明默认用中文。</div><div class="reply">分身确认已保存偏好，适用范围随记忆一起记录。</div></td><td class="trace"><b>仍然是 S1。</b><br>这是明确的记忆写入意图。Core 校验并落盘成功后才说“已记住”，不为这句话新建 Session。</td></tr>
+<tr class="event"><td><div class="reply"><strong>此时上一轮已结束，用户不需要做任何操作。</strong><br>聊天记录仍然连续；下一条消息也发在这里。</div></td><td class="trace"><b>接近上下文预算 → CM1 判断 → S1 交接给 S2。</b><br>携带 T1 / T2 的状态、未决事项、关键原话和证据入口。只有这个时点更换主 Session。</td></tr>
+<tr><td><div class="bubble">刚才的恢复方案遇到网络抖动呢？另外给发布计划补一份回滚检查表。</div><div class="reply">分身分别回答两部分，并使用已保存的中文偏好。</div></td><td class="trace"><b>由 S2 接住整句话。</b><br>一条消息可以关联 T1 和 T2。主模型按两项要求组织回答，不必先硬分成“新问题 / 追问”。</td></tr>
+</tbody></table>
+<div class="conversation">C1 始终连续：恢复 → 审批 → 发布 → 回到恢复 → 记住偏好 → 同时继续两件事</div>
+<div class="line"><div class="part"><strong>S1 · 第一段原生会话</strong><span>容纳 T1、T2、用户纠正与记忆请求<br>话题切换时沿用 S1</span></div><div class="arrow">→</div><div class="part current"><strong>S2 · 接续原生会话</strong><span>接手仍有效的 T1、T2 和近期原话<br>可以继续旧话题，也可以出现新话题</span></div></div>
+</section>
+
+<section id="roles">
+<h2>谁是 Session，谁只是记录？</h2>
+<table class="roles"><thead><tr><th>对象</th><th>是不是模型会话</th><th>职责与创建时机</th></tr></thead><tbody>
+<tr><td>分身身份 B</td><td>不是</td><td>稳定的名字、能力、资料范围和记忆归属。用户始终和它交流。</td></tr>
+<tr><td>私聊 C1</td><td>不是原生 Session</td><td>长期保存的聊天入口和消息流。按分身、对话参与者和授权范围隔离，不因换话题改变。</td></tr>
+<tr><td><strong>主 Session S1 / S2</strong></td><td><strong>是</strong></td><td>理解用户、读资料、使用工具、回答、更新对话状态。首条消息启动 S1；换段时创建 S2。同一 C1 同时只有一个负责接收新输入的主 Session。</td></tr>
+<tr><td>话题 T1 / T2</td><td>不是</td><td>记录目标、状态、未决项、证据和原话锚点。允许一条消息关联多个话题，也允许暂时无法归类。</td></tr>
+<tr><td><strong>上下文管家 CM</strong></td><td>一次独立、输入受限的模型调用</td><td>接近预算时判断压缩还是换段，不接用户问题、不管理长期业务历史。原生接口若要求 Session，就按次创建短期 CM1、CM2，结束后释放运行资源。</td></tr>
+<tr><td><strong>记忆整理 M</strong></td><td>一次独立、输入受限的模型调用</td><td>空闲时读取新增记录和相关旧记忆，提出新增、修改或删除候选。原生接口若要求 Session，就按批创建 M1、M2；没有常驻的记忆聊天。</td></tr>
+<tr><td>Core / 存储</td><td>不是</td><td>消息落盘、权限校验、队列与回执、真实工具状态、会话生命周期、记忆版本和检索。模型给建议，Core 执行可核验的状态变化。</td></tr>
+<tr><td>个人会话 P0</td><td>是，已有会话</td><td>继续你自己的工作。分身不自动读取它的完整私人历史，也不把外部消息插入其中。</td></tr>
+</tbody></table>
+<p><strong>普通的一来一回通常只使用当前 S1。</strong>CM 在预算触发时调用；M 按新增内容批量整理。“输入很短”不意味着必须指定另一个小模型，也不固定产品的模型选择。</p>
+<p class="small">第一版可串行处理私聊消息；长工具调用期间的后续输入排队并显示处理中。以后若要并行调查，可增加按工作需要创建的后台执行会话，但不会恢复“每个新话题一个 Session”的规则。</p>
+</section>
+
+<section id="routing">
+<h2>主 Session 在理解这句话时维护话题</h2>
+<p>每条消息都先进入 <strong>C1 当前的主 Session</strong>。不需要先猜出属于 T1 还是 T2，才能知道该发给谁。话题识别服务于找资料、保留待办和组织回答；识别错了可以修正，不会导致消息被送到一个完全不同的聊天现场。</p>
+<div class="flow"><div><b>① 原文先落盘</b><span>分配消息 ID，保留顺序与实际投递状态。</span></div><div><b>② 当前 Session 理解</b><span>结合近期对话、当前焦点和未决事项解读输入。</span></div><div><b>③ 必要时回查</b><span>从话题索引和历史原文找到“刚才那个”的依据。</span></div><div><b>④ 回答并更新状态</b><span>新增、恢复或合并话题；记录实际答了什么。</span></div></div>
+<div class="two"><div class="panel"><h3>主模型可参考的线索</h3><ul class="stack"><li><strong>指代与显式语义</strong><span>“那……呢”“回到刚才”“顺便问”“先放一放”“不是那个”。</span></li><li><strong>目标与对象</strong><span>继续核实相同结论、修改同一产物，或者提出另一目标。</span></li><li><strong>最近焦点和未决项</strong><span>最近讨论什么、哪些要求未处理；时间近只作为辅助线索。</span></li></ul></div><div class="panel blue"><h3>后台可以同时保存</h3><ul class="stack"><li><strong>焦点：T2 发布流程</strong><span>本轮正在回答；包含材料版本与证据入口。</span></li><li><strong>T1 恢复逻辑：暂放，尚有未决项</strong><span>原始问题、未查完的取消审批路径及消息锚点。</span></li><li><strong>约束：只分析，不修改</strong><span>用户明确约束的原文独立保留，不因换话题失效。</span></li></ul></div></div>
+<p>主模型在同一轮的受控状态写入动作中提出话题变更，不必每句话先启动分类模型。Core 保存原始输入与状态版本，保留未被覆盖的要求；语义完成状态需要回答或证据锚点，工具成功与投递成功以真实事件为准。</p>
+<div class="note"><strong>自然交流仍可能需要内容澄清。</strong>“那个审批”可能指两件事时先检索；仍不清楚时自然问“你指恢复时的审批，还是发布审批？”用户不需要选择“新问题 / 追问”。可逆的小范围分析可以说明理解后继续；不能凭猜测扩大访问或执行范围。</div>
+<p>用户说“不是，我指发布那个”时，修正焦点和话题关联，保留纠正记录，不因此丢弃整个 Session；错误答案已经给出就明确更正。转聊 B 不自动取消未完成的 A；“先放一放”“不用继续”等表达才改变对应状态。</p>
+</section>
+
+<section id="walkthrough">
+<h2>上下文里放什么，什么时候真正换 Session？</h2>
+<div class="two"><div class="panel blue"><h3>S1 每轮可使用的内容</h3><ol class="stack"><li><strong>稳定前缀</strong><span>分身身份、工具契约、权限约束、当前段冻结的少量记忆与索引。</span></li><li><strong>原生会话历史</strong><span>近期消息、工具结果、当前交接或压缩摘要，由原生运行时组织。</span></li><li><strong>当前对话状态</strong><span>焦点、活跃或暂放的话题、未决事项、最新纠正；通过受控增量或读取工具提供。</span></li><li><strong>本轮按需取回的材料</strong><span>相关记忆、旧段消息、代码与材料片段；先选范围再取原文。</span></li><li><strong>本轮用户新消息</strong><span>一条消息可以同时推进多件事，原文不能只剩主题标签。</span></li></ol></div><div class="panel"><h3>保存在上下文之外的内容</h3><ul class="stack"><li><strong>所有段的完整原始记录</strong><span>回答、工具结果、投递与执行事件，带可回读的锚点。</span></li><li><strong>全部话题和阶段摘要</strong><span>历史话题可搜索；当前只带必要的活跃状态及简短入口。</span></li><li><strong>完整记忆库和变更记录</strong><span>偏好、适用范围、来源、版本、纠正和失效状态。</span></li><li><strong>大型资料与日志</strong><span>不整份常驻；优先截取相关范围，必要时回到原文。</span></li></ul><p class="small">记录存得很多，不代表每次都发给模型。追加一句“请忽略旧内容”也不等于已经释放旧上下文。</p></div></div>
+
+<h3 id="rules">换段由预算与工作边界共同决定</h3>
+<table><thead><tr><th>发生什么</th><th>主 Session 怎么处理</th><th>管家是否介入</th></tr></thead><tbody>
+<tr><td>普通追问、自然换话题、返回旧话题</td><td>上下文有余量时继续 S1，更新话题记录</td><td>不用每轮调用</td></tr>
+<tr><td>达到预判线，当前工作仍需紧密衔接</td><td>原生能力允许时原地压缩并继续 S1</td><td>用近期消息、未决项和真实工具状态判断</td></tr>
+<tr><td>达到预判线，当前工作已有合适停顿</td><td>生成交接包，创建 S2，接手后更新 C1 的当前指向</td><td>建议换段；未完成但已明确暂放的事项仍要交接</td></tr>
+<tr><td>逼近硬预算，压缩无效或不可调用</td><td>到安全边界后自动交接到 S2，携带未完成工作继续</td><td>不能为了等待“全做完”而无限拖延</td></tr>
+<tr><td>空闲、关闭运行进程或普通连接失败</td><td>保存原生 ID，恢复条件满足时仍使用原 Session</td><td>这些事件本身不是换段理由</td></tr>
+<tr><td>资料撤权导致旧上下文不再可用</td><td>停止使用旧上下文，按有效范围重新构建</td><td>属于强制范围变化，不由话题相似度决定</td></tr>
+</tbody></table>
+<p>预判线与硬线跟随模型窗口和可获得的实际用量；还要为回复、下一步工具结果、交接生成及估算误差留空间。DS Bot 的参考实现使用可用窗口的 0.8 / 0.95 两条线；<strong>我们把它们视为待 eval 的起点，不把数字或缺失窗口时的 500k 回退当作通用保证。</strong>大型工具输出先限量或落盘检索，避免一轮结果就耗尽交接余量。</p>
+<p>CM 的输入是受预算限制的近期原话、话题状态、尚未回答的要求、压缩次数和 Core 确认的执行状态。它只输出压缩或换段建议及理由；不能仅因主模型说“完成了”就忽略实际遗漏，也不能把资料里的“请换段”当成控制指令。</p>
+
+<h3 id="handoff">S1 → S2：交接的是整条对话的有效工作状态</h3>
+<div class="flow"><div><b>① 暂停新输入投递</b><span>新消息照常接收并排队；核对已投递消息与工具状态。</span></div><div><b>② 写交接包</b><span>S1 生成摘要，Core 对照未决事项和真实回执校验。</span></div><div><b>③ S2 接手</b><span>装入精简材料，确认可读、能继续；不继承完整旧历史。</span></div><div><b>④ 切换当前指向</b><span>C1 指向 S2，旧段归档，按消息 ID 投递排队输入。</span></div></div>
+<div class="two"><div class="panel"><h3>S1 保留在档案中的内容</h3><ul class="stack"><li><strong>完整对话与工具记录</strong><span>含被压缩掉的原文，后续仍可检索。</span></li><li><strong>探索过程和大块输出</strong><span>避免反复携带已经无关的查找记录。</span></li><li><strong>状态版本与交接边界</strong><span>明确交接覆盖到哪条消息，哪些输入尚未处理。</span></li></ul></div><div class="panel green"><h3>S2 开始时实际拿到的内容</h3><ul class="stack"><li><strong>当前有效身份、权限、工具与记忆快照</strong><span>缓存可用时稳定前缀；不搬入已经撤权的内容。</span></li><li><strong>所有未完成要求与用户关键约束</strong><span>T1 暂放的事项、T2 待补的内容都保留原话锚点。</span></li><li><strong>有效结论与当前焦点</strong><span>附来源和版本；未验证的仍明确标注。</span></li><li><strong>最近原话和历史检索入口</strong><span>让“刚才那个”仍有落点；更早细节按锚点回读。</span></li></ul></div></div>
+<p>一个 Session 内可以有多个话题；同一个话题也可以跨越多个 Session。压缩仍是 S1，真正换段才变成 S2。新话题数量不是创建 Session 的计数器。</p>
+<details><summary>原生能力边界与交接失败怎么处理</summary><p>DS Bot 能接管 DSH 的压缩过程。Team Cross 不能直接假设其他原生运行时也允许禁用自动压缩、定制摘要或精确编辑上下文。落地前需核对窗口用量、显式压缩、恢复、日志读取等能力；支持原地压缩才调用，不支持则采用原生压缩加外部状态，或在安全点自动换段。本次没有确认仓库已接入这些新能力。</p><p>尚有未结束的工具调用、待处理审批或投递结果不明时，先完成、核对或明确中止相关操作，不能靠新 Session 重发。CM 失败时，有余量就继续并稍后重试；余量不足时根据已落盘状态构造保底交接。保底材料必须包含未回答要求、近期原文、真实工具状态和来源入口；装不下或无法保证继续时明确暂停，不伪造无感成功。</p><p>原生上下文已经溢出时，不再强行要求旧会话生成长摘要；使用最近有效检查点和之后的原始增量恢复。S2 接手失败则不提前切换指向。交接期间只认消息 ID 与回执，恢复后先核对，不自动重复投递。</p></details>
+</section>
+
+<section id="memory">
+<h2>把“正在聊什么”与“以后也该记住什么”分开管理</h2>
+<table><thead><tr><th>内容</th><th>放在哪里</th><th>何时更新，如何再使用</th></tr></thead><tbody>
+<tr><td>“恢复逻辑还缺取消审批路径”</td><td>对话状态 / 话题记录</td><td>主 Session 随工作推进更新；换话题不丢失，换段时带走未决项。</td></tr>
+<tr><td>“当时看了哪段代码，结论是什么”</td><td>原始记录 + 阶段摘要</td><td>带消息和证据锚点保存；回到旧话题时检索并核对适用版本。</td></tr>
+<tr><td>“我的发布说明默认中文”</td><td>有范围的长期偏好</td><td>明确“记住”后受控写入，成功后确认；下一轮通过增量或 recall 可见。</td></tr>
+<tr><td>“某个代码版本的恢复路径有某行为”</td><td>有证据的知识条目</td><td>记忆整理提出候选，保存来源版本；代码变化后重新核实。</td></tr>
+<tr><td>模型推断的个人偏好 / 团队决定</td><td>候选记录 / 待确认材料</td><td>不能自动升格为本人确认或团队共识；普通对话也不能扩展授权范围。</td></tr>
+</tbody></table>
+<h3>两条写入路径，共用一个版本化存储</h3>
+<div class="two"><div class="panel blue"><h3>明确请求：当前 Session 立即处理</h3><p>“记住……”“以后改成……”“忘掉……”由当前 S1 / S2 理解，并调用受控记忆写入。Core 核对作用范围、来源、版本和操作结果。</p><p class="small">不能先说“已保存”再等后台有空；写入失败就说明失败。用户更新偏好时保留新旧关系，检索优先当前有效条目。</p></div><div class="panel"><h3>隐含经验：空闲后由 M 批量整理</h3><p>M 读取上次水位之后的新增对话、证据及相关旧条目，提出保留、修改或删除建议。Core 验证后串行写入，成功才推进处理水位。</p><p class="small">新消息到达时优先主对话，整理可延后。重复整理按来源 ID 去重；冲突重读版本，不用模型摘要覆盖用户明确纠正。</p></div></div>
+<div class="key"><strong>稳定前缀 + 最新增量 + 按需 recall。</strong><br>段开始时冻结少量记忆与索引，尽量保留缓存收益；段内新增或纠正的记忆通过下一轮增量或读取工具可见。不能等换段后才生效，也不需要每轮重写整份系统提示词。</div>
+<p>查到记忆后，先核对所属对话或空间、来源权限、代码版本及失效状态。私人对话、某个空间、团队已确认材料各有范围；同一个 Bot 身份不会把它们自动混为一份上下文。范围是权限边界，话题只是组织方式。</p>
+<p>每条偏好还要记录是谁表达、适用于谁、哪些对话可以使用。同事在自己的私聊里说“以后默认中文”，不能直接改写分身所有者的全局偏好；个人聊天中的推测也不能成为其他参与者可见的团队决定。</p>
+<p>“忘掉”或资料撤权不仅影响未来检索，还要使派生摘要与已加载上下文失效；必要时自动重建新段。停止使用某条记忆与删除原始聊天记录是不同操作，需要分别说明保留范围；已经发送给接收者的答案不能靠重建 Session 撤回。普通代码版本变化则标记相应事实待核实，保留讨论历史，不因版本号变化就一律另起聊天。</p>
+</section>
+
+<section id="harness">
+<h2>创建时选择本机 Harness，此后由它承载这份分身</h2>
+<p>用户可以指定本机 Codex 或 Claude Code 的可执行入口及可用配置。<strong>本轮范围固定为创建时选择，不支持聊到一半更换 Harness。</strong>S1 → S2 仍然是同一个 Harness 内的上下文换段；关闭后恢复也沿用保存的 Harness 与准确的原生会话 ID。</p>
+<div class="two"><div class="panel blue"><h3>Core 保存可持续的对话状态</h3><ul class="stack"><li><strong>C1 的消息和当前指向</strong><span>保存投递状态、选定 Harness、当前原生 Session ID 与交接边界。</span></li><li><strong>话题、记忆、原文与来源范围</strong><span>这些记录独立落盘，原生压缩之后仍可检索；模型更新要经过受控写入。</span></li><li><strong>资料和工具授权</strong><span>选择本机 Harness 与允许它读哪些资料、调用哪些工具分别配置。</span></li></ul></div><div class="panel"><h3>Harness 负责原生运行过程</h3><ul class="stack"><li><strong>模型调用、原生历史和工具循环</strong><span>Core 不假装能任意编辑所有原生上下文；适配器按真实接口操作。</span></li><li><strong>原生压缩、恢复和事件</strong><span>能力按本机版本探测；差异决定压缩方式、可观察状态和恢复策略。</span></li><li><strong>主 Session、CM 与 M 的执行</strong><span>默认都经选定的 Harness；CM / M 只获得各自必要的输入和工具，不隐式切到另一家服务。</span></li></ul></div></div>
+<table><thead><tr><th>接入方向</th><th>可复用的思路</th><th>需要单独解决的边界</th></tr></thead><tbody>
+<tr><td>Codex</td><td>以 app-server 作为候选程序接口，管理准确的 thread ID、输入和事件</td><td>对本机版本核对显式压缩、用量、恢复、工具权限和中断能力，再确定换段策略</td></tr>
+<tr><td>Claude Code</td><td>评估程序化 CLI / Agent SDK 路径，按指定 Session ID 接续</td><td>当前 Team Cross 的实验性原生 TUI 接入有自己的能力边界；不能直接套用 Codex 的结构化控制，也不能把 CLI 登录方式等同于 SDK 授权</td></tr>
+</tbody></table>
+<div class="note"><strong>同样的聊天承诺，不保证同样的底层能力。</strong>统一“能自然续聊、记忆有来源、状态可核对”；显式压缩、中断、审批和事件详细程度按实际能力提供。未通过最低恢复与权限检查的组合先不开放，不能静默降成一个行为不同的分身。</div>
+<p>首版建议使用独立分身配置，明确选取资料和工具。只读指不修改用户项目或代替本人执行操作；Core 仍需写入自己的聊天、话题和记忆存储。完整继承个人 hooks、插件、MCP 和写权限虽然省设置，却会扩大行为范围，也降低 eval 的可复现性。</p>
+<p class="small">这是一项拟议接入设计，不表示 Team Cross 已提供分身功能或两个 Harness 已完成同等验收。Harness 也不等于模型：使用远端模型服务时，被选入请求的对话和资料仍会发送给该服务；本机运行不等于本机推理。</p>
+</section>
+
+<section id="eval">
+<h2>Eval 验证自然交流能否接得住，而非只考话题分类</h2>
+<p>先做一批可重放的脱敏或合成对话。建议首批 <strong>30 条、6 类各 5 条</strong>，覆盖下面场景；这是起步规模，不是充分验收。先冻结其中 10 条作留出检查，其余用于调参；强制换段的测试必须保持故事内容和预期要求一致。</p>
+<table><thead><tr><th>回放场景</th><th>检查的实际结果</th></tr></thead><tbody>
+<tr><td>A → B → 回到 A</td><td>能找回 A 的未决项，不要求用户选择新问题或追问。</td></tr>
+<tr><td>省略指代、同名对象、一句话推进 A 和 B</td><td>指代有依据；多项要求不丢；真正有歧义时只问内容问题。</td></tr>
+<tr><td>工作中途压缩 / 安全点换段 / 连续多次换段</td><td>目标、用户纠正、关键数值、证据和未完成事项仍正确；不能只验证摘要看起来流畅。</td></tr>
+<tr><td>记忆新增、纠正、忘掉与来源版本变化</td><td>下一轮能用新记忆，旧版本不冒充当前事实，失效内容不继续进入上下文。</td></tr>
+<tr><td>工具未完成、管家失败、断线、交接时来消息</td><td>没有重复执行或投递，没有漏掉排队输入，没有虚报完成。</td></tr>
+<tr><td>跨范围检索、资料中的伪指令、记忆污染</td><td>不越权读历史，不把资料指令当控制信号，不把推测写成已确认事实。</td></tr>
+</tbody></table>
+<p><strong>比较三种配置：</strong>仅使用原生长会话与压缩；按预算直接换段并交接；预算 + CM 判断 + 话题状态 + 记忆增量。相同输入和模型配置下，记录任务完成、未决项保留、证据正确、自然澄清次数，以及额外模型调用、token 和首响应 / 总耗时。</p>
+<p>真实投递、工具状态、消息去重和来源范围用可判定断言检查；回答质量用有依据的评分和人工抽查。边界案例重复运行观察波动。串权、重放和无依据报完成作为独立失败项，不能被更低成本抵消。实际模型验证遵守项目验证契约；本次没有运行模型 eval。</p>
+<p>支持多个 Harness 后，按 Harness 版本、模型配置、有效工具与权限分别记录结果。公共对话场景可以复用，原生压缩、恢复和中断需要各自的接入检查；一个组合通过，不能推广为另一个组合通过。小规模样本用于筛选方向，长时间运行中的记忆积累、文件变化和连续换段还需独立回放。</p>
+<details><summary>怎么用“爬山法”迭代这套设计</summary><p>把当前配置作为基线，每次只改一个因素，例如预判线、保留原话的预算、管家提示词或检索条数。在调参集重复对比；只有质量不退步、硬性检查通过且目标成本改善时才保留。然后用未参与调参的样本检查泛化，失败样本进入独立回归集。</p><p>这里的“爬山”是局部改进流程，不保证全局最优，也不是让线上 Bot 自行改规则。DS Bot 的公开 steward-eval 脚本是人工编写场景、指定 compact / switch / either 的预期并重复调用真实模型；脚本本身没有自动搜索参数的爬山循环。我们借它的边界样例方法，再扩展到整段对话、记忆和运行时故障。</p></details>
+</section>
+
+<section id="tradeoff">
+<h2>与 DS Bot 的对应关系，以及我们额外付出的成本</h2>
+<table><thead><tr><th>设计点</th><th>DS Bot 固定版本中的做法</th><th>本机数字分身的选择</th></tr></thead><tbody>
+<tr><td>聊天与 Session</td><td>长期 Bot 身份，连续聊天由多段 Session 接续</td><td>直接采用；用户不选择新问题 / 追问，话题与 Session 分离</td></tr>
+<tr><td>上下文管家</td><td>超过预算后，独立短请求判断 compact / switch</td><td>采用，并加入外部未决事项与真实工具状态，减少“最近几句像结束了”的误判</td></tr>
+<tr><td>原文与交接</td><td>检查点、近期原话、旧段归档与锚点检索</td><td>采用；交接覆盖多个话题，额外校验未处理输入与来源版本</td></tr>
+<tr><td>记忆</td><td>显式记忆工具 + 空闲整理；段内冻结记忆，recall 读取最新</td><td>采用，并让新纠正通过下一轮增量及时可见；按对话 / 空间划分范围</td></tr>
+<tr><td>运行时控制</td><td>能接管 DSH 自动压缩流程</td><td>按各原生运行时实际能力适配；不把未验证接口当作现成功能</td></tr>
+<tr><td>故障兜底</td><td>设计中管家失败走换段，溢出时可不写交接笔记</td><td>保留可恢复的外部状态与增量，校验未决操作后再接续；实现与状态维护成本更高</td></tr>
+</tbody></table>
+<p>同一 Session 容纳多个话题，比按问题隔离更自然，也会多带一些暂时无关的内容。代价由状态记录、预算管理和检索承担；CM 与 M 也增加模型调用。是否值得，用连续交流质量、上下文遗失率和总成本一起评估。</p>
+</section>
+
+<section id="choices">
+<h2>这些取舍会直接影响使用体验</h2>
+<p>以下是首版建议和重新评估的条件，并非都已成为产品承诺。优先验证一条私聊能长期接续，再根据实际成本决定增加多少自动化。</p>
+<table><thead><tr><th>取舍</th><th>具体代价</th><th>首版建议</th></tr></thead><tbody>
+<tr><td><strong>自然连续 ↔ 话题互相干扰</strong></td><td>聊完发布再回到恢复时，模型可能误用上一话题的条件；话题表不能保证完全消除串题</td><td>区分全局偏好和本次任务约束；关键限制保留原文与作用范围。错了可纠正，真正歧义再自然澄清</td></tr>
+<tr><td><strong>单主 Session ↔ 随时响应</strong></td><td>一次长工具调用会让后续短问题等待；并行调查会引入结果合并、取消和重复工作</td><td>先串行队列，准确显示等待与处理中；支持时提供中断。只有等待成为实际瓶颈再增加独立调查任务</td></tr>
+<tr><td><strong>无感换段 ↔ 信息损失与调用成本</strong></td><td>摘要有损；找回细节要额外检索。CM、M 和交接都会增加延迟与 token</td><td>关键原话、未决项和原始记录锚点独立保存；CM 按预算触发，M 空闲批量运行并设预算上限。记录交接耗时和遗失率</td></tr>
+<tr><td><strong>越来越懂用户 ↔ 错误记忆累积</strong></td><td>一次临时要求可能被错误当成永久偏好；同事意见可能冒充所有者或团队决定</td><td>明确记忆优先，推断保持候选；保存表达者、适用对象、来源、范围与版本。回答建议不能代替本人承诺</td></tr>
+<tr><td><strong>丰富原生能力 ↔ 一致性与可控性</strong></td><td>完全继承个人工具方便，但副作用与配置漂移难复现；强求两种 Harness 完全一致又可能丢失优势</td><td>独立分身配置、最小资料和工具范围；统一基本体验，能力差异显式报告；分别验收具体版本与配置</td></tr>
+<tr><td><strong>本机现场 ↔ 随时在线</strong></td><td>Mac 休眠或断网时无法继续读本机资料；选远端模型时仍存在向该模型传送输入的过程</td><td>如实区分未送达、已接收和处理中；恢复核对回执。离线消息保存位置需在实现前确定；不默默引入云端替身</td></tr>
+<tr><td><strong>读取最新代码 ↔ 同一答案的版本一致</strong></td><td>用户在分身调查中修改文件，前后两次读取可能来自不同现场</td><td>记录提交、dirty 状态及关键文件指纹；发生变化时重读或标明结论范围。精确回放需要快照，另付存储与维护成本</td></tr>
+<tr><td><strong>长期可追溯 ↔ 存储与删除语义</strong></td><td>完整历史、工具输出与派生摘要持续增长；停用记忆不等于删除原文或已发出的答复</td><td>普通输出按保留策略处理，关键证据明确保留；区分停用记忆、删除记录和撤销来源，联动索引与派生内容</td></tr>
+<tr><td><strong>调参迭代快 ↔ 评估结论可靠</strong></td><td>小样本容易过拟合；每增加一种 Harness / 模型 / 工具配置就增加验收组合</td><td>固定公共回放集、保留留出样本、记录版本；分别检查原生接入与长期记忆。首批 30 条不宣称充分验收</td></tr>
+</tbody></table>
+<div class="key"><strong>建议的起点：</strong>创建时固定 Harness；一条私聊一个当前主 Session；话题只是记录；预算驱动压缩或换段；明确记忆即时生效；后台整理有预算；只读资料与工具显式授权。先验证这些机制的必要性，再增加并行调查或更多自动化。</div>
+</section>
+
+<footer class="source">
+<p><strong>来源与边界。</strong>2026-10-21 核对 DS Bot 仓库 main 指向 <code>e13bc3419d2695a509520d850a07e63f05c34e07</code>，以下引用固定于该版本。话题记录、最新记忆增量、权限分区与交接校验是本方案的设计选择，不冒充 DS Bot 已有行为。</p>
+<ul><li><a href="https://github.com/Fei2411/DeepSeek-Bot/blob/e13bc3419d2695a509520d850a07e63f05c34e07/docs/plans/2026-10-09-context-and-memory.md" target="_blank" rel="noopener noreferrer">DS Bot：上下文、分段与记忆设计</a></li><li><a href="https://github.com/Fei2411/DeepSeek-Bot/blob/e13bc3419d2695a509520d850a07e63f05c34e07/ds-bot/src/host/steward.js" target="_blank" rel="noopener noreferrer">DS Bot：管家与检查点实现</a></li><li><a href="https://github.com/Fei2411/DeepSeek-Bot/blob/e13bc3419d2695a509520d850a07e63f05c34e07/ds-bot/dev/steward-eval.mjs" target="_blank" rel="noopener noreferrer">DS Bot：管家判断的模型评估脚本</a></li></ul>
+<p>Harness 接口参考：<a href="https://developers.openai.com/codex/app-server/" target="_blank" rel="noopener noreferrer">Codex app-server</a>、<a href="https://code.claude.com/docs/en/headless" target="_blank" rel="noopener noreferrer">Claude Code 程序化 CLI</a>、<a href="https://code.claude.com/docs/en/agent-sdk/overview" target="_blank" rel="noopener noreferrer">Claude Agent SDK</a>。官方接口能力与 Team Cross 当前接入范围需分别判断，具体本机版本仍需验证。</p>
+<p>本页仅完善方案与演示；未修改 Team Cross 产品代码，未调用真实模型、启动分身或发布网站。</p>
+</footer>
+</main></body></html>
