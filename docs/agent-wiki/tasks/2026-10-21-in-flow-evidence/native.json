@@ -1,0 +1,22 @@
+{
+  "model": "gpt-5.6-luna",
+  "scope": "one Mac, isolated native Codex TUI, one Core, two forks",
+  "nativeVersion": "codex-cli 0.163.0-alpha.11",
+  "restricted": {
+    "markerRecovered": true,
+    "deliveryVersion": 1,
+    "nativeApprovals": 0,
+    "mcpCalls": 1
+  },
+  "trusted": {
+    "markerRecovered": true,
+    "deliveryVersion": 1,
+    "nativeApprovals": 0,
+    "mcpCalls": 0
+  },
+  "passed": true,
+  "cleanupErrors": [],
+  "baseline": "4d33a78d1efc85f80d821f0508b01830024f8e46",
+  "testedChanges": "codex/in-flow-awareness working tree accompanying this task report",
+  "binarySHA256": "b514d454925af9235c3ee039032c3d1118d17f5559d7518c74e3379551ddcdba"
+}

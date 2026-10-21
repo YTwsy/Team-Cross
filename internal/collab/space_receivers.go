@@ -398,6 +398,13 @@ func (a *App) receiverToolsHTTP(w http.ResponseWriter, r *http.Request, s *Sessi
 	if !decode(w, r, &input) {
 		return
 	}
+	if input.Name == "_inflow" {
+		in := workbenchDecode[inFlowCall](input.Arguments)
+		in.Caller = input.Caller
+		out, err := a.runtimeInFlow(r.Context(), s, in)
+		respond(w, out, err)
+		return
+	}
 	if err := mcp.ValidateRuntimeCall(input.Name, input.Arguments); err != nil {
 		respond(w, nil, err)
 		return

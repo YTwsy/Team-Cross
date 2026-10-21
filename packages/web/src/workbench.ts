@@ -1,6 +1,7 @@
 import type { LibraryReference } from "./library";
 
 export type SpaceTarget = {
+  inFlow?: boolean;
   id: string;
   memberId: string;
   member: string;
@@ -79,6 +80,8 @@ export type SpaceAssistant = {
   revision: number;
 };
 export type WorkbenchView = {
+  inFlow?: Record<string, boolean>;
+  notes?: SpaceNote[];
   spaceId: string;
   selfId: string;
   targets: SpaceTarget[];
@@ -87,6 +90,14 @@ export type WorkbenchView = {
   nextOffset?: number;
   brief: SpaceBrief;
   assistant: SpaceAssistant;
+};
+export type SpaceNote = {
+  id: string;
+  targetId: string;
+  actor: SpaceActor;
+  text: string;
+  createdAt: string;
+  deliveredAt?: string;
 };
 export type SpaceReceiver = {
   id: string;

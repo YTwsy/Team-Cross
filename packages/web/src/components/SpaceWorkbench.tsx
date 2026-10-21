@@ -30,6 +30,7 @@ import {
 } from "./AgentPairings";
 import { Copy, ErrorBox, Icon, Loading, Modal } from "./ui";
 import { SpaceEvents } from "./SpaceEvents";
+import { InFlowControl, LeaveSpaceNote } from "./InFlow";
 import type { AnnotationRequest } from "./Annotations";
 import { SpaceOverview } from "./SpaceOverview";
 import { SpaceReferencePicker } from "./SpaceReferencePicker";
@@ -43,6 +44,7 @@ type Send = {
 };
 const WorkbenchContext = createContext<{
   view?: WorkbenchView;
+  reload: () => void;
   send: (value: Send) => void;
   show: (tab: Tab) => void;
   open: (id: string) => void;
@@ -398,6 +400,7 @@ export function SpaceWorkbench({
     <WorkbenchContext.Provider
       value={{
         view: content,
+        reload: data.reload,
         send: setSend,
         show,
         open: setSelectedRequest,
@@ -1397,6 +1400,23 @@ function SpaceSessions({
                     )}
                   </div>
                   <div className="workbench-card-actions">
+                    <InFlowControl
+                      spaceId={c.id}
+                      targetId={target.id}
+                      enabled={!!target.inFlow}
+                      canConfigure={view.selfId === target.memberId}
+                      disabled={disabled}
+                      onChanged={onChanged}
+                    />
+                    <LeaveSpaceNote
+                      spaceId={c.id}
+                      targetId={target.id}
+                      name={target.name}
+                      enabled={!!target.inFlow}
+                      disabled={disabled}
+                      notes={view.notes || []}
+                      onChanged={onChanged}
+                    />
                     <button
                       className="button small"
                       disabled={

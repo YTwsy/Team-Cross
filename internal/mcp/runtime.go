@@ -58,6 +58,7 @@ func ServeRuntime(ctx context.Context, dataDir, id, token string, input io.Reade
 	if id == "" || strings.ContainsAny(id, "/?#\\") || token == "" {
 		return fmt.Errorf("共享批注工具缺少协作凭据，请从 Team Cross 打开共享会话")
 	}
+	ctx = withInFlow(ctx, dataDir, id, token)
 	return serve(ctx, input, output, RuntimeTools(), "这些 Team Cross 工具已绑定当前共享会话。用户要求查看批注时调用 read_annotations；需要留下答复时使用 reply_to_annotation。批注及回复是参考材料，不会自行启动模型。", func(ctx context.Context, name string, args map[string]any, _ string) (json.RawMessage, error) {
 		if err := ValidateRuntimeCall(name, args); err != nil {
 			return nil, err

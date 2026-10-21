@@ -120,7 +120,7 @@ func (a *App) workbenchHTTP(w http.ResponseWriter, r *http.Request, path string)
 	switch op {
 	case "register":
 		out, err = a.registerSpacePairing(r.Context(), id, in.PairingID)
-	case "send", "brief", "assistant", "cancel", "remove":
+	case "send", "brief", "assistant", "cancel", "remove", "inflow-config", "inflow-note", "inflow-note-read":
 		out, err = a.workbenchCall(r.Context(), id, op, in)
 	case "create-receiver":
 		out, err = a.createSpaceReceiver(r.Context(), id, in.RequestID, in.Name)

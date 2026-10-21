@@ -16,11 +16,27 @@ import (
 func TestRuntimeStdioHasOnlyScopedToolsAndUsesCurrentCore(t *testing.T) {
 	dir, _ := service.Normalize(t.TempDir())
 	calls := 0
+	inflowCalls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
 		if r.Header.Get("Authorization") != "Bearer scoped-token" || r.URL.Path != "/api/runtime-annotations/shared" {
 			t.Error("wrong credentials or scope")
 		}
+		var body struct {
+			Name      string         `json:"name"`
+			Arguments map[string]any `json:"arguments"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		if body.Name == "_inflow" {
+			inflowCalls++
+			if body.Arguments["operation"] != "prepare" {
+				t.Error(body)
+			}
+			w.Write([]byte(`{"items":[]}`))
+			return
+		}
+		calls++
 		w.Write([]byte(`{"annotations":[{"id":"note","replies":[{"text":"answer"}]}]}`))
 	}))
 	defer server.Close()
@@ -40,6 +56,9 @@ func TestRuntimeStdioHasOnlyScopedToolsAndUsesCurrentCore(t *testing.T) {
 	if calls != 1 {
 		t.Fatal("unscoped calls reached Core", calls)
 	}
+	if inflowCalls != 1 {
+		t.Fatal("passive check should only follow the valid scoped call", inflowCalls)
+	}
 	var responses []map[string]any
 	for _, line := range strings.Split(strings.TrimSpace(output.String()), "\n") {
 		var value map[string]any
@@ -49,7 +68,7 @@ func TestRuntimeStdioHasOnlyScopedToolsAndUsesCurrentCore(t *testing.T) {
 		responses = append(responses, value)
 	}
 	list := responses[1]["result"].(map[string]any)["tools"].([]any)
-	if len(list) != 12 || list[0].(map[string]any)["name"] != "read_annotations" || list[1].(map[string]any)["name"] != "reply_to_annotation" {
+	if len(list) != 15 || list[0].(map[string]any)["name"] != "read_annotations" || list[1].(map[string]any)["name"] != "reply_to_annotation" {
 		t.Fatal(list)
 	}
 	for _, raw := range list {

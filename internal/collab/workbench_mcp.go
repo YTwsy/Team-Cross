@@ -45,6 +45,17 @@ func (a *App) invokeWorkbenchTool(ctx context.Context, name string, args map[str
 		return nil, fmt.Errorf("空间工具参数类型无效: %w", err)
 	}
 	in.Actor = SpaceActor{Kind: "session", Provider: c.Caller.Provider, Session: contentHash([]string{c.Caller.Provider, c.Caller.SourceID})[:24]}
+	if name == "configure_space_inflow" {
+		return a.configureCurrentInFlow(ctx, id, c.Caller, runtimeID, in.Enabled)
+	}
+	if name == "send_space_note" || name == "get_space_note" {
+		op := "inflow-note"
+		if name == "get_space_note" {
+			op = "inflow-note-read"
+			in.Actor = SpaceActor{Kind: "human"}
+		}
+		return a.workbenchCall(ctx, id, op, in)
+	}
 	if mcp.WorkbenchReadTool(name) {
 		in.Actor = SpaceActor{Kind: "human"}
 	}
