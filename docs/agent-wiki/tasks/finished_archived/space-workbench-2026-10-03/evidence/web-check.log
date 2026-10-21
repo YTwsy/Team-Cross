@@ -1,0 +1,2 @@
+$ tsc -b --pretty false && node scripts/check-i18n.mjs
+Checked 880 translated UI messages.

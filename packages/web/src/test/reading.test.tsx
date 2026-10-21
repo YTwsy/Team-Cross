@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { MarkdownText } from "../components/MarkdownText";
 import { ReaderMessage } from "../components/Reading";
+import { LibraryProvider } from "../library";
 import { Annotations, type AnnotationRequest } from "../components/Annotations";
 import { MaterialReferencePicker } from "../components/MaterialReferences";
 import { Materials } from "../components/Materials";
@@ -482,4 +483,50 @@ it("places tool expansion inside the fold summary and keeps the process open", a
   await user.click(screen.getByRole("button", { name: "读取完整输出" }));
   expect(onExpand).toHaveBeenCalledTimes(2);
   expect((details as HTMLDetailsElement).open).toBe(true);
+});
+
+it("keeps the exact session when selecting an excerpt into the library", async () => {
+  const user = userEvent.setup();
+  const writes: unknown[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url, init?: RequestInit) => {
+      if (init?.body) writes.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ resources: [], selection: [] }));
+    }),
+  );
+  const { container } = render(
+    <LibraryProvider>
+      <ReaderMessage
+        spaceId="space/sessions/second"
+        source="需要选择的片段"
+        label="Codex"
+        target={{
+          kind: "history",
+          sessionId: "native-second",
+          turnId: "turn",
+          itemId: "answer",
+          quote: "需要选择的片段",
+        }}
+        onAnnotate={() => {}}
+      />
+    </LibraryProvider>,
+  );
+  const message = container.querySelector<HTMLElement>("[data-message-text]")!;
+  select(message.querySelector("[data-source-start]")!.firstChild!, 0);
+  fireEvent.mouseUp(message);
+  await user.click(screen.getByRole("button", { name: "加入选择" }));
+  expect(writes).toEqual([
+    expect.objectContaining({
+      reference: expect.objectContaining({
+        spaceId: "space",
+        executionId: "second",
+        kind: "context",
+        target: expect.objectContaining({
+          sessionId: "native-second",
+          quote: "需要选择的片段",
+        }),
+      }),
+    }),
+  ]);
 });

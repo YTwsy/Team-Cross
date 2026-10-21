@@ -24,6 +24,7 @@ import (
 	"teamcross/internal/cliinstall"
 	"teamcross/internal/collab"
 	"teamcross/internal/mcp"
+	"teamcross/internal/pluginpack"
 	"teamcross/internal/problem"
 	"teamcross/internal/service"
 	"teamcross/internal/webassets"
@@ -42,6 +43,21 @@ func main() {
 }
 func printJSON(v any) error { return json.NewEncoder(os.Stdout).Encode(v) }
 func run(args []string) error {
+	if binary, err := os.Executable(); err == nil {
+		source, err := pluginpack.RuntimeSource(binary)
+		if err != nil {
+			return err
+		}
+		if source != binary {
+			return syscall.Exec(source, append([]string{source}, args...), os.Environ())
+		}
+	}
+	if len(args) > 0 && args[0] == "events" {
+		return runEvents(args[1:])
+	}
+	if len(args) > 0 && args[0] == "plugin" {
+		return runPlugin(args[1:])
+	}
 	if len(args) > 0 && collaborationCommand(args[0]) {
 		return runCollaboration(args, os.Stdout, os.Stderr)
 	}
@@ -68,6 +84,7 @@ func run(args []string) error {
 	desktop := flags.String("desktop-app", "", "Codex Desktop 应用路径")
 	cliDir := flags.String("cli-dir", cliinstall.DefaultDir, "App 命令入口目录")
 	runtimeID := flags.String("runtime-id", "", "共享运行时批注工具的协作 ID")
+	ui := flags.Bool("ui", false, "启用本机插件材料与批注界面")
 	setLanguage := flags.String("set", "", "界面语言：auto、zh-CN 或 en")
 	if e := flags.Parse(args); e != nil {
 		if errors.Is(e, flag.ErrHelp) {
@@ -111,7 +128,7 @@ func run(args []string) error {
 	switch command {
 	case "serve", "join", "mcp", "status", "doctor", "stop", "ui-language":
 	default:
-		return fmt.Errorf("用法: teamcross [serve | join | sources | space | freeze | publication-preview | publish | publication-status | materials | read-material | withdraw-material | preview | create | share | invite | inspect-invitation | collaborations | input | open | end | leave | resume | share-status | cancel-share | mcp | status | doctor | stop | ui-language | version | cli-status | install-cli | uninstall-cli]")
+		return fmt.Errorf("用法: teamcross [serve | join | sources | space | freeze | publication-preview | publish | publication-status | materials | read-material | withdraw-material | preview | create | share | invite | inspect-invitation | collaborations | input | open | end | leave | resume | share-status | cancel-share | mcp | plugin | events | status | doctor | stop | ui-language | version | cli-status | install-cli | uninstall-cli]")
 	}
 	var e error
 	*data, e = service.Normalize(*data)
@@ -121,6 +138,12 @@ func run(args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if command == "mcp" {
+		if *ui && *runtimeID != "" {
+			return fmt.Errorf("本机插件不能选择共享运行时")
+		}
+		if *ui {
+			return mcp.ServeUI(ctx, *data, os.Stdin, os.Stdout)
+		}
 		if *runtimeID != "" {
 			return mcp.ServeRuntime(ctx, *data, *runtimeID, os.Getenv(mcp.RuntimeTokenEnv), os.Stdin, os.Stdout)
 		}
@@ -237,6 +260,9 @@ func run(args []string) error {
 	}
 	s, e := service.Ensure(ctx, *data, "", extra)
 	if e != nil {
+		if *jsonOut {
+			_ = printJSON(problem.Describe(e))
+		}
 		return e
 	}
 	target := s.URL
@@ -324,8 +350,19 @@ func serve(ctx context.Context, stop context.CancelFunc, cfg collab.Config, list
 	}
 	defer listener.Close()
 	app.URL = "http://" + listener.Addr().String()
-	c := service.Connection{URL: app.URL, PID: os.Getpid(), Instance: uuid.NewString(), Token: app.Token, Version: buildinfo.Version, Commit: buildinfo.Commit, Protocol: buildinfo.ControlProtocol, DataDir: cfg.DataDir}
-	inner := app.Handler(web)
+	executable, _ := os.Executable()
+	c := service.Connection{URL: app.URL, PID: os.Getpid(), Instance: uuid.NewString(), Token: app.Token, Version: buildinfo.Version, Commit: buildinfo.Commit, Protocol: buildinfo.ControlProtocol, DataDir: cfg.DataDir, Executable: service.StableExecutable(executable)}
+	c.StartArgs = []string{"--repo", cfg.Repo}
+	for _, option := range [][2]string{{"--codex-bin", cfg.Binary}, {"--claude-bin", cfg.ClaudeBinary}, {"--desktop-app", cfg.DesktopApp}, {"--dev-web", dev}} {
+		if option[1] != "" {
+			c.StartArgs = append(c.StartArgs, option[0], option[1])
+		}
+	}
+	if cfg.Loopback {
+		c.StartArgs = append(c.StartArgs, "--test-loopback")
+	}
+	admission := &service.Admission{}
+	inner := admission.Handler(app.Handler(web))
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/api/control/") {
 			inner.ServeHTTP(w, r)
@@ -342,8 +379,31 @@ func serve(ctx context.Context, stop context.CancelFunc, cfg collab.Config, list
 		public.Token = ""
 		switch {
 		case r.Method == "GET" && r.URL.Path == "/api/control/status":
-			mode, resolved := app.UILanguage()
-			_ = json.NewEncoder(w).Encode(service.Status{Connection: public, Running: true, Active: app.Active(), UILanguage: mode, ResolvedLanguage: resolved})
+			status, err := app.ControlStatus(r.Context())
+			if err != nil {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_ = json.NewEncoder(w).Encode(problem.Describe(err))
+				return
+			}
+			status.Connection = public
+			_ = json.NewEncoder(w).Encode(status)
+		case r.Method == "POST" && r.URL.Path == "/api/control/upgrade":
+			var in struct {
+				Instance string `json:"instance"`
+			}
+			if json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in) != nil || in.Instance != c.Instance {
+				w.WriteHeader(409)
+				_ = json.NewEncoder(w).Encode(problem.New("instance_mismatch", "服务实例已变化", "请重新读取服务状态"))
+				return
+			}
+			if !admission.DrainIfIdle(func() bool { return !app.UpgradeBusy() }) {
+				w.WriteHeader(409)
+				_ = json.NewEncoder(w).Encode(problem.New("upgrade_busy", "服务仍有活动，暂缓更新", "活动结束后下次打开时自动应用更新"))
+				return
+			}
+			restartArgs := append(append([]string{}, c.StartArgs...), app.ClientLaunchArgs()...)
+			_ = json.NewEncoder(w).Encode(map[string]any{"stopping": true, "startArgs": restartArgs})
+			stop()
 		case r.Method == "POST" && r.URL.Path == "/api/control/stop":
 			var in struct {
 				Force bool `json:"force"`
@@ -352,10 +412,18 @@ func serve(ctx context.Context, stop context.CancelFunc, cfg collab.Config, list
 				w.WriteHeader(400)
 				return
 			}
-			if app.Active() > 0 && !in.Force {
-				w.WriteHeader(409)
-				_ = json.NewEncoder(w).Encode(problem.New("active_collaborations", "停止会中断本机活动协作；会话和代码会保留", "确认后使用 stop --force"))
-				return
+			if !in.Force {
+				status, err := app.ControlStatus(r.Context())
+				if err != nil {
+					w.WriteHeader(http.StatusServiceUnavailable)
+					_ = json.NewEncoder(w).Encode(problem.Describe(err))
+					return
+				}
+				if status.Active > 0 {
+					w.WriteHeader(409)
+					_ = json.NewEncoder(w).Encode(problem.New("active_collaborations", "停止会中断本机活动协作；会话和代码会保留", "确认后使用 stop --force"))
+					return
+				}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]bool{"stopping": true})
 			stop()

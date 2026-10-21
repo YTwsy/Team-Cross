@@ -14,7 +14,30 @@ Claude 不增加等价的 Desktop 深链接。受限模式由隔离 runtime 中�
 
 个人辅助客户端与目标协作的 Provider 独立。安装、配置检测、普通 TUI 打开与实际调用证据复用本机 Core；具体权限与控制能力仍以目标协作为准。Claude 个人配置和验证边界见 [Claude 个人辅助模式](claude-native-tui.md#个人-claude-code-辅助模式)。
 
-共享运行时自动加载当前协作的批注读取与回复工具，直接客户端无需另开个人辅助会话。该工具集不含发送输入或选择其他协作的能力。Codex 创建和恢复按进程配置接入，Claude 沿用新协作的原生启动配置。详见 [批注工具协议](../protocol.md#共享运行时的批注工具)。
+共享运行时自动加载当前协作的批注读取与回复工具，直接客户端无需另开个人辅助会话；读取与保存回复本身不另起模型轮次。该工具集不含发送输入或选择其他协作的能力。Codex 创建和恢复按进程配置接入，Claude 沿用新协作的原生启动配置；旧 worker 的接入边界见 [批注工具协议](../protocol.md#共享运行时的批注工具)。
+
+## 原生会话连续性与运行实例归属
+
+Team Cross 保留 Provider 的原生会话身份与历史连续性，使用户能够在受支持的原生客户端中查看，并在释放必要的原生占用后继续同一会话。会话的持久化身份与当前执行归属分别管理；客户端切换和恢复执行沿用已保存的会话 ID。共同执行仍按[目录与生命周期](workspace-and-lifecycle.md)创建新 fork，保留来源原会话。
+
+这一选择让协作成果继续留在用户原有的会话体系中，无需通过导出、导入或重建聊天记录来接续。Codex 执行端使用有效的原生会话库；专用 Desktop 的独立配置目录用于客户端实例隔离。Claude 受限模式通过独立运行目录和单个 fork 的原生历史入口保持连续性，信任模式使用个人原生配置与历史；具体存储和认证边界由 [Claude 接入契约](claude-native-tui.md)维护。历史连续性不要求所有 Provider、模式和客户端共用同一个物理目录。
+
+| 运行实例归属 | 管理约定 |
+| --- | --- |
+| Core 创建并管理 | 核对本次原生会话和执行对象，按对应生命周期条件释放；停止范围限定到本次管理的实例或 job |
+| 通过受支持入口连接已有实例 | 核对目标会话实际由该实例承载；解除连接只释放 Team Cross 自己的连接资源，保留用户原有执行端 |
+
+当前 Codex 可操作协作和独立接收会话各使用专属 app-server，便于独立配置、恢复和释放，避免关闭一个会话的进程时连带结束其他会话。这是 Team Cross 的实现选择，app-server 本身可以承载多个 thread。连接已有会话时，历史可读、原生服务可达和目标已加载分别核对；当前连接入口及限制集中在[配对契约](agent-pairing.md#当前接入范围)。
+
+读取原生历史不取得执行归属。输入权交接沿用同一个共享执行实例；切换到另一个执行实例接续时，先满足原生占用释放条件，再继续原会话。Codex 接收会话的操作条件见[空间工作台](space-workbench.md#按需新建接收会话)，Claude 的 job 与 daemon 停止范围见 [Claude 接入契约](claude-native-tui.md#账户模型与权限)。两条路径各自维护原生语义与验收范围。
+
+## CLI 发现与配置
+
+Team Cross 使用本机已有的 Codex 安装，不下载、安装或管理 Codex 的更新。手动 CLI 配置优先于 `TEAMCROSS_CODEX_BIN`；没有手动配置时，环境变量仍是明确的覆盖。自动发现依次检查已选择 Desktop 应用的内置 CLI、当前进程 PATH、系统/用户 Applications 中的 ChatGPT/Codex 应用、常见命令目录，以及登录 Shell 的 PATH。最后一项用于 Finder/App 启动时缺少 nvm 等目录的情况，探测总时限为 3 秒，结果缓存 1 分钟；用户重新检测会立即刷新这项缓存。
+
+应用内探测只识别已知布局：`Contents/Resources/codex` 和 `Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex`，自动发现优先使用后者。已保存的路径失效时，只有它属于已知应用内布局、且 Desktop 未指定其他应用，才在同一 `.app` 中重新定位。普通自定义路径或环境变量失效会明确报告，不静默切换到另一份安装。探测要求文件可执行，忽略 PATH 中的相对目录、无效符号链接与普通文本文件。
+
+设置中的原始值与当前检测结果分开返回和显示。留空代表自动发现；保存语言、Desktop 或 Claude 配置时，不把检测到的 CLI、应用和 Claude 路径自动写成固定值。旧应用内路径自动恢复后仍保留原配置供用户检查，用户可明确选择恢复自动发现并保存。重新检测读取已保存配置，不提交或覆盖未保存的表单。CLI 版本可读取仅显示“CLI 可运行”，不代表专用 Desktop 已连接、已登录或完成原生协议验收。
 
 ## 本机账户与共享执行
 
@@ -36,6 +59,17 @@ Claude 不增加等价的 Desktop 深链接。受限模式由隔离 runtime 中�
 
 Codex 版本变化时重做原生客户端验收；引入其他 Provider 时单独设计接入契约；支持新的客户端全局功能时补本机与远端职责验证。
 
+若将多个协作合并到同一个执行实例，或扩大对个人运行实例的复用范围，应重新定义会话级释放、审批路由和故障影响范围，保证停止一次协作不会结束无关个人会话。
+
 ## 实现与验证
 
-[原生进程](../../../../internal/nativecodex/process.go) · [客户端启动](../../../../internal/collab/launch.go) · [本机账户路由](../../../../internal/collab/local_client.go) · [模型继承与通知](../../../../internal/collab/model.go) · [模型回归](../../../../internal/collab/model_test.go) · [客户端任务页](../../wiki/concepts/native-clients-and-models.md)
+| 修改范围 | 入口 |
+| --- | --- |
+| 客户端检测、启动计划与隔离配置 | [discovery.go](../../../../internal/nativecodex/discovery.go)、[launch.go](../../../../internal/collab/launch.go)、[process.go](../../../../internal/nativecodex/process.go)、[NativeClientSettings.tsx](../../../../packages/web/src/components/NativeClientSettings.tsx) |
+| 个人 Desktop 深链接 | [personal_desktop.go](../../../../internal/collab/personal_desktop.go)；系统打开成功不代表页面或后续对话已同步 |
+| 本机账户、偏好与信任模式 hook 确认 | [local_client.go](../../../../internal/collab/local_client.go)，转发边界见 [批注工具与运行时配置协议](../protocol.md#共享运行时的批注工具) |
+| 模型继承、确认与写入约束 | [model.go](../../../../internal/collab/model.go)、[rpc.go](../../../../internal/collab/rpc.go) |
+| Claude 原生 TUI 与个人辅助配置 | [nativeclaude](../../../../internal/nativeclaude/)、[claude.go](../../../../internal/collab/claude.go)、[mcp.go](../../../../internal/nativeclaude/mcp.go)；按 [Claude 接入契约](claude-native-tui.md) 区分能力，不套用 Codex 的审批、模型设置或 Desktop 语义 |
+| 通用 MCP 安装与客户端状态 | [MCPConnection.tsx](../../../../packages/web/src/components/MCPConnection.tsx)；稳定路径、协议探测和实际调用分别按 [首次体验](../distribution-and-onboarding.md#首次协作) 检查 |
+
+检查 [模型回归](../../../../internal/collab/model_test.go)、[启动配置回归](../../../../internal/nativecodex/process_test.go) 与 [本机登录和输入测试](../../../../internal/collab/collab_test.go)，再按 [验证门槛](../validation/test-gates.md) 选择实际客户端验收。

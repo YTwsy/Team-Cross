@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"teamcross/internal/mcp"
 	"teamcross/internal/webassets"
 )
 
@@ -27,7 +28,7 @@ func TestLibraryBrowserFixture(t *testing.T) {
 	a, f, _ := fixture(t)
 	a.Host = "资源库验证 · 本机"
 	ctx := context.Background()
-	var main *Session
+	var main, mainExecution *Session
 	for i, name := range []string{"接口超时调查", "发布前检查"} {
 		f.mu.Lock()
 		f.source.ID = uuid.NewString()
@@ -66,7 +67,7 @@ func TestLibraryBrowserFixture(t *testing.T) {
 				t.Fatal(err)
 			}
 			in.PreviewHash = preview.Hash
-			if _, err = a.Create(ctx, in); err != nil {
+			if mainExecution, err = a.Create(ctx, in); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -78,6 +79,18 @@ func TestLibraryBrowserFixture(t *testing.T) {
 	server := httptest.NewServer(a.Handler(http.FileServer(http.FS(assets))))
 	defer server.Close()
 	manifest := map[string]string{"url": server.URL + "/#/library", "api": server.URL, "dataDir": a.Config.DataDir, "id": main.record.ID}
+	if os.Getenv("TEAMCROSS_PAIRING_BROWSER") == "1" {
+		created, err := a.createAgentPairing("接口方案讨论")
+		if err != nil {
+			t.Fatal(err)
+		}
+		paired, err := a.pairAgent(ctx, agentPairInput{Code: created["code"].(string), agentCaller: agentCaller{Caller: mcp.CallerSource{Provider: "codex", SourceID: mainExecution.record.SessionID, TurnID: "turn-fixture"}}}, mainExecution.record.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		manifest["pairingId"] = paired.ID
+	}
+
 	if err = writeJSONFile(filepath.Join(dir, "fixture.json"), manifest); err != nil {
 		t.Fatal(err)
 	}

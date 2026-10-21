@@ -1,3 +1,4 @@
+import { spaceWithExecution } from "./execution-fixture";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -82,12 +83,21 @@ function mockFetch(handler: (path: string, body: any) => unknown) {
       const path = url.replace("/api/", "");
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       calls.push({ path, body });
-      const result = handler(path, body);
+      const result =
+        path === "agent-pairings" || (path === "agent-requests" && !body)
+          ? []
+          : handler(path, body);
       return {
         ok: !(result instanceof Error),
         status: result instanceof Error ? 400 : 200,
         json: async () =>
-          result instanceof Error ? { error: result.message } : result,
+          result instanceof Error
+            ? { error: result.message }
+            : path === "collaborations/c1" &&
+                result &&
+                (result as Collaboration).state
+              ? spaceWithExecution(result as Collaboration)
+              : result,
       };
     }),
   );
@@ -118,7 +128,7 @@ describe("邀请者在个人 Codex 中打开协作", () => {
       };
     });
     const user = userEvent.setup();
-    render(<Detail id="c1" />);
+    render(<Detail id="c1" executionId="execution-c1" />);
     const button = await screen.findByRole("button", {
       name: "在个人 Codex 中打开",
     });
@@ -129,7 +139,10 @@ describe("邀请者在个人 Codex 中打开协作", () => {
       await screen.findByText(/已请求个人 Codex 打开此协作会话/),
     ).toHaveAttribute("role", "status");
     expect(calls.filter((call) => call.body !== undefined)).toEqual([
-      { path: "collaborations/c1/personal-desktop", body: { launch: true } },
+      {
+        path: "collaborations/c1/sessions/execution-c1/personal-desktop",
+        body: { launch: true },
+      },
     ]);
   });
 
@@ -144,8 +157,8 @@ describe("邀请者在个人 Codex 中打开协作", () => {
         ? emptyHistory()
         : { ...collaboration, ...overrides },
     );
-    render(<Detail id="c1" />);
-    await screen.findByRole("heading", { name: "协作" });
+    render(<Detail id="c1" executionId="execution-c1" />);
+    await screen.findByRole("heading", { name: "协作", level: 1 });
     expect(
       screen.queryByRole("button", { name: /在个人 Codex 中/ }),
     ).not.toBeInTheDocument();
@@ -171,7 +184,7 @@ describe("邀请者在个人 Codex 中打开协作", () => {
               sharing,
             },
       );
-      render(<Detail id="c1" />);
+      render(<Detail id="c1" executionId="execution-c1" />);
       expect(await screen.findByRole("button", { name: label })).toBeEnabled();
     },
   );
@@ -190,7 +203,7 @@ describe("邀请者在个人 Codex 中打开协作", () => {
         : { ...collaboration, role: "owner", online: false };
     });
     const user = userEvent.setup();
-    render(<Detail id="c1" />);
+    render(<Detail id="c1" executionId="execution-c1" />);
     const button = await screen.findByRole("button", {
       name: "在个人 Codex 中打开",
     });
@@ -207,6 +220,11 @@ describe("邀请者在个人 Codex 中打开协作", () => {
 describe("个人 Claude Code 辅助模式", () => {
   const info = {
     binary: "/codex",
+    settings: {
+      binary: "/codex",
+      desktopApp: "/Codex.app",
+      claudeBinary: "/claude",
+    },
     claudeBinary: "/claude",
     claudeVersion: "2.1.268 (Claude Code)",
     desktopApp: "/Codex.app",
@@ -353,10 +371,13 @@ describe("个人 Claude Code 辅助模式", () => {
   });
 });
 describe("产品路径", () => {
-  it("安装版本变化时保留运行版本并提示重启，不自动停止服务", async () => {
+  it("相同版本的不同构建显示待更新，页面读取不停止服务", async () => {
     mockFetch(() => ({
-      version: "0.1.1",
+      version: "0.1.2",
       installedVersion: "0.1.2",
+      commit: "aaaaaaaaaaaa1111",
+      installedCommit: "bbbbbbbbbbbb2222",
+      updatePending: true,
       cli: {
         command: "/opt/homebrew/bin/teamcross",
         executable: "/Applications/Team Cross.app/Contents/Resources/teamcross",
@@ -372,11 +393,11 @@ describe("产品路径", () => {
         onLanguageChange={() => {}}
       />,
     );
-    expect(await screen.findByText(/重新打开以应用更新/)).toHaveAttribute(
-      "role",
-      "status",
-    );
-    expect(screen.getByText("0.1.2")).toBeVisible();
+    expect(
+      await screen.findByText(/下次打开 Team Cross 或使用插件时自动应用更新/),
+    ).toHaveAttribute("role", "status");
+    expect(screen.getByText("aaaaaaaaaaaa")).toBeVisible();
+    expect(screen.getByText("bbbbbbbbbbbb")).toBeVisible();
     expect(screen.getByText("/opt/homebrew/bin/teamcross")).toBeVisible();
     expect(calls.every((call) => call.body === undefined)).toBe(true);
   });
@@ -391,7 +412,7 @@ describe("产品路径", () => {
           },
     );
     const user = userEvent.setup();
-    render(<Detail id="c1" />);
+    render(<Detail id="c1" executionId="execution-c1" />);
     await user.click(await screen.findByRole("tab", { name: "技术信息" }));
     expect(screen.getByText("fixture-selected-model")).toBeVisible();
     expect(screen.getByText("xhigh")).toBeVisible();
@@ -399,7 +420,7 @@ describe("产品路径", () => {
   });
   it.each([
     ["ended", "这次共享已结束"],
-    ["expired", "这份邀请已到期"],
+    ["expired", "这次共享已结束"],
   ])("%s 时明确要求新邀请，不再提示等待连接", async (state, heading) => {
     mockFetch(() => ({
       ...collaboration,
@@ -408,18 +429,18 @@ describe("产品路径", () => {
       sharing: false,
       error: "这份邀请不再有效",
     }));
-    render(<Detail id="c1" />);
+    render(<Detail id="c1" executionId="execution-c1" />);
     expect(await screen.findByRole("heading", { name: heading })).toBeVisible();
     expect(
-      screen.getByRole("link", { name: /使用新邀请加入/ }),
+      screen.getByRole("link", { name: /使用邀请链接加入/ }),
     ).toHaveAttribute("href", "#/join");
     expect(screen.queryByText("正在等待发起者连接")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "打开 Codex" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /用自己的客户端辅助/ }),
-    ).toBeDisabled();
+      screen.queryByRole("button", { name: /用自己的客户端辅助/ }),
+    ).not.toBeInTheDocument();
     expect(calls.every((c) => c.body === undefined)).toBe(true);
   });
   it("加入后不会显示邀请码期限，离线成员仍保留身份", async () => {
@@ -444,8 +465,14 @@ describe("产品路径", () => {
           },
     );
     const user = userEvent.setup();
-    render(<Detail id="c1" />);
-    expect(await screen.findByText("暂时离线")).toBeVisible();
+    render(<Detail id="c1" executionId="execution-c1" />);
+    await user.click(await screen.findByRole("tab", { name: "空间概览" }));
+    await user.click(screen.getByText("空间管理", { selector: "summary" }));
+    expect(
+      (await screen.findAllByText("暂时离线")).some(
+        (e) => !e.closest("[hidden]"),
+      ),
+    ).toBe(true);
     await user.click(screen.getByLabelText("查看共享状态详情"));
     expect(
       screen.getByText("同事已加入，访问持续有效，直到主动离开或结束共享。"),
@@ -465,7 +492,7 @@ describe("产品路径", () => {
           },
     );
     const user = userEvent.setup();
-    render(<Detail id="c1" />);
+    render(<Detail id="c1" executionId="execution-c1" />);
     await user.click(await screen.findByLabelText("查看共享状态详情"));
     expect(
       await screen.findByText("邀请尚未使用且已到期，可以重新邀请同事。"),
@@ -498,16 +525,15 @@ describe("产品路径", () => {
             runtimeState: "released",
           },
     );
-    render(<Detail id="c1" />);
+    render(<Detail id="c1" executionId="execution-c1" />);
     expect(
       await screen.findByText("释放后保留的对话", {
         selector: "[data-source-start]",
       }),
     ).toBeVisible();
     expect(calls.every((c) => c.body === undefined)).toBe(true);
-    await userEvent
-      .setup()
-      .click(screen.getByRole("button", { name: "恢复并打开 Codex" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "恢复运行时" }));
     expect(calls.filter((c) => c.body?.action === "start")).toHaveLength(1);
   });
   it("首页首次使用展示两个明确入口", async () => {
@@ -606,7 +632,9 @@ describe("产品路径", () => {
     );
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /创建并邀请/ }));
-    await waitFor(() => expect(location.hash).toBe("#/collaborations/new"));
+    await waitFor(() =>
+      expect(location.hash).toBe("#/collaborations/new/sessions/new"),
+    );
     const request = calls.find((c) => c.path === "collaborations")!.body;
     expect(request.workspaceMode).toBe("worktree");
     expect(request.runtimeMode).toBe("restricted");
@@ -667,7 +695,9 @@ describe("产品路径", () => {
       expect(screen.getByText(/模式创建后固定/)).toBeVisible();
       await user.click(screen.getByRole("button", { name: /创建并邀请/ }));
       await waitFor(() =>
-        expect(location.hash).toBe("#/collaborations/trusted-fork"),
+        expect(location.hash).toBe(
+          "#/collaborations/trusted-fork/sessions/trusted-fork",
+        ),
       );
       const input = calls.find((c) => c.path === "collaborations")!.body;
       expect(input).toMatchObject({
@@ -684,9 +714,8 @@ describe("产品路径", () => {
         ? {}
         : { ...collaboration, role: "remote", runtimeMode: "trusted" },
     );
-    render(<Detail id="c1" />);
-    const mode = await screen.findByLabelText("查看协作模式说明");
-    expect(mode).toHaveTextContent("信任模式");
+    render(<Detail id="c1" executionId="execution-c1" />);
+    const mode = await screen.findByLabelText("会话操作");
     expect(screen.getByText(/沿用邀请者的原生配置与权限/)).not.toBeVisible();
     fireEvent.click(mode);
     expect(await screen.findByText("信任模式 · 创建后固定")).toBeVisible();
@@ -701,14 +730,14 @@ describe("产品路径", () => {
     fireEvent.change(
       screen.getByRole("textbox", { name: "邀请码或 App 链接" }),
       {
-        target: { value: "tcx3.expired" },
+        target: { value: "tcx4.expired" },
       },
     );
     fireEvent.click(screen.getByRole("button", { name: /查看邀请信息/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent("邀请已到期");
     expect(
       screen.getByRole("textbox", { name: "邀请码或 App 链接" }),
-    ).toHaveValue("tcx3.expired");
+    ).toHaveValue("tcx4.expired");
     expect(
       screen.getByText(/邀请会声明使用局域网或实验性 Tailcat/),
     ).toBeVisible();
@@ -783,7 +812,9 @@ describe("首次使用连续路径", () => {
     );
     await user.click(screen.getByRole("button", { name: /创建并邀请/ }));
     await waitFor(() =>
-      expect(location.hash).toBe("#/collaborations/retained-fork"),
+      expect(location.hash).toBe(
+        "#/collaborations/retained-fork/sessions/retained-fork",
+      ),
     );
     expect(calls.filter((c) => c.path === "collaborations")).toHaveLength(1);
     expect(sessionStorage.getItem("teamcross.create.retained-fork")).toContain(
@@ -806,13 +837,9 @@ describe("首次使用连续路径", () => {
           },
     );
     const user = userEvent.setup();
-    render(<Detail id="c1" />);
+    render(<Detail id="c1" executionId="execution-c1" />);
     await user.click(await screen.findByLabelText("查看共享状态详情"));
     await user.click(screen.getByRole("button", { name: "取消生成邀请" }));
-    expect(
-      screen.getByRole("heading", { name: "取消生成邀请？" }),
-    ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "取消生成" }));
     await waitFor(() =>
       expect(calls.some((c) => c.body?.action === "end")).toBe(true),
     );
@@ -848,8 +875,9 @@ describe("首次使用连续路径", () => {
       path.includes("/context") ? emptyHistory() : collaboration,
     );
     const user = userEvent.setup();
-    render(<Detail id="c1" />);
-    await user.click(await screen.findByRole("button", { name: "申请输入" }));
+    render(<Detail id="c1" executionId="execution-c1" />);
+    await user.click(await screen.findByRole("button", { name: "输入交接" }));
+    await user.click(screen.getByRole("button", { name: "申请输入" }));
     await waitFor(() =>
       expect(calls.some((c) => c.body?.action === "request_input")).toBe(true),
     );
@@ -917,7 +945,9 @@ describe("Claude 原生协作", () => {
     await screen.findByText("确认起点");
     await user.click(screen.getByRole("button", { name: /创建并邀请/ }));
     await waitFor(() =>
-      expect(location.hash).toBe("#/collaborations/claude-fork"),
+      expect(location.hash).toBe(
+        "#/collaborations/claude-fork/sessions/claude-fork",
+      ),
     );
     const writes = calls.filter((c) =>
       ["preview", "collaborations"].includes(c.path),
@@ -988,7 +1018,7 @@ describe("Claude 原生协作", () => {
             busy: true,
           },
     );
-    render(<Detail id="c1" />);
+    render(<Detail id="c1" executionId="execution-c1" />);
     expect(
       await screen.findByRole("heading", { name: "Claude Code 需要你的回应" }),
     ).toBeVisible();
@@ -1031,7 +1061,8 @@ describe("多人成员与邀请", () => {
           },
     );
     const user = userEvent.setup();
-    render(<Detail id="c1" />);
+    render(<Detail id="c1" executionId="execution-c1" />);
+    await user.click(await screen.findByRole("button", { name: "输入交接" }));
     await user.click(
       await screen.findByRole("button", { name: "将输入交给Carol" }),
     );
@@ -1043,7 +1074,11 @@ describe("多人成员与邀请", () => {
           call.body.epoch === 1,
       ),
     ).toBe(true);
-    expect(screen.getByText("Bob")).toBeVisible();
+    expect(
+      screen
+        .getAllByText("Bob")
+        .find((element) => element.closest(".execution-pane")),
+    ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "邀请成员" }));
     await user.click(screen.getByRole("button", { name: "重新开放链接" }));
     expect(
@@ -1059,8 +1094,9 @@ describe("多人成员与邀请", () => {
         : { ...collaboration, selfId: "member-b", writer: "member-c", members },
     );
     const user = userEvent.setup();
-    render(<Detail id="c1" />);
-    await user.click(await screen.findByRole("button", { name: "申请输入" }));
+    render(<Detail id="c1" executionId="execution-c1" />);
+    await user.click(await screen.findByRole("button", { name: "输入交接" }));
+    await user.click(screen.getByRole("button", { name: "申请输入" }));
     expect(calls.some((call) => call.body?.action === "request_input")).toBe(
       true,
     );

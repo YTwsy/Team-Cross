@@ -1,0 +1,15 @@
+{
+  "name": "teamcross-core-probe",
+  "version": "0.2.0",
+  "description": "Isolated local Team Cross Core materials and annotation UI probe.",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Team Cross Core Probe",
+    "shortDescription": "Local materials and annotation replies in a synthetic space",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ]
+  }
+}

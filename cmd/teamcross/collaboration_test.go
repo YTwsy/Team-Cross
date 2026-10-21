@@ -41,7 +41,7 @@ func TestCLIQueriesAndInputUseLocalAPI(t *testing.T) {
 	if err := service.Save(data, connection); err != nil {
 		t.Fatal(err)
 	}
-	for _, args := range [][]string{{"collaborations", "--id", "fixture"}, {"input", "handoff", "--id", "fixture", "--epoch", "3"}} {
+	for _, args := range [][]string{{"collaborations", "--id", "fixture"}, {"input", "handoff", "--id", "fixture", "--epoch", "3", "--execution", "session"}} {
 		var out, diagnostic bytes.Buffer
 		args = append(args, "--data-dir", data, "--json")
 		if err := runCollaboration(args, &out, &diagnostic); err != nil {
@@ -51,7 +51,7 @@ func TestCLIQueriesAndInputUseLocalAPI(t *testing.T) {
 			t.Fatal(out.String())
 		}
 	}
-	if strings.Join(calls, ",") != "GET /api/collaborations/fixture,POST /api/collaborations/fixture/action" {
+	if strings.Join(calls, ",") != "GET /api/collaborations/fixture,POST /api/collaborations/fixture/sessions/session/action" {
 		t.Fatal(calls)
 	}
 }
@@ -75,7 +75,7 @@ func TestCLIShareKeepsCreatedCollaborationOnInvitationFailure(t *testing.T) {
 			if in["requestId"] != id || in["sourceId"] != source || in["previewHash"] != hash {
 				t.Error(in)
 			}
-			json.NewEncoder(w).Encode(map[string]any{"id": id, "state": "ready", "sessionId": "new-fork"})
+			json.NewEncoder(w).Encode(map[string]any{"id": id, "spaceId": id, "executionId": "execution", "state": "ready", "sessionId": "new-fork"})
 		case "/api/collaborations/" + id + "/invitations":
 			invites++
 			if invites == 1 {
@@ -83,7 +83,7 @@ func TestCLIShareKeepsCreatedCollaborationOnInvitationFailure(t *testing.T) {
 				w.Write([]byte(`{"code":"network_unavailable","error":"fixture network unavailable"}`))
 				return
 			}
-			json.NewEncoder(w).Encode(map[string]any{"id": id, "state": "ready", "invitation": "tcx3.fixture"})
+			json.NewEncoder(w).Encode(map[string]any{"id": id, "state": "ready", "invitation": "tcx4.fixture"})
 		default:
 			t.Error("unexpected call", r.URL.Path)
 		}

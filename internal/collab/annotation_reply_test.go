@@ -47,7 +47,7 @@ func TestAnnotationRepliesPersistAreFlatAndDeduplicate(t *testing.T) {
 		}
 	}
 	var disk Record
-	if err = readJSON(filepath.Join(a.Config.DataDir, "collaborations", s.record.ID, "collaboration.json"), &disk); err != nil {
+	if err = readJSON(filepath.Join(s.runtimeDirectory(), "execution.json"), &disk); err != nil {
 		t.Fatal(err)
 	}
 	if len(disk.Annotations) != 1 || len(disk.Annotations[0].Replies) != 1 {
@@ -93,7 +93,7 @@ func TestAnnotationReplyConcurrentReadersAndRollback(t *testing.T) {
 	if len(s.record.Annotations[0].Replies) != 1 {
 		t.Fatal("duplicate concurrent replies")
 	}
-	dir := filepath.Join(a.Config.DataDir, "collaborations", s.record.ID)
+	dir := s.runtimeDirectory()
 	if err := os.Rename(dir, dir+"-temporarily-moved"); err != nil {
 		t.Fatal(err)
 	}
@@ -119,25 +119,26 @@ func TestRemoteAnnotationReplyMembershipAndStrictShape(t *testing.T) {
 	if err = s.Action(ctx, "share"); err != nil {
 		t.Fatal(err)
 	}
-	j, err := b.Join(ctx, s.share.Token())
+	j, err := b.Join(ctx, s.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	in := AnnotationReplyInput{AnnotationID: root.ID, Text: "response", RequestID: "remote-reply"}
 	var out Annotation
-	if err = j.request(ctx, "POST", "/v2/annotation-replies", in, &out); err != nil {
+	if err = j.request(ctx, "POST", remoteExecutionPath(s.record.ID, "annotation-replies"), in, &out); err != nil {
 		t.Fatal(err)
 	}
 	if len(out.Replies) != 1 || out.Replies[0].Author != b.Host || out.Replies[0].AuthorID != firstRemote(s) || s.writer != "owner" {
 		t.Fatal(out)
 	}
-	if err = j.request(ctx, "POST", "/v2/annotation-replies", map[string]any{"annotationId": root.ID, "text": "bad", "requestId": "bad", "target": map[string]string{"kind": "annotation"}}, &out); err == nil {
+	if err = j.request(ctx, "POST", remoteExecutionPath(s.record.ID, "annotation-replies"), map[string]any{"annotationId": root.ID, "text": "bad", "requestId": "bad", "target": map[string]string{"kind": "annotation"}}, &out); err == nil {
 		t.Fatal("nested source accepted")
 	}
-	if err = s.Action(ctx, "end"); err != nil {
+	if err = s.RevokeMember(firstRemote(s)); err != nil {
 		t.Fatal(err)
 	}
-	if err = j.request(ctx, "POST", "/v2/annotation-replies", in, &out); err == nil {
+	if err = j.request(ctx, "POST", remoteExecutionPath(s.record.ID, "annotation-replies"), in, &out); err == nil {
 		t.Fatal("ended member replied")
 	}
 }
@@ -206,7 +207,7 @@ func TestRuntimeAnnotationsScopeAuthorAndRevocation(t *testing.T) {
 			if err := s.Action(context.Background(), "end"); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.Action(context.Background(), "share"); err != nil {
+			if err := s.Action(context.Background(), "start"); err != nil {
 				t.Fatal(err)
 			}
 			if code, raw := call(token, "read_annotations", nil); code != 200 {

@@ -35,19 +35,20 @@ func verifyLiveRelease(t *testing.T, ctx context.Context, s *Session) {
 		t.Fatal(e)
 	}
 	defer guest.Close()
-	j, e := guest.Join(ctx, s.share.Token())
+	j, e := guest.Join(ctx, s.sharedRuntime().Token())
 	if e != nil {
 		t.Fatal(e)
 	}
-	if view := j.view(ctx); view["online"] != true {
+
+	if view := j.view(ctx); view["reachable"] != true {
 		t.Fatal("real membership status unavailable")
 	}
 	if e = s.Action(ctx, "end"); e != nil {
 		t.Fatal(e)
 	}
 	eventually(t, func() bool { return s.view()["runtimeState"] == "released" })
-	if view := j.view(ctx); view["state"] != "ended" {
-		t.Fatal("member retained access after end")
+	if view := executionViewFixture(t, j, s); view["state"] != "restricted" {
+		t.Fatal("member retained execution access after end")
 	}
 	if _, e = s.Context(ctx, "history", "", 0); e != nil {
 		t.Fatal("released history unreadable", e)
@@ -110,7 +111,7 @@ func TestLiveNativeHandoff(t *testing.T) {
 	}
 	defer b.Close()
 	for mode, id := range manifest.Collaborations {
-		s := a.sessions[id]
+		s := a.executions[id]
 		if s == nil {
 			t.Fatal("fixture collaboration missing")
 		}
@@ -120,14 +121,15 @@ func TestLiveNativeHandoff(t *testing.T) {
 		if e = s.Action(ctx, "share"); e != nil {
 			t.Fatal(e)
 		}
-		j, e := b.Join(ctx, s.share.Token())
+		j, e := b.Join(ctx, s.sharedRuntime().Token())
 		if e != nil {
 			t.Fatal(e)
 		}
+
 		if e = s.Action(ctx, "handoff"); e != nil {
 			t.Fatal(e)
 		}
-		endpoint, e := b.endpoint(j.ID)
+		endpoint, e := b.endpoint(executionAddress(j.ID, s.record.ID))
 		if e != nil {
 			t.Fatal(e)
 		}

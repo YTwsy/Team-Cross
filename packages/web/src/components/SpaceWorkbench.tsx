@@ -1,0 +1,1875 @@
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
+import { api, errorText, useResource } from "../api";
+import { formatDate, serviceText, t, tr } from "../i18n";
+import { sameReference, type LibraryReference } from "../library";
+import type { Collaboration } from "../types";
+import type {
+  BriefItem,
+  SpaceAssistant,
+  SpaceBrief,
+  SpaceReceiver,
+  SpaceRequest,
+  WorkbenchView,
+} from "../workbench";
+import {
+  AgentRequestStatus,
+  agentRequestLabel,
+  ConnectCurrentConversation,
+  PairConversation,
+  SendToAgent,
+  type AgentPairing,
+} from "./AgentPairings";
+import { Copy, ErrorBox, Icon, Loading, Modal } from "./ui";
+import { SpaceEvents } from "./SpaceEvents";
+import type { AnnotationRequest } from "./Annotations";
+import { SpaceOverview } from "./SpaceOverview";
+import { SpaceReferencePicker } from "./SpaceReferencePicker";
+
+type Tab = "overview" | "reading" | "requests" | "brief" | "sessions";
+type Send = {
+  references: LibraryReference[];
+  targetId?: string;
+  parentRequestId?: string;
+  instruction?: string;
+};
+const WorkbenchContext = createContext<{
+  view?: WorkbenchView;
+  send: (value: Send) => void;
+  show: (tab: Tab) => void;
+  open: (id: string) => void;
+  disabled: boolean;
+  navigation: HTMLDivElement | null;
+  publishing: HTMLDivElement | null;
+  collaboration: Collaboration;
+  commentsTarget: HTMLDivElement | null;
+  openComments: () => void;
+  commentsOpen: boolean;
+  toggleComments: () => void;
+  commentCount: number;
+  reading: boolean;
+} | null>(null);
+export const useSpaceWorkbench = () => useContext(WorkbenchContext);
+
+export function SpaceMaterialNavigation({
+  children,
+  publish = false,
+}: {
+  children: ReactNode;
+  publish?: boolean;
+}) {
+  const space = useSpaceWorkbench();
+  const target = publish ? space?.publishing : space?.navigation;
+  return target ? createPortal(children, target) : null;
+}
+
+// Keep each session's composer mounted while sharing one right-hand column.
+export function SpaceSessionComments({
+  active,
+  children,
+}: {
+  active: boolean;
+  children: ReactNode;
+}) {
+  const space = useSpaceWorkbench();
+  return space?.commentsTarget
+    ? createPortal(
+        <div className="space-comment-content" hidden={!active}>
+          {children}
+        </div>,
+        space.commentsTarget,
+      )
+    : null;
+}
+
+export function SpaceCommentsButton() {
+  const space = useSpaceWorkbench();
+  return space ? (
+    <button
+      className="button small space-comments-toggle"
+      onClick={space.toggleComments}
+      aria-expanded={space.commentsOpen}
+    >
+      <Icon name="comment" size={16} />
+      {space.commentsOpen ? t("收起评论") : t("评论")}
+      <span className="count">{space.commentCount}</span>
+    </button>
+  ) : null;
+}
+
+export function SpaceReadingRequest({
+  reference,
+}: {
+  reference: LibraryReference;
+}) {
+  const space = useSpaceWorkbench();
+  const [instruction, setInstruction] = useState("");
+  const [references, setReferences] = useState([reference]);
+  if (!space) return null;
+  return (
+    <section
+      className="space-reading-request"
+      aria-label={t("基于材料发起请求")}
+    >
+      <div className="space-request-label">
+        <span>
+          <Icon name="request" size={13} />
+          {t("协作请求")}
+        </span>
+        <span>{t("发送给关联会话")}</span>
+      </div>
+      <textarea
+        aria-label={t("基于材料的处理要求")}
+        rows={1}
+        maxLength={4000}
+        placeholder={t("基于这份材料，希望协作者处理什么？")}
+        value={instruction}
+        onChange={(e) => setInstruction(e.target.value)}
+        disabled={space.disabled}
+      />
+      <div className="space-request-footer">
+        <SpaceReferencePicker
+          collaboration={space.collaboration}
+          value={references}
+          onChange={setReferences}
+          disabled={space.disabled}
+          compact
+        />
+        <button
+          className="button primary"
+          disabled={space.disabled}
+          onClick={() =>
+            space.send({
+              references,
+              instruction: instruction.trim() || undefined,
+            })
+          }
+        >
+          <Icon name="request" size={14} />
+          {t("发起请求")}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+export function SpaceRequestButton({
+  references,
+  disabled = false,
+  fallback,
+}: {
+  references: LibraryReference[];
+  disabled?: boolean;
+  fallback?: ReactNode;
+}) {
+  const space = useContext(WorkbenchContext);
+  if (!space) return fallback || null;
+  const recent =
+    space.view?.requests
+      .filter((r) =>
+        r.references?.some((ref) =>
+          references.some((selected) => sameReference(ref, selected)),
+        ),
+      )
+      .slice(0, 3) || [];
+  return (
+    <div className="workbench-source-actions">
+      <button
+        className="button small"
+        disabled={disabled || space.disabled}
+        onClick={() => space.send({ references })}
+      >
+        {t("发起空间协作")}
+      </button>
+      {recent.map((request) => (
+        <button
+          className="text-link small-text"
+          key={request.id}
+          onClick={() => space.open(request.id)}
+          title={request.instruction}
+        >
+          {tr`相关请求：${agentRequestLabel(request)}`}
+          {request.summary ? ` · ${request.summary.slice(0, 60)}` : ""}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function WorkbenchReadingShortcut() {
+  const space = useContext(WorkbenchContext);
+  if (!space) return null;
+  const latest = space.view?.requests[0];
+  return (
+    <section className="panel workbench-shortcut">
+      <div className="panel-heading">
+        <h2>{t("空间协作")}</h2>
+        <button className="text-link" onClick={() => space.show("requests")}>
+          {t("查看进展")}
+        </button>
+      </div>
+      <p className="muted">
+        {t("围绕当前材料发起请求，成员和接收会话在空间中接力。")}
+      </p>
+      {latest && (
+        <div className="workbench-latest">
+          <p>{latest.instruction}</p>
+          <AgentRequestStatus request={latest} />
+        </div>
+      )}
+      <button
+        className="button"
+        disabled={space.disabled}
+        onClick={() => space.send({ references: [] })}
+      >
+        {t("发起协作请求")}
+      </button>
+    </section>
+  );
+}
+
+export function assistantLabel(a: SpaceAssistant) {
+  return a.state === "ready"
+    ? t("已接手")
+    : a.state === "initializing"
+      ? t("等待读取与接手确认")
+      : a.state === "paused"
+        ? t("已暂停")
+        : a.state === "failed"
+          ? t("接手未完成")
+          : t("未启用");
+}
+
+export function SpaceWorkbench({
+  collaboration: c,
+  children,
+  onLocate,
+  overview,
+  comments,
+  commentRequest,
+  contextNavigation,
+  readingSession,
+}: {
+  collaboration: Collaboration;
+  children: ReactNode;
+  onLocate: (ref: LibraryReference) => void;
+  overview?: ReactNode;
+  comments?: ReactNode;
+  commentRequest?: AnnotationRequest;
+  contextNavigation?: ReactNode;
+  readingSession?: Collaboration;
+}) {
+  const [tab, setTab] = useState<Tab>("reading");
+  const [navigation, setNavigation] = useState<HTMLDivElement | null>(null);
+  const [publishing, setPublishing] = useState<HTMLDivElement | null>(null);
+  const [collapsed, setCollapsed] = useState(
+    () => window.matchMedia?.("(max-width: 760px)")?.matches ?? false,
+  );
+  const [commentsTarget, setCommentsTarget] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const [wide, setWide] = useState(
+    () => window.matchMedia?.("(min-width: 1101px)")?.matches ?? false,
+  );
+  const [commentVisibility, setCommentVisibility] = useState<
+    Partial<Record<"wide" | "narrow", boolean>>
+  >({});
+  const layout = wide ? "wide" : "narrow";
+  const commentsOpen = commentVisibility[layout] ?? wide;
+  const setCommentsOpen = (open: boolean) =>
+    setCommentVisibility((current) => ({ ...current, [layout]: open }));
+  useEffect(() => {
+    const query = window.matchMedia?.("(min-width: 1101px)");
+    const update = () => setWide(query?.matches ?? false);
+    query?.addEventListener("change", update);
+    return () => query?.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    const query = window.matchMedia?.("(max-width: 760px)");
+    const collapseNarrow = () => {
+      if (query?.matches) setCollapsed(true);
+    };
+    query?.addEventListener("change", collapseNarrow);
+    return () => query?.removeEventListener("change", collapseNarrow);
+  }, []);
+  useEffect(() => {
+    if (commentRequest) setCommentsOpen(true);
+  }, [commentRequest]);
+  const [offset, setOffset] = useState(0);
+  const data = useResource<WorkbenchView>(
+    `collaborations/${c.id}/workbench/view?offset=${offset}`,
+    2500,
+  );
+  const [send, setSend] = useState<Send>();
+  const [assistant, setAssistant] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState("");
+  const [briefDraft, setBriefDraft] = useState<SpaceBrief>();
+  const detail = useResource<SpaceRequest>(
+    selectedRequest
+      ? `collaborations/${c.id}/workbench/request?requestId=${selectedRequest}`
+      : null,
+    2500,
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
+  const heading = useRef<HTMLDivElement>(null);
+  const uid = useId();
+  const owner = c.role === "owner";
+  const disabled =
+    ["ended", "left", "expired"].includes(c.state) ||
+    (!owner && c.reachable === false);
+  const show = (next: Tab) => {
+    setTab(next);
+    if (window.matchMedia?.("(max-width: 760px)")?.matches) setCollapsed(true);
+    if (next !== "reading")
+      heading.current?.scrollIntoView?.({ block: "start" });
+  };
+  const locate = (ref: LibraryReference) => {
+    setSelectedRequest("");
+    setTab("reading");
+    onLocate(ref);
+  };
+  async function act(op: string, body: object) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`collaborations/${c.id}/workbench/${op}`, body);
+      data.reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const nav: { value: Tab; label: string }[] = [
+    { value: "overview", label: t("空间概览") },
+    { value: "requests", label: t("协作请求") },
+    { value: "brief", label: t("空间简报") },
+    { value: "sessions", label: t("参与会话") },
+  ];
+  const content = data.data?.assistant ? data.data : undefined;
+  const card = (request: SpaceRequest) => (
+    <RequestCard
+      key={request.id}
+      request={request}
+      view={content!}
+      c={c}
+      onLocate={locate}
+      onParent={setSelectedRequest}
+      onContinue={() => {
+        setSelectedRequest("");
+        setSend({
+          references: request.references,
+          parentRequestId: request.id,
+        });
+      }}
+      onCancel={() => void act("cancel", { requestId: request.id })}
+      onPropose={(kind) => {
+        setBriefDraft((previous) => {
+          const draft = structuredClone(previous || content!.brief);
+          if (
+            draft[kind].length < 32 &&
+            !draft[kind].some((item) => item.requestId === request.id)
+          )
+            draft[kind].push({
+              text: request.summary || "",
+              sources: request.references,
+              requestId: request.id,
+            });
+          return draft;
+        });
+        setSelectedRequest("");
+        show("brief");
+      }}
+      disabled={disabled || busy}
+    />
+  );
+  return (
+    <WorkbenchContext.Provider
+      value={{
+        view: content,
+        send: setSend,
+        show,
+        open: setSelectedRequest,
+        disabled,
+        navigation,
+        publishing,
+        collaboration: c,
+        commentsTarget,
+        openComments: () => setCommentsOpen(true),
+        commentsOpen,
+        toggleComments: () => setCommentsOpen(!commentsOpen),
+        commentCount: (readingSession || c).annotations?.length || 0,
+        reading: tab === "reading" && !readingSession,
+      }}
+    >
+      <div
+        className={`space-workbench ${collapsed ? "space-nav-collapsed" : ""}`}
+      >
+        <aside className="space-navigation" aria-label={t("空间功能与材料")}>
+          <div className="space-navigation-heading">
+            <a
+              href="#/"
+              className="space-brand"
+              aria-label={t("Team Cross 首页")}
+            >
+              <span className="space-brand-symbol">
+                <Icon name="branch" size={18} />
+              </span>
+              <span>Team Cross</span>
+            </a>
+            <button
+              className="icon-button"
+              aria-label={collapsed ? t("展开空间侧栏") : t("收起空间侧栏")}
+              aria-expanded={!collapsed}
+              onClick={() => setCollapsed(!collapsed)}
+            >
+              <Icon name="panel" size={16} />
+            </button>
+          </div>
+          <div className="space-publish-slot" ref={setPublishing} />
+          <div
+            className="workbench-tabs"
+            role="tablist"
+            aria-orientation="vertical"
+            aria-label={t("空间工作台")}
+          >
+            {nav.map((item, index) => (
+              <button
+                key={item.value}
+                ref={(el) => {
+                  tabs.current[index] = el;
+                }}
+                id={`${uid}-${item.value}-tab`}
+                role="tab"
+                aria-label={item.label}
+                title={item.label}
+                aria-selected={tab === item.value}
+                aria-controls={`${uid}-${item.value}-panel`}
+                tabIndex={
+                  tab === item.value || (tab === "reading" && index === 0)
+                    ? 0
+                    : -1
+                }
+                onClick={() => show(item.value)}
+                onKeyDown={(e) => {
+                  if (
+                    ![
+                      "ArrowLeft",
+                      "ArrowRight",
+                      "ArrowUp",
+                      "ArrowDown",
+                      "Home",
+                      "End",
+                    ].includes(e.key)
+                  )
+                    return;
+                  e.preventDefault();
+                  const next =
+                    e.key === "Home"
+                      ? 0
+                      : e.key === "End"
+                        ? nav.length - 1
+                        : (index +
+                            (["ArrowLeft", "ArrowUp"].includes(e.key)
+                              ? -1
+                              : 1) +
+                            nav.length) %
+                          nav.length;
+                  setTab(nav[next]!.value);
+                  tabs.current[next]?.focus();
+                }}
+              >
+                <Icon
+                  name={
+                    item.value === "overview"
+                      ? "grid"
+                      : item.value === "reading"
+                        ? "book"
+                        : item.value === "sessions"
+                          ? "people"
+                          : item.value === "brief"
+                            ? "pin"
+                            : "request"
+                  }
+                  size={17}
+                />
+                <span className="space-nav-label">{item.label}</span>
+                {item.value === "requests" && content && (
+                  <span className="count">{content.total}</span>
+                )}
+                {item.value === "brief" && briefDraft && (
+                  <span
+                    className="workbench-draft-dot"
+                    aria-hidden="true"
+                    title={t("草稿尚未保存")}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+          {contextNavigation && (
+            <div
+              className="space-context-navigation"
+              onClick={() => show("reading")}
+            >
+              {contextNavigation}
+            </div>
+          )}
+          <div className="space-material-navigation" ref={setNavigation} />
+          <footer className="space-sidebar-footer">
+            <a
+              href="#/library"
+              className="space-footer-link"
+              title={t("资源库")}
+            >
+              <Icon name="book" size={17} />
+              <span>{t("资源库")}</span>
+            </a>
+            <a
+              href="#/settings"
+              className="space-footer-link"
+              title={t("设置与连接")}
+            >
+              <Icon name="settings" size={17} />
+              <span>{t("设置与连接")}</span>
+            </a>
+            <button
+              className="text-button space-assistant-settings"
+              aria-label={`${t("专用会话")}${content ? ` · ${assistantLabel(content.assistant)}` : ""}`}
+              title={t("专用会话")}
+              onClick={() => setAssistant(true)}
+              disabled={!content}
+            >
+              <Icon name="settings" size={16} />
+              <span>
+                {t("专用会话")}
+                {content ? ` · ${assistantLabel(content.assistant)}` : ""}
+              </span>
+            </button>
+            <div className="space-local-status">
+              <span className={`dot ${disabled ? "" : "green-dot"}`} />
+              <span>
+                {c.sessions?.length || c.hasExecution
+                  ? t("共同执行")
+                  : t("分享与审阅")}
+              </span>
+            </div>
+          </footer>
+        </aside>
+        <div className="space-workbench-main" ref={heading}>
+          <ErrorBox message={error || data.error} retry={data.reload} />
+          <div
+            id={`${uid}-overview-panel`}
+            role="tabpanel"
+            aria-labelledby={`${uid}-overview-tab`}
+            hidden={tab !== "overview"}
+            className="workbench-pane space-overview"
+          >
+            <SpaceOverview
+              collaboration={c}
+              view={content}
+              onRead={locate}
+              onBrief={() => show("brief")}
+              onRequests={() => show("requests")}
+              onRequest={setSelectedRequest}
+              management={overview}
+            />
+          </div>
+          <div
+            id={`${uid}-reading-panel`}
+            role="tabpanel"
+            aria-label={t("阅读与讨论")}
+            hidden={tab !== "reading"}
+            className={`space-reading-area ${commentsOpen ? "comments-open" : ""}`}
+          >
+            <div className="space-reading-main">{children}</div>
+            {comments && (
+              <aside
+                className="space-comments"
+                hidden={!commentsOpen}
+                aria-label={readingSession ? t("会话评论") : t("空间评论")}
+              >
+                <div className="space-comments-heading">
+                  <strong>{t("评论")}</strong>
+                  <button
+                    className="icon-button"
+                    aria-label={t("收起评论")}
+                    onClick={() => setCommentsOpen(false)}
+                  >
+                    <Icon name="close" size={16} />
+                  </button>
+                </div>
+                <div
+                  className="space-comment-content"
+                  hidden={!!readingSession}
+                >
+                  {comments}
+                </div>
+                <div ref={setCommentsTarget} />
+              </aside>
+            )}
+          </div>
+          <div
+            id={`${uid}-requests-panel`}
+            role="tabpanel"
+            aria-labelledby={`${uid}-requests-tab`}
+            hidden={tab !== "requests"}
+            className="workbench-pane"
+          >
+            {content ? (
+              <>
+                <div className="workbench-section-heading">
+                  <div>
+                    <h2>{t("协作请求")}</h2>
+                    <p className="muted">
+                      {t("提交、读取和完成分别记录；结果摘要由接收会话报告。")}
+                    </p>
+                  </div>
+                  <span className="workbench-tag neutral">{tr`共 ${content.total} 条`}</span>
+                  <button
+                    className="button primary"
+                    disabled={disabled}
+                    onClick={() => setSend({ references: [] })}
+                  >
+                    <Icon name="plus" />
+                    {t("发起协作请求")}
+                  </button>
+                </div>
+                {content.requests.length ? (
+                  <div className="workbench-requests">
+                    {content.requests.map(card)}
+                  </div>
+                ) : (
+                  <div className="panel workbench-empty">
+                    <h3>{t("从一条明确的请求开始")}</h3>
+                    <p>
+                      {t(
+                        "选择已发布材料或批注，交给空间中的一个接收会话。也可以直接提出新的问题。",
+                      )}
+                    </p>
+                    <button
+                      className="button"
+                      onClick={() => setTab("sessions")}
+                    >
+                      {t("关联接收会话")}
+                    </button>
+                  </div>
+                )}
+                {content.total > 40 && (
+                  <div className="workbench-pagination">
+                    <button
+                      className="button small"
+                      disabled={offset === 0}
+                      onClick={() => setOffset(Math.max(0, offset - 40))}
+                    >
+                      {t("上一页")}
+                    </button>
+                    <span>{tr`${Math.floor(offset / 40) + 1} / ${Math.max(1, Math.ceil(content.total / 40))}`}</span>
+                    <button
+                      className="button small"
+                      disabled={content.nextOffset === undefined}
+                      onClick={() => setOffset(content.nextOffset!)}
+                    >
+                      {t("下一页")}
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : tab === "requests" ? (
+              <Loading />
+            ) : null}
+          </div>
+          <div
+            id={`${uid}-brief-panel`}
+            role="tabpanel"
+            aria-labelledby={`${uid}-brief-tab`}
+            hidden={tab !== "brief"}
+            className="workbench-pane"
+          >
+            {content && (
+              <BriefPanel
+                key={c.id}
+                c={c}
+                brief={content.brief}
+                draft={briefDraft}
+                setDraft={setBriefDraft}
+                disabled={disabled}
+                onSaved={data.reload}
+                onLocate={locate}
+                onRequest={setSelectedRequest}
+              />
+            )}
+          </div>
+          <div
+            id={`${uid}-sessions-panel`}
+            role="tabpanel"
+            aria-labelledby={`${uid}-sessions-tab`}
+            hidden={tab !== "sessions"}
+            className="workbench-pane"
+          >
+            {content && (
+              <SpaceSessions
+                c={c}
+                view={content}
+                disabled={disabled}
+                onChanged={data.reload}
+                onSend={(targetId) => setSend({ references: [], targetId })}
+                onRemove={(targetId) => void act("remove", { targetId })}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+      {send && (
+        <Modal title={t("发起空间协作")} onClose={() => setSend(undefined)}>
+          <SendToAgent
+            references={send.references}
+            spaceId={c.id}
+            initialTargetId={send.targetId}
+            parentRequestId={send.parentRequestId}
+            initialInstruction={send.instruction}
+            collaboration={c}
+            onSent={data.reload}
+          />
+        </Modal>
+      )}
+      {selectedRequest && (
+        <Modal title={t("请求详情")} onClose={() => setSelectedRequest("")}>
+          <ErrorBox message={detail.error} />
+          {detail.data && content ? card(detail.data) : <Loading />}
+        </Modal>
+      )}
+      {assistant && content && (
+        <Modal title={t("可选的专用会话")} onClose={() => setAssistant(false)}>
+          <AssistantSetup
+            c={c}
+            view={content}
+            disabled={disabled}
+            onChanged={data.reload}
+            onSessions={() => {
+              setAssistant(false);
+              setTab("sessions");
+            }}
+            onRequest={(id) => {
+              setAssistant(false);
+              setSelectedRequest(id);
+            }}
+          />
+        </Modal>
+      )}
+    </WorkbenchContext.Provider>
+  );
+}
+
+function referenceName(c: Collaboration, ref: LibraryReference) {
+  if (ref.kind === "annotation")
+    return (
+      c.annotations
+        ?.find((a) => a.id === ref.annotationId)
+        ?.text.slice(0, 60) || t("原批注")
+    );
+  const material = c.materials?.find((m) => m.id === ref.materialId);
+  return `${material?.versions.find((v) => v.version === ref.version)?.title || t("材料")} · ${t("版本")} ${ref.version}`;
+}
+
+function References({
+  c,
+  refs,
+  onLocate,
+}: {
+  c: Collaboration;
+  refs: LibraryReference[];
+  onLocate: (ref: LibraryReference) => void;
+}) {
+  return (
+    <div className="workbench-references">
+      {refs.map((ref, i) => (
+        <button className="text-link" key={i} onClick={() => onLocate(ref)}>
+          {referenceName(c, ref)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function RequestCard({
+  request: r,
+  view,
+  c,
+  onLocate,
+  onParent,
+  onContinue,
+  onCancel,
+  onPropose,
+  disabled,
+}: {
+  request: SpaceRequest;
+  view: WorkbenchView;
+  c: Collaboration;
+  onLocate: (ref: LibraryReference) => void;
+  onParent: (id: string) => void;
+  onContinue: () => void;
+  onCancel: () => void;
+  onPropose: (kind: "decisions" | "questions") => void;
+  disabled: boolean;
+}) {
+  const target = view.targets.find((t) => t.id === r.targetId);
+  return (
+    <article className="panel workbench-request">
+      <div className="workbench-request-meta">
+        <span>
+          {r.actor.name}
+          {r.actor.kind === "session" ? ` · ${r.actor.provider}` : ""} →{" "}
+          {target?.name || t("已移除的会话")}
+        </span>
+        <time dateTime={r.createdAt}>
+          {formatDate(r.createdAt, {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </time>
+      </div>
+      {r.bootstrap && (
+        <span className="workbench-tag">{t("专用会话接手")}</span>
+      )}
+      <h3>{r.instruction}</h3>
+      {!!r.references?.length && (
+        <div className="workbench-request-sources">
+          <span className="small-text muted">{t("请求来源")}</span>
+          <References c={c} refs={r.references} onLocate={onLocate} />
+        </div>
+      )}
+      {r.parentRequestId && (
+        <button
+          className="text-link"
+          onClick={() => onParent(r.parentRequestId!)}
+        >
+          {t("查看关联请求")}
+        </button>
+      )}
+      <AgentRequestStatus request={r} />
+      {r.briefRevision !== undefined && (
+        <div className="workbench-context-link">
+          <span className="small-text muted">{tr`发送时的空间简报 · 版本 ${r.briefRevision}`}</span>
+          {!r.context && (
+            <button className="text-link" onClick={() => onParent(r.id)}>
+              {t("查看接手上下文")} <Icon name="arrow" />
+            </button>
+          )}
+        </div>
+      )}
+      {r.context && (
+        <details className="workbench-handoff">
+          <summary>{t("查看接手上下文")}</summary>
+          <p>{r.context.brief.topic || t("议题尚未填写")}</p>
+          {r.context.brief.decisions.map((item, index) => (
+            <p key={index}>{item.text}</p>
+          ))}
+          {!!r.context.brief.questions?.length && (
+            <div>
+              <h4>{t("待解决事项")}</h4>
+              {r.context.brief.questions.map((item, index) => (
+                <p key={index}>{item.text}</p>
+              ))}
+            </div>
+          )}
+          {r.context.previousBriefRevision !== undefined &&
+            r.context.previousBriefRevision !== r.context.brief.revision && (
+              <p className="notice">{tr`简报已从版本 ${r.context.previousBriefRevision} 更新到 ${r.context.brief.revision}，请重新核对已确认决定。`}</p>
+            )}
+          {r.context.parent && (
+            <p>{r.context.parent.summary || r.context.parent.instruction}</p>
+          )}
+        </details>
+      )}
+      <div className="workbench-request-meta">
+        <span>
+          {r.receivedAt
+            ? tr`已读取：${formatDate(r.receivedAt)}`
+            : t("尚无读取回执")}
+        </span>
+        {r.finishedAt && (
+          <span>{tr`已报告结果：${formatDate(r.finishedAt)}`}</span>
+        )}
+      </div>
+      {r.bootstrap && (
+        <details>
+          <summary>{tr`启动简报 · 版本 ${r.bootstrap.brief.revision}`}</summary>
+          <p>{r.bootstrap.brief.topic || t("议题尚未填写")}</p>
+          <p className="small-text muted">{r.bootstrap.rules}</p>
+        </details>
+      )}
+      <div className="workbench-request-actions">
+        <button
+          className="button small"
+          disabled={disabled}
+          onClick={onContinue}
+        >
+          <Icon name="arrow" />
+          {t("基于此请求继续协作")}
+        </button>
+        {r.summary && ["completed", "failed"].includes(r.state) && (
+          <div className="workbench-propose-actions">
+            <span className="small-text muted">{t("整理到简报")}</span>
+            <button
+              className="text-link"
+              disabled={disabled}
+              onClick={() => onPropose("questions")}
+            >
+              {t("加入待解决事项")}
+            </button>
+            <button
+              className="text-link"
+              disabled={disabled}
+              onClick={() => onPropose("decisions")}
+            >
+              {t("拟为决定")}
+            </button>
+          </div>
+        )}
+        {r.state === "queued" &&
+          (view.selfId === "owner" || view.selfId === r.actor.memberId) && (
+            <button
+              className="text-link"
+              disabled={disabled}
+              onClick={onCancel}
+            >
+              {t("取消待投递请求")}
+            </button>
+          )}
+      </div>
+    </article>
+  );
+}
+
+function BriefSources({
+  c,
+  options,
+  sources,
+  disabled,
+  onChange,
+}: {
+  c: Collaboration;
+  options: LibraryReference[];
+  sources: LibraryReference[];
+  disabled: boolean;
+  onChange: (sources: LibraryReference[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  // Keep fixed references selectable even if a published source was withdrawn.
+  const choices = [
+    ...options,
+    ...sources.filter(
+      (ref) => !options.some((option) => sameReference(ref, option)),
+    ),
+  ];
+  const matching = choices.filter((ref) =>
+    referenceName(c, ref)
+      .toLocaleLowerCase()
+      .includes(query.trim().toLocaleLowerCase()),
+  );
+  return (
+    <details className="workbench-source-picker">
+      <summary>
+        {t("关联已发布来源")} <span className="count">{sources.length}</span>
+      </summary>
+      {choices.length > 6 && (
+        <label className="workbench-source-search">
+          <span className="sr-only">{t("搜索已发布来源")}</span>
+          <input
+            type="search"
+            value={query}
+            placeholder={t("搜索材料或批注")}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+      )}
+      <div
+        className="workbench-source-options"
+        role="group"
+        aria-label={t("关联已发布来源")}
+      >
+        {matching.map((ref) => (
+          <label key={JSON.stringify(ref)}>
+            <input
+              type="checkbox"
+              disabled={disabled}
+              checked={sources.some((selected) => sameReference(selected, ref))}
+              onChange={(event) =>
+                onChange(
+                  event.target.checked
+                    ? [...sources, ref]
+                    : sources.filter(
+                        (selected) => !sameReference(selected, ref),
+                      ),
+                )
+              }
+            />
+            <span>{referenceName(c, ref)}</span>
+          </label>
+        ))}
+        {!matching.length && (
+          <p className="muted small-text">{t("没有匹配的已发布来源")}</p>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function BriefPanel({
+  c,
+  brief,
+  disabled,
+  onSaved,
+  onLocate,
+  onRequest,
+  draft,
+  setDraft,
+}: {
+  c: Collaboration;
+  brief: SpaceBrief;
+  disabled: boolean;
+  onSaved: () => void;
+  onLocate: (ref: LibraryReference) => void;
+  onRequest: (id: string) => void;
+  draft?: SpaceBrief;
+  setDraft: (value: SpaceBrief | undefined) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const options: LibraryReference[] = (c.materials || [])
+    .filter((m) => !m.withdrawnAt)
+    .flatMap((m) =>
+      m.versions.map((v) => ({
+        spaceId: c.id,
+        kind: "material" as const,
+        materialId: m.id,
+        version: v.version,
+      })),
+    );
+  options.push(
+    ...(c.annotations || [])
+      .filter((a) => !a.target || a.target.kind === "material")
+      .map((a) => ({
+        spaceId: c.id,
+        kind: "annotation" as const,
+        annotationId: a.id,
+      })),
+  );
+  async function save() {
+    if (!draft || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`collaborations/${c.id}/workbench/brief`, {
+        baseRevision: draft.revision,
+        brief: draft,
+      });
+      setDraft(undefined);
+      onSaved();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const items = (kind: "decisions" | "questions", label: string) => (
+    <section className={`workbench-brief-group ${kind}`}>
+      <div className="workbench-brief-group-heading">
+        <Icon name={kind === "decisions" ? "check" : "comment"} />
+        <h3>{label}</h3>
+        <span className="count">{(draft || brief)[kind]?.length || 0}</span>
+      </div>
+      {(draft || brief)[kind]?.map((item, i) => (
+        <div className="workbench-brief-item" key={i}>
+          {draft ? (
+            <>
+              <label>
+                {tr`${label} ${i + 1}`}
+                <textarea
+                  value={item.text}
+                  disabled={busy || disabled}
+                  maxLength={2000}
+                  rows={2}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      [kind]: draft[kind].map((v, index) =>
+                        index === i ? { ...v, text: e.target.value } : v,
+                      ),
+                    })
+                  }
+                />
+              </label>
+              <BriefSources
+                c={c}
+                options={options}
+                sources={item.sources || []}
+                disabled={busy || disabled}
+                onChange={(sources) => {
+                  setDraft({
+                    ...draft,
+                    [kind]: draft[kind].map((v, index) =>
+                      index === i ? { ...v, sources } : v,
+                    ),
+                  });
+                }}
+              />
+              <button
+                className="text-link workbench-remove-item"
+                disabled={busy || disabled}
+                onClick={() =>
+                  setDraft({
+                    ...draft,
+                    [kind]: draft[kind].filter((_, index) => index !== i),
+                  })
+                }
+              >
+                {t("移除条目")}
+              </button>
+            </>
+          ) : (
+            <>
+              <p>{item.text}</p>
+              <References c={c} refs={item.sources || []} onLocate={onLocate} />
+            </>
+          )}
+          {item.requestId && (
+            <button
+              className="text-link"
+              onClick={() => onRequest(item.requestId!)}
+            >
+              {t("查看来源请求")}
+            </button>
+          )}
+        </div>
+      ))}
+      {!(draft || brief)[kind]?.length && (
+        <p className="workbench-brief-placeholder">
+          {kind === "decisions" ? t("尚无已确认决定") : t("暂无待解决事项")}
+        </p>
+      )}
+      {draft && (
+        <button
+          className="button small"
+          disabled={busy || disabled || draft[kind].length >= 32}
+          onClick={() =>
+            setDraft({
+              ...draft,
+              [kind]: [...draft[kind], { text: "", sources: [] } as BriefItem],
+            })
+          }
+        >
+          <Icon name="plus" />
+          {tr`添加${label}`}
+        </button>
+      )}
+    </section>
+  );
+  return (
+    <section className={`panel workbench-brief${draft ? " is-editing" : ""}`}>
+      <div className="workbench-section-heading">
+        <div>
+          <h2>{t("空间简报")}</h2>
+          <p className="muted small-text">{tr`版本 ${brief.revision} · 由成员确认，所有参与会话均可读取。`}</p>
+        </div>
+        {!draft && (
+          <button
+            className="button"
+            disabled={disabled}
+            onClick={() => {
+              setDraft(structuredClone(brief));
+              setError("");
+            }}
+          >
+            <Icon name="book" />
+            {t("编辑简报")}
+          </button>
+        )}
+      </div>
+      {draft && (
+        <div className="workbench-draft-notice" role="status">
+          <span className="workbench-draft-dot" aria-hidden="true" />
+          <strong>{t("草稿尚未保存")}</strong>
+          <span>
+            {t("保存表示你已核对这些内容。会话建议需要由成员确认后纳入。")}
+          </span>
+        </div>
+      )}
+      {draft ? (
+        <label>
+          {t("当前议题")}
+          <textarea
+            value={draft.topic}
+            disabled={busy || disabled}
+            rows={3}
+            maxLength={2000}
+            onChange={(e) => setDraft({ ...draft, topic: e.target.value })}
+          />
+        </label>
+      ) : (
+        <div className="workbench-brief-topic">
+          <h3>{t("当前议题")}</h3>
+          <p>{brief.topic || t("议题尚未填写")}</p>
+        </div>
+      )}
+      <div className="workbench-brief-columns">
+        {items("decisions", t("已确认决定"))}
+        {items("questions", t("待解决事项"))}
+      </div>
+      <ErrorBox message={error} />
+      {draft && (
+        <>
+          {brief.revision !== draft.revision && (
+            <p className="notice">
+              {t(
+                "其他成员已更新简报。请保留草稿内容，取消编辑后读取最新版本再合并。",
+              )}
+            </p>
+          )}
+          <div className="workbench-card-actions workbench-brief-save">
+            <button
+              className="button primary"
+              disabled={busy || disabled || brief.revision !== draft.revision}
+              onClick={() => void save()}
+            >
+              <Icon name="check" />
+              {busy ? t("正在保存…") : t("保存确认后的简报")}
+            </button>
+            <button
+              className="button"
+              disabled={busy}
+              onClick={() => setDraft(undefined)}
+            >
+              {t("取消编辑")}
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function SpaceSessions({
+  c,
+  view,
+  disabled,
+  onChanged,
+  onSend,
+  onRemove,
+}: {
+  c: Collaboration;
+  view: WorkbenchView;
+  disabled: boolean;
+  onChanged: () => void;
+  onSend: (id: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const pairs = useResource<AgentPairing[]>("agent-pairings", 3000);
+  const receivers = useResource<SpaceReceiver[]>(
+    `space-receivers?spaceId=${c.id}`,
+    2500,
+  );
+  const [selected, setSelected] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [method, setMethod] = useState("existing");
+  const [pairing, setPairing] = useState(false);
+  const [name, setName] = useState(t("空间协作助手"));
+  const [creatingID, setCreatingID] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function associate(pairingId: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`collaborations/${c.id}/workbench/register`, { pairingId });
+      setPairing(false);
+      setAdding(false);
+      setSelected("");
+      onChanged();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function create() {
+    if (busy) return;
+    const requestId = creatingID || crypto.randomUUID();
+    setCreatingID(requestId);
+    setBusy(true);
+    setError("");
+    try {
+      await api(`collaborations/${c.id}/workbench/create-receiver`, {
+        requestId,
+        name: name.trim(),
+      });
+      receivers.reload();
+      pairs.reload();
+      onChanged();
+      setCreatingID("");
+      setAdding(false);
+    } catch (e) {
+      setError(errorText(e));
+      receivers.reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="workbench-sessions">
+      <section className="panel workbench-session-list">
+        <div className="workbench-section-heading">
+          <div>
+            <h2>
+              {t("参与会话")}{" "}
+              <span className="count">
+                {view.targets.filter((target) => !target.removed).length}
+              </span>
+            </h2>
+            <p className="muted small-text">
+              {t("选择一个会话发起请求，在空间中查看处理进展。")}
+            </p>
+          </div>
+          <button
+            className="button"
+            disabled={disabled}
+            onClick={() => setAdding(true)}
+          >
+            <Icon name="plus" />
+            {t("添加会话")}
+          </button>
+        </div>
+        <p className="muted small-text workbench-session-privacy">
+          {t("仅显示成员明确关联的接收会话。原生历史和私人配对列表不会公开。")}
+        </p>
+        <div className="workbench-targets">
+          {view.targets
+            .filter((target) => !target.removed)
+            .map((target) => {
+              const assistantBlocked =
+                view.assistant.targetId === target.id &&
+                !["ready", "disabled"].includes(view.assistant.state);
+              return (
+                <article className="workbench-target" key={target.id}>
+                  <span className="workbench-symbol neutral">
+                    <Icon name="terminal" />
+                  </span>
+                  <div className="workbench-target-description">
+                    <h3>{target.name}</h3>
+                    <p className="muted small-text">
+                      {target.member} · {target.provider}
+                      {target.executionId ? ` · ${t("共同执行")}` : ""}
+                    </p>
+                    <span
+                      className={
+                        target.available && !assistantBlocked
+                          ? "workbench-status available"
+                          : "workbench-status"
+                      }
+                    >
+                      {assistantBlocked
+                        ? assistantLabel(view.assistant)
+                        : target.available
+                          ? t("可以接收")
+                          : t("暂不可接收")}
+                    </span>
+                    {!assistantBlocked && !target.available && (
+                      <p className="muted small-text workbench-target-reason">
+                        {serviceText(
+                          target.reason,
+                          "接收会话暂不可用，请核对客户端与连接状态。",
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  <div className="workbench-card-actions">
+                    <button
+                      className="button small"
+                      disabled={
+                        disabled || !target.available || assistantBlocked
+                      }
+                      onClick={() => onSend(target.id)}
+                    >
+                      {t("发起协作请求")}
+                    </button>
+                    {(view.selfId === "owner" ||
+                      view.selfId === target.memberId) && (
+                      <button
+                        className="text-link"
+                        disabled={disabled}
+                        onClick={() => onRemove(target.id)}
+                      >
+                        {t("解除关联")}
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+        </div>
+        {!view.targets.some((t) => !t.removed) && (
+          <div className="workbench-empty">
+            <Icon name="people" />
+            <h3>{t("连接会话，开始接力")}</h3>
+            <p>
+              {t("还没有接收会话。先关联一个已配对会话，或创建独立接收会话。")}
+            </p>
+          </div>
+        )}
+      </section>
+      <ConnectCurrentConversation spaceId={c.id} disabled={disabled} />
+      {adding && (
+        <Modal title={t("添加参与会话")} onClose={() => setAdding(false)}>
+          <fieldset className="workbench-methods" disabled={busy}>
+            <legend className="sr-only">{t("选择添加方式")}</legend>
+            <label className={method === "existing" ? "is-selected" : ""}>
+              <input
+                type="radio"
+                name={`session-method-${c.id}`}
+                value="existing"
+                checked={method === "existing"}
+                onChange={() => setMethod("existing")}
+              />
+              <span>
+                <strong>{t("关联已有会话")}</strong>
+                <span>{t("继续使用已配对的上下文")}</span>
+              </span>
+            </label>
+            <label className={method === "new" ? "is-selected" : ""}>
+              <input
+                type="radio"
+                name={`session-method-${c.id}`}
+                value="new"
+                checked={method === "new"}
+                onChange={() => setMethod("new")}
+              />
+              <span>
+                <strong>{t("新建独立会话")}</strong>
+                <span>{t("为本空间另建上下文")}</span>
+              </span>
+            </label>
+          </fieldset>
+          <section
+            className="workbench-associate"
+            hidden={method !== "existing"}
+          >
+            <p>
+              {t("关联后，空间成员可向它发送明确请求。接收会话仍由你掌握。")}
+            </p>
+            <label>
+              {t("本机已配对会话")}
+              <select
+                value={selected}
+                disabled={disabled || busy}
+                onChange={(e) => setSelected(e.target.value)}
+              >
+                <option value="">{t("选择接收会话")}</option>
+                {pairs.data
+                  ?.filter(
+                    (p) =>
+                      p.state === "paired" &&
+                      (!p.spaceId || p.spaceId === c.id),
+                  )
+                  .map((p) => (
+                    <option value={p.id} key={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <div className="workbench-card-actions">
+              <button
+                className="button primary"
+                disabled={disabled || busy || !selected}
+                onClick={() => void associate(selected)}
+              >
+                {t("关联到本空间")}
+              </button>
+              <button
+                className="text-link"
+                disabled={disabled || busy}
+                onClick={() => setPairing(!pairing)}
+              >
+                {t("配对新会话")}
+              </button>
+            </div>
+            {pairing && (
+              <PairConversation onPaired={(id) => void associate(id)} />
+            )}
+          </section>
+          <section className="workbench-associate" hidden={method !== "new"}>
+            <p>
+              {t(
+                "新建一个只绑定本空间的原生 Codex 会话，使用独立工作目录。创建后可接收协作请求，也可被选为空间专用会话。",
+              )}
+            </p>
+            <p className="muted small-text">
+              {t(
+                "继承本机原生模型设置，默认受限权限；需要原生确认时由你处理。",
+              )}
+            </p>
+            <label>
+              {t("接收会话名称")}
+              <input
+                value={name}
+                maxLength={80}
+                disabled={busy || !!creatingID}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </label>
+            <button
+              className="button primary"
+              disabled={disabled || busy || !name.trim()}
+              onClick={() => void create()}
+            >
+              {busy
+                ? t("正在创建…")
+                : creatingID
+                  ? t("核对同一次创建")
+                  : t("创建并关联接收会话")}
+            </button>
+          </section>
+          <ErrorBox message={error || pairs.error || receivers.error} />
+        </Modal>
+      )}
+      {!adding && (
+        <ErrorBox message={error || pairs.error || receivers.error} />
+      )}
+      {receivers.data?.map((receiver) => (
+        <ReceiverCard
+          key={receiver.id}
+          receiver={receiver}
+          onChanged={receivers.reload}
+          disabled={disabled}
+        />
+      ))}
+      <SpaceEvents spaceId={c.id} disabled={disabled} />
+    </div>
+  );
+}
+
+function ReceiverCard({
+  receiver: r,
+  onChanged,
+  disabled,
+}: {
+  receiver: SpaceReceiver;
+  onChanged: () => void;
+  disabled: boolean;
+}) {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setError(""), [r.binary, r.clientError, r.state, r.error]);
+  const events = useResource<{
+    approvals: { id: unknown; method: string; params: { message?: string } }[];
+  }>(r.approvals ? `space-receivers/${r.id}/events` : null, 2000);
+  async function call(action: string, body: object) {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`space-receivers/${r.id}/${action}`, body);
+      onChanged();
+      events.reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="panel workbench-receiver">
+      <div className="workbench-section-heading">
+        <h3>{r.name}</h3>
+        <span>
+          {r.releasePending
+            ? t("正在释放")
+            : r.receivingPaused
+              ? t("已暂停接收")
+              : r.online
+                ? r.busy
+                  ? t("正在处理")
+                  : t("已连接")
+                : t("未连接")}
+        </span>
+      </div>
+      <p className="small-text muted">
+        {t("仅你可见的原生会话控制")} · {r.model || t("模型尚未确认")}
+        {r.reasoningEffort ? ` · ${r.reasoningEffort}` : ""}
+      </p>
+      {r.binary && (
+        <p className="small-text muted">
+          Codex CLI: <code>{r.binary}</code>
+        </p>
+      )}
+      {r.clientRecovered && (
+        <p className="notice">
+          {t("Codex CLI 已恢复，尚未创建原生会话。可以重试创建。")}
+        </p>
+      )}
+      {r.canRetryCreation && (
+        <button
+          className="button"
+          disabled={disabled || busy || !r.binary || !!r.clientError}
+          onClick={() => void call("action", { action: "retry" })}
+        >
+          {t("重试创建接收会话")}
+        </button>
+      )}
+      {!r.online && !r.releasePending && r.state === "ready" && (
+        <button
+          className="button"
+          disabled={disabled || busy}
+          onClick={() => void call("action", { action: "start" })}
+        >
+          {t("恢复接收会话")}
+        </button>
+      )}
+      {r.online && !r.receivingPaused && (
+        <button
+          className="button secondary"
+          disabled={busy}
+          onClick={() => void call("action", { action: "pause" })}
+        >
+          {t("暂停接收并释放")}
+        </button>
+      )}
+      {r.releasePending && (
+        <p className="notice">
+          {t("已暂停新请求，等待当前执行和审批结束后释放会话。")}
+        </p>
+      )}
+      {r.receivingPaused && !r.releasePending && (
+        <>
+          <p className="small-text muted">
+            {t(
+              "会话已释放。可在个人 Codex 中继续；接回前，请先在个人客户端释放该会话。",
+            )}
+          </p>
+          <button
+            className="button secondary"
+            disabled={disabled || busy}
+            onClick={() => void call("action", { action: "open-desktop" })}
+          >
+            {t("在 Codex Desktop 中继续")}
+          </button>
+        </>
+      )}
+      {r.online && r.activeTurnId && (
+        <button
+          className="button danger"
+          disabled={busy}
+          onClick={() =>
+            void call("action", {
+              action: "interrupt",
+              turnId: r.activeTurnId,
+              requestId: crypto.randomUUID(),
+            })
+          }
+        >
+          {t("停止当前轮次")}
+        </button>
+      )}
+      {r.command && r.online && (
+        <details>
+          <summary>{t("在原生终端中打开")}</summary>
+          <p>{t("在本机终端运行此命令，查看会话、调整模型或处理原生交互。")}</p>
+          <Copy text={r.command} />
+        </details>
+      )}
+      {events.data?.approvals.map((a) => (
+        <div className="notice" key={JSON.stringify(a.id)}>
+          <p>
+            {a.params.message || t("原生会话正在等待确认，请在终端中处理。")}
+          </p>
+          {a.method === "mcpServer/elicitation/request" && (
+            <div className="workbench-card-actions">
+              <button
+                className="button"
+                disabled={busy || disabled}
+                onClick={() =>
+                  void call("respond", {
+                    id: a.id,
+                    result: { action: "accept", content: {} },
+                  })
+                }
+              >
+                {t("允许这次工具调用")}
+              </button>
+              <button
+                className="button"
+                disabled={busy}
+                onClick={() =>
+                  void call("respond", {
+                    id: a.id,
+                    result: { action: "decline" },
+                  })
+                }
+              >
+                {t("拒绝这次工具调用")}
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+      <ErrorBox message={error || serviceText(r.clientError || r.error)} />
+    </section>
+  );
+}
+
+function AssistantSetup({
+  c,
+  view,
+  disabled,
+  onChanged,
+  onSessions,
+  onRequest,
+}: {
+  c: Collaboration;
+  view: WorkbenchView;
+  disabled: boolean;
+  onChanged: () => void;
+  onSessions: () => void;
+  onRequest: (id: string) => void;
+}) {
+  const [target, setTarget] = useState(view.assistant.targetId || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const assistant = view.assistant;
+  const selected = view.targets.find((t) => t.id === target);
+  async function change(state: string) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`collaborations/${c.id}/workbench/assistant`, {
+        state,
+        baseEpoch: assistant.epoch,
+        targetId: target,
+        requestId: crypto.randomUUID(),
+      });
+      onChanged();
+    } catch (e) {
+      setError(errorText(e));
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="workbench-assistant">
+      <p>
+        {t(
+          "每个空间最多一个。专用会话帮助理解简报、组织材料和发起已授权的协作；其他会话仍可直接互相协作。",
+        )}
+      </p>
+      <p className="notice">
+        {assistantLabel(assistant)}
+        {assistant.targetId &&
+          ` · ${view.targets.find((t) => t.id === assistant.targetId)?.name || t("已移除的会话")}`}
+      </p>
+      <div className="workbench-bootstrap-preview">
+        <h3>{t("启动时会交给它的信息")}</h3>
+        <ul>
+          <li>{tr`当前议题与已确认简报 · 版本 ${view.brief.revision}`}</li>
+          <li>{t("已发布材料目录与固定版本，不自动导入私人历史")}</li>
+          <li>{t("明确关联的接收会话、待处理请求和当前进展")}</li>
+          <li>{t("按需介入的规则：先读取并确认接手，再响应明确请求")}</li>
+        </ul>
+        <p>
+          {view.brief.topic || t("议题尚未填写；它会把缺失信息标记为未知。")}
+        </p>
+      </div>
+      {c.role === "owner" ? (
+        <>
+          <label>
+            {t("专用接收会话")}
+            <select
+              value={target}
+              disabled={busy || disabled}
+              onChange={(e) => setTarget(e.target.value)}
+            >
+              <option value="">{t("选择接收会话")}</option>
+              {view.targets
+                .filter((t) => !t.removed && !t.executionId)
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} · {t.member}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <button className="text-link" onClick={onSessions}>
+            {t("创建或关联独立接收会话")}
+          </button>
+          <div className="workbench-card-actions">
+            <button
+              className="button primary"
+              disabled={
+                disabled ||
+                busy ||
+                !selected?.available ||
+                (assistant.state === "initializing" &&
+                  target === assistant.targetId)
+              }
+              onClick={() => void change("initializing")}
+            >
+              {assistant.state === "disabled"
+                ? t("启用并发送启动简报")
+                : target !== assistant.targetId
+                  ? t("更换并请求接手")
+                  : t("重新读取简报并接手")}
+            </button>
+            {assistant.state !== "disabled" && (
+              <>
+                <button
+                  className="button"
+                  disabled={disabled || busy || assistant.state === "paused"}
+                  onClick={() => void change("paused")}
+                >
+                  {t("暂停介入")}
+                </button>
+                <button
+                  className="text-link"
+                  disabled={disabled || busy}
+                  onClick={() => void change("disabled")}
+                >
+                  {t("停用专用会话")}
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      ) : (
+        <p>{t("由空间发起者启用、暂停或更换专用会话。")}</p>
+      )}
+      {assistant.bootstrapId && (
+        <button
+          className="text-link"
+          onClick={() => onRequest(assistant.bootstrapId!)}
+        >
+          {t("查看接手请求与回执")}
+        </button>
+      )}
+      <p className="small-text muted">
+        {t(
+          "暂停或停用后保留原生会话与已发生的结果；正在执行的输入需在原生会话中处理。",
+        )}
+      </p>
+      <ErrorBox message={error} />
+    </div>
+  );
+}

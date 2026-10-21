@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{color-scheme:light dark;font:15px system-ui}body{margin:0;padding:24px;max-width:760px}
+h1{font-size:20px;margin:0 0 8px}p{line-height:1.6}button{font:inherit;padding:10px 16px;border-radius:8px;border:1px solid #999;cursor:pointer;margin:0 8px 8px 0}
+article,pre{padding:16px;border:1px solid #aaa;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere}small{display:block;margin-top:16px;opacity:.7}
+</style>
+<h1>Team Cross 本机材料与批注</h1>
+<p>这是独立测试空间。读取和回复使用现有 Team Cross MCP，经本机 Core 保存，不启动协作模型。</p>
+<p id="status" role="status">正在连接宿主桥…</p>
+<button id="read" disabled>读取测试材料</button>
+<button id="reply" disabled>保存测试回复</button>
+<article id="material">材料尚未读取</article>
+<p id="annotation">批注尚未读取</p>
+<pre id="receipt">回复尚未保存</pre>
+<small>合成内容 · 独立数据目录 · 无外部界面资源</small>
+<script>
+const statusEl=document.getElementById('status'), materialEl=document.getElementById('material');
+const annotationEl=document.getElementById('annotation'), receiptEl=document.getElementById('receipt');
+const readButton=document.getElementById('read'),replyButton=document.getElementById('reply');
+const pending=new Map();let nextId=0,hasRead=false,writeAttempt=null;
+function request(method,params){return new Promise((resolve,reject)=>{
+  const id=++nextId,timeout=setTimeout(()=>{pending.delete(id);reject(new Error('宿主桥响应超时'));},20000);
+  pending.set(id,{resolve,reject,timeout});window.parent.postMessage({jsonrpc:'2.0',id,method,params},'*');
+});}
+window.addEventListener('message',event=>{
+  if(event.source!==window.parent)return;const m=event.data;if(!m||m.jsonrpc!=='2.0')return;
+  if(pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);clearTimeout(p.timeout);
+    if(m.error)p.reject(new Error(m.error.message));else p.resolve(m.result);}
+});
+request('ui/initialize',{appInfo:{name:'teamcross-core-probe',version:'0.2.0'},appCapabilities:{},protocolVersion:'2026-01-26'})
+ .then(()=>{window.parent.postMessage({jsonrpc:'2.0',method:'ui/notifications/initialized',params:{}},'*');statusEl.textContent='宿主桥已连接';readButton.disabled=false;})
+ .catch(error=>{statusEl.textContent=error.message;});
+readButton.onclick=async()=>{
+  readButton.disabled=true;replyButton.disabled=true;statusEl.textContent='正在读取本机材料与批注…';
+  try{
+    const response=await request('tools/call',{name:'read_test_material',arguments:{}});
+    if(response?.isError)throw new Error('Core 返回读取错误');
+    const d=response.structuredContent,segments=d?.material?.segments;
+    if(!Array.isArray(segments)||!d?.annotation?.annotations?.length)throw new Error('读取内容需要核对');
+    materialEl.textContent=segments.map(s=>s.text).join('\n');annotationEl.textContent='批注：'+d.annotation.annotations[0].text;
+    hasRead=materialEl.textContent.includes('LOCAL-CORE-20261002');
+    statusEl.textContent=hasRead?'本机材料与批注读取成功':'材料标记未匹配';
+  }catch(error){statusEl.textContent=error.message;}
+  finally{readButton.disabled=false;replyButton.disabled=!hasRead;}
+};
+replyButton.onclick=async()=>{
+  replyButton.disabled=true;statusEl.textContent='正在保存测试回复…';
+  // Preserve this request ID if the result is unknown; never replay on reconnect.
+  writeAttempt??={nonce:crypto.randomUUID(),requestId:'ui-core-'+crypto.randomUUID()};
+  try{
+    const response=await request('tools/call',{name:'reply_test_annotation',arguments:writeAttempt});
+    const d=response?.structuredContent;
+    if(response?.isError||d?.status!=='saved'||d?.reply?.requestId!==writeAttempt.requestId||d?.reply?.text!=='UI-CORE-REPLY:'+writeAttempt.nonce)throw new Error('保存结果需要核对');
+    receiptEl.textContent='status: saved\n回复编号：'+d.reply.id+'\nrequestId: '+d.reply.requestId+'\n'+d.reply.text;
+    statusEl.textContent='本机回复已保存，requestId 匹配';
+  }catch(error){statusEl.textContent=error.message;replyButton.disabled=false;}
+};
+</script>
+</html>

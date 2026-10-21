@@ -1,0 +1,26 @@
+$ vitest run
+
+ RUN  v3.2.4 /Users/wsy/.codex/worktrees/space-workbench/Team Cross/packages/web
+
+ ✓ src/test/space-lifecycle.test.tsx (5 tests) 708ms
+ ✓ src/test/reading.test.tsx (15 tests) 938ms
+ ✓ src/test/context-refresh.test.tsx (10 tests) 1212ms
+ ✓ src/test/annotations.test.tsx (10 tests) 1565ms
+   ✓ 原处批注 > 连续文件行自动引用，返回旧批注时不高亮已变化的同号行  336ms
+ ✓ src/test/reading-scroll.test.tsx (8 tests) 610ms
+ ✓ src/test/publication.test.tsx (11 tests) 2124ms
+   ✓ keeps scope, the active reader tools, export notices and a single next action in the shared controls  535ms
+   ✓ requires a refreshed confirmation after editing the title and keeps request identity after a lost publish response  452ms
+ ✓ src/test/materials.test.tsx (6 tests) 468ms
+ ✓ src/test/space-workbench.test.tsx (5 tests) 460ms
+ ✓ src/test/agent-pairings.test.tsx (4 tests) 269ms
+ ✓ src/test/flows.test.tsx (41 tests) 2383ms
+ ✓ src/test/i18n.test.tsx (1 test) 117ms
+ ✓ src/test/library.test.tsx (19 tests) 2581ms
+   ✓ 个人资源库 > keeps rows and groups in place after visits, selection, favorites and background refreshes  328ms
+   ✓ 个人资源库 > switches between materials and context with keyboard access while retaining each reader  371ms
+
+ Test Files  12 passed (12)
+      Tests  135 passed (135)
+   Start at  04:19:18
+   Duration  3.97s (transform 747ms, setup 1.78s, collect 3.35s, tests 13.44s, environment 3.95s, prepare 653ms)

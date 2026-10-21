@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "core-probe": {
+      "command": "/usr/bin/sandbox-exec",
+      "args": [
+        "-p",
+        "(version 1)(allow default)(deny network*)(allow network-outbound (remote ip \"localhost:64664\"))",
+        "/Library/Frameworks/Python.framework/Versions/3.9/bin/python3",
+        "server.py"
+      ],
+      "cwd": ".",
+      "env": {
+        "TEAMCROSS_CORE_PROBE_LOG": "/Users/wsy/Documents/Codex/2026-10-02/teamcross-core-desktop-validation/evidence/core-probe.jsonl",
+        "TEAMCROSS_CORE_MANIFEST": "/Users/wsy/Documents/Codex/2026-10-02/teamcross-core-desktop-validation/core-fixture-1/fixture.json",
+        "TEAMCROSS_CORE_BINARY": "/Users/wsy/Documents/Codex/2026-10-02/teamcross-core-desktop-validation/teamcross-core-cli"
+      }
+    }
+  }
+}

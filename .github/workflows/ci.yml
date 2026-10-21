@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - main
+      - Meta
 
 permissions:
   contents: read
@@ -75,11 +76,13 @@ jobs:
           go test -race
           ./internal/collab
           ./internal/mcp
+          ./internal/mcpevents
           ./internal/sharing
           ./internal/nativecodex
           ./internal/nativeclaude
           ./internal/service
           ./internal/cliinstall
+          ./internal/pluginpack
 
       - name: Check Web sources
         run: pnpm --filter @teamcross/web check
@@ -91,7 +94,7 @@ jobs:
         run: pnpm --filter @teamcross/web build
 
       - name: Verify embedded Web assets are current
-        run: git diff --exit-code -- internal/webassets/dist
+        run: git diff --exit-code -- internal/webassets/dist internal/mcpassets/dist
 
       - name: Cross-compile the macOS arm64 CLI
         env:

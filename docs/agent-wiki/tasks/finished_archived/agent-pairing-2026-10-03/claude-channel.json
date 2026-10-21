@@ -1,0 +1,9 @@
+{
+  "model": "gpt-5.6-luna",
+  "scope": "one Mac, personal Claude TUI, development Channel and Core",
+  "nativeVersion": "2.1.270 (Claude Code)",
+  "error": "TimeoutError: paired",
+  "generationRequests": 2,
+  "observedHostMessage": "Channels are not currently available; development-channel flag ignored",
+  "observedProxyFailure": "ConnectionRefusedError at configured loopback model proxy; no completed model request"
+}

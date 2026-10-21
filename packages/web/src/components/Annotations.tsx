@@ -1,3 +1,4 @@
+import { resourceScope } from "../execution";
 import { t, tr } from "../i18n";
 import { ResourceActions } from "../library";
 import { AnchoredNote, type AnnotationOrigin } from "./Reading";
@@ -6,6 +7,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useId,
   type KeyboardEvent,
 } from "react";
 import { api, errorText } from "../api";
@@ -16,7 +18,9 @@ import {
   MaterialReferencePicker,
 } from "./MaterialReferences";
 import type { Material, MaterialReference } from "../types";
-import { Copy, ErrorBox, Icon } from "./ui";
+import { Copy, ErrorBox, Icon, Modal } from "./ui";
+import { SendToAgent } from "./AgentPairings";
+import { SpaceRequestButton } from "./SpaceWorkbench";
 
 export type AnnotationRequest = {
   target?: AnnotationTarget;
@@ -77,12 +81,14 @@ export function Discussion({
   onLocateMaterial?: (ref: MaterialReference) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [sendToAgent, setSendToAgent] = useState(false);
   const [text, setText] = useState("");
   const [refs, setRefs] = useState<MaterialReference[]>([]);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [saved, setSaved] = useState(false);
   const editor = useRef<HTMLTextAreaElement>(null);
+  const actions = useRef<HTMLDetailsElement>(null);
   const submitting = useRef(false);
   const attempt = useRef<
     | { text: string; requestId: string; materials?: MaterialReference[] }
@@ -91,6 +97,14 @@ export function Discussion({
   useEffect(() => {
     if (open) editor.current?.focus();
   }, [open]);
+  useEffect(() => {
+    const close = (event: PointerEvent) => {
+      if (actions.current && !actions.current.contains(event.target as Node))
+        actions.current.open = false;
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, []);
 
   async function save() {
     if (submitting.current || disabled || !text.trim()) return;
@@ -202,16 +216,26 @@ export function Discussion({
           ))}
         </div>
       )}
+      {sendToAgent && (
+        <Modal title={t("交给 Agent")} onClose={() => setSendToAgent(false)}>
+          <SendToAgent
+            spaceId={
+              !annotation.executionId &&
+              (!annotation.target || annotation.target.kind === "material")
+                ? id
+                : undefined
+            }
+            references={[
+              {
+                ...resourceScope(id),
+                kind: "annotation",
+                annotationId: annotation.id,
+              },
+            ]}
+          />
+        </Modal>
+      )}
       <div className="annotation-actions">
-        <ResourceActions
-          reference={{
-            spaceId: id,
-            kind: "annotation",
-            annotationId: annotation.id,
-          }}
-          disabled={disabled}
-          selectedLabel={t("已选择")}
-        />
         <button
           className="button small annotation-reply-action"
           aria-expanded={open}
@@ -226,11 +250,79 @@ export function Discussion({
           <Icon name="comment" size={14} />
           {open ? t("收起") : text ? t("继续") : t("回复")}
         </button>
-        <Copy
-          label={t("复制提示")}
-          ariaLabel={t("复制处理提示")}
-          text={tr`请使用 Team Cross 读取协作 ${id} 的批注 ${annotation.id} 及回复。共享会话使用 read_annotations；个人辅助会话使用 read_context（kind=annotations）。核对 target 与 quote 对应的当前原文，再分析这条意见；需要答复时使用 reply_to_annotation 回复原批注。`}
-        />
+        <details
+          className="annotation-more"
+          ref={actions}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && event.currentTarget.open) {
+              event.stopPropagation();
+              event.currentTarget.open = false;
+              event.currentTarget.querySelector("summary")?.focus();
+            }
+          }}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget))
+              event.currentTarget.open = false;
+          }}
+        >
+          <summary
+            tabIndex={0}
+            aria-label={t("更多批注操作")}
+            title={t("更多批注操作")}
+          >
+            <Icon name="more" size={17} />
+          </summary>
+          <div className="annotation-more-menu">
+            {!annotation.executionId &&
+            (!annotation.target || annotation.target.kind === "material") ? (
+              <SpaceRequestButton
+                references={[
+                  {
+                    ...resourceScope(id),
+                    kind: "annotation",
+                    annotationId: annotation.id,
+                  },
+                ]}
+                disabled={disabled}
+                fallback={
+                  <button
+                    className="button small"
+                    disabled={disabled}
+                    onClick={() => setSendToAgent(true)}
+                  >
+                    {t("交给 Agent")}
+                  </button>
+                }
+              />
+            ) : (
+              <button
+                className="button small"
+                disabled={disabled}
+                onClick={() => setSendToAgent(true)}
+              >
+                {t("交给 Agent")}
+              </button>
+            )}
+            <ResourceActions
+              reference={{
+                ...resourceScope(id),
+                kind: "annotation",
+                annotationId: annotation.id,
+              }}
+              disabled={disabled}
+              selectedLabel={t("已选择")}
+            />
+            <Copy
+              label={t("复制提示")}
+              ariaLabel={t("复制处理提示")}
+              text={
+                resourceScope(id).executionId
+                  ? tr`请使用 Team Cross 读取空间 id=${resourceScope(id).spaceId}、executionId=${resourceScope(id).executionId} 的批注 ${annotation.id}。个人辅助工具传入这两个标识；绑定此会话的工具使用 read_annotations。核对原文后用 reply_to_annotation 回复。`
+                  : tr`请使用 Team Cross 读取协作 ${id} 的批注 ${annotation.id} 及回复。共享会话使用 read_annotations；个人辅助会话使用 read_context（kind=annotations）。核对 target 与 quote 对应的当前原文，再分析这条意见；需要答复时使用 reply_to_annotation 回复原批注。`
+              }
+            />
+          </div>
+        </details>
       </div>
       {saved && (
         <p className="annotation-saved" role="status">
@@ -259,7 +351,7 @@ export function Discussion({
             onKeyDown={(event) => saveShortcut(event, () => void save())}
           />
           <MaterialReferencePicker
-            spaceId={id}
+            spaceId={resourceScope(id).spaceId}
             materials={materials}
             value={refs}
             disabled={pending || disabled}
@@ -320,6 +412,7 @@ export function Annotations({
   }>();
   const closeInspection = useCallback(() => setInspection(undefined), []);
   const closeEditor = useCallback(() => setActive(general), []);
+  const editorID = useId();
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -433,11 +526,11 @@ export function Annotations({
           <blockquote>{draft.target.quote}</blockquote>
         </div>
       )}
-      <label htmlFor="annotation-text" className="sr-only">
+      <label htmlFor={editorID} className="sr-only">
         {t("你的意见") + " "}
       </label>
       <textarea
-        id="annotation-text"
+        id={editorID}
         ref={editor}
         rows={3}
         maxLength={4000}
@@ -459,7 +552,7 @@ export function Annotations({
         onKeyDown={(event) => saveShortcut(event, () => void save())}
       />
       <MaterialReferencePicker
-        spaceId={id}
+        spaceId={resourceScope(id).spaceId}
         materials={materials}
         value={draft.materials || []}
         disabled={pending || disabled}

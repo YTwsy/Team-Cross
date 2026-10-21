@@ -1,6 +1,8 @@
+import { resourceScope } from "../execution";
 import { t, tr } from "../i18n";
 import { ResourceActions } from "../library";
 import { ReadingPanelHeading, ReadingPanelTools } from "./ReadingTabs";
+import { SpaceCommentsButton } from "./SpaceWorkbench";
 import {
   useEffect,
   useLayoutEffect,
@@ -65,6 +67,7 @@ export function Context({
   technical,
   annotations = [],
   onDiscuss,
+  conversation = false,
 }: {
   id: string;
   sessionId: string;
@@ -77,6 +80,7 @@ export function Context({
   onDiscuss?: Discuss;
   location?: AnnotationRequest;
   agentName?: string;
+  conversation?: boolean;
   technical?: ReactNode;
 }) {
   const [tab, setTab] = useState<ContextTab>("history");
@@ -510,6 +514,7 @@ export function Context({
       body = turns.length ? (
         <ReadingLayout
           adaptiveOutline
+          defaultOutlineOpen={conversation ? false : undefined}
           toolbarTarget={readingToolbar}
           focus={readingFocus}
           onFocusChange={setReadingFocus}
@@ -535,13 +540,15 @@ export function Context({
                 data-reader-turn={segment.turnId}
                 data-reading-key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
               >
-                {(!index || all[index - 1]?.turnId !== segment.turnId) && (
-                  <div className="reader-turn-heading">
-                    {t("第")}{" "}
-                    {turns.findIndex((turn) => turn.id === segment.turnId) + 1}{" "}
-                    {t("轮") + " "}
-                  </div>
-                )}
+                {!conversation &&
+                  (!index || all[index - 1]?.turnId !== segment.turnId) && (
+                    <div className="reader-turn-heading">
+                      {t("第")}{" "}
+                      {turns.findIndex((turn) => turn.id === segment.turnId) +
+                        1}{" "}
+                      {t("轮") + " "}
+                    </div>
+                  )}
                 {!!index &&
                   all[index - 1]?.turnId === segment.turnId &&
                   all[index - 1]?.itemId === segment.itemId &&
@@ -563,6 +570,22 @@ export function Context({
                         : segment.collapsed
                           ? tr`${itemLabel(segment.type)} · 共 ${segment.length} 字 · 已显示 ${segment.endOffset - segment.startOffset} 字`
                           : itemLabel(segment.type)
+                  }
+                  speaker={
+                    conversation &&
+                    ["userMessage", "agentMessage"].includes(segment.type)
+                      ? {
+                          name:
+                            segment.type === "userMessage"
+                              ? t("用户")
+                              : agentName,
+                          author:
+                            segment.type === "userMessage"
+                              ? t("用户")
+                              : agentName,
+                          assistant: segment.type === "agentMessage",
+                        }
+                      : undefined
                   }
                   notice={segment.notice}
                   target={{
@@ -647,29 +670,39 @@ export function Context({
     }
   }
   return (
-    <section className="panel context-panel" ref={panel}>
-      <ReadingPanelHeading title={t("协作上下文")}>
-        <ResourceActions
-          reference={{ spaceId: id, kind: "context" }}
-          disabled={!online || closed}
-        />
-        {tab !== "technical" && (
-          <button
-            className="icon-button"
-            aria-label={t("刷新上下文")}
-            disabled={!online}
-            onClick={refresh}
-          >
-            <Icon name="refresh" size={17} />
-          </button>
-        )}
-      </ReadingPanelHeading>
+    <section
+      className={
+        conversation
+          ? "context-panel context-conversation"
+          : "panel context-panel"
+      }
+      ref={panel}
+    >
+      {!conversation && (
+        <ReadingPanelHeading title={t("协作上下文")}>
+          {!resourceScope(id).executionId && <SpaceCommentsButton />}
+          <ResourceActions
+            reference={{ ...resourceScope(id), kind: "context" }}
+            disabled={!online || closed}
+          />
+          {tab !== "technical" && (
+            <button
+              className="icon-button"
+              aria-label={t("刷新上下文")}
+              disabled={!online}
+              onClick={refresh}
+            >
+              <Icon name="refresh" size={17} />
+            </button>
+          )}
+        </ReadingPanelHeading>
+      )}
       <ReadingPanelTools>
         <div className="context-reader-heading">
           <div className="tabs" role="tablist" aria-label={t("上下文类型")}>
             {[
               ["history", t("最近对话")],
-              ["changes", t("代码改动")],
+              ["changes", t("工作目录改动")],
               ["file", t("查看文件")],
               ...(technical ? [["technical", t("技术信息")]] : []),
             ].map(([value, label]) => (
@@ -683,7 +716,29 @@ export function Context({
               </button>
             ))}
           </div>
-          <div className="context-reading-tools" ref={setReadingToolbar} />
+          {conversation ? (
+            <div className="context-reading-toolbar">
+              <div className="context-reading-tools" ref={setReadingToolbar} />
+              <div className="context-reading-actions">
+                <ResourceActions
+                  reference={{ ...resourceScope(id), kind: "context" }}
+                  disabled={!online || closed}
+                />
+                {tab !== "technical" && (
+                  <button
+                    className="icon-button"
+                    aria-label={t("刷新上下文")}
+                    disabled={!online}
+                    onClick={refresh}
+                  >
+                    <Icon name="refresh" size={17} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="context-reading-tools" ref={setReadingToolbar} />
+          )}
         </div>
       </ReadingPanelTools>
       {tab === "file" && (
@@ -719,7 +774,11 @@ export function Context({
           </span>
           {selection && (
             <ResourceActions
-              reference={{ spaceId: id, kind: "context", target: selection }}
+              reference={{
+                ...resourceScope(id),
+                kind: "context",
+                target: selection,
+              }}
               disabled={!online || closed}
             />
           )}

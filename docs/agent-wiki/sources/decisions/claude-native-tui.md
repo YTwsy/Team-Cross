@@ -1,5 +1,7 @@
 # Claude Code 原生 TUI 接入
 
+本页维护 Claude 共享执行、原生 TUI 与个人辅助 MCP 的接入契约及取舍；个人会话 Channel 主动接收另由 [配对契约](agent-pairing.md) 维护。两条路径的结果不能互相替代，具体版本与范围见 [原生执行证据](../validation/evidence-map.md#原生执行与协作模式) 和 [接收证据](../validation/evidence-map.md#配对与空间请求)。
+
 Claude Code 是新增的实验性 Provider。Codex 原有 app-server 路径继续保留；Claude 使用 A 上一个原生后台 job，Team Cross 控制端与参与者的原生 TUI 都连接这个执行端。当前最低要求 Claude Code `2.1.268`，双方需使用包含此适配的 Team Cross 构建。按数值比较 major/minor/patch，接受不低于此版本的正式版本，拒绝旧版、无效版本和预发布版本。`2.1.268` 保留为已实测基线；更高版本通过版本检查不等于完成该版本的真实协议验收。TUI 本机连接层返回检测到的实际 CLI 版本，不伪装为基线版本。
 
 ## 用户入口与能力边界
@@ -74,8 +76,10 @@ B 的 claude attach
 
 共享开放期间断开 TUI 保留 worker。结束共享后等待原生 busy/等待交互结束、受理中的请求和直接连接清空，再按协作运行标记停止精确 job 与该 runtime 的独立 supervisor；绝不停止个人 Claude daemon，也不删除个人 transcript。历史、原目录和新 worktree 继续保留。共享尚未释放时，不应从普通个人 `/resume` 另开同一 session；请通过 Team Cross 的直接 TUI attach，或结束共享后再在个人历史中继续。恢复前如发现个人侧已有同 session 的活跃 job，会拒绝接管。实时 `status` 优先于可能在中断后保留的 `state=working` 进度标签。状态轮询之间最后一次终端写入有短暂释放保护。本机连接层在 Core 异常退出后，仅清理带匹配所有权记录、无进程监听且 inode 未变化的 Unix socket。
 
+多会话改造后的真实复验边界：2026-10-21 的 Claude 专用 fixture 在来源创建阶段遇到本机模型代理拒绝连接，尚未进入创建、交接或多会话执行；本轮工程回归不能替代这些原生路径。历史结果继续仅适用于其原版本，详见 [多会话记录](../../tasks/2026-10-21-multiple-sessions/README.md)。
+
 ## 实现与验证入口
 
 - [原生 fork、进程与恢复](../../../../internal/nativeclaude/process.go)、[历史读取](../../../../internal/nativeclaude/history.go)、[本机 TUI 连接层](../../../../internal/nativeclaude/client.go)。
 - [协作适配](../../../../internal/collab/claude.go)、[终端输入网关](../../../../internal/collab/claude_terminal.go)、[交接回归](../../../../internal/collab/claude_test.go)。
-- [原生 TUI 实测脚本](../../../../scripts/verify-claude-native.py)、[个人辅助实测脚本](../../../../scripts/verify-claude-assist.py)、[验证门槛](../validation/test-gates.md)。[2026-09-14 个人 CLI/TUI 历史验收](../validation/claude-personal-history-2026-09-14.md)覆盖当前路径；[2026-09-12 原生 TUI 验收](../validation/claude-native-tui-2026-09-12.md)记录的是切换前的独立 home / 离线 JSONL 实现；[个人辅助 MCP 验收](../validation/claude-assist-2026-09-12.md)仍只证明辅助模式的既有范围。
+- [原生 TUI 实测脚本](../../../../scripts/verify-claude-native.py)、[个人辅助实测脚本](../../../../scripts/verify-claude-assist.py)、[验证门槛](../validation/test-gates.md)。[2026-09-14 个人 CLI/TUI 历史验收](../../tasks/finished_archived/claude-personal-history-2026-09-14.md)记录了个人配置路径的当时结果；[2026-09-12 原生 TUI 验收](../../tasks/finished_archived/claude-native-tui-2026-09-12.md)记录的是切换前的独立 home / 离线 JSONL 实现；[个人辅助 MCP 验收](../../tasks/finished_archived/claude-assist-2026-09-12.md)只证明其注明版本与环境下的辅助模式范围。

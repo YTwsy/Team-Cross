@@ -1,0 +1,32 @@
+{
+  "result": "passed",
+  "checkedAt": 1790873264.6664581,
+  "receipt": {
+    "status": "saved",
+    "replyId": "1ded832b-4d06-4c38-bfb8-132ba58177f6",
+    "requestId": "ui-core-82f80027-52c2-4b03-9c72-75cb083bab95",
+    "text": "UI-CORE-REPLY:6e225b73-efe0-4b5c-9645-55570ade3741"
+  },
+  "desktopAdapterPid": 95485,
+  "desktopParentPid": 37241,
+  "desktopParentCommand": "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true",
+  "adapterRun": "a5d2cab1-0cf7-4d0f-9ab4-1fe2ef759b52",
+  "resourceSha256": "ef85d858585bb3296ef4aa7b81c2c7abfec2b2b77a64c5f77e5f22b918da657c",
+  "checks": {
+    "userObservedSavedReceipt": true,
+    "receiptMatchesDesktopProcessLog": true,
+    "desktopProcessIsSeparateFromNativeSmokeTest": true,
+    "resourceMatchesNewPanel": true,
+    "materialAndAnnotationReadInSameDesktopRun": true,
+    "replyPersistedExactlyOnce": true,
+    "readReplyDidNotSendProviderInput": true,
+    "executionNotEnabled": true,
+    "networkGuardDeniedOtherPorts": true
+  },
+  "nativeCalls": [
+    "thread/read",
+    "thread/turns/list"
+  ],
+  "visualEvidence": "user receipt; screenshot unavailable because main window safety restriction and current MCP Apps tab list empty",
+  "uiEntrypointsSeparatelyVerified": false
+}

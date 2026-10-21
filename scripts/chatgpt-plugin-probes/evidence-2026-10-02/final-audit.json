@@ -1,0 +1,37 @@
+{
+  "result": "passed",
+  "checks": {
+    "desktopReadAndSavePassed": true,
+    "coreStorageFinalCheckPassed": true,
+    "fixtureTestExitedZero": true,
+    "noProviderInputOrFork": true,
+    "ownedProcessesStopped": true,
+    "fixturePortClosed": true,
+    "desktopAppServerPreserved": true,
+    "onlyOwnedPluginAndMarketplaceRemoved": true
+  },
+  "remainingTestProcesses": [],
+  "verifiedPids": [
+    92813,
+    92814,
+    93649,
+    94081,
+    94112,
+    94135,
+    94529,
+    94588,
+    94614,
+    94667,
+    95425,
+    95485,
+    95891,
+    95933,
+    95993,
+    96009,
+    96217,
+    96814
+  ],
+  "desktopParentPid": 37241,
+  "replyId": "1ded832b-4d06-4c38-bfb8-132ba58177f6",
+  "checkedAt": 1790873366.044988
+}

@@ -1,0 +1,36 @@
+{
+  "scope": "real loopback events CLI gateway plus isolated Core; no Cloud host or webhook",
+  "discover": {
+    "capabilities": {
+      "events": {},
+      "tools": {}
+    },
+    "resultType": "complete",
+    "serverInfo": {
+      "name": "teamcross-events",
+      "version": "1"
+    },
+    "supportedVersions": [
+      "2026-07-28"
+    ]
+  },
+  "events": [
+    "space.brief.updated",
+    "space.discussion.updated",
+    "space.request.completed"
+  ],
+  "tools": [
+    "read_space_event",
+    "finish_space_event",
+    "read_space_brief",
+    "get_space_request",
+    "read_space_discussion",
+    "read_space_material"
+  ],
+  "spaceScopedRead": true,
+  "crossSpaceRejected": true,
+  "coreRoutesRejected": true,
+  "originRejected": true,
+  "coreBearerRequired": true,
+  "pauseResumeRevoke": true
+}

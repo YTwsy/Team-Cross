@@ -49,7 +49,10 @@ func TestMCPManagementCreatesInvitesJoinsAndResumesSameFork(t *testing.T) {
 			}
 			params["requestId"], params["previewHash"] = p["requestId"], p["previewHash"]
 			c := invokeObject(t, owner, "create_collaboration", params)
-			id := c["id"].(string)
+			id, executionID := c["spaceId"].(string), c["executionId"].(string)
+			if p["spaceId"] != id || p["executionId"] != executionID {
+				t.Fatal("preview lost the identities required for creation recovery")
+			}
 			if c["sessionId"] == f.source.ID || c["state"] != "ready" {
 				t.Fatal(c)
 			}
@@ -66,12 +69,12 @@ func TestMCPManagementCreatesInvitesJoinsAndResumesSameFork(t *testing.T) {
 			if !strings.HasPrefix(shared["invitationUrl"].(string), "teamcross://join?invite=") {
 				t.Fatal("missing App link")
 			}
-			read := invokeObject(t, owner, "get_collaboration", map[string]any{"id": id})
+			read := invokeObject(t, owner, "get_collaboration", map[string]any{"id": id, "executionId": executionID})
 			if read["invitation"] != nil {
 				t.Fatal("query exposed invitation")
 			}
 			preview := invokeObject(t, guest, "preview_invitation", map[string]any{"invitation": invitation})
-			if preview["runtimeMode"] != "restricted" || len(b.joined) != 0 {
+			if preview["readOnly"] != true || len(b.joined) != 0 {
 				t.Fatal("preview joined")
 			}
 			joined := invokeObject(t, guest, "join_collaboration", map[string]any{"invitation": invitation})
@@ -89,11 +92,11 @@ func TestMCPManagementCreatesInvitesJoinsAndResumesSameFork(t *testing.T) {
 					t.Fatal("guest performed owner operation", tool)
 				}
 			}
-			if _, err := guest.Invoke(ctx, "open_client", map[string]any{"id": guestID, "client": "tui", "launch": false}); err == nil {
+			if _, err := guest.Invoke(ctx, "open_client", map[string]any{"id": guestID, "executionId": executionID, "client": "tui", "launch": false}); err == nil {
 				t.Fatal("non-writer opened direct client")
 			}
-			invokeObject(t, owner, "handoff_input", map[string]any{"id": id, "epoch": c["epoch"]})
-			plan := invokeObject(t, guest, "open_client", map[string]any{"id": guestID, "client": "tui", "launch": false})
+			invokeObject(t, owner, "handoff_input", map[string]any{"id": id, "executionId": executionID, "epoch": c["epoch"]})
+			plan := invokeObject(t, guest, "open_client", map[string]any{"id": guestID, "executionId": executionID, "client": "tui", "launch": false})
 			if plan["sessionId"] != c["sessionId"] || plan["launched"] != false {
 				t.Fatal(plan)
 			}
@@ -103,7 +106,7 @@ func TestMCPManagementCreatesInvitesJoinsAndResumesSameFork(t *testing.T) {
 			}
 			invokeObject(t, guest, "leave_collaboration", map[string]any{"id": guestID})
 			invokeObject(t, owner, "end_sharing", map[string]any{"id": id})
-			resumed := invokeObject(t, owner, "resume_collaboration", map[string]any{"id": id})
+			resumed := invokeObject(t, owner, "resume_collaboration", map[string]any{"id": id, "executionId": executionID})
 			if resumed["sessionId"] != c["sessionId"] || resumed["sharing"] != false || f.forks != 1 {
 				t.Fatal("resume changed fork or sharing")
 			}

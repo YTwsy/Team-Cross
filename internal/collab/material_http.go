@@ -114,6 +114,9 @@ func (s *Session) materialUploadHTTP(w http.ResponseWriter, r *http.Request) boo
 	return true
 }
 func (s *Session) materialOperation(ctx context.Context, action string, in any) (any, error) {
+	if s.space != nil {
+		return s.space.materialOperation(ctx, action, in)
+	}
 	switch action {
 	case "materials":
 		s.mu.Lock()

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"teamcross/internal/materialstore"
+	"teamcross/internal/mcpevents"
 	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/runtimeconfig"
@@ -31,6 +32,7 @@ type Config struct {
 	ClaudeBinary, ClaudeHome          string
 	Loopback                          bool
 	StartProcess                      func(string, string, string, string) (Runtime, error)
+	ConnectProcess                    func(context.Context, string, string, string, string) (Runtime, error)
 }
 type Source struct {
 	Provider        string  `json:"provider,omitempty"`
@@ -58,6 +60,8 @@ type CreateInput struct {
 	RequestID     string             `json:"requestId"`
 }
 type Preview struct {
+	SpaceID           string             `json:"spaceId,omitempty"`
+	ExecutionID       string             `json:"executionId,omitempty"`
 	RuntimeMode       runtimeconfig.Mode `json:"runtimeMode"`
 	SourceFingerprint string             `json:"-"`
 	TargetDirectory   string             `json:"targetDirectory"`
@@ -68,15 +72,16 @@ type Preview struct {
 	Hash              string             `json:"previewHash"`
 }
 type Annotation struct {
-	Materials []MaterialReference `json:"materials,omitempty"`
-	ID        string              `json:"id"`
-	Text      string              `json:"text"`
-	Reference string              `json:"reference,omitempty"`
-	Target    *AnnotationTarget   `json:"target,omitempty"`
-	Author    string              `json:"author"`
-	AuthorID  string              `json:"authorId"`
-	CreatedAt time.Time           `json:"createdAt"`
-	Replies   []AnnotationReply   `json:"replies,omitempty"`
+	ExecutionID string              `json:"executionId,omitempty"`
+	Materials   []MaterialReference `json:"materials,omitempty"`
+	ID          string              `json:"id"`
+	Text        string              `json:"text"`
+	Reference   string              `json:"reference,omitempty"`
+	Target      *AnnotationTarget   `json:"target,omitempty"`
+	Author      string              `json:"author"`
+	AuthorID    string              `json:"authorId"`
+	CreatedAt   time.Time           `json:"createdAt"`
+	Replies     []AnnotationReply   `json:"replies,omitempty"`
 }
 
 // Replies belong to a root annotation, never to another reply or source range.
@@ -100,6 +105,7 @@ type AnnotationReplyInput struct {
 // AnnotationTarget describes the content as it was displayed when selected.
 // ContentHash is a SHA-256 of the complete file or displayed diff, not Git HEAD.
 type AnnotationTarget struct {
+	ExecutionID  string `json:"executionId,omitempty"`
 	MaterialID   string `json:"materialId,omitempty"`
 	Version      int    `json:"version,omitempty"`
 	Kind         string `json:"kind"`
@@ -136,6 +142,7 @@ type Command struct {
 	Error  string          `json:"error,omitempty"`
 }
 type ExecutionRecord struct {
+	Paused              bool               `json:"paused,omitempty"`
 	RequestID           string             `json:"requestId"`
 	RuntimeMode         runtimeconfig.Mode `json:"runtimeMode"`
 	ProviderDefaultHome bool               `json:"providerDefaultHome,omitempty"`
@@ -160,8 +167,10 @@ type ExecutionRecord struct {
 	Commands            map[string]Command `json:"commands,omitempty"`
 }
 type Record struct {
-	Materials        []Material `json:"materials"`
-	Schema           int        `json:"schema"`
+	SpaceID          string           `json:"spaceId,omitempty"`
+	Workbench        *WorkbenchRecord `json:"workbench,omitempty"`
+	Materials        []Material       `json:"materials"`
+	Schema           int              `json:"schema"`
 	*ExecutionRecord `json:"execution,omitempty"`
 	ID               string       `json:"id"`
 	Title            string       `json:"title"`
@@ -185,63 +194,79 @@ type direct struct {
 
 func (d *direct) close() { d.once.Do(func() { close(d.done) }) }
 
+// Space and its executions share a short-lived state lock. Provider calls never
+// hold it; runtime state, writers, command ledgers and clients remain independent.
 type Session struct {
-	mu               sync.Mutex
-	materialUploadMu sync.Mutex
-	record           Record
-	app              *App
-	materialStore    *materialstore.Store
-	process          Runtime
-	writer           string
-	busy             bool
-	nativeWaiting    string
-	nativeLastWrite  time.Time
-	online           bool
-	epoch            uint64
-	share            *sharing.Runtime
-	sharePreparing   bool
-	shareTransport   sharing.Transport
-	shareGeneration  uint64
-	shareCancel      context.CancelFunc
-	releaseWhenIdle  bool
-	annotationAccess bool
-	stopping         chan struct{}
-	activeCalls      int
-	generation       uint64
-	closed           bool
-	direct           *direct
-	events           []Event
-	sequence         uint64
-	approvals        map[string]Approval
-	listener         net.Listener
-	server           *http.Server
-	endpoint         string
-	starting         bool
-	presence         map[string]memberPresence
+	space             *Session
+	executions        map[string]*Session
+	workbenchPresence map[string]targetPresence
+	receiverSpace     string
+	receiverCreation  string
+	receiverActionMu  sync.Mutex
+	receiverPaused    bool
+	mu                *sync.Mutex
+	materialUploadMu  sync.Mutex
+	record            Record
+	app               *App
+	materialStore     *materialstore.Store
+	process           Runtime
+	writer            string
+	busy              bool
+	activeTurnID      string
+	nativeWaiting     string
+	nativeLastWrite   time.Time
+	online            bool
+	epoch             uint64
+	share             *sharing.Runtime
+	sharePreparing    bool
+	shareTransport    sharing.Transport
+	shareGeneration   uint64
+	shareCancel       context.CancelFunc
+	releaseWhenIdle   bool
+	annotationAccess  bool
+	stopping          chan struct{}
+	activeCalls       int
+	generation        uint64
+	closed            bool
+	direct            *direct
+	events            []Event
+	sequence          uint64
+	approvals         map[string]Approval
+	listener          net.Listener
+	server            *http.Server
+	endpoint          string
+	starting          bool
+	presence          map[string]memberPresence
 }
+type executionEndpoint struct {
+	url    string
+	server *http.Server
+}
+
 type Joined struct {
-	app           *App
-	ended         bool
-	mu            sync.Mutex
-	ID            string
-	Invitation    sharing.Invitation
-	Credential    string
-	confirmed     bool
-	URL           string
-	Client        *http.Client
-	Connection    *sharing.Connection
-	Last          map[string]any
-	Error         string
-	listener      net.Listener
-	server        *http.Server
-	endpoint      string
-	left          bool
-	closed        bool
-	closeOnce     sync.Once
-	done          chan struct{}
-	heartbeatOnce sync.Once
-	statusChecked bool
-	refreshing    bool
+	executionEndpoints map[string]*executionEndpoint
+	app                *App
+	ended              bool
+	mu                 sync.Mutex
+	ID                 string
+	Invitation         sharing.Invitation
+	Credential         string
+	confirmed          bool
+	URL                string
+	Client             *http.Client
+	Connection         *sharing.Connection
+	Last               map[string]any
+	Error              string
+	listener           net.Listener
+	server             *http.Server
+	endpoint           string
+	left               bool
+	closed             bool
+	closeOnce          sync.Once
+	done               chan struct{}
+	heartbeatOnce      sync.Once
+	statusChecked      bool
+	refreshing         bool
 }
 type Settings struct {
 	ClaudeBinary string `json:"claudeBinary"`
@@ -250,27 +275,45 @@ type Settings struct {
 	UILanguage   string `json:"uiLanguage,omitempty"`
 }
 type App struct {
-	libraryMu     sync.Mutex
-	library       libraryState
-	spaceCreateMu sync.Mutex
-	shareRequests map[string]*shareRequest
-	shareWorkers  sync.WaitGroup
-	joinMu        sync.Mutex
-	mcpSetupMu    sync.Mutex
-	retiredShares []*sharing.Runtime
-	mu            sync.Mutex
-	Config        Config
-	Host          string
-	URL           string
-	Token         string
-	settings      Settings
-	claudeClients map[string]*nativeclaude.Client
-	reader        Runtime
-	readerMu      sync.Mutex
-	sessions      map[string]*Session
-	joined        map[string]*Joined
-	closed        bool
-	pending       map[string]pendingInvite
-	mcpObserved   map[string]time.Time
-	mcpProbed     bool
+	events          *mcpevents.Manager
+	eventsCancel    context.CancelFunc
+	eventsWG        sync.WaitGroup
+	workbenchMu     sync.Mutex
+	workbenchCancel context.CancelFunc
+	workbenchWG     sync.WaitGroup
+	workbenchWake   chan struct{}
+	receivers       map[string]*Session
+	agentMu         sync.Mutex
+	agentConnectMu  sync.Mutex
+	agentProxies    map[string]Runtime
+	agents          agentState
+	agentReceivers  map[string]*agentReceiver
+	agentDone       chan struct{}
+	libraryMu       sync.Mutex
+	library         libraryState
+	spaceCreateMu   sync.Mutex
+	shareRequests   map[string]*shareRequest
+	shareWorkers    sync.WaitGroup
+	joinMu          sync.Mutex
+	mcpSetupMu      sync.Mutex
+	retiredShares   []*sharing.Runtime
+	mu              sync.Mutex
+	Config          Config
+	Host            string
+	URL             string
+	Token           string
+	settings        Settings
+	claudeClients   map[string]*nativeclaude.Client
+	reader          Runtime
+	readerMu        sync.Mutex
+	sessions        map[string]*Session
+	executions      map[string]*Session
+	creationMu      sync.Mutex
+	directoryMu     sync.Mutex
+	directoryOwners map[string]string
+	joined          map[string]*Joined
+	closed          bool
+	pending         map[string]pendingInvite
+	mcpObserved     map[string]time.Time
+	mcpProbed       bool
 }

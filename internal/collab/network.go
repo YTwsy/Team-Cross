@@ -21,7 +21,16 @@ import (
 	"teamcross/internal/sharing"
 )
 
-func (s *Session) endShareLocked() {
+func (s *Session) endShareLocked() error {
+	if s.space != nil {
+		return s.endExecutionLocked()
+	}
+	var firstError error
+	for _, child := range s.executions {
+		if err := child.endExecutionLocked(); err != nil && firstError == nil {
+			firstError = err
+		}
+	}
 	if s.shareCancel != nil {
 		s.shareCancel()
 		s.shareCancel = nil
@@ -29,10 +38,10 @@ func (s *Session) endShareLocked() {
 	s.sharePreparing = false
 	s.shareTransport = ""
 	s.shareGeneration++
-	if s.share != nil {
-		s.share.Revoke()
+	if s.sharedRuntime() != nil {
+		s.sharedRuntime().Revoke()
 		s.app.mu.Lock()
-		s.app.retiredShares = append(s.app.retiredShares, s.share)
+		s.app.retiredShares = append(s.app.retiredShares, s.sharedRuntime())
 		s.app.mu.Unlock()
 		s.share = nil
 	}
@@ -45,14 +54,22 @@ func (s *Session) endShareLocked() {
 	s.epoch++
 	s.releaseWhenIdle = true
 	s.annotationAccess = false
+	return firstError
 }
 
 func (s *Session) Share(ctx context.Context, requested string) error {
+	if s.space != nil {
+		return s.space.Share(ctx, requested)
+	}
 	transport, err := sharing.ParseTransport(requested)
 	if err != nil {
 		return err
 	}
 	s.mu.Lock()
+	if s.record.State == "unsupported" {
+		s.mu.Unlock()
+		return fmt.Errorf("旧空间格式不受支持，原数据已保留；请新建空间")
+	}
 	if s.sharePreparing {
 		if s.shareTransport == transport {
 			s.mu.Unlock()
@@ -61,8 +78,8 @@ func (s *Session) Share(ctx context.Context, requested string) error {
 		s.mu.Unlock()
 		return problem.New("sharing_preparing", "另一种连接方式正在准备", "请等待完成或先结束共享")
 	}
-	if s.share != nil {
-		if s.share.Transport() != transport {
+	if s.sharedRuntime() != nil {
+		if s.sharedRuntime().Transport() != transport {
 			s.mu.Unlock()
 			return problem.New("sharing_active", "空间已使用另一种连接方式", "请先结束共享再切换；切换会撤销所有成员")
 		}
@@ -88,11 +105,8 @@ func (s *Session) Share(ctx context.Context, requested string) error {
 	s.shareGeneration++
 	generation := s.shareGeneration
 	id, title := s.record.ID, s.record.Title
-	readOnly := s.record.ExecutionRecord == nil
-	mode := runtimeconfig.Mode("")
-	if !readOnly {
-		mode = s.record.RuntimeMode
-	}
+	// A space link grants shared reading. Native writes require per-session input ownership.
+	readOnly, mode := true, runtimeconfig.Mode("")
 	host, loopback := s.app.Host, s.app.Config.Loopback
 	s.mu.Unlock()
 
@@ -139,6 +153,14 @@ func (s *Session) ActionFor(ctx context.Context, action, memberID string, expect
 		return fmt.Errorf("空间尚未启用共同执行")
 	}
 	switch action {
+	case "pause":
+		previous := s.record.Paused
+		s.record.Paused = true
+		if err := s.saveLocked(); err != nil {
+			s.record.Paused = previous
+			return err
+		}
+		s.releaseWhenIdle = true
 	case "end":
 		if s.record.ExecutionRecord == nil {
 			previous := s.record.State
@@ -148,19 +170,17 @@ func (s *Session) ActionFor(ctx context.Context, action, memberID string, expect
 				return err
 			}
 		}
-		s.endShareLocked()
+		return s.endShareLocked()
 	case "handoff":
-		if s.share == nil {
+		if s.sharedRuntime() == nil {
 			return fmt.Errorf("请先创建邀请")
 		}
 		target, err := s.handoffMemberLocked(memberID)
 		if err != nil {
 			return err
 		}
-		if !s.share.HasExecutionAccess(target) {
-			return fmt.Errorf("请先向该成员开放执行访问")
-		}
-		if !s.online || s.writer != "owner" {
+
+		if !s.online || s.record.Paused || s.writer != "owner" {
 			return problem.New("input_changed", "当前无法交出输入", "请刷新协作状态")
 		}
 		if s.busy {
@@ -190,10 +210,39 @@ func (s *Session) ActionFor(ctx context.Context, action, memberID string, expect
 func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 	memberID := sharing.MemberID(r.Context())
 	s.mu.Lock()
-	allowed := s.share != nil && sharing.Authorized(r.Context(), s.share)
+	allowed := s.sharedRuntime() != nil && sharing.Authorized(r.Context(), s.sharedRuntime())
 	s.mu.Unlock()
 	if !allowed {
 		http.Error(w, "共享已结束", http.StatusGone)
+		return
+	}
+	if s.space == nil && strings.HasPrefix(r.URL.Path, "/v2/sessions/") {
+		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/v2/sessions/"), "/")
+		if len(parts) != 2 {
+			http.NotFound(w, r)
+			return
+		}
+		s.mu.Lock()
+		child := s.executions[parts[0]]
+		s.mu.Unlock()
+		if child == nil {
+			http.NotFound(w, r)
+			return
+		}
+		copy := r.Clone(r.Context())
+		copy.URL.Path = "/v2/" + parts[1]
+		child.remoteHTTP(w, copy)
+		return
+	}
+	if s.space != nil {
+		switch r.URL.Path {
+		case "/v2/status", "/v2/context", "/v2/connect", "/v2/rpc", "/v2/respond", "/v2/return", "/v2/request_input", "/v2/cancel_input", "/v2/annotations", "/v2/annotation-replies":
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}
+	if s.remoteWorkbenchHTTP(w, r) {
 		return
 	}
 	if s.materialUploadHTTP(w, r) {
@@ -206,9 +255,12 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == "POST" && r.URL.Path == "/v2/leave" {
 		s.mu.Lock()
-		ok := s.share != nil && s.share.Leave(r.Context())
+		ok := s.sharedRuntime() != nil && s.sharedRuntime().Leave(r.Context())
 		if ok {
 			s.removeMemberLocked(memberID)
+			for _, child := range s.executions {
+				child.removeMemberLocked(memberID)
+			}
 		}
 		s.mu.Unlock()
 		respond(w, map[string]bool{"ok": ok}, nil)
@@ -224,7 +276,7 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		s.mu.Lock()
 		var e error
-		if s.share == nil || !sharing.Authorized(r.Context(), s.share) {
+		if s.sharedRuntime() == nil || !sharing.Authorized(r.Context(), s.sharedRuntime()) {
 			e = problem.New("sharing_ended", "共享已结束", "请获取新邀请")
 		} else if r.URL.Path == "/v2/presence" {
 			p := s.presence[memberID]
@@ -234,8 +286,10 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 				p.Seen = time.Time{}
 			}
 			s.presence[memberID] = p
-		} else if s.record.ExecutionRecord == nil || !sharing.ExecutionAuthorized(r.Context(), s.share) {
+		} else if s.record.ExecutionRecord == nil || !sharing.ExecutionAuthorized(r.Context(), s.sharedRuntime(), s.record.ID) {
 			e = fmt.Errorf("空间尚未启用共同执行")
+		} else if s.record.Paused && r.URL.Path == "/v2/request_input" {
+			e = fmt.Errorf("协作会话已暂停，请先由发起者恢复")
 		} else if in.Epoch != s.epoch || s.writer == memberID {
 			e = problem.New("input_changed", "输入归属已变化", "请刷新后重试")
 		} else {
@@ -263,14 +317,14 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		respond(w, out, nil)
 		return
 	}
-	// Native endpoints use a cancellable grant separate from space membership.
-	if r.URL.Path == "/v2/connect" || r.URL.Path == "/v2/rpc" || r.URL.Path == "/v2/respond" || r.URL.Path == "/v2/return" || (r.URL.Path == "/v2/context" && r.URL.Query().Get("kind") != "annotations") {
+	// Bind native calls to their exact session while keeping membership cancellation.
+	if (s.space != nil && (r.URL.Path == "/v2/annotations" || r.URL.Path == "/v2/annotation-replies" || r.URL.Path == "/v2/context")) || r.URL.Path == "/v2/connect" || r.URL.Path == "/v2/rpc" || r.URL.Path == "/v2/respond" || r.URL.Path == "/v2/return" || (r.URL.Path == "/v2/context" && r.URL.Query().Get("kind") != "annotations") {
 		s.mu.Lock()
-		ctx, cancel, ok := sharing.ExecutionContext(r.Context(), s.share)
+		ctx, cancel, ok := sharing.ExecutionContext(r.Context(), s.sharedRuntime(), s.record.ID)
 		s.mu.Unlock()
 		defer cancel()
 		if !ok {
-			respond(w, nil, problem.New("execution_access_required", "尚未获得执行访问", "请由发起者在成员列表开放"))
+			respond(w, nil, problem.New("sharing_ended", "成员资格或会话目标已失效", "请刷新空间后重试"))
 			return
 		}
 		r = r.WithContext(ctx)
@@ -288,7 +342,7 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		s.mu.Lock()
 		var e error
-		if !sharing.ExecutionAuthorized(r.Context(), s.share) || in.Epoch != s.epoch || s.writer != memberID {
+		if !sharing.ExecutionAuthorized(r.Context(), s.sharedRuntime(), s.record.ID) || in.Epoch != s.epoch || s.writer != memberID {
 			e = fmt.Errorf("输入状态已变化，请刷新")
 		} else if s.busy {
 			e = fmt.Errorf("请等待当前轮完成后交还输入")
@@ -696,6 +750,10 @@ func (j *Joined) stopLocked() {
 	if j.server != nil {
 		_ = j.server.Close()
 	}
+	for _, endpoint := range j.executionEndpoints {
+		_ = endpoint.server.Close()
+	}
+	j.executionEndpoints = nil
 	if j.Connection != nil {
 		_ = j.Connection.Close()
 		j.Connection = nil
@@ -737,6 +795,9 @@ func (j *Joined) leave(ctx context.Context) error {
 	return j.app.saveJoined()
 }
 func (j *Joined) attach(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "请选择具体协作会话", 400)
+}
+func (j *Joined) attachExecution(w http.ResponseWriter, r *http.Request, executionID string) {
 	if r.Header.Get("Origin") != "" {
 		http.Error(w, "请使用原生客户端", 403)
 		return
@@ -749,7 +810,7 @@ func (j *Joined) attach(w http.ResponseWriter, r *http.Request) {
 	}
 	url, client, credential := j.URL, j.Client, j.Credential
 	j.mu.Unlock()
-	upstream, _, e := websocket.Dial(r.Context(), strings.Replace(url, "https:", "wss:", 1)+"/v2/connect", &websocket.DialOptions{HTTPClient: client, HTTPHeader: http.Header{"Authorization": []string{"Bearer " + credential}}})
+	upstream, _, e := websocket.Dial(r.Context(), strings.Replace(url, "https:", "wss:", 1)+remoteExecutionPath(executionID, "connect"), &websocket.DialOptions{HTTPClient: client, HTTPHeader: http.Header{"Authorization": []string{"Bearer " + credential}}})
 	if e != nil {
 		http.Error(w, e.Error(), 502)
 		return
@@ -773,7 +834,7 @@ func (j *Joined) attach(w http.ResponseWriter, r *http.Request) {
 		_ = downstream.CloseNow()
 	}()
 	done := make(chan struct{}, 2)
-	localClient := &localClient{app: j.app, id: j.ID, emit: func(m nativecodex.Message) {
+	localClient := &localClient{app: j.app, id: executionAddress(j.ID, executionID), emit: func(m nativecodex.Message) {
 		payload, _ := json.Marshal(m)
 		_ = downstream.Write(ctx, websocket.MessageText, payload)
 	}}
@@ -823,11 +884,14 @@ func (j *Joined) attach(w http.ResponseWriter, r *http.Request) {
 }
 func (a *App) endpoint(id string) (string, error) {
 	a.mu.Lock()
-	s, j := a.sessions[id], a.joined[id]
+	s, j, executionID := a.targetLocked(id)
 	a.mu.Unlock()
 	if s != nil {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		if s.record.ExecutionRecord == nil {
+			return "", fmt.Errorf("请选择具体协作会话")
+		}
 		if s.writer != "owner" {
 			return "", fmt.Errorf("请先接回输入")
 		}
@@ -850,18 +914,24 @@ func (a *App) endpoint(id string) (string, error) {
 		if j.left || j.ended || j.closed || !j.confirmed {
 			return "", fmt.Errorf("请先加入有效的协作")
 		}
-		if j.endpoint != "" {
-			return j.endpoint, nil
+		if executionID == "" {
+			return "", fmt.Errorf("请选择具体协作会话")
+		}
+		if endpoint := j.executionEndpoints[executionID]; endpoint != nil {
+			return endpoint.url, nil
 		}
 		l, e := net.Listen("tcp4", "127.0.0.1:0")
 		if e != nil {
 			return "", e
 		}
-		j.listener = l
-		j.endpoint = "ws://" + l.Addr().String()
-		j.server = &http.Server{ReadHeaderTimeout: 10 * time.Second, Handler: http.HandlerFunc(j.attach)}
-		go func() { _ = j.server.Serve(l) }()
-		return j.endpoint, nil
+		endpoint := &executionEndpoint{url: "ws://" + l.Addr().String()}
+		endpoint.server = &http.Server{ReadHeaderTimeout: 10 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { j.attachExecution(w, r, executionID) })}
+		if j.executionEndpoints == nil {
+			j.executionEndpoints = map[string]*executionEndpoint{}
+		}
+		j.executionEndpoints[executionID] = endpoint
+		go func() { _ = endpoint.server.Serve(l) }()
+		return endpoint.url, nil
 	}
 	return "", fmt.Errorf("没有找到协作")
 }

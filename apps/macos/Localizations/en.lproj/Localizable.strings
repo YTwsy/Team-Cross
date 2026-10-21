@@ -40,3 +40,5 @@
 "Team Cross · 协作速览" = "Team Cross · Quick Look";
 "无法建立 App 本机通信入口，请稍后重试。" = "Could not establish local app communication. Try again later.";
 "无法接收 App 打开请求，请稍后重试。" = "Could not receive app open requests. Try again later.";
+
+"ChatGPT 插件…" = "ChatGPT plugin…";

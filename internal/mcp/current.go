@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -43,8 +45,35 @@ func callContext(ctx context.Context, provider string, meta map[string]json.RawM
 		// from an unrelated launcher and must never be used here.
 		c.SourceID = os.Getenv("CLAUDE_CODE_SESSION_ID")
 		_ = json.Unmarshal(meta["claudecode/toolUseId"], &c.ToolUseID)
+	case "":
+		// ChatGPT supplies an opaque correlation key, not a native thread ID.
+		// Retain only its digest; local Core authentication remains authoritative.
+		var session, subject, organization string
+		_ = json.Unmarshal(meta["openai/session"], &session)
+		_ = json.Unmarshal(meta["openai/subject"], &subject)
+		_ = json.Unmarshal(meta["openai/organization"], &organization)
+		if session != "" && len(session) <= 512 && len(subject) <= 512 && len(organization) <= 512 {
+			key, _ := json.Marshal([]string{organization, subject, session})
+			digest := sha256.Sum256(key)
+			c.Provider, c.SourceID = "chatgpt", hex.EncodeToString(digest[:])
+		}
 	}
 	return context.WithValue(ctx, callerSourceKey{}, c)
+}
+
+// Conversation identity permits association only. Native source operations
+// continue to require callerSource and therefore cannot use a ChatGPT key.
+func conversationCaller(ctx context.Context) (CallerSource, error) {
+	c, _ := ctx.Value(callerSourceKey{}).(CallerSource)
+	if c.Provider == "chatgpt" && ChatGPTConversation(c) {
+		return c, nil
+	}
+	return callerSource(ctx)
+}
+
+func ChatGPTConversation(c CallerSource) bool {
+	digest, err := hex.DecodeString(c.SourceID)
+	return c.Provider == "chatgpt" && err == nil && len(digest) == sha256.Size && c.TurnID == "" && c.ToolUseID == ""
 }
 
 func callerSource(ctx context.Context) (CallerSource, error) {
@@ -69,7 +98,7 @@ func currentTools() []map[string]any {
 		tool("get_current_source", "从原生客户端提供的会话身份核对当前 Session，不猜最近会话。Claude 另核对本次工具调用确实属于该 transcript。仅查看，不创建。", map[string]any{}, []string{}, true),
 		tool("preview_current_share", "预览当前 Session 的分享：本轮结束后创建新 fork，包含本轮完整内容。选择目录、权限模式和传输并展示结果；保留 requestId/previewHash。当前轮仍在运行时不创建。", preview, []string{"workspaceMode", "transport"}, true),
 		tool("share_current_session", "登记已确认预览的当前 Session 分享请求。立即返回请求状态，不等待自己所在轮次结束；随后结束本轮答复，让 Core 在本轮完成后创建并邀请。不要在本轮循环等待状态，不要把已登记说成已生成邀请。之后用 get_share_request 查询，ready 后 create_invitation 取回邀请。", share, []string{"workspaceMode", "transport", "requestId", "previewHash"}, false),
-		tool("get_share_request", "查询等待本轮完成的分享请求；只读，不重试创建，不返回邀请秘密。ready 后使用 collaborationId 调用 create_invitation 取回邀请；失败先看 recovery。", id, []string{"id"}, true),
+		tool("get_share_request", "查询等待本轮完成的分享请求；只读，不重试创建，不返回邀请秘密。ready 后使用 spaceId 调用 create_invitation，以 spaceId 和 executionId 查询会话 取回邀请；失败先看 recovery。", id, []string{"id"}, true),
 		tool("cancel_share_request", "取消尚在等待本轮结束的分享请求。已经开始创建时不假装撤销或删除已生成资源，应查询协作后按需结束共享。", id, []string{"id"}, false),
 	}
 }

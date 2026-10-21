@@ -9,7 +9,11 @@ import (
 // Closing this Session's dedicated app-server is the native writer-lock release
 // boundary. Unsubscribing alone can leave the thread loaded in Codex.
 func (s *Session) releaseIfIdleLocked() {
-	if !s.releaseWhenIdle || s.closed || s.record.State == "preparing" || s.share != nil || s.sharePreparing || s.direct != nil || s.starting || s.stopping != nil || s.activeCalls != 0 || s.process == nil {
+	if s.record.ExecutionRecord != nil && s.record.Paused && s.releaseWhenIdle && !s.busy && len(s.approvals) == 0 && s.activeCalls == 0 && s.direct != nil {
+		s.direct.close()
+		s.direct = nil
+	}
+	if !s.releaseWhenIdle || s.closed || s.record.State == "preparing" || s.sharePreparing || s.direct != nil || s.starting || s.stopping != nil || s.activeCalls != 0 || s.process == nil {
 		return
 	}
 	if s.process.Alive() && (s.busy || len(s.approvals) != 0) {
@@ -24,6 +28,7 @@ func (s *Session) releaseIfIdleLocked() {
 	s.generation++ // A late disconnect/turn notification cannot affect a restart.
 	go func() {
 		p.Close() // Wait for process exit without holding Session.mu.
+		s.releaseDirectory()
 		s.mu.Lock()
 		s.stopping = nil
 		close(done)
@@ -42,11 +47,23 @@ type directKey struct{}
 
 func (s *Session) callerValidLocked(ctx context.Context) bool {
 	if token, ok := ctx.Value(runtimeAnnotationKey{}).(string); ok {
-		if s.closed || !s.online || s.process == nil || !s.annotationAccess || token == "" || token != s.record.AnnotationToken {
+		validRuntime := func(child *Session) bool {
+			return !child.closed && child.record.ExecutionRecord != nil && child.online && child.process != nil && child.annotationAccess && token != "" && token == child.record.AnnotationToken
+		}
+		valid := validRuntime(s)
+		if s.space == nil && s.record.ExecutionRecord == nil {
+			for _, child := range s.executions {
+				if validRuntime(child) {
+					valid = true
+					break
+				}
+			}
+		}
+		if !valid {
 			return false
 		}
 	}
-	if !sharing.Authorized(ctx, s.share) {
+	if !sharing.Authorized(ctx, s.sharedRuntime()) {
 		return false
 	}
 	if d, ok := ctx.Value(directKey{}).(*direct); ok {

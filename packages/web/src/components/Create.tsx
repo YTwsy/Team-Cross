@@ -1,3 +1,4 @@
+import { sessionStorage } from "../storage";
 import { t, tr } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import { api, errorText, useResource } from "../api";
@@ -26,7 +27,12 @@ import {
 export function Create({
   spaceId,
   embedded,
-}: { spaceId?: string; embedded?: boolean } = {}) {
+  onCreated,
+}: {
+  spaceId?: string;
+  embedded?: boolean;
+  onCreated?: (session: Collaboration) => void;
+} = {}) {
   const [provider, setProvider] = useState<Provider>("codex");
   const [step, setStep] = useState(1);
   const [search, setSearch] = useState("");
@@ -105,20 +111,26 @@ export function Create({
         previewHash: preview.previewHash,
         requestId: requestId.current,
       });
+      const parentId = c.spaceId || spaceId || c.id;
       if (!spaceId) {
-        sessionStorage.setItem(`teamcross.transport.${c.id}`, shareTransport);
+        sessionStorage.setItem(
+          `teamcross.transport.${parentId}`,
+          shareTransport,
+        );
         try {
-          await api(`collaborations/${c.id}/action`, {
+          await api(`collaborations/${parentId}/action`, {
             action: "share",
             transport: shareTransport,
             epoch: c.epoch,
           });
         } catch (e) {
-          sessionStorage.setItem(`teamcross.create.${c.id}`, errorText(e));
+          sessionStorage.setItem(`teamcross.create.${parentId}`, errorText(e));
         }
-        sessionStorage.setItem(`teamcross.invite.${c.id}`, "1");
+        sessionStorage.setItem(`teamcross.invite.${parentId}`, "1");
       }
-      location.hash = `/collaborations/${c.id}`;
+      if (onCreated) onCreated(c);
+      else
+        location.hash = `/collaborations/${parentId}/sessions/${c.executionId || c.id}`;
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -135,7 +147,7 @@ export function Create({
             {t("协作空间") + " "}
           </a>
           <PageHeading
-            title={spaceId ? t("启用共同执行") : t("发起协作")}
+            title={spaceId ? t("新增协作会话") : t("发起协作")}
             subtitle={
               spaceId
                 ? t("在当前空间开始共同执行，保留已有成员、材料和讨论。")
@@ -149,7 +161,7 @@ export function Create({
           <strong>{t("确认新增的共享范围")}</strong>
           <p>
             {t(
-              "将创建新的原生 fork，开放其历史、执行目录、文件与改动读取，并按所选权限执行。原来发布的片段范围不会限制这个 fork。原邀请链接和成员保留；在成员列表向需要参与执行的人开放新增访问。",
+              "将创建新的原生 fork，空间所有成员均可读取其完整历史、执行目录、文件与改动。原来发布的片段范围不会限制这个 fork。原邀请链接和成员保留，实际写入按会话交接输入权。",
             ) + " "}
           </p>
         </div>
@@ -534,7 +546,7 @@ export function Create({
                 </>
               ) : (
                 <>
-                  {spaceId ? t("启用共同执行") : t("创建并邀请")}{" "}
+                  {spaceId ? t("新增协作会话") : t("创建并邀请")}{" "}
                   <Icon name="arrow" size={17} />
                 </>
               )}

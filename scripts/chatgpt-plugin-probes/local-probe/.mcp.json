@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "local-probe": {
+      "command": "/usr/bin/sandbox-exec",
+      "args": [
+        "-p",
+        "(version 1)(allow default)(deny network*)",
+        "/Library/Frameworks/Python.framework/Versions/3.9/bin/python3",
+        "server.py"
+      ],
+      "cwd": ".",
+      "env": {
+        "TEAMCROSS_PROBE_LOG": "/Users/wsy/Documents/Codex/2026-10-01/teamcross-local-plugin-probe/evidence/probe.jsonl"
+      }
+    }
+  }
+}

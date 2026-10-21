@@ -18,9 +18,11 @@ func joinFixture(t *testing.T, s *Session) *Joined {
 		t.Fatal(err)
 	}
 	t.Cleanup(b.Close)
-	j, err := b.Join(context.Background(), s.share.Token())
+	j, err := b.Join(context.Background(), s.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal(err)
+	}
+	if s.record.ExecutionRecord != nil {
 	}
 	return j
 }
@@ -35,7 +37,9 @@ func TestMCPInputRelayUsesCoreOwnershipAndEpoch(t *testing.T) {
 	aHTTP := httptest.NewServer(a.Handler(http.NotFoundHandler()))
 	defer aHTTP.Close()
 	owner := mcp.Backend{URL: aHTTP.URL, Client: aHTTP.Client()}
-	args := func() map[string]any { return map[string]any{"id": s.record.ID, "epoch": s.view()["epoch"]} }
+	args := func() map[string]any {
+		return map[string]any{"id": s.spaceID(), "executionId": s.record.ID, "epoch": s.view()["epoch"]}
+	}
 	if _, err := owner.Invoke(ctx, "handoff_input", args()); err == nil {
 		t.Fatal("handoff without member")
 	}
@@ -43,7 +47,9 @@ func TestMCPInputRelayUsesCoreOwnershipAndEpoch(t *testing.T) {
 	bHTTP := httptest.NewServer(j.app.Handler(http.NotFoundHandler()))
 	defer bHTTP.Close()
 	guest := mcp.Backend{URL: bHTTP.URL, Client: bHTTP.Client()}
-	remote := func() map[string]any { return map[string]any{"id": j.ID, "epoch": s.view()["epoch"]} }
+	remote := func() map[string]any {
+		return map[string]any{"id": j.ID, "executionId": s.record.ID, "epoch": s.view()["epoch"]}
+	}
 	if _, err := guest.Invoke(ctx, "handoff_input", remote()); err == nil {
 		t.Fatal("guest acted as owner")
 	}
@@ -72,7 +78,7 @@ func TestMCPInputRelayUsesCoreOwnershipAndEpoch(t *testing.T) {
 	s.busy = false
 	s.mu.Unlock()
 	stale := args()
-	if out, err := owner.Invoke(ctx, "handoff_input", args()); err != nil || strings.Contains(string(out), "tcx3.") {
+	if out, err := owner.Invoke(ctx, "handoff_input", args()); err != nil || strings.Contains(string(out), "tcx4.") {
 		t.Fatal(string(out), err)
 	}
 	if _, err := owner.Invoke(ctx, "reclaim_input", stale); err == nil {
@@ -81,7 +87,7 @@ func TestMCPInputRelayUsesCoreOwnershipAndEpoch(t *testing.T) {
 	if _, err := guest.Invoke(ctx, "request_input", remote()); err == nil {
 		t.Fatal("current writer requested input")
 	}
-	if _, err := owner.Invoke(ctx, "send_input", map[string]any{"id": s.record.ID, "mode": "start", "text": "blocked", "requestId": "blocked"}); err == nil {
+	if _, err := owner.Invoke(ctx, "send_input", map[string]any{"id": s.spaceID(), "executionId": s.record.ID, "mode": "start", "text": "blocked", "requestId": "blocked"}); err == nil {
 		t.Fatal("old writer sent input")
 	}
 	s.mu.Lock()
@@ -144,12 +150,21 @@ func TestInputToolsRejectMissingOrInvalidEpoch(t *testing.T) {
 }
 
 func firstRemote(s *Session) string {
-	if s.share != nil {
-		for _, m := range s.share.Members() {
+	if s.sharedRuntime() != nil {
+		for _, m := range s.sharedRuntime().Members() {
 			if m.Active {
 				return m.ID
 			}
 		}
 	}
 	return "unjoined"
+}
+
+func executionViewFixture(t *testing.T, j *Joined, s *Session) map[string]any {
+	t.Helper()
+	view, err := j.executionView(context.Background(), s.record.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return view
 }

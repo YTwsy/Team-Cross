@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Opt-in personal MCP current-session share and CLI relay, Luna only.
 
-Requires a new fixture directory. Runs two Cores on one Mac, a real personal
+Requires a new fixture directory. Runs three Cores on one Mac, a real personal
 Codex/Claude turn and a direct TUI via PTY; no personal source is resumed.
 Ordinary management tools are also exercised over real MCP STDIO and CLI.
 """
@@ -40,7 +40,7 @@ def run(args):
     n.CLI = str(pathlib.Path(args.claude_bin or '/usr/bin/false').resolve())
     n.BINARY = str(pathlib.Path(args.teamcross_bin).resolve())
     cores, terminals, guard = [], [], None
-    report = {'provider': args.provider, 'model': n.MODEL, 'scope': 'one Mac, two Cores, loopback TLS membership'}
+    report = {'provider': args.provider, 'model': n.MODEL, 'scope': 'one Mac, three Cores, two sessions, loopback TLS membership'}
     try:
         repo = root/'repo'; repo.mkdir()
         for command in (['init', '-b', 'main'], ['config', 'user.name', 'Team Cross Agent CLI Fixture'], ['config', 'user.email', 'fixture@example.invalid']):
@@ -75,6 +75,7 @@ def run(args):
             report['nativeVersion'] = n.cli(env, ['--version']).strip()
         a = n.Core('core-a', env); cores.append(a)
         b = n.Core('core-b', env); cores.append(b)
+        peer = n.Core('core-c', env); cores.append(peer)
         if args.provider == 'codex':
             for core in cores: core.api('settings', {'binary': args.codex_bin, 'claudeBinary': n.CLI})
 
@@ -130,16 +131,17 @@ def run(args):
             if r['state'] in ('failed', 'cancelled', 'interrupted'): raise RuntimeError('Share did not complete: '+str(r.get('error')))
             return r if r['state'] == 'ready' else None
         ready = n.wait_until(completed_share, 100)
-        cid = ready['collaborationId']
-        c = cli(a, 'collaborations', ['--id', cid])
+        cid, eid = ready['spaceId'], ready['executionId']
+        c = cli(a, 'collaborations', ['--id', cid, '--execution', eid])
+        path = 'collaborations/'+cid+'/sessions/'+eid
         assert c['sessionId'] != source and c['provider'] == args.provider
         # Claude's zero-input fork is native in-memory state until its first
         # business turn. Do not invent a transcript or seed an extra prompt.
         if args.provider == 'codex':
-            history = mcp(a, 'read_context', {'id':cid, 'kind':'history'})
+            history = mcp(a, 'read_context', {'id':cid, 'executionId':eid, 'kind':'history'})
             assert assistant_has(history, 'TCX_CURRENT_FINAL_MARKER'), 'fork omitted final source response'
             report['currentTurnIncluded'] = True
-        report.update({'collaborationId':cid, 'sessionId':c['sessionId']})
+        report.update({'spaceId':cid, 'executionId':eid, 'sessionId':c['sessionId']})
         n.emit('current_share_ready', provider=args.provider, id=cid)
 
         # Generate a consumable invitation only through the dedicated tool;
@@ -147,41 +149,66 @@ def run(args):
         invited = mcp(a, 'create_invitation', {'id':cid, 'transport':'lan'})
         invitation = invited['invitation']
         preview = cli(b, 'inspect-invitation', ['--stdin'], invitation)
-        assert preview['runtimeMode'] == 'restricted'
+        assert preview.get('readOnly') is True and not preview.get('runtimeMode')
         joined = cli(b, 'join', ['--no-open', '--stdin'], invitation)
         bid = joined['id']
         assert mcp(b, 'join_collaboration', {'invitation':invitation})['id'] == bid
-        guest = mcp(b, 'get_collaboration', {'id':bid})
-        assert 'invitation' not in guest
+        guest_space = mcp(b, 'get_collaboration', {'id':bid})
+        assert 'invitation' not in guest_space
+        assert all(s.get('hasExecution') and s.get('sessionId') for s in guest_space['sessions']), 'member cannot read sessions'
+        guest = mcp(b, 'get_collaboration', {'id':bid, 'executionId':eid})
+        # A second native fork in the same space uses a different worktree.
+        second_input = {'spaceId':cid, 'provider':args.provider, 'sourceId':source, 'workspaceMode':'worktree', 'runtimeMode':'restricted', 'title':'Independent review', 'requestId':str(uuid.uuid4())}
+        second_preview = mcp(a, 'preview_collaboration', second_input)
+        second_input['previewHash'] = second_preview['previewHash']
+        second = mcp(a, 'create_collaboration', second_input)
+        second_id = second['executionId']
+        second_path = 'collaborations/'+cid+'/sessions/'+second_id
+        assert second['spaceId'] == cid and second['sessionId'] != c['sessionId']
+        assert mcp(b, 'get_collaboration', {'id':bid, 'executionId':second_id})['hasExecution'] is True
+        peer_join = cli(peer, 'join', ['--no-open', '--stdin'], invitation)
+        peer_id = peer_join['id']
+        peer_state = mcp(peer, 'get_collaboration', {'id':peer_id})
+        mcp(a, 'handoff_input', {'id':cid, 'executionId':second_id, 'memberId':peer_state['selfId'], 'epoch':second['epoch']})
+        assert mcp(peer, 'get_collaboration', {'id':peer_id, 'executionId':eid})['hasExecution'] is True
+        report.update({'secondExecutionId':second_id, 'secondSessionId':second['sessionId'], 'allMembersReadAllSessions':True})
         note = mcp(b, 'add_annotation', {'id':bid, 'text':'TCX_AGENT_CLI_NOTE'})
         mcp(a, 'reply_to_annotation', {'id':cid, 'annotationId':note['id'], 'text':'TCX_AGENT_CLI_REPLY', 'requestId':str(uuid.uuid4())})
-        assert 'TCX_AGENT_CLI_REPLY' in json.dumps(mcp(b, 'read_context', {'id':bid,'kind':'annotations'}))
-        denied = mcp(b, 'send_input', {'id':bid, 'mode':'start', 'text':'Do not run', 'requestId':str(uuid.uuid4())}, allow_error=True)
+        assert 'TCX_AGENT_CLI_REPLY' in json.dumps(mcp(b, 'read_context', {'id':bid,'kind':'annotations','annotationId':note['id'],'includeQuote':False}))
+        denied = mcp(b, 'send_input', {'id':bid, 'executionId':eid, 'mode':'start', 'text':'Do not run', 'requestId':str(uuid.uuid4())}, allow_error=True)
         assert 'code' in denied
-        mcp(b, 'request_input', {'id':bid, 'epoch':guest['epoch']})
+        mcp(b, 'request_input', {'id':bid, 'executionId':eid, 'epoch':guest['epoch']})
         # `input` puts the action before flags, unlike other CLI commands.
         def relay(core, action, local_id):
-            state = mcp(core, 'get_collaboration', {'id':local_id})
-            p = subprocess.run([n.BINARY, 'input', action, '--data-dir', str(core.data), '--id', local_id, '--epoch', str(state['epoch']), '--json'], env=env, cwd=repo, capture_output=True, text=True, timeout=90)
+            state = mcp(core, 'get_collaboration', {'id':local_id, 'executionId':eid})
+            p = subprocess.run([n.BINARY, 'input', action, '--data-dir', str(core.data), '--id', local_id, '--execution', eid, '--epoch', str(state['epoch']), '--json']+(['--member', guest_space['selfId']] if action == 'handoff' else []), env=env, cwd=repo, capture_output=True, text=True, timeout=90)
             if p.returncode: raise RuntimeError('CLI relay failed: '+n.clean(p.stdout+p.stderr))
             return json.loads(p.stdout)
         relay(a, 'handoff', cid)
-        plan = cli(b, 'open', ['--id', bid, '--client', 'tui', '--print-command'])
+        plan = cli(b, 'open', ['--id', bid, '--execution', eid, '--client', 'tui', '--print-command'])
         assert plan['sessionId'] == c['sessionId'] and not plan['launched']
         direct = n.Terminal('direct-'+args.provider, plan['command'], env); terminals.append(direct)
-        n.wait_until(lambda:a.api('collaborations/'+cid)['clientState'] == 'session_ready', 45, direct)
+        n.wait_until(lambda:a.api(path)['clientState'] == 'session_ready', 45, direct)
         direct.close()
-        n.wait_until(lambda:not a.api('collaborations/'+cid)['connected'], 20)
+        n.wait_until(lambda:not a.api(path)['connected'], 20)
         request_id = str(uuid.uuid4())
-        send = {'id':bid, 'mode':'start', 'text':'Reply exactly TCX_AGENT_CLI_RELAY_DONE. Do not use tools.', 'requestId':request_id}
+        send = {'id':bid, 'executionId':eid, 'mode':'start', 'text':'Reply exactly TCX_AGENT_CLI_RELAY_DONE. Do not use tools.', 'requestId':request_id}
         mcp(b, 'send_input', send)
+        # Identical request IDs in different executions must remain independent.
+        second_send = {'id':peer_id, 'executionId':second_id, 'mode':'start', 'text':'Reply exactly TCX_SECOND_SESSION_DONE. Do not use tools.', 'requestId':request_id}
+        mcp(peer, 'send_input', second_send)
         def relay_done():
-            state = a.api('collaborations/'+cid)
+            state = a.api(path)
             if state['busy']: return False
-            h = mcp(a, 'read_context', {'id':cid, 'kind':'history'})
+            h = mcp(a, 'read_context', {'id':cid, 'executionId':eid, 'kind':'history'})
             return assistant_has(h, 'TCX_AGENT_CLI_RELAY_DONE')
         n.wait_until(relay_done, 90)
-        assert assistant_has(mcp(a, 'read_context', {'id':cid, 'kind':'history'}), 'TCX_CURRENT_FINAL_MARKER'), 'fork omitted final source response'
+        n.wait_until(lambda:not a.api(second_path)['busy'] and assistant_has(mcp(a, 'read_context', {'id':cid, 'executionId':second_id, 'kind':'history'}), 'TCX_SECOND_SESSION_DONE'), 90)
+        assert not assistant_has(mcp(a, 'read_context', {'id':cid, 'executionId':eid, 'kind':'history'}), 'TCX_SECOND_SESSION_DONE')
+        assert not assistant_has(mcp(a, 'read_context', {'id':cid, 'executionId':second_id, 'kind':'history'}), 'TCX_AGENT_CLI_RELAY_DONE')
+        mcp(peer, 'send_input', second_send)
+        report['independentConcurrentExecutionAndDedupe'] = True
+        assert assistant_has(mcp(a, 'read_context', {'id':cid, 'executionId':eid, 'kind':'history'}), 'TCX_CURRENT_FINAL_MARKER'), 'fork omitted final source response'
         report['currentTurnIncluded'] = True
         mcp(b, 'send_input', send)
         relay(b, 'return', bid)
@@ -189,9 +216,16 @@ def run(args):
         relay(a, 'reclaim', cid)
         report.update({'cliJoinNoBrowser':True, 'mcpAnnotationsAndReply':True, 'inputRelay':True, 'directTUI':True})
         mcp(b, 'leave_collaboration', {'id':bid})
-        cli(a, 'end', ['--id',cid])
-        resumed = cli(a, 'resume', ['--id',cid])
-        assert resumed['sessionId'] == c['sessionId'] and not resumed['sharing']
+        cli(a, 'end-session', ['--id',cid, '--execution',eid])
+        n.wait_until(lambda:a.api(path)['runtimeState'] == 'released', 30)
+        assert a.api('collaborations/'+cid)['sharing']
+        assert a.api(second_path)['online'] and a.api(second_path)['writer'] == peer_state['selfId']
+        assert mcp(peer, 'get_collaboration', {'id':peer_id, 'executionId':second_id})['hasExecution'] is True
+        resumed = cli(a, 'resume', ['--id',cid, '--execution',eid])
+        assert resumed['sessionId'] == c['sessionId']
+        assert resumed['writer'] == 'owner'
+        assert mcp(peer, 'get_collaboration', {'id':peer_id, 'executionId':eid})['sessionId'] == c['sessionId']
+        report['endOnePreservesSpaceAndSibling'] = True
         assert (repo/'baseline.txt').read_text() == 'TCX_AGENT_CLI_BASELINE\n'
         report['sameForkResume'] = True
         cli(a, 'end', ['--id',cid])

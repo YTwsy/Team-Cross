@@ -1,5 +1,6 @@
 import { serviceText, t } from "../i18n";
 import { ResourceActions } from "../library";
+import { resourceScope } from "../execution";
 import {
   useCallback,
   useEffect,
@@ -28,6 +29,7 @@ import {
 } from "../reading-position";
 import { MarkdownText } from "./MarkdownText";
 import { Icon } from "./ui";
+import { SpaceAvatar } from "./SpaceIdentity";
 
 export type AnnotationOrigin = { element: HTMLElement; range?: Range };
 export type Annotate = (
@@ -229,6 +231,7 @@ export function ReadingLayout({
   toolbar,
   toolbarTarget,
   adaptiveOutline = false,
+  defaultOutlineOpen,
 }: {
   outline: {
     id: string;
@@ -246,6 +249,7 @@ export function ReadingLayout({
   toolbar?: ReactNode;
   toolbarTarget?: HTMLElement | null;
   adaptiveOutline?: boolean;
+  defaultOutlineOpen?: boolean;
 }) {
   const [localFocus, setLocalFocus] = useState(false);
   const focus = controlledFocus ?? localFocus;
@@ -254,7 +258,9 @@ export function ReadingLayout({
   const directoryButton = useRef<HTMLButtonElement>(null);
   const outlineId = useId();
   const [wide, setWide] = useState(false);
-  const [outlineOpen, setOutlineOpen] = useState<boolean>();
+  const [outlineOpen, setOutlineOpen] = useState<boolean | undefined>(
+    defaultOutlineOpen,
+  );
   const sideOutline = adaptiveOutline && wide && outline.length > 1;
   const showOutline = outlineOpen ?? sideOutline;
   const pendingPosition = useRef<ReadingPosition | undefined>(undefined);
@@ -442,6 +448,7 @@ export function ReaderMessage({
   onExpand,
   expanding,
   shownLength = 0,
+  speaker,
 }: {
   spaceId?: string;
   source: string;
@@ -457,6 +464,7 @@ export function ReaderMessage({
   onExpand?: () => void;
   expanding?: boolean;
   shownLength?: number;
+  speaker?: { name: string; author: string; assistant: boolean };
 }) {
   const [raw, setRaw] = useState(false),
     [hint, setHint] = useState("");
@@ -468,7 +476,7 @@ export function ReaderMessage({
     message = useRef<HTMLDivElement>(null);
   const details = useRef<HTMLDetailsElement>(null);
   const id = useId();
-  const tool = !isDialogueRole(label);
+  const tool = !speaker && !isDialogueRole(label);
   const expand = onExpand ? (
     <button
       type="button"
@@ -566,7 +574,14 @@ export function ReaderMessage({
   const contentBody = (
     <>
       <div className="message-heading">
-        <span className="reader-role">{label}</span>
+        {speaker ? (
+          <span className="reader-speaker">
+            <SpaceAvatar name={speaker.author} agent={speaker.assistant} />
+            <strong>{speaker.name}</strong>
+          </span>
+        ) : (
+          <span className="reader-role">{label}</span>
+        )}
         <div className="reader-message-actions">
           <button
             className="text-button"
@@ -657,7 +672,11 @@ export function ReaderMessage({
                     materialId: selected.target.materialId,
                     version: selected.target.version,
                   }
-                : { spaceId, kind: "context", target: selected.target }
+                : {
+                    ...resourceScope(spaceId),
+                    kind: "context",
+                    target: selected.target,
+                  }
             }
           />
         )}
@@ -668,7 +687,7 @@ export function ReaderMessage({
     <div
       ref={message}
       id={id}
-      className={`reader-message ${tool ? "reader-tool-message" : ""}`}
+      className={`reader-message ${tool ? "reader-tool-message" : ""} ${speaker ? `space-dialogue-message ${speaker.assistant ? "space-assistant-message" : "space-user-message"}` : ""}`}
     >
       {tool ? (
         <details

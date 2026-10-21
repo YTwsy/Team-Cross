@@ -41,6 +41,7 @@ export function MCPConnection({
   const name = provider === "claude" ? "Claude Code" : "Codex";
   const clientError =
     provider === "claude" ? info?.claudeError : info?.codexError;
+  const observed = !!status.observedAt && !status.observedAt.startsWith("0001");
   async function check(setup: boolean) {
     setBusy(true);
     onBusyChange?.(true);
@@ -60,22 +61,28 @@ export function MCPConnection({
   }
   return (
     <div className="mcp-connection">
-      <div className="segmented" aria-label={t("个人辅助客户端")}>
-        {(["codex", "claude"] as const).map((value) => (
-          <button
-            key={value}
-            disabled={busy || disabled}
-            aria-pressed={provider === value}
-            onClick={() => {
-              setError("");
-              onProviderChange(value);
-            }}
-          >
-            {value === "claude" ? "Claude Code" : "Codex"}
-          </button>
-        ))}
+      <div className="mcp-connection-heading">
+        <h3>
+          <Icon name="link" size={17} />
+          {t("连接 Team Cross 工具")}
+        </h3>
+        <div className="segmented" aria-label={t("个人辅助客户端")}>
+          {(["codex", "claude"] as const).map((value) => (
+            <button
+              key={value}
+              disabled={busy || disabled}
+              aria-pressed={provider === value}
+              onClick={() => {
+                setError("");
+                onProviderChange(value);
+              }}
+            >
+              {value === "claude" ? "Claude Code" : "Codex"}
+            </button>
+          ))}
+        </div>
       </div>
-      <p>
+      <p className="mcp-connection-description">
         {provider === "claude"
           ? t(
               "接入个人 Claude Code TUI。配置保存在本机个人范围，已打开的客户端请在 /mcp 中重新连接或重新打开。",
@@ -84,44 +91,55 @@ export function MCPConnection({
               "接入个人 Codex，TUI 与 Desktop 共用配置。已打开的客户端需重新加载工具。",
             )}
       </p>
-      <button
-        className="button small"
-        disabled={
-          busy ||
-          disabled ||
-          !info ||
-          status.configured ||
-          !!clientError ||
-          !!status.configError
-        }
-        onClick={() => void check(true)}
-      >
-        <Icon name={status.configured ? "check" : "plus"} size={15} />
-        {busy
-          ? t("正在检查…")
-          : status.configured
-            ? tr`${name} MCP 配置已保存`
-            : tr`接入本机 ${name}`}
-      </button>
-      <p className="small-text muted">
-        {tr`Team Cross 工具协议：${info?.mcpProbed ? t("通过") : t("尚未检查")}。`}
-        <br />
-        {tr`${name} 客户端：${
-          status.observedAt && !status.observedAt.startsWith("0001")
-            ? t("本次运行已收到工具调用")
-            : t("等待实际工具调用；请让客户端使用 Team Cross 列出协作")
-        }。`}
-      </p>
-      <button
-        className="text-link"
-        disabled={busy || disabled}
-        onClick={() => void check(false)}
-      >
-        {t("检查工具连接") + " "}
-      </button>
+      <div className="mcp-connection-actions">
+        <button
+          className={`button small ${status.configured ? "" : "primary"}`}
+          disabled={
+            busy ||
+            disabled ||
+            !info ||
+            status.configured ||
+            !!clientError ||
+            !!status.configError
+          }
+          onClick={() => void check(true)}
+        >
+          <Icon name={status.configured ? "check" : "plus"} size={15} />
+          {busy
+            ? t("正在检查…")
+            : status.configured
+              ? tr`${name} MCP 配置已保存`
+              : tr`接入本机 ${name}`}
+        </button>
+        <button
+          className="text-link"
+          disabled={busy || disabled}
+          onClick={() => void check(false)}
+        >
+          <Icon name="refresh" size={14} />
+          {t("检查工具连接")}
+        </button>
+      </div>
+      <div className="mcp-connection-status">
+        <div className={info?.mcpProbed ? "is-ready" : ""}>
+          <Icon name={info?.mcpProbed ? "check" : "clock"} size={14} />
+          <span>{t("工具协议")}</span>
+          <strong>{info?.mcpProbed ? t("通过") : t("尚未检查")}</strong>
+        </div>
+        <div className={observed ? "is-ready" : ""}>
+          <Icon name={observed ? "check" : "clock"} size={14} />
+          <span>{t("客户端调用")}</span>
+          <strong>{observed ? t("已收到调用") : t("等待实际工具调用")}</strong>
+        </div>
+      </div>
       <ErrorBox message={error || status.configError} />
       <details className="technical">
         <summary>{t("手动配置与诊断")}</summary>
+        {!observed && (
+          <p className="small-text muted">
+            {t("请让客户端使用 Team Cross 列出协作，以确认工具已加载。")}
+          </p>
+        )}
         {status.command && (
           <>
             <pre>{status.command}</pre>

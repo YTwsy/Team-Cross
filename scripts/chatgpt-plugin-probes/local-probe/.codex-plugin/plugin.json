@@ -1,0 +1,12 @@
+{
+  "name": "teamcross-local-probe",
+  "version": "0.1.0",
+  "description": "A synthetic local-only MCP Apps compatibility probe for Team Cross.",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Team Cross Local Probe",
+    "shortDescription": "Synthetic stdio tools and an embedded panel",
+    "category": "Developer Tools",
+    "capabilities": ["Read"]
+  }
+}

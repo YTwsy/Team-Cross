@@ -15,7 +15,7 @@ import (
 )
 
 func TestInvitationLink(t *testing.T) {
-	r := Runtime{Invitation: Invitation{Version: 3, ID: "test", Title: "协作", Host: "A", Transport: TransportLAN, Endpoints: []string{"127.0.0.1:1234"}, Pin: strings.Repeat("a", 64), Secret: strings.Repeat("b", 40), ExpiresAt: time.Now().Add(time.Hour), Capability: Capability}}
+	r := Runtime{Invitation: Invitation{Version: 4, ID: "test", Title: "协作", Host: "A", Transport: TransportLAN, Endpoints: []string{"127.0.0.1:1234"}, Pin: strings.Repeat("a", 64), Secret: strings.Repeat("b", 40), ExpiresAt: time.Now().Add(time.Hour), Capability: Capability}}
 	token := r.Token()
 	for _, v := range []string{token, "teamcross://join?invite=" + url.QueryEscape(token), "邀请你加入协作\nteamcross://join?invite=" + url.QueryEscape(token) + "\n原始邀请码：\n" + token + "\n请先安装 Team Cross"} {
 		i, e := Decode(v)
@@ -50,7 +50,7 @@ func TestTailcatInvitation(t *testing.T) {
 		RegionID:          tailcfg.DERPRegionID(1),
 	}
 	r := Runtime{Invitation: Invitation{
-		Version: 3, ID: "tailcat-test", Title: "跨网络协作", Host: "A",
+		Version: 4, ID: "tailcat-test", Title: "跨网络协作", Host: "A",
 		Transport: TransportTailcat,
 		Tailcat:   &TailcatCandidate{Address: string(info.Addr()), Port: TailcatVirtualPort, LibraryVersion: TailcatLibraryVersion},
 		Pin:       strings.Repeat("a", 64), Secret: strings.Repeat("b", 40), ExpiresAt: time.Now().Add(time.Hour), Capability: Capability,
@@ -70,13 +70,13 @@ func TestTailcatInvitation(t *testing.T) {
 
 	invitation.Tailcat.LibraryVersion = "v0.5.0"
 	b, _ := json.Marshal(invitation)
-	if _, err = Decode("tcx3." + base64.RawURLEncoding.EncodeToString(b)); problem.Describe(err).Code != "version_incompatible" {
+	if _, err = Decode("tcx4." + base64.RawURLEncoding.EncodeToString(b)); problem.Describe(err).Code != "version_incompatible" {
 		t.Fatal("accepted incompatible Tailcat invitation", err)
 	}
 	invitation.Tailcat.LibraryVersion = TailcatLibraryVersion
 	invitation.Tailcat.Address = "tc-not-an-address"
 	b, _ = json.Marshal(invitation)
-	if _, err = Decode("tcx3." + base64.RawURLEncoding.EncodeToString(b)); problem.Describe(err).Code != "version_incompatible" {
+	if _, err = Decode("tcx4." + base64.RawURLEncoding.EncodeToString(b)); problem.Describe(err).Code != "version_incompatible" {
 		t.Fatal("accepted malformed Tailcat address", err)
 	}
 }

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{color-scheme:light dark;font:15px system-ui}body{margin:0;padding:24px}
+  h1{font-size:20px;margin:0 0 8px}p{line-height:1.6}button{font:inherit;padding:10px 16px;border-radius:8px;border:1px solid #999;cursor:pointer}
+  pre{padding:16px;border:1px solid #aaa;border-radius:8px;white-space:pre-wrap;word-break:break-all}small{display:block;margin-top:16px;opacity:.7}
+</style>
+<h1>Team Cross 本机连接探针</h1>
+<p>此页面只使用假数据。点击按钮后，随机编号应在页面与本机 MCP 日志中同时出现。</p>
+<p id="status">正在连接 MCP Apps 宿主桥…</p>
+<button id="echo" disabled>测试本机调用</button>
+<pre id="result">尚未调用</pre>
+<small>界面无外部资源；工具进程由网络禁止沙箱启动。</small>
+<script>
+  const statusEl=document.getElementById('status');
+  const resultEl=document.getElementById('result');
+  const button=document.getElementById('echo');
+  const pending=new Map();let nextId=0;
+  function request(method,params){
+    return new Promise((resolve,reject)=>{
+      const id=++nextId;
+      const timeout=setTimeout(()=>{pending.delete(id);reject(new Error('宿主桥响应超时：'+method));},10000);
+      pending.set(id,{resolve,reject,timeout});
+      window.parent.postMessage({jsonrpc:'2.0',id,method,params},'*');
+    });
+  }
+  window.addEventListener('message',event=>{
+    if(event.source!==window.parent)return;
+    const m=event.data;if(!m||m.jsonrpc!=='2.0')return;
+    if(pending.has(m.id)){
+      const p=pending.get(m.id);pending.delete(m.id);clearTimeout(p.timeout);
+      if(m.error)p.reject(new Error(m.error.message));else p.resolve(m.result);
+    }else if(m.method==='ui/notifications/tool-result'){
+      resultEl.textContent=JSON.stringify(m.params?.structuredContent??m.params,null,2);
+    }
+  });
+  request('ui/initialize',{appInfo:{name:'teamcross-local-probe',version:'0.1.0'},appCapabilities:{},protocolVersion:'2026-01-26'})
+    .then(()=>{
+      window.parent.postMessage({jsonrpc:'2.0',method:'ui/notifications/initialized',params:{}},'*');
+      statusEl.textContent='宿主桥已连接';button.disabled=false;
+    }).catch(error=>{statusEl.textContent=error.message;});
+  button.onclick=async()=>{
+    button.disabled=true;const nonce=crypto.randomUUID();
+    statusEl.textContent='正在调用本机工具：'+nonce;
+    try{
+      const response=await request('tools/call',{name:'probe_echo',arguments:{nonce}});
+      const data=response?.structuredContent;
+      resultEl.textContent=JSON.stringify(data??response,null,2);
+      statusEl.textContent=data?.nonce===nonce&&data?.networkDenied===true?'本机调用成功，随机编号匹配':'返回内容需要核对';
+    }catch(error){statusEl.textContent=error.message;}finally{button.disabled=false;}
+  };
+</script>
+</html>

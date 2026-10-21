@@ -1,0 +1,69 @@
+{
+  "date": "2026-10-03",
+  "browser": "Chromium via Playwright CLI",
+  "runtime": "fixture; HTTP and storage use real Core, native runtime simulated",
+  "viewports": [
+    [
+      1440,
+      1000
+    ],
+    [
+      1024,
+      900
+    ],
+    [
+      768,
+      900
+    ]
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "languages": [
+    "zh-CN",
+    "en"
+  ],
+  "checks": {
+    "pairingPromptCreated": true,
+    "waitingBeforeVerification": true,
+    "expiryIncludesMinutes": true,
+    "pairedReceiverSelected": true,
+    "analyzeIsDefault": true,
+    "sendLocksAgainstRepeatClick": true,
+    "submittedBeforeSimulatedReceipt": true,
+    "completionShownOnlyAfterFinishReceipt": true,
+    "busyReceiverBlocksSend": true,
+    "tabFocusRemainsInDialog": true,
+    "escapeClosesAndReturnsFocusToSend": true,
+    "noHorizontalOverflowAt1024And768": true,
+    "finalConsoleErrors": 0,
+    "finalConsoleWarnings": 0
+  },
+  "screenshots": [
+    {
+      "file": "pairing-1440-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "fdb7f2ec989b464a0504fd9be58298978687f49065a0d58d47559808189e1b14"
+    },
+    {
+      "file": "send-to-agent-1440-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "279d9d46fd68ecbd0a461e0905817ec4d826d0ba46dcec3b8b1f807e5afd9f65"
+    },
+    {
+      "file": "send-to-agent-768-dark.png",
+      "width": 768,
+      "height": 900,
+      "sha256": "9c379a19ced99fa1a317036f64811eb1d3ac4a2f5c8542ff870dd0b0bdb21120"
+    },
+    {
+      "file": "send-to-agent-768-en-light.png",
+      "width": 768,
+      "height": 900,
+      "sha256": "63a5e2fdf26f427666e1aba27b7cd81b33c6ae94ace19872e2239b9752c1e4f2"
+    }
+  ]
+}

@@ -22,6 +22,7 @@ import (
 // The library stores references and personal organization only. It never copies
 // native history or material bodies, and is never served on a sharing listener.
 type LibraryReference struct {
+	ExecutionID  string            `json:"executionId,omitempty"`
 	SpaceID      string            `json:"spaceId"`
 	Kind         string            `json:"kind"`
 	MaterialID   string            `json:"materialId,omitempty"`
@@ -47,19 +48,21 @@ type libraryState struct {
 	Bundles map[string]LibraryBundle `json:"bundles"`
 }
 type librarySpace struct {
-	ID           string       `json:"id"`
-	Title        string       `json:"title"`
-	Role         string       `json:"role"`
-	SelfID       string       `json:"selfId"`
-	State        string       `json:"state"`
-	SessionID    string       `json:"sessionId"`
-	Provider     string       `json:"provider"`
-	Reachable    *bool        `json:"reachable"`
-	HasExecution bool         `json:"hasExecution"`
-	Online       bool         `json:"online"`
-	UpdatedAt    time.Time    `json:"updatedAt"`
-	Materials    []Material   `json:"materials"`
-	Annotations  []Annotation `json:"annotations"`
+	Sessions     []librarySpace `json:"sessions"`
+	ExecutionID  string         `json:"executionId,omitempty"`
+	ID           string         `json:"id"`
+	Title        string         `json:"title"`
+	Role         string         `json:"role"`
+	SelfID       string         `json:"selfId"`
+	State        string         `json:"state"`
+	SessionID    string         `json:"sessionId"`
+	Provider     string         `json:"provider"`
+	Reachable    *bool          `json:"reachable"`
+	HasExecution bool           `json:"hasExecution"`
+	Online       bool           `json:"online"`
+	UpdatedAt    time.Time      `json:"updatedAt"`
+	Materials    []Material     `json:"materials"`
+	Annotations  []Annotation   `json:"annotations"`
 }
 type LibraryResource struct {
 	Key          string           `json:"key"`
@@ -113,9 +116,12 @@ func (ref LibraryReference) validate() error {
 	if ref.SpaceID == "" || len(ref.SpaceID) > 200 || strings.ContainsAny(ref.SpaceID, "/?#\\") {
 		return fmt.Errorf("请选择有效的协作空间")
 	}
+	if len(ref.ExecutionID) > 200 || strings.ContainsAny(ref.ExecutionID, "/?#\\") {
+		return fmt.Errorf("协作会话标识无效")
+	}
 	switch ref.Kind {
 	case "material":
-		if ref.MaterialID == "" || len(ref.MaterialID) > 200 || ref.Version < 1 || ref.AnnotationID != "" || ref.Target != nil {
+		if ref.ExecutionID != "" || ref.MaterialID == "" || len(ref.MaterialID) > 200 || ref.Version < 1 || ref.AnnotationID != "" || ref.Target != nil {
 			return fmt.Errorf("材料选择必须绑定材料及固定版本")
 		}
 	case "annotation":
@@ -123,6 +129,12 @@ func (ref LibraryReference) validate() error {
 			return fmt.Errorf("请选择一条原批注")
 		}
 	case "context":
+		if ref.ExecutionID == "" {
+			return fmt.Errorf("上下文引用需要明确 executionId")
+		}
+		if ref.Target != nil && ref.Target.ExecutionID != "" && ref.Target.ExecutionID != ref.ExecutionID {
+			return fmt.Errorf("上下文定位属于其他协作会话")
+		}
 		if ref.MaterialID != "" || ref.Version != 0 || ref.AnnotationID != "" {
 			return fmt.Errorf("上下文不能混用材料或批注身份")
 		}
@@ -170,7 +182,24 @@ func excerpt(text string, limit int) string {
 	return string(words)
 }
 func resourceFor(s librarySpace, ref LibraryReference) (LibraryResource, error) {
-	r := LibraryResource{Key: libraryKey(ref), Reference: ref, SpaceTitle: s.Title, SessionID: s.SessionID, SessionTitle: s.Title, Provider: s.Provider, UpdatedAt: s.UpdatedAt, Availability: spaceAvailability(s)}
+	spaceTitle := s.Title
+	if ref.ExecutionID != "" {
+		found := false
+		for _, child := range s.Sessions {
+			if child.ExecutionID == ref.ExecutionID && child.HasExecution {
+				child.ID, child.Role, child.SelfID, child.Reachable = s.ID, s.Role, s.SelfID, s.Reachable
+				if spaceAvailability(s) != "available" {
+					child.State = s.State
+				}
+				s, found = child, true
+				break
+			}
+		}
+		if !found {
+			return LibraryResource{}, fmt.Errorf("会话不存在或当前无权访问")
+		}
+	}
+	r := LibraryResource{Key: libraryKey(ref), Reference: ref, SpaceTitle: spaceTitle, SessionID: s.SessionID, SessionTitle: s.Title, Provider: s.Provider, UpdatedAt: s.UpdatedAt, Availability: spaceAvailability(s)}
 	if r.SessionID == "" {
 		r.SessionID = "discussion"
 		r.SessionTitle = "空间讨论"
@@ -299,8 +328,14 @@ func (a *App) Library(ctx context.Context) LibraryView {
 		for _, note := range s.Annotations {
 			add(s, LibraryReference{SpaceID: s.ID, Kind: "annotation", AnnotationID: note.ID})
 		}
-		if s.HasExecution {
-			add(s, LibraryReference{SpaceID: s.ID, Kind: "context"})
+		for _, child := range s.Sessions {
+			if !child.HasExecution {
+				continue
+			}
+			add(s, LibraryReference{SpaceID: s.ID, ExecutionID: child.ExecutionID, Kind: "context"})
+			for _, note := range child.Annotations {
+				add(s, LibraryReference{SpaceID: s.ID, ExecutionID: child.ExecutionID, Kind: "annotation", AnnotationID: note.ID})
+			}
 		}
 	}
 	for _, entry := range entries {
@@ -555,7 +590,7 @@ func (a *App) readLibraryResource(ctx context.Context, ref LibraryReference, com
 			q.Set("compact", "true")
 			q.Set("maxBytes", fmt.Sprint(options.MaxBytes))
 		}
-		result, err = a.target(ctx, ref.SpaceID, "GET", "context?"+q.Encode(), nil)
+		result, err = a.target(ctx, ref.address(), "GET", "context?"+q.Encode(), nil)
 		if agent {
 			content = result
 		} else if err == nil {
@@ -589,7 +624,7 @@ func (a *App) readLibraryResource(ctx context.Context, ref LibraryReference, com
 			q.Set("view", options.View)
 			q.Set("maxBytes", fmt.Sprint(options.MaxBytes))
 		}
-		content, err = a.target(ctx, ref.SpaceID, "GET", "context?"+q.Encode(), nil)
+		content, err = a.target(ctx, ref.address(), "GET", "context?"+q.Encode(), nil)
 	}
 	if err != nil {
 		return nil, err
@@ -631,7 +666,7 @@ func (a *App) readLibraryBundle(ctx context.Context, code string, offset int, co
 		}
 		value, err := a.readLibraryResource(ctx, ref, agent)
 		if err != nil {
-			value = map[string]any{"reference": LibraryReference{SpaceID: ref.SpaceID, Kind: ref.Kind, MaterialID: ref.MaterialID, Version: ref.Version, AnnotationID: ref.AnnotationID}, "error": err.Error()}
+			value = map[string]any{"reference": LibraryReference{SpaceID: ref.SpaceID, ExecutionID: ref.ExecutionID, Kind: ref.Kind, MaterialID: ref.MaterialID, Version: ref.Version, AnnotationID: ref.AnnotationID}, "error": err.Error()}
 		}
 		results = append(results, value)
 	}
@@ -652,6 +687,11 @@ func (a *App) libraryHTTP(w http.ResponseWriter, r *http.Request, path string) b
 	ctx := r.Context()
 	if path == "library" && r.Method == "GET" {
 		respond(w, a.Library(ctx), nil)
+		return true
+	}
+	if path == "library/mentions" && r.Method == "GET" {
+		out, err := a.libraryMentions(ctx, r.URL.Query().Get("query"))
+		respond(w, out, err)
 		return true
 	}
 	if r.Method != "POST" {
@@ -711,4 +751,11 @@ func (a *App) libraryHTTP(w http.ResponseWriter, r *http.Request, path string) b
 		http.NotFound(w, r)
 	}
 	return true
+}
+
+func (ref LibraryReference) address() string {
+	if ref.ExecutionID != "" {
+		return executionAddress(ref.SpaceID, ref.ExecutionID)
+	}
+	return ref.SpaceID
 }

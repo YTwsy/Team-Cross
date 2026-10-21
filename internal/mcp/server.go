@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"teamcross/internal/buildinfo"
 	"teamcross/internal/problem"
 	"teamcross/internal/readview"
@@ -62,15 +63,15 @@ func str(description string) map[string]any {
 	return map[string]any{"type": "string", "description": description}
 }
 func Tools() []map[string]any {
-	id := str("list_collaborations 返回的本机协作 ID")
+	id := str("list_collaborations 返回的本机空间 ID")
 	line := map[string]any{"type": "integer", "minimum": 1}
 	offset := map[string]any{"type": "integer", "minimum": 0}
 	target := map[string]any{
 		"type": "object", "additionalProperties": false, "required": []string{"kind", "quote"},
 		"description": "可选的结构化原文位置。history 使用 turnId/itemId 和 UTF-16 startOffset/endOffset（左闭右开）；file/changes 使用相对 executionCwd 的 path、1 起始且含首尾的行范围和读取结果的 contentHash。changes 另需 old/new 一侧与 baseRevision。quote 保存当时的原文；这些是引用快照，不代表当前内容仍未变化。",
 		"properties": map[string]any{
-			"kind":       map[string]any{"type": "string", "enum": []string{"history", "file", "changes", "material"}},
-			"materialId": str("已发布材料 ID，仅 kind=material"), "version": line, "sessionId": str("所属协作 fork；省略时由主机绑定"), "quote": str("所选原文，最多 8000 字；代码使用完整行，不带 diff 的 +/- 前缀"),
+			"kind":        map[string]any{"type": "string", "enum": []string{"history", "file", "changes", "material"}},
+			"executionId": str("所属协作会话 ID；与 native sessionId 不同"), "materialId": str("已发布材料 ID，仅 kind=material"), "version": line, "sessionId": str("所属协作 fork；省略时由主机绑定"), "quote": str("所选原文，最多 8000 字；代码使用完整行，不带 diff 的 +/- 前缀"),
 			"path": str("相对执行目录的文件路径"), "startLine": line, "endLine": line,
 			"side":        map[string]any{"type": "string", "enum": []string{"old", "new"}},
 			"contentHash": str("read_context 返回的 SHA-256；不能用 Git HEAD 代替"), "baseRevision": str("changes 返回的基准提交"),
@@ -78,7 +79,7 @@ func Tools() []map[string]any {
 			"cursor": str("读取该历史页时使用的 cursor；最近一页省略"),
 		},
 	}
-	return append([]map[string]any{
+	return executionToolSchemas(append([]map[string]any{
 		selectionTool(),
 		tool("list_collaborations", "列出本机发起和已加入的协作；不创建会话或发送输入。", map[string]any{}, []string{}, true),
 		tool("get_collaboration", "轻量查询主机、目录、输入归属、运行与审批状态、批注数量，不附带批注或材料正文。已有明确引用时直接读取对应资源；执行或交接前需要此状态。", map[string]any{"id": id}, []string{"id"}, true),
@@ -93,9 +94,12 @@ func Tools() []map[string]any {
 		tool("respond_to_request", "回应 events 中的原生审批或用户输入请求；Claude 当前使用原生 TUI 回应。先向用户展示请求与选择，不代替用户批准未知操作；result 使用该请求类型的原生响应结构。", map[string]any{"id": id, "requestId": map[string]any{"type": []string{"string", "number"}}, "result": map[string]any{"type": "object"}}, []string{"id", "requestId", "result"}, false),
 		tool("add_annotation", "为共享上下文保存一条人工意见，不会自动转为 Agent 输入。建议用 target 携带已读取的原文与位置；整体意见可以不指定 target。", map[string]any{"id": id, "text": str("意见内容"), "reference": str("可选的人工参考说明，不用于自动定位"), "target": target, "materials": materialReferencesSchema()}, []string{"id", "text"}, false),
 		tool("reply_to_annotation", "回复已知批注；已有足够上下文时可直接回复。返回 status=saved 和本次 reply，成功后无需回读整段讨论。保留 requestId；仅结果不明时按 annotationId 查询，重试保持相同 requestId。不启动模型。", map[string]any{"id": id, "annotationId": str("原批注 ID，不能使用回复 ID"), "text": str("回复内容，最多 4000 字"), "requestId": str("本次回复唯一标识，重试保持相同"), "materials": materialReferencesSchema()}, []string{"id", "annotationId", "text", "requestId"}, false),
-	}, append(append(managementTools(), currentTools()...), materialTools()...)...)
+	}, append(append(append(managementTools(), currentTools()...), materialTools()...), AgentTools()...)...))
 }
 func (b Backend) Invoke(ctx context.Context, name string, args map[string]any) (json.RawMessage, error) {
+	if handled, out, err := b.invokeAgent(ctx, name, args); handled {
+		return out, err
+	}
 	if name == "read_selection" {
 		if err := validateToolArgs(selectionTool(), args); err != nil {
 			return nil, err
@@ -122,7 +126,10 @@ func (b Backend) Invoke(ctx context.Context, name string, args map[string]any) (
 	if name != "list_collaborations" && (id == "" || strings.ContainsAny(id, "/?#\\")) {
 		return nil, fmt.Errorf("请选择有效的协作 ID")
 	}
-	base := "collaborations/" + url.PathEscape(id)
+	base, scopeErr := scopedToolPath(name, args)
+	if scopeErr != nil {
+		return nil, scopeErr
+	}
 	if action, ok := inputActions[name]; ok {
 		epoch, err := inputEpoch(args["epoch"])
 		if err != nil {
@@ -232,9 +239,24 @@ func localClient() *http.Client {
 }
 
 func serve(ctx context.Context, input io.Reader, output io.Writer, tools []map[string]any, instructions string, invoke func(context.Context, string, map[string]any, string) (json.RawMessage, error)) error {
+	return serveWithResources(ctx, input, output, tools, instructions, invoke, nil)
+}
+
+func serveWithResources(ctx context.Context, input io.Reader, output io.Writer, tools []map[string]any, instructions string, invoke func(context.Context, string, map[string]any, string) (json.RawMessage, error), resources func(context.Context, string, json.RawMessage) (any, error)) error {
+	ui := resources != nil
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	scan := bufio.NewScanner(input)
 	scan.Buffer(make([]byte, 4096), 8<<20)
 	enc := json.NewEncoder(output)
+	var outputMu sync.Mutex
+	encode := func(v any) error { outputMu.Lock(); defer outputMu.Unlock(); return enc.Encode(v) }
+	connection := newAgentConnection(encode)
+	defer func() { cancel(); connection.wg.Wait() }()
+	ctx = context.WithValue(ctx, agentConnectionKey{}, connection)
+	if !ui {
+		instructions += agentInstructions
+	}
 	provider := ""
 	for scan.Scan() {
 		var req struct {
@@ -259,7 +281,31 @@ func serve(ctx context.Context, input io.Reader, output io.Writer, tools []map[s
 			}
 			_ = json.Unmarshal(req.Params, &init)
 			provider = clientProvider(init.ClientInfo.Name)
-			result = map[string]any{"protocolVersion": "2024-11-05", "serverInfo": map[string]string{"name": "teamcross", "version": buildinfo.Version}, "capabilities": map[string]any{"tools": map[string]any{}}, "instructions": instructions}
+			capabilities := map[string]any{"tools": map[string]any{}}
+			personal := false
+			for _, t := range tools {
+				if t["name"] == "read_selection" {
+					personal = true
+				}
+			}
+			if !ui && provider == "claude" && personal {
+				capabilities["experimental"] = map[string]any{"claude/channel": map[string]any{}}
+			}
+			if ui {
+				capabilities["resources"] = map[string]any{}
+			}
+			result = map[string]any{"protocolVersion": "2024-11-05", "serverInfo": map[string]string{"name": "teamcross", "version": buildinfo.Version}, "capabilities": capabilities, "instructions": instructions}
+		case "resources/list", "resources/templates/list", "resources/read":
+			if !ui {
+				rpcError = map[string]any{"code": -32601, "message": "Method not found"}
+			} else {
+				var err error
+				result, err = resources(ctx, req.Method, req.Params)
+				if err != nil {
+					rpcError = map[string]any{"code": -32602, "message": err.Error()}
+				}
+			}
+
 		case "ping":
 			result = map[string]any{}
 		case "tools/list":
@@ -279,7 +325,7 @@ func serve(ctx context.Context, input io.Reader, output io.Writer, tools []map[s
 			if json.Compact(&compact, out) == nil {
 				out = compact.Bytes()
 			}
-			if e == nil && (strings.HasPrefix(params.Name, "read_") || strings.HasPrefix(params.Name, "list_") || params.Name == "get_collaboration") && readview.RawWireSize(out) > readview.MaxBytes {
+			if e == nil && (strings.HasPrefix(params.Name, "read_") || strings.HasPrefix(params.Name, "list_") || params.Name == "get_collaboration" || params.Name == "get_space_request") && readview.RawWireSize(out) > readview.MaxBytes {
 				e = fmt.Errorf("读取响应超过 65536 字节，请使用精确 ID、轻量视图或分页缩小范围")
 			}
 			text := string(out)
@@ -288,6 +334,15 @@ func serve(ctx context.Context, input io.Reader, output io.Writer, tools []map[s
 				text = string(detail)
 			}
 			result = map[string]any{"content": []any{map[string]any{"type": "text", "text": text}}, "isError": e != nil}
+			if ui && e == nil && len(out) > 0 {
+				var structured map[string]any
+				if json.Unmarshal(out, &structured) == nil {
+					result.(map[string]any)["structuredContent"] = structured
+					if params.Name == mentionSearchTool {
+						result.(map[string]any)["content"] = []any{}
+					}
+				}
+			}
 		default:
 			rpcError = map[string]any{"code": -32601, "message": "Method not found"}
 		}
@@ -297,7 +352,7 @@ func serve(ctx context.Context, input io.Reader, output io.Writer, tools []map[s
 		} else {
 			reply["result"] = result
 		}
-		if e := enc.Encode(reply); e != nil {
+		if e := encode(reply); e != nil {
 			return e
 		}
 	}

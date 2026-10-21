@@ -13,6 +13,7 @@ export const runtimeModeDescription = (mode?: RuntimeMode) =>
       );
 export type ShareTransport = "lan" | "tailcat";
 export type AnnotationTarget = {
+  executionId?: string;
   kind: "history" | "file" | "changes" | "material";
   materialId?: string;
   version?: number;
@@ -31,6 +32,7 @@ export type AnnotationTarget = {
   baseRevision?: string;
 };
 export type Annotation = {
+  executionId?: string;
   materials?: MaterialReference[];
   authorId?: string;
   id: string;
@@ -51,6 +53,12 @@ export type AnnotationReply = {
   createdAt: string;
 };
 export type Collaboration = {
+  spaceId?: string;
+  executionId?: string;
+  sessions?: Collaboration[];
+  sessionCount?: number;
+
+  paused?: boolean;
   hasExecution?: boolean;
   executionAvailable?: boolean;
   invitationId?: string;
@@ -88,7 +96,6 @@ export type Collaboration = {
     online: boolean;
     inputRequested: boolean;
     joinedAt: string;
-    executionAccess?: boolean;
   }[];
   invitations?: {
     id: string;
@@ -134,6 +141,8 @@ export type Source = {
   status?: { type: string };
 };
 export type Preview = {
+  spaceId?: string;
+  executionId?: string;
   runtimeMode?: RuntimeMode;
   source: Source;
   sourceTurnId: string;
@@ -166,6 +175,9 @@ export type Info = {
   host: string;
   version: string;
   installedVersion?: string;
+  commit?: string;
+  installedCommit?: string;
+  updatePending?: boolean;
   cli?: {
     executable: string;
     command?: string;
@@ -175,6 +187,18 @@ export type Info = {
   binary: string;
   codexVersion: string;
   codexError: string;
+  codexRecovery?: string;
+  settings?: {
+    binary: string;
+    desktopApp: string;
+    claudeBinary: string;
+  };
+  codexInstallation?: {
+    binary: string;
+    source: "custom" | "environment" | "app" | "path" | "common" | "shell" | "";
+    desktopApp?: string;
+    recoveredFrom?: string;
+  };
   desktopApp: string;
   dataDir: string;
   mcpCommand: string;

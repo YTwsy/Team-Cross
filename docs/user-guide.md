@@ -2,7 +2,7 @@
 
 **简体中文** | [English](user-guide.en.md)
 
-[返回 README](../README.md) · [文档导航](README.md) · [开发与验证](development.md)
+[返回 README](../README.md) · [文档导航](../README.md#开发与文档) · [开发与验证](agent-wiki/sources/development.md)
 
 这里保存安装、分享、加入、原生客户端、MCP 与恢复的详细操作。产品概览和当前下载入口见 [README](../README.md)；具体版本的变化与升级限制以 [GitHub Releases](https://github.com/YTwsy/Team-Cross/releases) 为准。
 
@@ -30,7 +30,7 @@ App 自带完整 CLI 和 Core，不要求 Homebrew。Cask 同时安装 App 和 `
 
 当前安装包使用 ad-hoc 签名，未经 Developer ID 签名或 Apple 公证。首次打开如果受到系统提示，先尝试打开 App，再按 [Apple 的说明](https://support.apple.com/zh-cn/102445) 在“系统设置 → 隐私与安全性”中允许打开。构建清单记录每个安装包的签名和公证状态。
 
-阅读已发布材料不需要先安装 Codex 或准备本地仓库。发起协作、直接操作或使用 MCP 辅助时，按页面提示使用对应的 Codex 或 Claude Code。客户端接入范围见 [原生客户端与模型](agent-wiki/wiki/concepts/native-clients-and-models.md)，各版本的实际测试范围见 [验收导航](agent-wiki/wiki/concepts/validation-gates.md)。
+阅读已发布材料不需要先安装 Codex 或准备本地仓库。发起协作、直接操作或使用 MCP 辅助时，按页面提示使用对应的 Codex 或 Claude Code。客户端接入范围见 [原生客户端与模型](agent-wiki/sources/decisions/native-clients-and-models.md)，各版本的实际测试范围见 [验收导航](agent-wiki/wiki/concepts/validation-gates.md)。
 
 ## 打开 Team Cross
 
@@ -65,7 +65,7 @@ teamcross stop --force
 4. 选择 LAN 或 Tailcat，生成一份可供多位同事使用的邀请链接。成员均可“发布会话材料”，发布自己的一份或多份 Session；批注与回复可以同时引用多份材料的固定版本。
 5. “阅读材料”才读取正文；个人 Agent 先 `list_materials`，再 `read_material`。默认流完整返回对话、折叠长工具输出；需要全文时按返回的 `turnId + itemId` 单独分页读取。作者“发布新版本”默认沿用上次公开范围，必须再次预览；旧批注仍指向旧版本。撤回停止继续读取，已读取副本和历史引用不能召回。
 
-只读空间不开放原生操作或工作目录。需要执行时由发起者选择“启用共同执行”，再确定来源、目录与固定权限模式。空间保留原链接、成员、材料和讨论；在成员列表向需要参与执行的人“开放执行访问”，共享完整原生历史与工作目录，再单独交接输入。原只读链接继续只授予材料和讨论访问。
+只有材料的空间不启动执行。需要共同执行时，由发起者选择“新增协作会话”，确定来源、目录与固定运行模式。空间保留原链接、成员、材料和讨论；全部空间成员均可读取新增会话完整原生历史与工作目录，实际操作需单独交接该会话输入权。
 
 只读空间始终提供“关闭空间”，即使尚未生成邀请或无人加入也可以关闭。关闭状态会保存，材料和讨论保留；之后可“重新开放空间”。
 
@@ -94,7 +94,7 @@ teamcross read-material --id <空间ID> --material <材料ID> --version 1 --json
 | 使用原目录 | 保留原 Git 分支、暂存区和全部现有文件，只创建新会话 fork | 来源会话的原目录 |
 | 创建新 worktree | 从确认的 `HEAD` 检出独立目录，创建 `codex/collab-<短 ID>` 分支；不复制暂存、未暂存、未跟踪或忽略的内容 | 新 worktree 中对应的来源子目录 |
 
-协作模式在创建时确定，创建后不提供切换，恢复沿用同一模式。**受限模式**为默认，延续 Team Cross 的工具与权限限制；**信任模式**支持 Codex 和实验性的 Claude Code，沿用邀请者主机上的原生配置与权限，包括 MCP、插件、hooks、网络、命令，以及原生已启用的浏览器和电脑控制。工具使用邀请者的服务授权，操作可能访问工作目录之外的数据；创建时加载个人工具也可能触发 hooks。信任模式继承实际可用环境，仍遵循原生客户端、组织策略与系统授权，不把未安装或未授权的能力自动打开。详情和邀请确认页显示模式。完整边界见 [协作模式](agent-wiki/sources/decisions/runtime-modes.md)。
+协作模式在创建时确定，创建后不提供切换，恢复沿用同一模式。**受限模式**为默认，延续 Team Cross 的工具与权限限制；**信任模式**支持 Codex 和实验性的 Claude Code，沿用邀请者主机上的原生配置与权限，包括 MCP、插件、hooks、网络、命令，以及原生已启用的浏览器和电脑控制。工具使用邀请者的服务授权，操作可能访问工作目录之外的数据；创建时加载个人工具也可能触发 hooks。信任模式继承实际可用环境，仍遵循原生客户端、组织策略与系统授权，不把未安装或未授权的能力自动打开。会话操作菜单和创建预览显示模式。完整边界见 [协作模式](agent-wiki/sources/decisions/runtime-modes.md)。
 
 创建不发送业务指令。来源会话和 Git 起点发生变化时，需要重新查看起点。当前支持普通 Git 仓库；含 submodule 的仓库暂不支持。
 
@@ -111,21 +111,31 @@ teamcross share --provider codex --source <来源UUID> --workspace existing \
 
 也可以告诉已接入 MCP 的个人 Agent：“把当前 Session 分享出去，使用原目录、受限模式和局域网。”工具先核对原生客户端传来的当前会话身份、预览现场，再登记分享请求；**本轮答复结束后** Core 才创建 fork 和邀请，使 fork 包含本轮完整对话。Agent 先返回请求 ID，下一轮通过 `get_share_request` 查询，成功后用 `create_invitation` 取回邀请。登记成功不等于邀请已生成，不要让 Agent 在同一轮循环等待自己结束。
 
-终端可用 `teamcross share-status --id <请求ID> --json` 查询，或用 `teamcross cancel-share --id <请求ID>` 取消尚在等待的请求。已开始创建则保留实际结果；来源轮次或 Git 起点变化时停止，不自动换成新起点。Core 停止后未完成请求标记为中断，不在重启后自动创建。无法核对原生调用身份的客户端仍可走上面的明确来源流程，不能用“最近会话”替代“当前会话”。具体版本证据见 [个人 Agent 与 CLI 验证](agent-wiki/sources/validation/agent-cli-collaboration-2026-09-16.md)。
+终端可用 `teamcross share-status --id <请求ID> --json` 查询，或用 `teamcross cancel-share --id <请求ID>` 取消尚在等待的请求。已开始创建则保留实际结果；来源轮次或 Git 起点变化时停止，不自动换成新起点。Core 停止后未完成请求标记为中断，不在重启后自动创建。无法核对原生调用身份的客户端仍可走上面的明确来源流程，不能用“最近会话”替代“当前会话”。具体版本证据见 [个人 Agent 与 CLI 验证](agent-wiki/tasks/finished_archived/agent-cli-collaboration-2026-09-16.md)。
 
-`create` 只创建协作，`invite --id <协作ID> --transport lan|tailcat` 只生成或取回当前可复用链接；`share` 顺序完成两者。邀请失败返回已创建的协作及恢复提示，后续只运行 `invite`，不换 requestId 重新创建。相同 requestId 的创建重试复用原协作；结果不明时先查询 `collaborations --id <requestId>`。邀请链接与邀请码供用户自行转交，不自动发送给同事。
+`create` 只创建协作，`invite --id <空间ID> --transport lan|tailcat` 只生成或取回当前可复用链接；`share` 顺序完成两者。邀请失败返回已创建的协作及恢复提示，后续只运行 `invite`，不换 requestId 重新创建。相同 requestId 的创建重试复用原协作；结果不明时先查询 `collaborations --id <预览返回的spaceId> --execution <预览返回的executionId>`。邀请链接与邀请码供用户自行转交，不自动发送给同事。
 
-Codex 协作创建成功后，发起者可在详情顶部点击“在个人 Codex 中打开”，直接定位新的协作会话，无需先在 Desktop 列表中找到它。创建、同事对话和输入交接不会自动切换你的页面。该入口打开你平时使用的 Desktop；共享期间的操作继续使用直接客户端或辅助工具。结束共享并释放会话后，入口变为“在个人 Codex 中继续”。系统打开请求成功不代表新对话已实时同步。
+Codex 协作创建成功后，发起者可在“会话操作”菜单点击“在个人 Codex 中打开”，直接定位新的协作会话，无需先在 Desktop 列表中找到它。创建、同事对话和输入交接不会自动切换你的页面。该入口打开你平时使用的 Desktop；共享期间的操作继续使用直接客户端或辅助工具。结束共享并释放会话后，入口变为“在个人 Codex 中继续”。系统打开请求成功不代表新对话已实时同步。
+
+## 一个空间中的多个协作会话
+
+在空间左侧“协作会话”中可反复新增会话。每次选择原生来源、完成轮、目录和受限/信任模式，创建独立 fork；不同 worktree 可以并行。同一 worktree 的受管运行实例互斥，需要先暂停原会话并等它释放，或选择新 worktree。
+
+加入空间后可读取所有已发布材料和协作会话。发起者在具体会话的“输入交接”中选择接收者，一个人可以操作定位会话，另一个人同时操作复核会话。暂停等待当前工作结束；结束共同执行还接回输入，成员继续阅读与讨论，其他会话不受影响。
+
+切换会话保留各自阅读位置、文件和评论草稿；空间材料、讨论、请求与简报共用。协作会话与已发布材料采用相同阅读样式，右侧评论随所选会话切换，全部空间成员可读。宽屏（大于 1100px）默认展开评论，窄屏按需打开，手动收起状态在当前页面同类布局中保留。“工作目录改动”显示当前 Git 现场，不能当作本会话独自产生的改动清单。
+
+CLI 新增到已有空间时，预览与创建都传 `--space <空间ID>`。查询空间得到 sessions 列表后，用返回的 executionId 操作，不能用原生 sessionId 替代。
 
 ## 邀请与加入
 
 发起者创建后取得包含 App 链接、邀请码和安装指引的邀请。已安装的接收者点击 `teamcross://join?invite=…`，确认协作名、主机和访问范围后进入上下文页。未安装者先安装，再次点击链接；也可在“加入协作”中粘贴原始邀请码或 App 链接。显式 CLI 加入会自动启动 Core 并直接进入详情：
 
 ```sh
-teamcross join 'tcx3.…'
+teamcross join 'tcx4.…'
 ```
 
-终端可先用 `teamcross inspect-invitation --stdin --json` 读取邀请声明的名称、主机和模式，再通过 `teamcross join --stdin --no-open --json` 加入；两次分别输入同一份邀请。预览仅解析本地内容，实际加入才验证远端。加入 JSON 返回本机协作 `id`。个人 MCP 对应 `preview_invitation` 与 `join_collaboration`。
+终端可先用 `teamcross inspect-invitation --stdin --json` 读取邀请声明的空间名称、主机和加入范围，再通过 `teamcross join --stdin --no-open --json` 加入；两次分别输入同一份邀请。预览仅解析本地内容，实际加入才验证远端。加入 JSON 返回本机协作 `id`。个人 MCP 对应 `preview_invitation` 与 `join_collaboration`。
 
 邀请使用临时 TLS 证书和主机指纹。同一链接可供多人加入，有效至关闭链接、重置链接或本次共享结束；每位加入者使用独立访问凭据。关闭客户端或暂时断线不撤销资格，B 重启 Core 后使用已保存凭据重新连接。B 主动离开后可通过仍有效的链接重新加入；A 结束共享或退出/重启 Core 后，需要重新开放并生成新链接。发起者需保持 Team Cross 运行。
 
@@ -134,9 +144,9 @@ teamcross join 'tcx3.…'
 - **局域网：** 双方需要处于可互访的同一局域网；连接不依赖 Tailcat 公共服务。
 - **Tailcat（实验性）：** 双方无需 Tailscale 账户，也不安装系统 TUN。Tailcat 通过 DERP 完成发现和初始连接，条件允许时使用点对点 UDP，否则可继续经 DERP 中继；可达性和质量依赖双方网络及所用 DERP。Tailcat 地址、预共享密钥、Team Cross 邀请 secret 和 TLS 指纹一起包含在邀请码中，因此邀请码应按秘密处理。
 
-两种方式复用相同的链接加入、独立成员凭据、TLS 1.3 与 SPKI 指纹校验；不会先尝试局域网再暗中回退 Tailcat。当前同机实网测试已经覆盖 Tailcat 建链、加入、成员重连和直接客户端 WebSocket 桥接，但不等于两台 Mac、不同网络或强制 DERP 中继已经验收；完整范围见 [Tailcat 验收记录](agent-wiki/sources/validation/tailcat-transport-2026-09-15.md)。
+两种方式复用相同的链接加入、独立成员凭据、TLS 1.3 与 SPKI 指纹校验；不会先尝试局域网再暗中回退 Tailcat。当前同机实网测试已经覆盖 Tailcat 建链、加入、成员重连和直接客户端 WebSocket 桥接，但不等于两台 Mac、不同网络或强制 DERP 中继已经验收；完整范围见 [Tailcat 验收记录](agent-wiki/tasks/finished_archived/tailcat-transport-2026-09-15.md)。
 
-只读空间的成员可以阅读、发布材料和参与讨论。空间启用执行并向你开放执行访问后，还可以选择以下入口：
+只读空间的成员可以阅读、发布材料和参与讨论。空间创建协作会话后，还可以选择以下入口：
 
 - **直接操作：** 取得输入权后，使用本机 Codex TUI，或专用于该协作的独立 Codex Desktop。客户端连接同一个共享 fork，实际执行在发起者主机。同一协作只保留一个直接客户端，切换前关闭原直接客户端。Claude 协作使用实验性的原生 TUI。
 - **用自己的客户端辅助：** 选择个人 Codex（TUI/Desktop）或 Claude Code TUI，保持自己的普通会话，通过 Team Cross 工具选择目标、读取历史、查看文件和改动、参与输入或添加批注。这些会话拥有各自的本地上下文。
@@ -153,7 +163,7 @@ teamcross join 'tcx3.…'
 
 Claude 协作通过原生 `--fork-session` 创建新会话。信任模式直接由 Claude 在个人配置目录管理新 fork；受限模式在发生首次业务输入并持久化后，由 Team Cross 只把这个新 fork 的单个 transcript 发布到 A 当前个人 Claude home 的 `projects`，它会像普通原生 fork 一样出现在 Claude Code CLI/TUI `/resume`，结束共享后可从个人历史继续。零输入 fork 可能尚未落盘，也不保证释放后可恢复；Team Cross 不把这个情况当成创建失败。受限模式下，每次协作使用独立 `claude-runtime` 作为 worker 配置目录，其中只放所选来源的逐字节快照、本次 fork、受限 settings、MCP、认证快照、daemon/job 和所有权状态；不会把整个个人 `projects` 暴露给协作 worker。Team Cross 不自行构造 Provider JSONL，也不把个人设置、插件、已有历史或认证文件作为写入目标；受限模式下，Team Cross 在个人 history 中只新增用户明确创建的 fork；信任模式的原生工具可能依授权修改个人资源。B 的直接 TUI 不保存 A 的 Provider 历史，Claude Desktop、Web 与 Cloud 的历史也不在本功能范围。旧独立 `claude-home` 协作不迁移，需要重新创建。
 
-WebGUI 与辅助工具可查看已持久化的上下文、添加批注，并在空闲时发送文本。Claude 的补充、中断、审批与模型选择目前需要在原生 TUI 中操作；共享 worker 内置当前协作的批注读取与回复工具。信任模式在邀请者原生配置目录中创建和运行新 fork，复用个人 MCP、插件、hooks、权限及可用工具；受限模式继续关闭这些扩展。Claude Desktop 仍未接入，Claude 权限机制不等同于 Codex 的 OS 权限隔离。Claude 使用 A 的 API 路由；OAuth / Keychain 登录流程尚未验收。详见 [Claude 接入契约](agent-wiki/sources/decisions/claude-native-tui.md) 与 [2026-09-14 个人 CLI/TUI 历史验收](agent-wiki/sources/validation/claude-personal-history-2026-09-14.md)；[2026-09-12 实测记录](agent-wiki/sources/validation/claude-native-tui-2026-09-12.md)属于切换前的旧实现。
+WebGUI 与辅助工具可查看已持久化的上下文、添加批注，并在空闲时发送文本。Claude 的补充、中断、审批与模型选择目前需要在原生 TUI 中操作；共享 worker 内置当前协作的批注读取与回复工具。信任模式在邀请者原生配置目录中创建和运行新 fork，复用个人 MCP、插件、hooks、权限及可用工具；受限模式继续关闭这些扩展。Claude Desktop 仍未接入，Claude 权限机制不等同于 Codex 的 OS 权限隔离。Claude 使用 A 的 API 路由；OAuth / Keychain 登录流程尚未验收。详见 [Claude 接入契约](agent-wiki/sources/decisions/claude-native-tui.md) 与 [2026-09-14 个人 CLI/TUI 历史验收](agent-wiki/tasks/finished_archived/claude-personal-history-2026-09-14.md)；[2026-09-12 实测记录](agent-wiki/tasks/finished_archived/claude-native-tui-2026-09-12.md)属于切换前的旧实现。
 
 ## 模型与推理强度
 
@@ -162,6 +172,38 @@ WebGUI 与辅助工具可查看已持久化的上下文、添加批注，并在�
 恢复会读取该协作会话最新持久化的设置。详情中的“技术信息”展示 Codex 已确认的当前模型与推理强度；离线时标注为最近确认的模型。普通辅助 TUI/Desktop 的本地模型由使用者自行配置。`gpt-5.6-luna` 仅用于本仓库的真实模型测试。
 
 ## 个人 Agent 与 MCP
+
+### ChatGPT for Mac 本机插件
+
+本节使用支持插件连接的开发构建，构建方式见[本机插件开发](agent-wiki/sources/development.md#本机-chatgpt-插件)。在本机 Work/Codex 中，可以安装包含完整 WebGUI 的 Team Cross 插件。
+
+1. 打开 Team Cross，进入“设置与连接”，或从菜单栏点击“ChatGPT 插件…”。
+2. 在“ChatGPT 插件”区域点击“安装到 ChatGPT”。已有安装则点击“连接并启用自动同步”。如果旧插件连接了另一个数据目录，点击“连接到当前数据”，即可使用当前 Team Cross 的空间和材料。
+3. 完全退出并重新打开 ChatGPT，再打开左侧 Team Cross。新版界面打开后，“等待打开新版插件”提示自动消失。
+4. 以后打开 Team Cross App，插件会自动检查更新，并使用该 App 当前的本机数据。已启用自动同步的旧插件会自动修正原来的演示目录或其他旧绑定，不需要修改配置文件。需要处理时，在相同设置区域检查状态并重试。手动移除或停用后不会自动装回，点击“重新连接”才恢复。
+
+每台 Mac 首次使用时需要点击一次连接，不需要填写数据目录或复制其他设备的配置。插件读取这台 Mac 上 Team Cross 可访问的空间、已发布材料和批注；安装不会导入其他设备的数据或演示材料。切换绑定保留旧目录内容，不合并数据。
+
+安装 App 本身不添加插件。“断开插件连接”会关闭自动同步并移除插件注册，保留材料、批注和协作数据。只用 CLI 时可以执行 `teamcross plugin connect` 启用接入，更新后执行 `teamcross plugin sync`；不会额外安装后台更新服务。旧的手动安装命令也保留：
+
+```sh
+teamcross plugin install
+teamcross plugin status
+```
+
+插件使用本机 stdio 和现有 Core，不需要公网入站连接或 Team Cross 云端账号。自定义数据目录时追加 `--data-dir /absolute/path`；选择安装源或客户端时可追加 `--plugin-dir /absolute/path`、`--codex-bin /absolute/path/to/codex`。安装或升级后，在当前任务结束后完全退出 ChatGPT（⌘Q）并重新打开，再进入左侧的 Team Cross。已打开的侧栏和插件进程可能继续使用旧界面，新建会话不等于侧栏已刷新。
+
+打开“Team Cross”后，使用与浏览器 WebGUI 相同的空间、资源库和设置导航。创建、加入、材料版本、原文批注和回复、接收会话配对等操作沿用原有页面；界面语言继续同步本机设置，主题可选择系统、浅色或深色。页面草稿沿用 WebGUI 的当前页生命周期，不保证关闭插件后恢复。
+
+在支持 Composer mentions 的桌面输入框中，输入 `@`，进入 Team Cross 的资源搜索，输入材料标题、空间名、作者或批注文字，再选择结果。材料名称带 `v1`、`v2` 等版本号；输入“连接池 v1”可缩小到相应材料的第 1 版。空搜索显示最近 20 项，结果较多时继续输入关键词。材料正文不做全文搜索，私人会话与未发布草稿不在列表中。
+
+选中后，引用进入当前消息。你可以继续写“分析这份材料”或“核对这条批注”，确认后再发送。搜索和选择不会自动发消息、回复批注或启动共同执行。材料引用始终读取选中的版本；批注读取当时可访问的讨论及回复。读取时重新检查权限；已撤回材料、离线空间或已撤销访问不能靠旧引用继续读取。这些引用只在当前插件绑定的本机 Core 中使用，不是协作邀请。此入口需要桌面宿主支持，不代表普通 ChatGPT 网页或手机端也可使用。
+
+也可以在材料、批注或资源库中选择内容，然后在底部点击“生成读取入口”。最多 32 项，可跨空间，材料绑定明确版本。若宿主支持，点击入口旁的“带回当前对话”，当前个人 Agent 会收到使用 `read_selection` 读取该编号的提示；处理结果请在会话中查看。原有“交给 Agent”仍可发送到已配对目标。宿主消息不可用时，复制读取提示即可。投递结果不明时先查看当前会话，插件不会自动重发同一入口的消息。
+
+更新当前安装源使用 `teamcross plugin upgrade`；`teamcross plugin remove` 移除自身插件和来源注册，保留源包及协作数据。CLI 来自同一版本的 Team Cross，升级时核对运行中的 Core 版本；若提示已有服务版本不匹配，结束活动协作并从原版本退出，再打开新版本。详细能力与分发范围见 [本机插件](agent-wiki/sources/decisions/chatgpt-local-plugin.md)。
+
+### 通用个人 MCP
 
 在“设置与连接”或“用自己的客户端辅助”中选择 Codex / Claude Code，点击对应的“接入本机”按钮。也可以使用该页面给出的准确命令：
 
@@ -172,7 +214,7 @@ claude mcp add --transport stdio --scope user teamcross -- /absolute/path/to/tea
 
 若使用自定义数据目录，在 `mcp` 后追加 `--data-dir /absolute/path`。配置使用稳定的 Homebrew `opt` 路径或已安装 App 内的绝对路径。Codex TUI 和 Desktop 共用配置；Claude 写入个人 user 范围配置，已有客户端请在 `/mcp` 中重新连接或重新打开。设置页分别显示配置、协议探测，以及 Codex / Claude 各自的实际工具调用证据；MCP 握手不启动 Core，首次工具调用可无浏览器启动 Core。
 
-个人 Claude 与 Codex 复用同一套 Team Cross 工具，可以辅助任一 Provider 的协作；实际写入能力取决于目标协作及当前输入归属。个人对话与模型调用在本机，发往共享会话的任务在 A 执行。对应结果见 [个人 Claude MCP 验收](agent-wiki/sources/validation/claude-assist-2026-09-12.md)。项目同名配置、显式禁用或组织策略可能影响工具加载，页面检测不覆盖其他目录。
+个人 Claude 与 Codex 复用同一套 Team Cross 工具，可以辅助任一 Provider 的协作；实际写入能力取决于目标协作及当前输入归属。个人对话与模型调用在本机，发往共享会话的任务在 A 执行。对应结果见 [个人 Claude MCP 验收](agent-wiki/tasks/finished_archived/claude-assist-2026-09-12.md)。项目同名配置、显式禁用或组织策略可能影响工具加载，页面检测不覆盖其他目录。
 
 可以告诉自己的客户端：“使用 Team Cross 列出协作，查看这次协作的上下文和当前状态。”
 
@@ -213,22 +255,22 @@ claude mcp add --transport stdio --scope user teamcross -- /absolute/path/to/tea
 
 ```sh
 teamcross collaborations --json
-teamcross collaborations --id <协作ID> --json
-teamcross input request --id <协作ID> --epoch <详情中的epoch>
-teamcross input handoff --id <协作ID> --member <成员ID> --epoch <最新epoch>
+teamcross collaborations --id <空间ID> --execution <会话ID> --json
+teamcross input request --id <空间ID> --execution <会话ID> --epoch <详情中的epoch>
+teamcross input handoff --id <空间ID> --execution <会话ID> --member <成员ID> --epoch <最新epoch>
 ```
 
 `input` 还支持 `cancel`、`reclaim`、`return`。每次先查询详情，再传入看到的输入状态版本；过期操作会被拒绝，结果不明时先查询，不自动重放。发起者只能向已加入的同事交出输入，交出和交还需等待当前轮结束；接回输入不自动中断正在执行的轮次。交接关闭旧直接客户端，辅助工具仍可读取上下文。
 
-取得输入后，用 `teamcross open --id <协作ID> --client tui` 打开新终端窗口，或 `--client desktop` 打开 Codex 专用窗口；`--print-command` 只取得启动计划。Claude 仅支持 TUI。启动请求成功后仍需查看 `clientState`，不把它等同于会话已打开。`end --id` 由发起者结束共享，`leave --id` 由接收者离开，`resume --id` 恢复已有 fork；这些动作保留原生会话与工作目录。
+取得输入后，用 `teamcross open --id <空间ID> --execution <会话ID> --client tui` 打开新终端窗口，或 `--client desktop` 打开 Codex 专用窗口；`--print-command` 只取得启动计划。Claude 仅支持 TUI。启动请求成功后仍需查看 `clientState`，不把它等同于会话已打开。`end --id <空间ID>` 关闭整个空间，`leave --id <空间ID>` 只让当前成员离开。`pause`、`end-session`、`resume` 同时要求 `--id <空间ID> --execution <会话ID>`，分别暂停、结束该会话执行、恢复同一 fork；这些动作保留原生会话与工作目录。
 
 ## 阅读与批注
 
-启用共同执行后，可在阅读面板标题栏切换“已发布会话材料”和“协作上下文”，无需上下寻找两部分。正文随整页连续滚动，顶部的内容切换、目录和专注阅读工具栏会吸顶。切换保留各自的阅读段落、已打开版本和工具过程，专注阅读改变宽度时也会尽量保持当前段落；点击批注的“查看原位置”会自动进入对应内容并定位。只读空间使用同样的阅读方式，只显示已发布材料。协作标题旁显示当前模式，点击可展开权限范围说明。
+从左侧“协作会话”与“已发布材料”选择内容，主阅读区采用相同的标题、来源和连续对话样式。协作会话顶部保留当前输入者和“输入交接”，模式、目录及生命周期操作收在“会话操作”菜单。切换保留各自的阅读段落、版本、文件选择和评论草稿；点击批注的“查看原位置”会进入对应内容并定位。只有材料的空间使用同样的阅读方式。
 
-阅读区域较窄时，点击工具栏中的“目录”选择轮次；宽屏专注阅读可显示侧边目录。成员信息初始完整展示，双栏布局滚动进入阅读时会平滑折叠，回到上方时展开，也可以手动展开继续查看。窄屏中成员信息顺序排在正文下方，不自动折叠。批注仍可在右侧或原文旁查看与编辑。
+点击工具栏中的“目录”选择轮次；专注阅读可隐藏周围导航。评论位于右侧，宽度大于 1100px 时默认展开，窄屏按需打开抽屉；手动收起不会因切换会话而重开。会话评论和空间材料讨论分别保存，但对全部空间成员可读。输入交接面板按需展开，不占据默认阅读区。
 
-点击“阅读材料”后，正文直接在这张材料卡片内展开。卡片顶部集中显示版本、来源和操作；向下阅读时，吸顶工具栏仍可切换其他材料或收起当前材料，已读版本会恢复阅读位置。作者的“发布新版本”和“撤回”靠右显示。切换历史版本时，标题、公开轮数、“加入选择”和收藏都对应当前查看的版本。收藏成功会显示高亮星标与“已收藏”，再次点击可取消；保存失败时会在按钮旁说明原因。
+选择已发布材料后，主阅读区显示固定版本正文。标题下方显示来源和版本，“材料操作”菜单集中收藏、发布新版本及撤回等操作。切换历史版本时，标题、公开轮数、“加入选择”和收藏都对应当前查看的版本；已读版本恢复阅读位置。收藏失败会显示原因。
 
 历史从最近 8 轮开始；正文按轮对齐，对话完整返回，长工具输出默认折叠。工具可将 `nextCursor` 传入 `read_context` 的 `cursor` 继续本页或读取更早内容，也可用响应中的 `pageCursor + turnId + itemId + startOffset` 单独读完一条输出。WebGUI 可翻阅更早的对话，按轮次目录导航；已发布材料与协作上下文支持 Markdown 排版、代码高亮、工具过程折叠、专注阅读及原文切换。对话有新内容时先提示，点击后更新当前阅读内容。
 
@@ -240,7 +282,7 @@ WebGUI 的批注面板可以直接填写整体意见。选中对话文字、点�
 
 点击已保存批注的“查看原位置”可以返回对应对话或代码。代码批注记录文件、行号、改动前后、内容指纹与当时片段；原文变化时保留片段并提示核对，不把旧行号当成当前内容。对话批注绑定原生 turn/item 和选中文字的范围，可在历史分页中查找。
 
-直接 Codex TUI、专用 Codex Desktop 和直接 Claude Code TUI 的共享运行时内置当前空间的批注与材料工具，无需安装个人辅助 MCP。可以直接告诉它：“读取 Team Cross 批注和回复，按引用读取已发布材料；长工具输出需要时按条展开，核对原文后回复这条批注。”共享工具 `read_annotations`、`reply_to_annotation`、`list_materials`、`read_material` 只访问当前空间且仍保持四个；个人辅助客户端还可从自己的本机来源发布材料，并用 `read_publication_draft` 按需读取私有冻结草稿。
+直接 Codex TUI、专用 Codex Desktop 和直接 Claude Code TUI 的共享运行时内置当前空间的批注与材料工具，无需安装个人辅助 MCP。可以直接告诉它：“读取 Team Cross 批注和回复，按引用读取已发布材料；长工具输出需要时按条展开，核对原文后回复这条批注。”共享的材料与批注工具 `read_annotations`、`reply_to_annotation`、`list_materials`、`read_material` 只访问当前空间；另有绑定当前会话的配对、读取请求和完成回执工具；个人辅助客户端还可从自己的本机来源发布材料，并用 `read_publication_draft` 按需读取私有冻结草稿。
 
 保存批注或回复不会自动启动或补充模型轮次。模型需在用户提出要求后读取实际上下文，再判断如何处理；共享 Agent 的回复明确标为 Codex 或 Claude Code。新建协作会自动接入；Codex 旧协作恢复运行时后接入。Claude 旧 worker 的原生启动参数不会被改写，需要新建协作使用新工具；创建时已接入这些工具的 Claude 协作，恢复时会保留接入。
 
@@ -254,9 +296,26 @@ WebGUI 左侧的“资源库”汇集你发起或加入过的空间内容。可�
 
 每个入口固定生成时的选择，材料固定版本，执行上下文读取时仍需核对当前原文。修改选择不会改变已有入口，点击“重新生成”可更新；编号 7 天后到期，只在生成它的本机数据目录有效。收起入口不会清空选择。读取会重新检查权限，撤回或失去访问的内容不能靠编号继续读取。原有“设置与连接”页仍可配置个人 Agent。
 
-所选内容都来自同一空间时，还可以点击“发送到共享会话”。核对目标、引用和处理要求后确认，页面沿现有输入通道发送。目标必须可执行、在线、空闲且由你持有输入；跨空间内容或等待审批时不能发送。已接收不等于执行完成，结果不明时先查看所在会话。
+批注或底部选择清单都可以点击“交给 Agent”。首次选择“配对新会话”，填写便于辨认的名称，把一次性配对提示粘贴到那个会话；接收能力核验通过后，后续可以直接选择它发送。默认“分析后告诉我”，只有明确选择“分析并回复原批注”才要求写回讨论。新会话需要重新配对；设置中的“接收会话”可移除配对、查看最近请求。
+
+接收请求不要求启用共同执行或安装插件，也不要求为此另建会话。已有、新建和 fork 的 Codex 会话使用同一原生输入机制；配对是否完成以实际连接和核验结果为准，当前入口的连接查找仍有限制，见 [配对契约](agent-wiki/sources/decisions/agent-pairing.md#当前接入范围)。Claude Channel 为实验性接入，需要宿主显式开启并通过通知回执核验。
+
+共享接收目标必须在线、空闲且由你持有输入，只接受其自身空间的引用；等待审批时不能发送。请求已提交、Agent 已读取、Agent 报告处理完成是不同状态；结果不明时先核对接收会话，页面不会自动重发。原生客户端可能仍需确认工具调用。
 
 菜单栏 App 左键图标打开“协作速览”，也可使用 `Control + Option + T`（快捷键可用时）。“当前协作”与“资源速览”可平级切换：前者显示尚未结束的协作及其状态，点击即可打开详情；后者与浏览器共用选择，可搜索、收藏、生成读取入口。切换视图保留资源筛选与选择，也可将速览固定为小浮窗；完整材料与长讨论在 WebGUI 中打开。列表随页面统一滚动。“服务与设置”位于筛选按钮同一行，右键图标也可打开服务菜单，继续使用原有设置、CLI 管理和退出功能。
+
+## 空间工作台与可选专用会话
+
+每个空间都有“阅读与讨论、协作请求、空间简报、参与会话”四个入口。阅读材料时可就地“发起空间协作”，当前固定版本会带入发送表单；阅读旁栏的“查看进展”打开完整请求列表。公开批注的“交给 Agent”也进入空间请求，空间成员可共同看见要求、所选引用与结果摘要。私人选择清单里的请求仍留在本机。
+
+1. 在“参与会话”关联一个本机已配对会话。每位成员都能关联自己的目标，原生历史和控制权保留在本人客户端。希望为此空间另起上下文和工作目录时，可选择“创建独立接收会话”；它运行在创建者的 Mac，不需要启用共同执行。
+2. 点击“发起协作请求”，选择目标、处理方式和要求。请求分别显示等待投递、已提交、已读取与报告结果；不确定时查询原请求，不会自动重发。“基于此请求继续协作”保留前后关联。参与会话也能通过通用 MCP 工具，在你明确授权后发起相同的空间请求。
+3. 在“空间简报”记录当前议题、已确认决定、待解决事项和来源。所有参与会话都可读取。Agent 的建议先回到请求结果或讨论，再由成员确认纳入；其他成员已更新时，先保留草稿并读取新版本后合并。
+4. 需要协作助手时，由空间发起者打开“专用会话”，选择已关联的目标，核对将带入的简报与范围，然后启用。当前角色设置要求目标未用于本空间共同执行。每空间最多一个；先显示“等待读取与接手确认”，只有会话读取启动信息并明确报告完成，才显示“已接手”。
+
+专用会话启动时得到空间身份、简报版本、公开材料目录、接收目标、待处理请求和介入规则；原文按需读取。它只在明确请求下介入。暂停阻止新的收发请求，已提交任务可留下原来的结果；重新介入会再次读取当前简报。停用或更换保留原会话、目录和历史结果。停用后的目标仍可作为普通参与会话使用。
+
+通过工作台新建的会话继承本机原生模型设置，以受限权限启动。原生工具确认由创建者在本机接收面板或原生 TUI 处理；界面提供打开 TUI 的命令。服务重启后需明确“恢复接收”，继续原会话，不自动创建替代会话或重放输入。更多边界见 [空间工作台契约](agent-wiki/sources/decisions/space-workbench.md#按需新建接收会话)。
 
 ## 结束与恢复
 

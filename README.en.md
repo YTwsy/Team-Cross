@@ -2,11 +2,11 @@
 
 [简体中文](README.md) | **English**
 
-Team Cross is an open source collaboration tool for coding agent sessions on macOS. Select and preview material from your existing Codex or Claude Code sessions, then invite teammates and their agents to read, reference, and discuss it. When you need to work on the code together, create a new native collaboration session, explicitly grant execution access, and hand over input.
+Team Cross is an open source collaboration tool for coding agent sessions on macOS. Select and preview material from your existing Codex or Claude Code sessions, then invite teammates and their agents to read, reference, and discuss it. When you need to work on the code together, create a new native collaboration session for everyone in the space to read, and hand over input for that session.
 
 Keep using your familiar terminal and native clients, with an optional WebGUI for shared context. Collaboration spaces and shared execution are hosted on the initiator's Mac. Each person's agent participates through MCP on request, keeping its own session, model, and local context.
 
-[Interactive demo](https://teamcross.pages.dev/en) · [Download v0.2.6](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.6) · [User guide](docs/user-guide.en.md) · [Documentation index (中文)](docs/README.md)
+[Interactive demo](https://teamcross.pages.dev/en) · [Download v0.2.6](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.6) · [User guide](docs/user-guide.en.md) · [Engineering docs (中文)](docs/agent-wiki/wiki/index.md)
 
 <img width="2400" height="1500" alt="Team Cross: share session context, discuss with teammates, and hand over input when needed" src="docs/images/concept-en.png" />
 
@@ -21,11 +21,11 @@ Keep using your familiar terminal and native clients, with an optional WebGUI fo
 | Take a look and give feedback | Read the content a teammate chose to share, then annotate and reply alongside the original text, without taking control of input |
 | Bring your own investigation | Select an excerpt from your own session, preview it, and publish it to the same space; discussions reference specific versions |
 | Bring your own agent | Ask your personal Codex or Claude Code agent to read material, check the evidence, and reply through MCP |
-| Take over and continue | After receiving execution access and an explicit input handoff, operate the shared session in its native client; execution stays on the host Mac |
+| Take over and continue | After an explicit input handoff for that session, operate the shared session in its native client; execution stays on the host Mac |
 
 Take an issue with event tracking in a frontend app. It may involve how the backend passes down trace IDs, how the native app processes events, changes in a cross-platform container, and the data warehouse's ingestion requirements. You also need to understand what the product team wants to measure. The person investigating may only have part of that context. Share the session where you started investigating, let backend and client engineers contribute their material and product teammates add business context, then ask your agents to read, check assumptions, and bring findings back to the discussion.
 
-The same approach helps when a product colleague builds a small feature with AI and needs an engineer to check its implementation and impact, or another business team needs to understand logic in your codebase. Start with shared session material, then explicitly grant execution access when further hands-on work is needed.
+The same approach helps when a product colleague builds a small feature with AI and needs an engineer to check its implementation and impact, or another business team needs to understand logic in your codebase. Start with shared session material, then create a collaboration session and hand over input when further hands-on work is needed.
 
 ## Install
 
@@ -69,11 +69,11 @@ Material supports Markdown, code highlighting, annotations alongside the origina
 
 ### Continue with shared execution
 
-1. Choose **Enable shared execution** in an existing space, or **Start a space → Execute directly together** on the home page.
+1. Choose **Add collaboration session** in an existing space, or **Start a space → Execute directly together** on the home page.
 2. Confirm the source session, execution directory, and permission mode to create a new native collaboration fork. Use the existing directory or create a new worktree from the selected `HEAD`.
-3. Grant execution access to specific members and explicitly hand over input. The teammate can continue in the corresponding native TUI or dedicated Codex Desktop, then hand input back when finished.
+3. Explicitly hand over input for that session to a member. The teammate can continue in the corresponding native TUI or dedicated Codex Desktop, then hand input back when finished.
 
-Enabling execution preserves the space's link, members, material, and discussions. **Granting execution access shares the full native history and working directory; control of input is handed over separately.** The original read-only invitation continues to grant only material and discussion access. Multiple people can read and discuss at once, while shared execution has one input holder at a time.
+Creating a collaboration session preserves the space's link, members, material, and discussions. **Every space member can read its full history and working directory; writing requires control of input for that session.** Different sessions can have different input holders, while each session has one input holder at a time.
 
 Using the original directory preserves its Git branch, staging area, and existing files. A new worktree is checked out from the confirmed `HEAD` and does not copy uncommitted changes. Ending sharing preserves the session, code, and working directory, and you can later resume the same fork. See [execution and directory choices](docs/user-guide.en.md#continue-with-shared-execution) and [ending and resuming](docs/user-guide.en.md#end-and-resume-sharing).
 
@@ -88,6 +88,8 @@ teamcross join 'INVITATION_CODE_OR_FULL_LINK'
 Closing or resetting an invitation link does not remove existing members. The host can revoke an individual member's access. A temporary disconnection does not mean the member has left; see [invitations and joining](docs/user-guide.en.md#invitations-and-joining) for reconnection and departure rules.
 
 ## Bring your own agent
+
+The development build also provides a [local ChatGPT for Mac plugin](docs/user-guide.en.md#local-chatgpt-for-mac-plugin). It opens the complete existing WebGUI in local Work/Codex, sharing its spaces, library, annotation and pairing pages, and brings explicit material selections into the current conversation. It connects to local Core through stdio; each build needs desktop product validation before formal distribution.
 
 The WebGUI is optional. Your personal Codex TUI/Desktop or Claude Code TUI can use Team Cross MCP to publish material, read context, and participate in discussions when you ask. Equivalent CLI entry points are also available.
 
@@ -125,6 +127,7 @@ Local hosting describes the collaboration service and where execution runs. Each
 | Personal agents | Codex TUI/Desktop and Claude Code TUI participate through MCP and can assist a collaboration using a different provider |
 | LAN | Participants must be mutually reachable on the same local network, with the host service running |
 | Tailcat | Experimental; no Tailscale account or system TUN required; direct connections or DERP relay, with quality depending on the network and selected DERP |
+| Spaces and sessions | A space can have multiple collaboration sessions; all members can read them, with independent input handoffs and pause/resume controls; different worktrees can run concurrently |
 | Execution directory | Ordinary Git repositories; use the original directory or create a new worktree; repositories with submodules are not supported yet |
 | Models and reasoning effort | Inherited from the native source at creation, then follow the current input holder's selections in the native client; the product does not fix a model |
 
@@ -140,7 +143,7 @@ Real work often means revisiting earlier steps. New findings can make us questio
 
 A timely look from a teammate who knows the background can save an investigation from a detour. Team Cross focuses on helping those judgments happen when they are needed, so teammates can join work in progress with their own tools and agents. Fewer human interventions, on their own, do not tell us whether software development has become more effective.
 
-We are also exploring ways for the agent on the host machine to invite a person when it needs human judgment. This remains a product direction: sharing, execution access, and input handoffs currently require explicit user actions.
+We are also exploring ways for the agent on the host machine to invite a person when it needs human judgment. This remains a product direction: sharing, session creation, and input handoffs currently require explicit user actions.
 
 ## Development and documentation
 
@@ -153,6 +156,5 @@ make build
 ```
 
 - [User guide](docs/user-guide.en.md): installation, upgrades, CLI and MCP, reading and annotations, input handoffs, and resuming work.
-- [Development and validation (中文)](docs/development.md): local development, packaging, engineering checks, and real-model test entry points.
-- [Agent Wiki index (中文)](docs/agent-wiki/wiki/index.md): product decisions, architecture, protocol, and validation records by version. Read [AGENTS.md (中文)](AGENTS.md) before contributing.
-- [Documentation index (中文)](docs/README.md): find documents by use case.
+- [Development and builds (中文)](docs/agent-wiki/sources/development.md): environment setup, local development, packaging, and validation entry points.
+- [Agent Wiki index (中文)](docs/agent-wiki/wiki/index.md): current product decisions, architecture, protocol, and validation requirements. Read [AGENTS.md (中文)](AGENTS.md) before contributing.

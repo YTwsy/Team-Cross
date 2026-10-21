@@ -1,50 +1,20 @@
 # 分发与首次体验
 
+本页维护安装后的入口归属、Core 与 App 生命周期、邀请打开方式及客户端就绪检查。构建和发布操作由 [构建与发布](releasing.md) 维护，产品动作见 [产品流程](product-flows.md)，实际验证范围见 [证据入口](validation/evidence-map.md#网络与分发)。
+
 ## 安装产物与边界
 
 首版 Apple Silicon、macOS 14+。Swift/AppKit 菜单栏外壳复用 Go Core 和浏览器 WebGUI。CLI 包含 WebGUI 与 STDIO MCP，安装用户不需要 Go/Node/pnpm。Codex 按参与方式另行使用；B 查看上下文无需 Codex 或本地仓库。
 
-`make release` 调用 [构建脚本](../../../scripts/build-release.py)，在 `dist/release/<版本>/` 生成 CLI tar.gz、App、DMG、SHA256SUMS、release.json 和对应渠道的独立 tap 内容。App 的 helper 位于 `Contents/Resources/teamcross`。稳定版使用 `teamcross` / `team-cross`，RC 使用 `teamcross-rc` / `team-cross@rc`；Cask 安装 App 并用 `binary` 注册内置 CLI，Formula 提供独立 CLI。四种定义都会占用同一个 App 或 `teamcross` 命令，通过成功安装收据双向互斥；Core 仍按数据目录共享，包管理互斥不改变服务发现协议。
+安装产物包括独立 CLI、App 与 DMG，构建规则见 [构建与发布](releasing.md#构建产物)。App 的 helper 位于 `Contents/Resources/teamcross`。稳定版使用 `teamcross` / `team-cross`，RC 使用 `teamcross-rc` / `team-cross@rc`；Cask 安装 App 并用 `binary` 注册内置 CLI，Formula 提供独立 CLI。四种定义都会占用同一个 App 或 `teamcross` 命令，通过成功安装收据双向互斥；Core 仍按数据目录共享，包管理互斥不改变服务发现协议。
 
 App 图标只使用 [AppIcon.png](../../../apps/macos/Assets/AppIcon.png) 生成 `TeamCross.icns` 的 10 个标准尺寸表示，`CFBundleIconFile` 保存无扩展名的资源基名。源图保持 sRGB、明确的不透明底板和透明外缘；构建在调用 `iconutil` 前移除临时 rendition 的扩展属性。WebGUI 图标与菜单栏状态图标是独立资源，不随 App 图标替换。
 
-首个公开版本使用 `v0.1.1`，发布标题为 `Team Cross v0.1.1`。发布来源为核对过的干净提交；本地构建脚本只生成产物，不发布网络内容。先使 `YTwsy/Team-Cross` Release 产物可下载并核对校验值，再发布 `YTwsy/homebrew-teamcross` 中对应的配方。生成的下载 URL 不代表已经发布，实际状态以 GitHub 为准。本地安装测试使用临时 tap、临时 Homebrew 前缀和应用目录。
-
-GitHub 上的 `CI` workflow 对指向 `main` 的 PR 和 `main` push 运行 Go test/vet、相关 race test、Web check/test/build、嵌入资源一致性和 Darwin arm64 CLI 交叉编译。所有 Tailcat 联网用例默认跳过，不把公共 DERP 可用性变成普通 PR 的外部硬依赖。
-
-`Unsigned macOS release` workflow 接受 `X.Y.Z` 与 `X.Y.Z-rc.N`：手动触发时从可到达 `origin/main` 的所选提交构建、验证、attest 并保存 14 天 workflow artifact，不创建 Release；推送同版本 annotated tag 时使用同一构建链，并在全部检查完成后创建不可覆盖的 GitHub Release。RC 标记为 Pre-release，正式版本标记为 Latest。tag 版本是发布版本的唯一输入，发布构建不使用 Makefile 或脚本的开发默认值。自动门槛依次包括：
-
-1. 完整 Git 历史、tag 格式与 `origin/main` 来源校验。
-2. Go/Web 工程门槛，共享一套 Go 缓存并串行运行 test、vet 与 race，避免 Tailcat/Tailscale/gVisor 冷编译重复占用磁盘。
-3. arm64 CLI、App、DMG、校验文件、构建清单、渠道元数据和 Homebrew 定义生成。
-4. `verify-release.py` 的 DMG/App/CLI/生命周期检查，以及 `verify-homebrew.py` 的隔离 Formula/Cask 检查。
-5. `release.json` 的版本、来源提交、架构、最低系统、干净状态和 unsigned/unnotarized 边界检查。
-6. CLI tar 与 DMG 的 GitHub artifact attestation、下载后 SHA-256 复核和对应渠道的 Release 创建。
-7. [Homebrew 发布 workflow](../../../.github/workflows/homebrew-publish.yml) 从公开 Release 重新下载资产，严格复核 annotated tag、`origin/main` 来源、checksum、manifest 与两份 attestation，在临时 Homebrew 前缀安装对应渠道后，使用短期 GitHub App token 向 `YTwsy/homebrew-teamcross` 创建 PR。tap 的只读 CI 通过并自动合并后，再等待公共 `main` 安装 smoke，并把 tap PR、commit 与安装命令写回 GitHub Release。
-
-tag 发布另要求同一提交包含 `docs/releases/<tag>.md`，并在发行说明中明确 ad-hoc 签名、未使用 Developer ID 和未公证。项目在较长时间内不以 Developer ID 身份作为正式版本发布前置条件；正式 GitHub Release 也可以发布经过同一完整门槛验证的 ad-hoc/unsigned 产物。Latest、稳定版本号和 GitHub provenance 都不代表 Apple 签名、公证或 Gatekeeper 验收；未来取得签名能力后，应显式调整构建清单、验证和发行说明，不能把 unsigned 产物描述为已签名。
-
-Homebrew 发布是同一 tag 流程中位于 GitHub Release 之后的受保护阶段，不与二进制构建并行：配方 URL 必须先成为可公开下载的不可覆盖 Release 资产。`Team-Cross` 仓库的默认 `GITHUB_TOKEN` 不跨仓库写入；`homebrew-publish` environment 只允许 `v*.*.*` tag，并只提供安装到 `YTwsy/homebrew-teamcross` 的 GitHub App 身份，运行时进一步收窄为 tap 的 Actions/Checks 只读与 Contents/Pull requests 读写。自动化还要求 workflow ref 与输入 tag 完全相同；手动补发必须从同一 release tag 运行。它只维护版本专属 `codex/homebrew-v...` 分支和 PR；遇到无 PR 的同名远端分支、同渠道版本倒退、同版本不同元数据或无法识别的既有发布时停止，不强推或直接改 `main`。
-
-公共 tap 的 `main` 只接受 PR，并要求 `Verify public Formula and Cask` 检查。新 PR 创建后先有界等待该检查登记，再等待检查完成，避免 `gh pr checks --watch` 在没有检查时立即退出；十分钟内未登记、API 错误或检查失败均停止发布。稳定 tag 更新无后缀 Formula/Cask；RC tag 只更新显式 RC 定义，不会把稳定安装者自动带到候选版。tap PR 与合并后的 push 都从公开 URL 下载 `release.json`、`SHA256SUMS`、CLI 和 DMG，在临时 Homebrew 前缀验证 Formula/Cask 安装、命令字节、同渠道及跨渠道互斥。GitHub Release 先成功而 tap 后续失败时，二进制 Release 保持有效，公共 tap 继续停留在上一个已验证版本，整条 workflow 以失败状态提示修复或安全重跑；不能把这种部分状态写成 Homebrew 已发布。
-
-```sh
-make release
-make verify-release
-make verify-homebrew
-# 单独检查真实菜单栏 App 的跨副本启动，需要 macOS 图形登录会话：
-make verify-app-instance
-# 在干净 checkout 构建候选版本；产物目录已有清单时需另选输出目录：
-make release VERSION=0.1.1
-make verify-release VERSION=0.1.1
-make verify-homebrew VERSION=0.1.1
-# 有效身份与已有 notarytool keychain profile 准备好后，在干净 checkout 构建：
-python3 scripts/build-release.py --version 0.1.1 --sign-identity 'Developer ID Application: …' --notary-profile teamcross
-```
-
-未提供 Developer ID 身份时使用 ad-hoc 签名；签名与公证状态如实保留在构建清单，不作为版本名称。所有非 `-dev` 发布构建要求干净 checkout，重建 Web 后再次核对；已有版本产物不被静默替换。清单记录完整提交、版本、buildNumber、dirty、架构、系统下限与校验值。App 的 buildNumber 来自完整提交历史的提交数量，因此 GitHub release checkout 必须使用完整历史。脚本不保存凭据、不发布网络内容。首版无登录自启和自动更新，升级由原安装渠道处理；卸载不清理协作数据和工作目录。
+构建命令、发布顺序、GitHub / Homebrew 流水线及签名规则集中维护在 [构建与发布](releasing.md)。稳定版本号、Latest 或可安装不代表 Developer ID 签名与 Apple 公证，具体状态以对应构建清单为准。首版无登录自启和自动更新，升级由原安装渠道处理；卸载不清理协作数据和工作目录。
 
 ## 命令入口的归属
+
+ChatGPT 插件通过 App 菜单“ChatGPT 插件…”或 WebGUI 设置页首次启用。用户点击安装后，App 后续启动会检查并同步已启用的插件，保留现有来源和 Core 目录。安装包复制到 Applications 本身不注册插件；断开后不自动重装。同步与界面实际加载分别显示，具体生命周期及 CLI 入口见[本机插件](decisions/chatgpt-local-plugin.md#包和生命周期)。
 
 DMG 安装者在菜单栏“命令行工具…”安装或移除启动器，默认位置为 `/usr/local/bin/teamcross`。只有安装或移除该入口可能需要系统授权；Core、MCP 和协作执行不提权。启动器用绝对路径调用 App 内的 CLI，保持参数原样传递。相关代码为 [cliinstall](../../../internal/cliinstall/cliinstall.go) 与 [App 菜单](../../../apps/macos/TeamCross.swift)。
 
@@ -60,7 +30,11 @@ Formula 与 Cask 均检查稳定版和 RC 另一渠道的成功安装收据，�
 
 [service](../../../internal/service/service.go) 是 CLI、MCP 和 App 共用的生命周期入口。`teamcross` / `serve` 默认后台启动并打开页面；`serve --foreground` 用于开发。`join` 自动确保服务，`mcp` 仅在实际工具调用时启动服务且不打开浏览器。App 通过同一 helper 的 JSON 命令操作服务，不维护另一套协作实现。
 
-数据目录规范化（含符号链接），`start.lock` 串行化并发启动，`core.lock` 覆盖完整服务生命周期。`connection.json` 以 0600 原子写入实例身份、PID、URL、版本、控制协议、数据目录与本机控制 token。健康检查不启动 Codex，核对身份与协议后才复用；连接失效可启动新实例，不兼容或身份不匹配则报告处理入口。
+数据目录规范化（含符号链接），`start.lock` 串行化并发启动，`core.lock` 覆盖完整服务生命周期。`connection.json` 以 0600 原子写入实例身份、PID、URL、版本、控制协议、数据目录与本机控制 token。健康检查不启动 Codex，核对身份与协议后才复用；连接失效且 `core.lock` 已释放时才可启动新实例，不兼容或身份不匹配则报告处理入口。状态探测失败但运行锁仍被持有时返回 `core_unresponsive` 并保留原始探测原因，不启动第二个 Core、不删除锁或强停进程。控制状态读取对锁竞争有界等待，无法取得会话状态时返回 `core_busy`；未知状态不能被当作空闲升级依据。
+
+DMG 替换 App 后，公共启动器读取安装位置上二进制的 `version --json`，同时比较版本与 commit；不能使用长驻 MCP 内存中的构建信息。运行实例记录其安装位置与启动参数，该安装继续负责此数据目录的升级，不因另一个 CLI 副本发起读取而切换安装来源。构建不同且服务空闲时，在 `start.lock` 内请求当前实例正常收尾，等 `core.lock` 释放后启动新构建，保留 loopback 地址和原启动参数，并确认实际运行的构建。CLI/Desktop 参数交接采用当前保存设置，避免重新带回已废弃的启动覆盖值。
+
+新版 Core 的升级入口会暂停接受新请求并再次确认空闲；在途请求、活动协作、接收连接、未完成投递和待确认邀请会延后更新。旧版首次迁移使用其已有的非强制停止接口和活动计数，无法补上旧版尚未实现的请求准入检查。活动期间继续使用原 Core，下次打开 App 或调用插件再尝试；不强停进程、不重放业务写入。设置页显示安装/运行构建及待更新状态，相同版本号也比较 commit。DMG 可以承载此流程，改用 PKG 不能替代运行时的升级协调。
 
 菜单栏外壳在创建图标之前，由 [AppInstance](../../../apps/macos/AppInstance.swift) 取得同一规范化数据目录的 `app.lock`。它与 `core.lock` 独立；锁文件不删除，文件描述符不传给 helper。不同数据目录可以保留独立 App，路径别名不能绕过去重。
 
@@ -74,30 +48,24 @@ Formula 与 Cask 均检查稳定版和 RC 另一渠道的成功安装收据，�
 
 ## 首次协作
 
-A 选择来源、目录和连接方式，点击“创建并邀请”。连接方式第一版显式选择局域网或实验性 Tailcat，不做自动探测与降级。创建结果先持久化，分享失败保留该协作并跳转到详情重试分享，不重复 fork。启动不要求 `--repo`；此高级参数只设置本机辅助上下文。
+首次协作可先分享材料讨论，也可创建带执行的空间；来源选择、创建与邀请失败后的处理见 [产品流程](product-flows.md)，成员与执行权限见 [协作空间契约](decisions/collaboration-spaces.md)。本节维护邀请在本机的打开方式与客户端就绪检查。启动不要求 `--repo`；此高级参数只设置本机辅助上下文。
 
-邀请同时给出 `teamcross://join?invite=…`、原始 `tcx3.` 内容及安装指引。App 将邀请经带本机凭据的接口暂存，浏览器只携带随机 pending ID。暂存最多 32 项、10 分钟，仍受原邀请期限约束。邀请声明的名称、主机和 `lan|tailcat` 在预览显示，实际加入使用相同 TLS pin 验证；预览只做本地格式和版本校验，不联系远端、不启动模型。Tailcat 邀请还包含其地址及预共享密钥，安装指引和页面明确提醒用户把整份邀请码视为秘密。
+邀请同时给出 `teamcross://join?invite=…`、原始 `tcx4.` 内容及安装指引。App 将邀请经带本机凭据的接口暂存，浏览器只携带随机 pending ID。暂存最多 32 项、10 分钟，仍受原邀请期限约束。邀请声明的名称、主机和 `lan|tailcat` 在预览显示，实际加入使用相同 TLS pin 验证；预览只做本地格式和版本校验，不联系远端、不启动模型。Tailcat 邀请还包含其地址及预共享密钥，安装指引和页面明确提醒用户把整份邀请码视为秘密。
 
-B 加入后直接进入上下文。每 10 秒由 B Core 发送心跳，A 以 30 秒租期显示参与方在线；页面关闭不会停止心跳。主动离开清除在线与输入请求，租期过后不再展示陈旧请求。`request_input` / `cancel_input` 检查 epoch，只变更请求状态；输入仍由 A 明确交接。当前维持 A/B 产品模型，没有新增多参与方权限系统。
+加入后进入所获授权的空间上下文；页面关闭不停止本机 Core 的在线心跳。多人参与、成员资格与共同阅读按 [协作空间契约](decisions/collaboration-spaces.md) 判断，申请和交接按 [输入协调](decisions/input-and-sharing.md) 处理；心跳周期、在线窗口与请求字段统一维护在 [共享协议](protocol.md#共享邀请与传输)。
 
-直接客户端以连接建立、成功读取或恢复对应 thread 区分 `connected` 和 `session_ready`。Desktop 仍需手动打开会话时如实说明。配置发现支持显式 CLI、安装 App 内的 CLI、PATH 与系统/用户 Applications；实际版本可诊断，实验 Desktop 接口不视为公开稳定合同。
+直接客户端以连接建立、成功读取或恢复对应 thread 区分 `connected` 和 `session_ready`。Desktop 仍需手动打开会话时如实说明。设置页区分自动发现、手动配置与当前检测结果，并提供重新检测、错误恢复和同一应用内 CLI 迁移提示；保存时不固定自动发现的路径。发现顺序与失效处理由 [原生客户端决策](decisions/native-clients-and-models.md#cli-发现与配置) 维护。实际版本可诊断，实验 Desktop 接口不视为公开稳定合同。
 
 MCP 配置保存稳定 opt/App 绝对路径。通过 Cask 命令链接调用时也解析回 App helper；不保存版本化 Cellar 路径或依赖 shell alias。个人 Codex 或 Claude Code 分别配置；Claude 使用 user 范围原生配置命令，遇到当前项目同名覆盖或禁用时提示处理。配置存在、独立 STDIO 协议探测和各 Provider 实际客户端工具调用分别记录；仅配置成功不代表旧客户端已重载工具。协议探测不启动模型，也不记录为实际客户端调用。
 
 ## 检查与相关规范
 
-[安装验证](../../../scripts/verify-release.py) 验证校验文件、DMG 挂载/安装、CLI/App 版本一致与实例复用，并调用 [App 副本验证](../../../scripts/verify-app-instance.py)。后者从两个临时 App 副本通过真实 macOS 启动/URL/退出事件验证外壳去重、请求确认、卡住后的恢复及 Core 保留；邀请 helper 使用测试内容，Core 使用包内真实二进制，不打开浏览器或调用模型。[生命周期验证](../../../scripts/verify-lifecycle.py) 验证 Core 并发启动、符号链接路径、端口冲突、鉴权停止、MCP 延迟启动、崩溃恢复及数据保留。工程、真实客户端、浏览器和清理门槛继续按 [验证契约](validation/test-gates.md)。[2026-09-15 GitHub CI、unsigned 发布与 v0.1.6-rc.1/v0.1.6-rc.2 验证](validation/github-ci-release-2026-09-15.md) 已确认对应 `macos-15` arm64 托管 runner 的图形登录会话能完成 App 副本检查，并记录公开 Release、来源证明、受保护 tap PR 与公共 Homebrew 安装复核；[2026-09-16 App 图标与 v0.1.6-rc.3 发布验证](validation/app-icon-release-v0.1.6-rc.3-2026-09-16.md) 进一步记录该候选的图标非透明范围、ICNS 打包、公开产物、provenance 与 Homebrew RC。证据只对应各记录中的提交、runner 与主机，后续基础设施失败不能静默跳过或沿用旧结论。同机或托管 runner 不能证明真实 macOS 26 图标显示、两台 Mac LAN、跨网络 Tailcat 或强制 DERP，未使用 Developer ID 的产物不能证明公证或 Gatekeeper 首次批准通过。
+[安装验证](../../../scripts/verify-release.py) 验证校验文件、DMG 挂载/安装、CLI/App 版本一致与实例复用，并调用 [App 副本验证](../../../scripts/verify-app-instance.py)。后者从两个临时 App 副本通过真实 macOS 启动/URL/退出事件验证外壳去重、请求确认、卡住后的恢复及 Core 保留；邀请 helper 使用测试内容，Core 使用包内真实二进制，不打开浏览器或调用模型。[生命周期验证](../../../scripts/verify-lifecycle.py) 验证 Core 并发启动、符号链接路径、端口冲突、鉴权停止、MCP 延迟启动、崩溃恢复及数据保留。工程、真实客户端、浏览器和清理门槛继续按 [验证契约](validation/test-gates.md)。
+
+证据只对应各记录中的提交、runner 与主机，后续基础设施失败不能静默跳过或沿用旧结论。同机或托管 runner 不能证明真实 macOS 26 图标显示、两台 Mac LAN、跨网络 Tailcat 或强制 DERP，未使用 Developer ID 的产物不能证明公证或 Gatekeeper 首次批准通过。
 
 相关来源：[产品流程](product-flows.md) · [架构](architecture.md) · [协议](protocol.md) · [输入协调](decisions/input-and-sharing.md)。
 
-本轮实际证据与未完成项见 [2026-09-11 v0.1.1 验收](validation/distribution-v0.1.1-2026-09-11.md)；[2026-09-10 验收](validation/onboarding-macos-2026-09-10.md) 保留为当时的开发包记录，其共存设计不再是当前分发规则。外部规范：[Apple 自定义 URL Scheme](https://developer.apple.com/documentation/xcode/defining-a-custom-url-scheme-for-your-app) · [Homebrew Cask Cookbook](https://docs.brew.sh/Cask-Cookbook)。
+具体版本的实际结果与未覆盖项按 [任务记录规则](../README.md#任务记录) 保存，影响当前判断的摘要与指针维护在 [证据入口](validation/evidence-map.md#网络与分发)；本页不累积逐版验收清单。历史开发包的共存设计不作为当前分发规则。
 
-`v0.1.7-rc.1` 的信任模式 PR、公开产物、来源证明、Homebrew RC 及检查登记竞态恢复见 [2026-09-16 发布验证](validation/release-v0.1.7-rc.1-2026-09-16.md)。
-
-`v0.2.1` 正式版的 release commit/tag、arm64 资产、checksum/provenance、稳定 Homebrew PR 与公共安装 smoke 见 [2026-09-21 发布验证](validation/release-v0.2.1-2026-09-21.md)。
-
-`v0.2.2` 正式版的 release commit/tag、arm64 资产、checksum/provenance、稳定 Homebrew PR 与公共安装 smoke 见 [2026-09-23 发布验证](validation/release-v0.2.2-2026-09-23.md)。
-
-`v0.2.3` 正式版的 release commit/tag、arm64 资产、checksum/provenance、稳定 Homebrew PR 与公共安装 smoke 见 [2026-09-23 发布验证](validation/release-v0.2.3-2026-09-23.md)。
-
-`v0.2.4` 正式版的 main 修复提交、annotated tag、arm64 资产与来源证明、稳定 Homebrew PR 和公共安装 smoke 见 [2026-09-23 发布验证](validation/release-v0.2.4-2026-09-23.md)。
+外部规范：[Apple 自定义 URL Scheme](https://developer.apple.com/documentation/xcode/defining-a-custom-url-scheme-for-your-app) · [Homebrew Cask Cookbook](https://docs.brew.sh/Cask-Cookbook)。

@@ -13,11 +13,22 @@ export class APIError extends Error {
     );
   }
 }
+type Transport = (
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+) => Promise<unknown>;
+let transport: Transport | undefined;
+// The plugin supplies the host bridge; browser/desktop callers retain fetch.
+export function setAPITransport(value?: Transport) {
+  transport = value;
+}
 export async function api<T>(
   path: string,
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
+  if (transport) return (await transport(path, body, signal)) as T;
   let res: Response;
   try {
     res = await fetch(`/api/${path}`, {

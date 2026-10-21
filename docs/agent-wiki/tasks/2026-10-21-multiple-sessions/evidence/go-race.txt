@@ -1,0 +1,9 @@
+ok  	teamcross/internal/collab	38.440s
+ok  	teamcross/internal/mcp	1.628s
+ok  	teamcross/internal/mcpevents	(cached)
+ok  	teamcross/internal/sharing	(cached)
+ok  	teamcross/internal/nativecodex	(cached)
+ok  	teamcross/internal/nativeclaude	(cached)
+ok  	teamcross/internal/service	(cached)
+ok  	teamcross/internal/cliinstall	(cached)
+ok  	teamcross/internal/pluginpack	(cached)

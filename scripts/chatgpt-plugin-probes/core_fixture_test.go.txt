@@ -1,0 +1,164 @@
+package collab
+
+// External test overlay: real Core HTTP/storage, synthetic native history.
+// It never opens a user collaboration or runs a native model.
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+	"unicode/utf16"
+
+	"github.com/google/uuid"
+	"teamcross/internal/buildinfo"
+	"teamcross/internal/service"
+	"teamcross/internal/workspace"
+)
+
+func TestChatGPTLocalCoreProbe(t *testing.T) {
+	dir := os.Getenv("TEAMCROSS_CHATGPT_CORE_DIR")
+	if dir == "" {
+		t.Skip("explicit fresh fixture directory required")
+	}
+	if err := os.Mkdir(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	repo := filepath.Join(dir, "workspace")
+	if err := os.Mkdir(repo, 0700); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, err := workspace.Git(ctx, repo, "init", "-b", "codex/core-probe"); err != nil {
+		t.Fatal(err)
+	}
+	text := "Team Cross 本机协作验证：材料经本机 stdio 和 127.0.0.1 Core 读取。测试标记 LOCAL-CORE-20261002。"
+	f := &fakeRuntime{source: Source{ID: uuid.NewString(), Cwd: repo, Name: "合成来源（不运行模型）"}, alive: true,
+		history: []MaterialTurn{{ID: "summary", Status: "completed", Items: []MaterialItem{{ID: "answer", Type: "agentMessage", Phase: "final_answer", Text: text}}}}}
+	a, err := Open(Config{DataDir: filepath.Join(dir, "state"), Repo: repo, Binary: "/usr/bin/true", Loopback: true,
+		StartProcess: func(string, string, string, string) (Runtime, error) { return f, nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	a.Host = "ChatGPT 本机插件 · 隔离 Core"
+	s, err := a.CreateSpace(ctx, SpaceInput{RequestID: uuid.NewString(), Title: "ChatGPT 插件隔离验证"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := a.FreezeSource(ctx, "codex", f.source.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err = a.PreviewPublication(PublicationSelection{DraftID: d.ID, Title: "本机材料读取验证", StartTurnID: "summary", EndTurnID: "summary"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	published, err := a.Publish(ctx, s.record.ID, PublishInput{PreviewID: d.ID, PreviewHash: d.Hash, RequestID: uuid.NewString()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mid := published.(map[string]any)["materialId"].(string)
+	note, err := s.annotate(Annotation{Text: "这条测试材料是否全程通过本机连接读取？", Target: &AnnotationTarget{Kind: "material", MaterialID: mid, Version: 1,
+		TurnID: "summary", ItemID: "answer", Quote: text, StartOffset: 0, EndOffset: len(utf16.Encode([]rune(text)))}}, "测试发起者")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	requests := []map[string]string{}
+	var connection service.Connection
+	public := a.Handler(http.NotFoundHandler())
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		requests = append(requests, map[string]string{"method": r.Method, "path": r.URL.Path})
+		mu.Unlock()
+		if r.URL.Path == "/api/control/status" {
+			if r.Method != "GET" || r.Header.Get("Authorization") != "Bearer "+connection.Token || r.Header.Get("Origin") != "" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			mode, resolved := a.UILanguage()
+			status := service.Status{Connection: connection, Running: true, Active: a.Active(), UILanguage: mode, ResolvedLanguage: resolved}
+			status.Token = ""
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(status)
+			return
+		}
+		public.ServeHTTP(w, r)
+	}))
+	defer server.Close()
+	directory, err := service.Normalize(a.Config.DataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection = service.Connection{URL: server.URL, PID: os.Getpid(), Instance: uuid.NewString(), Token: a.Token,
+		Version: buildinfo.Version, Commit: buildinfo.Commit, Protocol: buildinfo.ControlProtocol, DataDir: directory}
+	if err := service.Save(directory, connection); err != nil {
+		t.Fatal(err)
+	}
+	manifest := map[string]any{"api": server.URL, "pid": os.Getpid(), "dataDir": directory, "spaceId": s.record.ID,
+		"materialId": mid, "version": 1, "annotationId": note.ID, "materialText": text, "annotationText": note.Text,
+		"nativeHistory": "synthetic", "coreHTTPAndStorage": "real", "executionEnabled": false, "startedAt": time.Now().UTC().Format(time.RFC3339), "expiresAt": time.Now().Add(12*time.Hour).UTC().Format(time.RFC3339)}
+	if err := writeJSONFile(filepath.Join(dir, "fixture.json"), manifest); err != nil {
+		t.Fatal(err)
+	}
+	t.Log("isolated Core fixture ready", dir)
+	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
+	timeout := time.NewTimer(12 * time.Hour)
+	defer timeout.Stop()
+	for {
+		select {
+		case <-timeout.C:
+			t.Fatal("isolated Core fixture expired")
+		case <-tick.C:
+			s.mu.Lock()
+			annotations := append([]Annotation(nil), s.record.Annotations...)
+			execution := s.record.ExecutionRecord != nil
+			s.mu.Unlock()
+			f.mu.Lock()
+			calls := append([]string(nil), f.calls...)
+			forks := f.forks
+			f.mu.Unlock()
+			mu.Lock()
+			observed := append([]map[string]string(nil), requests...)
+			mu.Unlock()
+			state := map[string]any{"annotations": annotations, "nativeCalls": calls, "forks": forks, "executionEnabled": execution, "requests": observed}
+			if err := writeJSONFile(filepath.Join(dir, "observations.json"), state); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(filepath.Join(dir, "finish")); err != nil {
+				continue
+			}
+			if execution || forks != 0 {
+				t.Fatal("read-only fixture unexpectedly enabled execution")
+			}
+			for _, call := range calls {
+				if strings.HasPrefix(call, "turn/") || call == "thread/fork" {
+					t.Fatal("read/reply unexpectedly sent provider input", call)
+				}
+			}
+			b, err := os.ReadFile(filepath.Join(directory, "collaborations", s.record.ID, "collaboration.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var persisted Record
+			if err := json.Unmarshal(b, &persisted); err != nil {
+				t.Fatal(err)
+			}
+			if len(persisted.Annotations) != 1 || len(persisted.Annotations[0].Replies) != len(annotations[0].Replies) || len(annotations[0].Replies) == 0 {
+				t.Fatal("reply persistence did not match observed state")
+			}
+			state["result"], state["replyCount"], state["persistedRepliesVerified"] = "passed", len(annotations[0].Replies), true
+			if err := writeJSONFile(filepath.Join(dir, "result.json"), state); err != nil {
+				t.Fatal(err)
+			}
+			return
+		}
+	}
+}

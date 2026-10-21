@@ -26,6 +26,7 @@ func contextProperties(id map[string]any) map[string]any {
 		out[k] = v
 	}
 	out["id"], out["kind"] = id, map[string]any{"type": "string", "enum": []string{"history", "changes", "file", "annotations", "events"}}
+	out["executionId"] = str("协作会话 ID；history/changes/file/events 必填，空间公共批注省略")
 	out["cursor"] = str("history 的 nextCursor；从该页定位其他记录时使用 pageCursor + turnId + itemId")
 	out["turnId"], out["itemId"] = str("只读取指定轮次"), str("与 turnId 一起精确展开一条记录")
 	out["startOffset"] = map[string]any{"type": "integer", "minimum": 0, "description": "按条读取的原始 UTF-16 偏移"}
@@ -41,9 +42,10 @@ func compactStatus(raw json.RawMessage) json.RawMessage {
 	if json.Unmarshal(raw, &value) != nil {
 		return raw
 	}
-	project := func(in map[string]any) map[string]any {
+	var project func(map[string]any) map[string]any
+	project = func(in map[string]any) map[string]any {
 		out := map[string]any{}
-		for _, key := range []string{"id", "title", "state", "error", "host", "role", "selfId", "hasExecution", "executionAvailable", "reachable", "provider", "runtimeMode", "runtimeState", "nativeWaiting", "capabilities", "executionCwd", "sessionId", "writer", "busy", "online", "epoch", "sequence", "approvals", "members", "sharing", "releasePending", "inputRequested", "clientState"} {
+		for _, key := range []string{"id", "spaceId", "executionId", "paused", "sessionCount", "title", "state", "error", "host", "role", "selfId", "hasExecution", "executionAvailable", "reachable", "provider", "runtimeMode", "runtimeState", "nativeWaiting", "capabilities", "executionCwd", "sessionId", "writer", "busy", "online", "epoch", "sequence", "approvals", "members", "sharing", "releasePending", "inputRequested", "clientState"} {
 			if v, ok := in[key]; ok {
 				out[key] = v
 			}
@@ -53,6 +55,15 @@ func compactStatus(raw json.RawMessage) json.RawMessage {
 			if rows, ok := in[key].([]any); ok {
 				out[key+"Count"] = len(rows)
 			}
+		}
+		if sessions, ok := in["sessions"].([]any); ok {
+			rows := []any{}
+			for _, value := range sessions {
+				if child, ok := value.(map[string]any); ok {
+					rows = append(rows, project(child))
+				}
+			}
+			out["sessions"] = rows
 		}
 		return out
 	}
