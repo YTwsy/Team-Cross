@@ -104,3 +104,13 @@ Go `test ./...`、`vet ./...` 及 `internal/collab`、`internal/mcp`、`internal
 从干净提交 `8a5564d0971e728df973386461151380ca45fc5f` 构建 `0.2.6-dev.plugin-refresh.20261022`，buildNumber 174，arm64、最低 macOS 14.0。产物位于主仓库 `dist/release/0.2.6-dev.plugin-refresh.20261022/`，保留上一版安装包；[构建清单](2026-10-21-in-flow-evidence/plugin-refresh-release.json)。DMG SHA-256 为 `3937f3d1680335d7ecef3c5e0f914764da6d42ad8667dfba1b2f7e0b3390ad42`。
 
 `build-release.py` 与 `verify-release.py` 通过。验证覆盖校验值、DMG 挂载与临时安装、图标、签名完整性、App/CLI 来源一致、双 App 实例协调、CLI 安装/移除与既有命令保护、兼容 Core 复用及生命周期；[结构化验证结果](2026-10-21-in-flow-evidence/plugin-refresh-dmg-verification.json)。临时进程、挂载和浏览器页面已清理。本包采用 ad-hoc 签名，未使用 Developer ID、未公证；未执行可选的真实插件启动同步或公开安装验收，未替换用户已安装 App。
+
+## 2026-10-22 实际宿主的旧 Core 阻塞
+
+用户安装更新版后，插件显示当前会话查询 404、旧占位标题，并反馈点击连接后立即白屏。只读核对确认磁盘 App 是 `8a5564d` / `0.2.6-dev.plugin-refresh.20261022`，运行中 Core 仍是 `583a12a` / `0.2.6-dev.in-flow.20261021`；`active=0`、`upgradeBlocked=true`，新增版本接口确实返回 404。Agent 请求中存在 10 月 4 日持久化的 `unknown` 记录，旧 `UpgradeBusy` 将其永久当成活动。这里是已安装文件与运行中服务不一致，不能归结为用户没安装 DMG 或单纯面板缓存。
+
+现场恢复再次核对无活动协作和无进行中请求，使用正常 `stop`（无 force）与已安装 helper 的 `serve` 完成 Core 切换。请求账本前后相等，未知请求没有删除、改写或重发；未停止 Codex 或用户会话。真实宿主的既有插件面板随后通过原轮询显示两个原生标题、“当前会话已关联”和“尚未接通接收”，404 消失。明确点击一次“重新检查接收连接”，提交中与消息确认后 DOM 均正常，画面未白屏；本机截图保存在 `/private/tmp/teamcross-live-connection-recovered.png`，含真实用户标题，不纳入 Git。
+
+以上实际宿主证据覆盖读取身份、关联状态、标题回填及一次连接消息后的页面稳定性；不等于原生主动接收已接通，也不证明原白屏的独立根因已经捕获。此次没有观察到对应脚本异常，不能将模拟浏览器更新回退的通过扩大为真实宿主全面热更新验收。
+
+`d835321` 修复持久化未知回执阻塞升级，原有运行中请求/接收连接保护保留。MCP 在 Core 尚未切换时返回明确 `core_update_pending`；连接查询出错后停止“正在核对”，旧 404 给出正常重启 Team Cross 的提示，重试成功自动恢复关联状态，不发送连接消息。Go 全量 test/vet、`internal/collab`、`internal/mcp`、`internal/service` race 通过；Web 21 个文件 199 项测试、1079 条翻译检查及两套资源构建通过。
