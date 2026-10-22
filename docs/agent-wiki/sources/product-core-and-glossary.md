@@ -15,6 +15,8 @@
 | 协作会话 | 空间内的执行对象，有稳定的 `executionId` 和所属 `spaceId`；独立保存来源、目录、固定模式、运行状态与输入归属 |
 | 原生协作 fork | 协作会话创建出的 Provider 原生会话，保存为 `sessionId`；恢复保持该原生 ID；Claude fork 保存在 A 的个人 CLI/TUI history home |
 | 原生 Thread | Codex 协议中的会话对象，RPC 使用 `threadId`；不是旧版 Team Cross 的 Thread 聚合模型 |
+| 本机数字分身 | 成员在自己 Mac 上创建的空间共享聊天，持久身份 `shadowId`；当前主段、记忆和任务由 Core 接续，规则见 [分身契约](decisions/local-shadows.md) |
+| 分身主段与后台任务 | S1/S2 是同一对话先后使用的原生 thread；任务 J 属于共享对话，独立工作 thread W 可以跨主段继续，不按话题创建主 Session |
 | 原生 Turn / 轮次 | Codex 一次输入后的运行过程；不是必须由用户创建或填写的 Round |
 | 执行主机 | 持有共享运行时并执行代码的 A；B 的本机客户端与辅助会话不改变共享执行位置 |
 | 执行目录 | `executionCwd`，包含正确的仓库子目录映射；区别于仓库根和 worktree 根 |

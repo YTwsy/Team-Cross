@@ -242,7 +242,7 @@ func (s *Session) remoteHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if s.remoteWorkbenchHTTP(w, r) {
+	if s.remoteWorkbenchHTTP(w, r) || s.remoteShadowsHTTP(w, r) {
 		return
 	}
 	if s.materialUploadHTTP(w, r) {

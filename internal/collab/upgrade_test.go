@@ -1,7 +1,10 @@
 package collab
 
 import (
+	"github.com/google/uuid"
+	"path/filepath"
 	"slices"
+	"teamcross/internal/shadow"
 	"testing"
 	"time"
 )
@@ -66,5 +69,31 @@ func TestUpgradeUsesEffectiveClientSettings(t *testing.T) {
 	a := &App{Config: Config{Binary: "/old-cli"}, settings: Settings{Binary: "", ClaudeBinary: "/current-claude", DesktopApp: "/current.app"}}
 	if !slices.Equal(a.ClientLaunchArgs(), []string{"--codex-bin", "", "--claude-bin", "/current-claude", "--desktop-app", "/current.app"}) {
 		t.Fatal("reintroduced obsolete launch overrides", a.ClientLaunchArgs())
+	}
+}
+
+func TestUpgradeProtectsLocalShadowWithoutSharedExecution(t *testing.T) {
+	root := t.TempDir()
+	id := uuid.NewString()
+	e, err := shadow.New(shadow.Config{Directory: filepath.Join(root, "shadow")}, id, "space", "Fixture", root, root, shadow.Actor{ID: "owner"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	a := &App{shadows: map[string]*shadow.Engine{id: e}}
+	if a.UpgradeBusy() {
+		t.Fatal("idle local shadow blocks upgrade")
+	}
+	if _, err := e.Receive(shadow.Message{ID: uuid.NewString(), Actor: shadow.Actor{ID: "owner"}, Text: "accepted work"}); err != nil {
+		t.Fatal(err)
+	}
+	if a.Active() != 0 || !a.UpgradeBusy() {
+		t.Fatal("shadow queue must protect upgrade independently of shared execution")
+	}
+	if err := e.SetEnabled(false); err != nil {
+		t.Fatal(err)
+	}
+	if a.UpgradeBusy() {
+		t.Fatal("persisted paused queue blocks upgrade")
 	}
 }

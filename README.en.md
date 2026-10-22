@@ -91,6 +91,8 @@ Closing or resetting an invitation link does not remove existing members. The ho
 
 The development build also provides a [local ChatGPT for Mac plugin](docs/user-guide.en.md#local-chatgpt-for-mac-plugin). It opens the complete existing WebGUI in local Work/Codex, sharing its spaces, library, annotation and pairing pages, and brings explicit material selections into the current conversation. It connects to local Core through stdio; each build needs desktop product validation before formal distribution.
 
+Development builds now include [local digital shadows](docs/user-guide.en.md#local-digital-shadows-current-development-build). Members can select their local Codex and a working directory for one continuous conversation shared with the whole space. Core stores shared memories, manages context segments, and brings independent background task results back to the current conversation. The [implementation report](docs/agent-wiki/tasks/2026-10-21-local-shadow-design/implementation.md) records the first native acceptance on one Mac.
+
 The WebGUI is optional. Your personal Codex TUI/Desktop or Claude Code TUI can use Team Cross MCP to publish material, read context, and participate in discussions when you ask. Equivalent CLI entry points are also available.
 
 In **Settings and Connections**, select Codex or Claude Code and connect the local client. Reconnect MCP or reopen existing clients afterward. You can also run the configuration command using the full path shown on the page; see [personal agents and MCP](docs/user-guide.en.md#personal-agents-and-mcp).

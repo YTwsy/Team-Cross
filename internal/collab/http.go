@@ -239,7 +239,7 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 	if a.inFlowHTTP(w, r, path) || a.agentsHTTP(w, r, path) {
 		return
 	}
-	if a.workbenchHTTP(w, r, path) || a.receiversHTTP(w, r, path) || a.spaceEventsHTTP(w, r, path) {
+	if a.workbenchHTTP(w, r, path) || a.receiversHTTP(w, r, path) || a.spaceEventsHTTP(w, r, path) || a.shadowsHTTP(w, r, path) {
 		return
 	}
 	switch path {

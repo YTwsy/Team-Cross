@@ -12,6 +12,7 @@ import (
 	"sync"
 	"teamcross/internal/problem"
 	"teamcross/internal/service"
+	"teamcross/internal/shadow"
 	"teamcross/internal/sharing"
 	"teamcross/internal/uilanguage"
 	"time"
@@ -130,7 +131,16 @@ func (a *App) UpgradeBusy() bool {
 			return true
 		}
 	}
+	shadows := make([]*shadow.Engine, 0, len(a.shadows))
+	for _, e := range a.shadows {
+		shadows = append(shadows, e)
+	}
 	a.mu.Unlock()
+	for _, e := range shadows {
+		if e.UpgradeBusy() {
+			return true
+		}
+	}
 	if !a.agentMu.TryLock() {
 		return true
 	}

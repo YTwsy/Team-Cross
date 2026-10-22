@@ -199,6 +199,20 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 
 独立接收会话保存于 `DataDir/receivers/receiver-<requestId>/receiver.json`，专用目录为其 `workspace/`。使用 `thread/start` 并核对实际 ID，不创建空间 `execution`；`runtime-annotations/receiver-…` 使用自己的 token，所有工具调用均验证原生 Provider/Session/Turn 身份。Core 重启不自动启动进程；明确 `start` 沿用原生 ID。配对、成员引用别名与请求回执在接收 Core 桥接，重映射只处理 `spaceId` 字段，不改写用户文本。
 
+## 本机数字分身
+
+本机入口为 `collaborations/{spaceId}/shadows/view|create|send`。`view` 使用 GET，可传 `shadowId` 和 `offset`，每页最近 100 条，`nextOffset` 向前翻页；不传 ID 仅返回目录元数据。`create` 由当前本机成员提交 UUID `requestId`、`name`、绝对 `cwd`，创建 ID 等于 requestId，同 ID 必须匹配原配置。仅接入本机 Codex。
+
+`send` 提交 `{shadowId,message:{id,text}}`，ID 为 UUID，正文上限 64 KiB。作者由传输确定；同 ID 只接受相同作者和内容。返回投递状态 `sending|sendFailed|delivered`；前两者不能称为已送达。分身 Core 持久写入后返回 `receivedAt`，共享消息才成为 delivered；后续 `submitted|completed|failed|unknown` 描述处理状态，不能覆盖送达事实。失败只允许明确手动同 ID 重试。
+
+分身本机的 `GET shadows/{id}/local` 返回本机工作目录和原生待处理请求；`POST shadows/{id}/action` 接受 `pause|resume|rollover|reconcile|respond`。`respond` 传精确原生请求 ID 与该方法要求的结果。其他成员没有这些管理路由；审批不经空间同步。`rollover` 为本机诊断入口，普通聊天不要求手动换段。
+
+成员 Core 经现有受认证 TLS 传输调用 `/v2/shadows/check|register|view|send|sync`；只有注册 owner 可以同步该分身。空间主机核对接收快照里的原始消息 ID、文本、作者与 `receivedAt`。在线租约为内存态、10 秒过期，投递尝试 12 秒后失败；重启或恢复在线不会把失败尝试重新加入投递。共享快照不包含 Codex home、工具调用账本或审批。
+
+普通 MCP 暴露 `list_space_shadows`、`read_space_shadow`、`send_space_shadow`；发送要求明确用户授权和经核验的调用会话身份，作者仍归属空间成员。绑定运行时自动确定空间，不允许传入其他 spaceId。UI 桥只允许相应公开读写路由，不暴露 sync/register 或原生 RPC。
+
+分身原生 thread 附加 `shadow_recall|shadow_remember|shadow_task|shadow_topics|shadow_history` 动态工具。只有处理真实成员输入的主轮可写记忆、话题或派发任务；工作、管家、整理轮只能读取这些 Core 工具。原生工具与权限继续继承；各状态及故障接续见 [分身契约](decisions/local-shadows.md)。
+
 ## 空间事件网关
 
 授权与行为见 [空间事件契约](decisions/space-events.md)。LAN/Tailcat 成员协作不依赖下列云端入口。

@@ -221,6 +221,12 @@ func uiRoute(path string, body any, write bool) (string, error) {
 		if len(parts) == 3 && parts[0] == "space-receivers" && parts[2] == "events" {
 			allowed = true
 		}
+		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "shadows" && parts[3] == "view" {
+			allowed, queries = true, "shadowId offset"
+		}
+		if len(parts) == 3 && parts[0] == "shadows" && parts[2] == "local" {
+			allowed = true
+		}
 	}
 	if !write && method == "POST" {
 		allowed = u.Path == "library/read" || u.Path == "publications/read-draft"
@@ -229,6 +235,12 @@ func uiRoute(path string, body any, write bool) (string, error) {
 		}
 	}
 	if write && method == "POST" {
+		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "shadows" && (parts[3] == "create" || parts[3] == "send") {
+			allowed = true
+		}
+		if len(parts) == 3 && parts[0] == "shadows" && parts[2] == "action" {
+			allowed = true
+		}
 		switch u.Path {
 		case "ui-language", "settings", "mcp/setup", "mcp/probe", "preview", "spaces", "collaborations", "join", "invitations/preview", "plugin/connection",
 			"publications/source", "publications/preview", "library/state", "library/bundles", "agent-pairings", "agent-requests", "event-access":

@@ -75,6 +75,8 @@ beforeEach(() => {
       calls.push({ path, body });
       let out: any = {};
       if (path.includes("/workbench/view")) out = view;
+      else if (path.includes("/shadows/view"))
+        out = { selfId: "owner", shadows: [], total: 0 };
       else if (path === "agent-pairings") out = pairs;
       else if (path.startsWith("space-receivers?")) out = receivers;
       else if (path.endsWith("/workbench/send")) {
@@ -410,6 +412,8 @@ it("keeps the reader mounted while tabs and keyboard navigation expose shared wo
   const reader = screen.getByTestId("reader");
   const overview = screen.getByRole("tab", { name: "空间概览" });
   overview.focus();
+  await userEvent.keyboard("{ArrowRight}");
+  expect(screen.getByRole("tab", { name: /本机数字分身/ })).toHaveFocus();
   await userEvent.keyboard("{ArrowRight}");
   expect(screen.getByRole("tab", { name: /协作请求/ })).toHaveFocus();
   expect(reader).not.toBeVisible();
