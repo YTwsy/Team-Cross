@@ -122,3 +122,12 @@ Go `test ./...`、`vet ./...` 及 `internal/collab`、`internal/mcp`、`internal
 从干净提交 `08105e67915ab0e54e4bfd5ab4c068318eddad60` 构建 `0.2.6-dev.plugin-recovery.20261022`，buildNumber 177，arm64、最低 macOS 14.0。产物位于主仓库 `dist/release/0.2.6-dev.plugin-recovery.20261022/`，保留已有安装包；[构建清单](2026-10-21-in-flow-evidence/plugin-recovery-release.json)。DMG SHA-256 为 `d6dee8ff28363e7ee5aa77e992fbca64be71cd0c72321b893d476fdc9f907853`。
 
 标准 `build-release.py` 与 `verify-release.py` 通过，覆盖校验值、DMG 挂载与临时安装、图标、签名完整性、App/CLI 来源一致、双 App 实例、CLI 安装/移除与已有命令保护、兼容 Core 复用和生命周期；[结构化验证结果](2026-10-21-in-flow-evidence/plugin-recovery-dmg-verification.json)。验证脚本已清理自身临时进程与挂载。没有替换用户已安装 App；本包使用 ad-hoc 签名，未使用 Developer ID、未公证。可选的真实插件启动同步与公开安装检查未执行，不能把上述隔离升级验证视为它们通过。
+
+
+## 2026-10-22 已安装构建优先与有界收尾
+
+`acc12e4` 按用户确认的策略保留插件按需启动，不引入退出禁启标记。Core 检查绑定安装的文件变化，发现构建变化后由该安装的短生命周期 helper 完成切换；多个入口共用启动锁。新版 Core 的收尾截止时间固定为首次请求后的 10 秒，重复请求不延长；已有写入和明确结果回报可完成，空闲轮询取消，历史未知状态和接收心跳不否决升级。到期取消剩余请求并正常关闭托管运行时，个人宿主不关闭。10 秒指等待既有工作自然完成的上限，实际进程退出与新服务启动另需耗时。
+
+插件继续保留原编辑器和草稿，仅明确读取遇到升级状态时有界重试；写入和宿主消息不重发，未知留言继续使用原请求 ID 核对。后台服务切换不等同于界面 bundle 替换，有草稿时仍显示“保留草稿并刷新”。首次迁移的旧 Core 没有新检测器，需新版 App/helper 参与，并使用其原有鉴权停止入口；旧进程的准入保护不能由新调用方补齐。
+
+Go 全量 test/vet、service/collab/mcp/cmd 的 race 通过；最后调整的 service 收尾竞争另跑 race 通过。Web check、21 个文件 201 项测试、1080 条 UI 翻译检查和两套嵌入资源构建通过。首次回归暴露旧测试的更新提示预期、草稿检查点结构预期以及未声明安装归属的合成 Core 兼容边界；调整测试和旧归属处理后复跑通过。源码相对链接、Python 语法及 diff 检查通过。
