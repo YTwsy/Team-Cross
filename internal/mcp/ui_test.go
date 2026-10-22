@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"teamcross/internal/buildinfo"
+	"teamcross/internal/mcpassets"
 	"teamcross/internal/problem"
 	"teamcross/internal/service"
 	"testing"
@@ -89,8 +90,82 @@ func TestUIPanelResourceChangesCacheKeyWithContent(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := uiResource("resources/read", mustJSON(map[string]any{"uri": panelResourceURI("unrelated")})); err == nil {
-		t.Fatal("unknown resource accepted")
+}
+
+// A sidebar can retain newly discovered metadata while dispatching its read to
+// an older thread's MCP process (or retain old metadata after a process restart).
+func TestUIPanelResourceSurvivesMixedHostAndMCPVersions(t *testing.T) {
+	dir := t.TempDir()
+	uris := []string{
+		UIResourceURI, legacyUIResourceURI,
+		"ui://teamcross/workspace-07d625b5e6b6640ee4bb7e44.html",
+		panelResourceURI("a later panel discovered by the host"),
+	}
+	var input, output bytes.Buffer
+	for i, uri := range uris {
+		if err := json.NewEncoder(&input).Encode(map[string]any{"id": i + 1, "method": "resources/read", "params": map[string]any{"uri": uri}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := ServeUI(context.Background(), dir, &input, &output); err != nil {
+		t.Fatal(err)
+	}
+	dec := json.NewDecoder(&output)
+	for _, uri := range uris {
+		var row struct {
+			Error  json.RawMessage
+			Result struct {
+				Contents []struct {
+					URI, MimeType, Text string
+					Meta                map[string]any `json:"_meta"`
+				}
+			}
+		}
+		if err := dec.Decode(&row); err != nil {
+			t.Fatal(err)
+		}
+		if len(row.Error) != 0 || len(row.Result.Contents) != 1 {
+			t.Fatalf("cached panel %s failed: %s", uri, row.Error)
+		}
+		resource := row.Result.Contents[0]
+		if resource.URI != uri || resource.MimeType != "text/html;profile=mcp-app" || resource.Text != mcpassets.Panel {
+			t.Fatalf("cached panel %s did not return the local shell", uri)
+		}
+		if resource.Meta["ui"] == nil || resource.Meta["openai/ui"] == nil {
+			t.Fatal("missing sandbox metadata")
+		}
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("static panel read touched Core data: %v %v", entries, err)
+	}
+}
+
+func TestUIPanelAliasesRejectOtherResources(t *testing.T) {
+	valid := panelResourceURI("cached")
+	for _, uri := range []string{
+		"", "ui://teamcross/workspace.html", "ui://teamcross/workspace-v2.html",
+		strings.Replace(valid, "teamcross", "another-app", 1),
+		strings.Replace(valid, "workspace-", "workspace-../", 1),
+		strings.Replace(valid, "workspace-", "workspace-%2e%2e", 1),
+		strings.Replace(valid, "ui://", "file://", 1),
+		strings.Replace(valid, "ui://", "https://", 1),
+		strings.Replace(valid, "ui://", "teamcross://", 1),
+		strings.Replace(valid, "workspace-", "workspace-0", 1),
+		"ui://teamcross/workspace-" + strings.Repeat("g", 24) + ".html",
+		"ui://teamcross/workspace-" + strings.Repeat("A", 24) + ".html",
+		valid + "?", valid + "#", valid + "/", valid + "?path=/private",
+		legacyUIResourceURI + "?", legacyUIResourceURI + "#",
+	} {
+		t.Run(uri, func(t *testing.T) {
+			params := mustJSON(map[string]any{"uri": uri})
+			if _, err := uiResource("resources/read", params); err == nil {
+				t.Fatal("invalid panel alias accepted")
+			}
+			if _, err := uiResources(t.TempDir())(context.Background(), "resources/read", params); err == nil {
+				t.Fatal("invalid resource escaped the UI/mention router")
+			}
+		})
 	}
 }
 

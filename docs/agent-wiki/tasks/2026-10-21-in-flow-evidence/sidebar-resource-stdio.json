@@ -1,0 +1,82 @@
+{
+  "installed_before_fix": {
+    "discoveredURI": "ui://teamcross/workspace-c26d0014c2c2321b24456972.html",
+    "openToolSucceeded": true,
+    "reads": [
+      {
+        "uri": "ui://teamcross/workspace-07d625b5e6b6640ee4bb7e44.html",
+        "error": {
+          "code": -32602,
+          "message": "Unknown Team Cross resource or different local Core"
+        }
+      },
+      {
+        "uri": "ui://teamcross/workspace-c26d0014c2c2321b24456972.html",
+        "error": null,
+        "htmlBytes": 2201666,
+        "sha256": "c26d0014c2c2321b24456972d35e50464e131d62de5d9a23e01d9429aeac987d"
+      },
+      {
+        "uri": "ui://teamcross/workspace-f80b2e135352a70687850a82.html",
+        "error": {
+          "code": -32602,
+          "message": "Unknown Team Cross resource or different local Core"
+        }
+      },
+      {
+        "uri": "ui://teamcross/workspace-v1.html",
+        "error": null,
+        "htmlBytes": 2201666,
+        "sha256": "c26d0014c2c2321b24456972d35e50464e131d62de5d9a23e01d9429aeac987d"
+      },
+      {
+        "uri": "ui://another-app/workspace-d9298a10d1b0735837dc4bd8.html",
+        "error": {
+          "code": -32602,
+          "message": "Unknown Team Cross resource or different local Core"
+        }
+      }
+    ],
+    "createdCoreData": false,
+    "exitCode": 0
+  },
+  "fixed": {
+    "discoveredURI": "ui://teamcross/workspace-c26d0014c2c2321b24456972.html",
+    "openToolSucceeded": true,
+    "reads": [
+      {
+        "uri": "ui://teamcross/workspace-07d625b5e6b6640ee4bb7e44.html",
+        "error": null,
+        "htmlBytes": 2201666,
+        "sha256": "c26d0014c2c2321b24456972d35e50464e131d62de5d9a23e01d9429aeac987d"
+      },
+      {
+        "uri": "ui://teamcross/workspace-c26d0014c2c2321b24456972.html",
+        "error": null,
+        "htmlBytes": 2201666,
+        "sha256": "c26d0014c2c2321b24456972d35e50464e131d62de5d9a23e01d9429aeac987d"
+      },
+      {
+        "uri": "ui://teamcross/workspace-f80b2e135352a70687850a82.html",
+        "error": null,
+        "htmlBytes": 2201666,
+        "sha256": "c26d0014c2c2321b24456972d35e50464e131d62de5d9a23e01d9429aeac987d"
+      },
+      {
+        "uri": "ui://teamcross/workspace-v1.html",
+        "error": null,
+        "htmlBytes": 2201666,
+        "sha256": "c26d0014c2c2321b24456972d35e50464e131d62de5d9a23e01d9429aeac987d"
+      },
+      {
+        "uri": "ui://another-app/workspace-d9298a10d1b0735837dc4bd8.html",
+        "error": {
+          "code": -32602,
+          "message": "Unknown Team Cross resource or different local Core"
+        }
+      }
+    ],
+    "createdCoreData": false,
+    "exitCode": 0
+  }
+}

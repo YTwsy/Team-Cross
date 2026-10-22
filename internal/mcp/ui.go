@@ -29,6 +29,23 @@ func panelResourceURI(panel string) string {
 	return "ui://teamcross/workspace-" + hex.EncodeToString(digest[:12]) + ".html"
 }
 
+// Host discovery and a thread's stdio process can refresh independently. The
+// versioned URI selects a host cache entry, not a historical application-data
+// snapshot. Accept our canonical panel addresses as aliases for this process's
+// bundled shell; once mounted, its existing updater reads the current Core.
+// Keep this namespace narrow and separate from Core-scoped material resources.
+func isUIResourceURI(uri string) bool {
+	if uri == legacyUIResourceURI {
+		return true
+	}
+	digest, ok := strings.CutPrefix(uri, "ui://teamcross/workspace-")
+	if !ok {
+		return false
+	}
+	digest, ok = strings.CutSuffix(digest, ".html")
+	return ok && len(digest) == 24 && strings.Trim(digest, "0123456789abcdef") == ""
+}
+
 // UITools is an independent personal-client surface. Shared runtime tools retain
 // their existing scope. The app-only adapter preserves WebGUI actions and Core checks.
 func UITools() []map[string]any {
@@ -72,7 +89,7 @@ func uiResource(method string, params json.RawMessage) (any, error) {
 		var p struct {
 			URI string `json:"uri"`
 		}
-		if json.Unmarshal(params, &p) != nil || (p.URI != UIResourceURI && p.URI != legacyUIResourceURI) {
+		if json.Unmarshal(params, &p) != nil || !isUIResourceURI(p.URI) {
 			return nil, fmt.Errorf("Unknown UI resource")
 		}
 		resource["uri"] = p.URI

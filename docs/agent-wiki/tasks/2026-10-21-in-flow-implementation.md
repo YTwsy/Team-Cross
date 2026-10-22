@@ -155,3 +155,16 @@ Go 全量 test/vet、service/collab/mcp/cmd 的 race 通过；最后调整的 se
 全部上述检查完成后，从干净合并提交构建 `0.2.6-dev.meta-priority.20261022`，buildNumber 191，arm64、最低 macOS 14.0，包含 Meta 的本机分身和启动模型设置。产物位于主仓库 `dist/release/0.2.6-dev.meta-priority.20261022/`；[构建清单](2026-10-21-in-flow-evidence/meta-priority-release.json)。DMG SHA-256 为 `b45f462f28a821a7afb8b68f5d8fb974bfbe3fc1e1519ca9897e3df276aad4e1`，保留以前的安装包。
 
 标准 `build-release.py` 与 `verify-release.py` 通过；[成品验证](2026-10-21-in-flow-evidence/meta-priority-dmg-verification.json)覆盖校验值、DMG 挂载与临时安装、图标、签名完整性、App/CLI 构建一致、双 App 实例、CLI 安装/移除与已有命令保护、兼容 Core 复用及生命周期。测试进程与挂载已核对清理，未替换用户已安装 App。本包为 ad-hoc 签名，未使用 Developer ID、未公证；未新增真实模型中断、真实宿主全流程、Cloud、跨 Mac 或 Homebrew 安装验收。成品来源之后仅补充本段和结构化证据，不改变产品代码。
+
+
+## 2026-10-22 侧栏入口的资源版本错配
+
+用户在启用 UserPromptSubmit Hook 后反馈白屏。当前对话通过 `open_teamcross` 打开的面板可显示，随后用户明确纠正：从 Codex 插件列表/侧栏打开仍然失败，不能把前一路正常当作已恢复。现场 App 与 Core 均为 `a7691c4` / `0.2.6-dev.meta-priority.20261022`，Core 没有再次落后；本轮未重启用户 Core、修改 Hook 信任或结束用户会话。
+
+2026-10-22 19:47–19:52（Asia/Shanghai）的宿主日志记录侧栏调用 `open_teamcross` 成功，但 `resources/read` 请求 `workspace-c26d0014c2c2321b24456972.html` 连续收到 `-32602 / Unknown Team Cross resource or different local Core`，页面内容尚未返回。另可见旧面板请求 `workspace-07d625b5e6b6640ee4bb7e44.html`，以及在新 App 安装前已启动、仍存活的 MCP 进程。代码只接受本进程内嵌资源的准确摘要；宿主入口发现与会话 MCP 生命周期不一致，形成可复现的 UI 地址版本错配。Hook 保存附近还出现宿主面板撤销/重建，撤销的独立原因不能仅凭日志断言。
+
+修复保留内容摘要作为发现时的缓存分代地址，将严格限定的 Team Cross 面板地址作为启动别名，由当前 MCP 返回自己的静态 HTML，再由已存在的面板更新器检查当前 Core。没有放宽材料/批注引用的 Core 绑定、版本或访问检查；静态资源读取不拉起 Core、不写用户数据。已有旧 MCP 进程须由宿主重新加载后才能取得本次代码，首次迁移不能靠替换磁盘文件热改内存。
+
+验证：先新增真实 `ServeUI` 资源回归，修复前复现相同 -32602，修复后通过；覆盖旧、新、模拟后续版本、固定 v1、错误 authority/scheme/路径/摘要/查询/fragment、静态读取无 Core 数据，以及既有材料跨 Core 拒绝。全量 `go test ./...`、`go vet ./...`、`go test -race ./internal/mcp` 通过；Node 24.18.0 下 Web check（1155 条消息）、22 个文件 207 项测试与两套资源 build 通过，嵌入文件没有差异。
+
+额外用当前安装版与修复版的真实 CLI/stdio 子进程对比，前者拒绝旧摘要和模拟后续摘要，后者全部读到完整页面；其他应用 URI 仍拒绝，两者均未创建 Core 数据目录。见[结构化 stdio 结果](2026-10-21-in-flow-evidence/sidebar-resource-stdio.json)。子进程已正常退出，隔离数据目录由夹具清理。没有调用模型、改写用户安装、自动重放消息或清除宿主缓存；本轮成品安装后的实际侧栏与对话入口双路验收仍需单独完成。

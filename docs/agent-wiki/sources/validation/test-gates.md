@@ -72,6 +72,8 @@ Core 升级相关变更另运行 `scripts/verify-core-upgrade.py`：指定旧、
 
 ## ChatGPT 本机插件
 
+资源地址或入口更新须经 `ServeUI` 验证“新入口元数据 → 旧 MCP”和“旧入口元数据 → 新 MCP”的版本地址混用，核对静态页面返回、严格命名空间和无 Core 数据写入；同时回归材料引用的跨 Core 拒绝。实际宿主验收分别从插件列表/侧栏及对话工具打开，不能以其中一路正常代替另一路。
+
 设置与安装回归见 [连接生命周期](../../../../internal/pluginpack/connection_test.go)、[本机 API](../../../../internal/collab/plugin_connection_test.go) 与 [连接页面](../../../../packages/web/src/test/plugin-connection.test.tsx)。覆盖显式首次启用、未创建 profile 的只读状态查询、来源保留、首次连接使用当前 Core、相同字节但绑定不同的自动迁移、切换前后失败的显式重试、无目录参数的 CLI 更新保留绑定、另一 App 不能自动接管、原数据不变、相同版本号不同字节、移除与停用不自动重装、失败后显式重试、并发锁与符号链接保护。旧代号或不同 Core 的界面回执不能清除新版加载提示。
 
 `python3 scripts/verify-plugin-connection.py --teamcross-bin /absolute/teamcross --codex-bin /absolute/codex --output /fresh/output` 使用新的独立原生 profile，验证真实手动安装接管、已启用插件从旧目录自动切换到当前 Core、原生缓存资源与实际 bootstrap scope、旧进程与新进程的 bootstrap 回执、兼容命令、外部移除、无关配置和数据保留。不启动模型回合。App 构建后运行 `python3 scripts/verify-app-instance.py '/absolute/Team Cross.app' --plugin-codex-bin /absolute/codex`，追加主实例启动时的同步与数据目录校正验证；通过临时 App 和 profile 操作，不控制 ChatGPT 主窗口。没有 `--plugin-codex-bin` 的普通 App 门槛仍验证未启用时不产生插件写入，不要求 runner 安装 ChatGPT。
