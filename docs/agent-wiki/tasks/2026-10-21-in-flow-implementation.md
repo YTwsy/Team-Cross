@@ -138,3 +138,6 @@ Go 全量 test/vet、service/collab/mcp/cmd 的 race 通过；最后调整的 se
 从干净提交 `849ba25ab8480d777d2123c3dd8186ad9355e103` 构建 `0.2.6-dev.priority-upgrade.20261022`，buildNumber 180，arm64、最低 macOS 14.0；[构建清单](2026-10-21-in-flow-evidence/priority-upgrade-release.json)。产物保存在主仓库 `dist/release/0.2.6-dev.priority-upgrade.20261022/`，原安装包保留。DMG SHA-256 为 `c79db364a6ce57c00d30da04c495f0888ec7e78c307b49d954a8193b967f94b3`。
 
 标准构建及 DMG 成品验证通过，覆盖校验值、挂载和临时安装、图标、ad-hoc 签名完整性、App/CLI 构建一致、双 App 实例协调、CLI 安装/移除、已有命令保护、兼容服务复用及生命周期；[结构化结果](2026-10-21-in-flow-evidence/priority-upgrade-dmg-verification.json)。临时进程和挂载已清理，没有替换用户已安装 App。未使用 Developer ID、未公证；本轮没有新增真实模型运行中断、实际宿主全流程、Cloud 或跨 Mac 验收。草稿与重连交互由真实组件/宿主桥模拟回归覆盖；原有真实浏览器截图不当作本构建新增验收。成品来源提交后的改动仅补充验证脚本与证据，不改变安装包内的产品代码。
+
+
+全部升级验收完成后，从干净提交 `0d75cf9d999c124e51220801813400d9f66d886c` 重新构建最终交付版 `0.2.6-dev.priority-upgrade.20261022.2`，buildNumber 181；[最终构建清单](2026-10-21-in-flow-evidence/priority-upgrade-final-release.json)、[最终成品验证](2026-10-21-in-flow-evidence/priority-upgrade-final-verification.json)。标准 build/verify 流程再次通过，CLI/App 来源、校验、签名完整性、挂载安装、实例协调与生命周期均通过。最终 DMG SHA-256 为 `50f612b733d54040f6cdc89a0ac1f77debcdf0cbd64e09eb83e195c01f9f8f5a`，位于主仓库 `dist/release/0.2.6-dev.priority-upgrade.20261022.2/`；前一候选包保留。最终包仍为 arm64、macOS 14+、ad-hoc 签名且未公证。
