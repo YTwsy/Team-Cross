@@ -146,7 +146,10 @@ func (a *App) UpgradeBusy() bool {
 		}
 	}
 	for _, request := range a.agents.Requests {
-		if request.State != "completed" && request.State != "failed" {
+		// Unknown is a durable receipt, not evidence of a running delivery.
+		// It survives restart and must never be replayed or silently completed.
+		// Real in-flight writes are protected by admission and the states below.
+		if request.State != "completed" && request.State != "failed" && request.State != "unknown" {
 			return true
 		}
 	}

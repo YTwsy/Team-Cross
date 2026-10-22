@@ -199,6 +199,26 @@ try:
     assert pending["installedCommit"] == next_build["commit"]
     assert api(busy, "info")["updatePending"]
 
+    # A durable unknown receipt is retained for reconciliation, not a running
+    # write. It must not pin an otherwise idle Core to an old build forever.
+    uncertain = root / "unknown-data"
+    uncertain.mkdir()
+    directories.append(uncertain)
+    receipt = {"pairings": {}, "requests": {"fixture-unknown": {
+        "id": "fixture-unknown", "state": "unknown", "instruction": "Do not replay"}}}
+    (uncertain / "agent-pairings.json").write_text(json.dumps(receipt))
+    uncertain_binary = root / "Unknown App.app/Contents/Resources/teamcross"
+    replace(new, uncertain_binary)
+    run(uncertain_binary, "serve", "--no-open", "--json", "--data-dir", uncertain)
+    uncertain_before = status(uncertain)
+    assert not uncertain_before.get("upgradeBlocked")
+    replace(next_binary, uncertain_binary)
+    upgraded = run(uncertain_binary, "serve", "--no-open", "--json", "--data-dir", uncertain)["service"]
+    assert upgraded["pid"] != uncertain_before["pid"] and upgraded["commit"] == next_build["commit"]
+    assert api(uncertain, "agent-requests/fixture-unknown")["state"] == "unknown"
+    retained = json.loads((uncertain / "agent-pairings.json").read_text())
+    assert retained["requests"]["fixture-unknown"]["instruction"] == "Do not replay"
+
     report = {"oldBuild": old_build, "newBuild": new_build, "nextBuild": next_build,
         "legacyCodexError": before_info["codexError"], "recoveredCodexVersion": recovered["codexVersion"],
         "sameVersionDifferentCommit": old_build["version"] == new_build["version"] == next_build["version"],
@@ -206,6 +226,7 @@ try:
         "residentLegacyMCP": True, "oldCoreResurrectionPrevented": True,
         "futureAppReplacementWithoutPluginSync": True, "residentMCPUsesDiskBuild": True,
         "missingInstallationFailsClosed": True, "outstandingDeliveryDefersUpgrade": True,
+        "unknownReceiptDoesNotBlockUpgrade": True, "unknownReceiptPreserved": True,
         "dataPreserved": True, "startupOptionsPreserved": True, "upgradeIdentityAndAuth": True, "modelInvoked": False}
     (root / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))

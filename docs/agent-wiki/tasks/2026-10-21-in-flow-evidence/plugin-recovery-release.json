@@ -1,0 +1,14 @@
+{
+  "version": "0.2.6-dev.plugin-recovery.20261022",
+  "commit": "08105e67915ab0e54e4bfd5ab4c068318eddad60",
+  "buildNumber": "177",
+  "dirty": false,
+  "architecture": "arm64",
+  "minimumMacOS": "14.0",
+  "developerIDSigned": false,
+  "notarized": false,
+  "artifacts": {
+    "teamcross-0.2.6-dev.plugin-recovery.20261022-darwin-arm64.tar.gz": "f0c783e088dc70d603aefbee630a7f2cb062514d35638f2aec51faf1bae473f3",
+    "Team-Cross-0.2.6-dev.plugin-recovery.20261022-arm64.dmg": "d6dee8ff28363e7ee5aa77e992fbca64be71cd0c72321b893d476fdc9f907853"
+  }
+}

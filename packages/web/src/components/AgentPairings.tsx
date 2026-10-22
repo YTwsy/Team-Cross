@@ -84,7 +84,8 @@ export function ConnectCurrentConversation({
       ? connection.data
       : undefined;
   const linked = !!verified?.linked;
-  const checking = !!connectionPath && !verified;
+  const unavailable = !!connection.error;
+  const checking = !!connectionPath && !verified && !unavailable;
   useRefreshGuard(refreshKey, !!name && !linked);
   if (!current?.connect) return null;
   const state = current.status(`connect:${spaceId}`);
@@ -131,7 +132,9 @@ export function ConnectCurrentConversation({
       {(!linked || !verified?.receiving) && (
         <button
           className="button primary"
-          disabled={disabled || busy || checking || (!linked && !!state)}
+          disabled={
+            disabled || busy || checking || unavailable || (!linked && !!state)
+          }
           onClick={async () => {
             if (busy) return;
             setBusy(true);
@@ -153,9 +156,11 @@ export function ConnectCurrentConversation({
             ? t("正在提交，请勿重复发送…")
             : checking
               ? t("正在核对连接状态…")
-              : linked
-                ? t("重新检查接收连接")
-                : t("连接当前会话")}
+              : unavailable
+                ? t("连接状态暂不可用")
+                : linked
+                  ? t("重新检查接收连接")
+                  : t("连接当前会话")}
         </button>
       )}
       {state && (!linked || requested) && (
@@ -179,7 +184,14 @@ export function ConnectCurrentConversation({
         </button>
       )}
       <ErrorBox
-        message={error || connection.error}
+        message={
+          error ||
+          (connection.error === "404 page not found"
+            ? t(
+                "Team Cross 服务尚未完成更新，请从菜单栏退出并重新打开 Team Cross 后重试。",
+              )
+            : connection.error)
+        }
         retry={connection.error ? connection.reload : undefined}
       />
     </section>

@@ -1,0 +1,35 @@
+{
+  "oldBuild": {
+    "commit": "ae66ff6906fada7fb480c9fa47873103ddc21768",
+    "protocol": 1,
+    "version": "0.2.6-dev.upgrade-check"
+  },
+  "newBuild": {
+    "commit": "d835321ccadbd52e804fda2391adb5426ebe2078",
+    "protocol": 1,
+    "version": "0.2.6-dev.upgrade-check"
+  },
+  "nextBuild": {
+    "commit": "08105e67915ab0e54e4bfd5ab4c068318eddad60",
+    "protocol": 1,
+    "version": "0.2.6-dev.upgrade-check"
+  },
+  "legacyCodexError": "Codex 路径不可用",
+  "recoveredCodexVersion": "codex-cli 0.163.0-alpha.11",
+  "sameVersionDifferentCommit": true,
+  "legacyPluginFirst": true,
+  "concurrentUpgrade": true,
+  "sameBrowserAddress": true,
+  "residentLegacyMCP": true,
+  "oldCoreResurrectionPrevented": true,
+  "futureAppReplacementWithoutPluginSync": true,
+  "residentMCPUsesDiskBuild": true,
+  "missingInstallationFailsClosed": true,
+  "outstandingDeliveryDefersUpgrade": true,
+  "unknownReceiptDoesNotBlockUpgrade": true,
+  "unknownReceiptPreserved": true,
+  "dataPreserved": true,
+  "startupOptionsPreserved": true,
+  "upgradeIdentityAndAuth": true,
+  "modelInvoked": false
+}

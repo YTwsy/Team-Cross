@@ -1340,5 +1340,9 @@
   "新版已就绪，你的草稿将保留。": "An update is ready. Your drafts will be preserved.",
   "保留草稿并刷新": "Keep drafts and refresh",
   "刷新到新版": "Refresh to the new version",
-  "正在更新界面，草稿已保留…": "Updating the interface. Your drafts are preserved…"
+  "正在更新界面，草稿已保留…": "Updating the interface. Your drafts are preserved…",
+  "连接状态暂不可用": "Connection status unavailable",
+  "Team Cross 服务尚未完成更新，请从菜单栏退出并重新打开 Team Cross 后重试。": "The Team Cross service has not finished updating. Quit and reopen Team Cross from the menu bar, then retry.",
+  "Team Cross 服务尚未完成更新": "The Team Cross service has not finished updating",
+  "请等待当前活动结束；若仍未更新，请从菜单栏退出并重新打开 Team Cross": "Wait for current activity to finish. If the service still has not updated, quit and reopen Team Cross from the menu bar"
 }
