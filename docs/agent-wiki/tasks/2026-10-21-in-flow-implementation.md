@@ -114,3 +114,11 @@ Go `test ./...`、`vet ./...` 及 `internal/collab`、`internal/mcp`、`internal
 以上实际宿主证据覆盖读取身份、关联状态、标题回填及一次连接消息后的页面稳定性；不等于原生主动接收已接通，也不证明原白屏的独立根因已经捕获。此次没有观察到对应脚本异常，不能将模拟浏览器更新回退的通过扩大为真实宿主全面热更新验收。
 
 `d835321` 修复持久化未知回执阻塞升级，原有运行中请求/接收连接保护保留。MCP 在 Core 尚未切换时返回明确 `core_update_pending`；连接查询出错后停止“正在核对”，旧 404 给出正常重启 Team Cross 的提示，重试成功自动恢复关联状态，不发送连接消息。Go 全量 test/vet、`internal/collab`、`internal/mcp`、`internal/service` race 通过；Web 21 个文件 199 项测试、1079 条翻译检查及两套资源构建通过。
+
+## 2026-10-22 Core 恢复修复的升级与 DMG 验证
+
+真实三构建升级验证通过：旧构建 `ae66ff6906fada7fb480c9fa47873103ddc21768`、修复构建 `d835321ccadbd52e804fda2391adb5426ebe2078`、下一构建 `08105e67915ab0e54e4bfd5ab4c068318eddad60` 均使用同一版本号 `0.2.6-dev.upgrade-check`。覆盖常驻旧 MCP、同一浏览器地址、并发升级、后续 App 替换、进行中投递阻止升级、未知回执不阻止升级且原样保留，以及数据、启动选项、身份与鉴权；[结构化结果](2026-10-21-in-flow-evidence/plugin-recovery-core-upgrade.json)。实际发现的 Codex CLI 为 `0.163.0-alpha.11`，没有调用模型。首轮误用已包含 CLI 发现修复的 `af9f715` 作为旧基线，未满足脚本预期的旧路径故障前提；换成真正修复前的提交、使用新的隔离目录后全项通过。两轮脚本均执行自身进程清理。
+
+从干净提交 `08105e67915ab0e54e4bfd5ab4c068318eddad60` 构建 `0.2.6-dev.plugin-recovery.20261022`，buildNumber 177，arm64、最低 macOS 14.0。产物位于主仓库 `dist/release/0.2.6-dev.plugin-recovery.20261022/`，保留已有安装包；[构建清单](2026-10-21-in-flow-evidence/plugin-recovery-release.json)。DMG SHA-256 为 `d6dee8ff28363e7ee5aa77e992fbca64be71cd0c72321b893d476fdc9f907853`。
+
+标准 `build-release.py` 与 `verify-release.py` 通过，覆盖校验值、DMG 挂载与临时安装、图标、签名完整性、App/CLI 来源一致、双 App 实例、CLI 安装/移除与已有命令保护、兼容 Core 复用和生命周期；[结构化验证结果](2026-10-21-in-flow-evidence/plugin-recovery-dmg-verification.json)。验证脚本已清理自身临时进程与挂载。没有替换用户已安装 App；本包使用 ad-hoc 签名，未使用 Developer ID、未公证。可选的真实插件启动同步与公开安装检查未执行，不能把上述隔离升级验证视为它们通过。
