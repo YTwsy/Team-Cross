@@ -8,7 +8,7 @@ import {
   readingTitle,
 } from "../reading";
 import type { PublicationDraftPage, PublicationDraftSummary } from "../types";
-import { ReaderMessage, ReadingLayout } from "./Reading";
+import { ReaderMessage, ReaderSequence, ReadingLayout } from "./Reading";
 import { ErrorBox, Loading } from "./ui";
 
 export type PublicationScope = {
@@ -243,12 +243,14 @@ export function PublicationReader({
                   </div>
                 )}
               </header>
-              {segments
-                .filter((s) => s.turnId === turn.id)
-                .map((segment) => (
+              <ReaderSequence
+                segments={segments.filter((s) => s.turnId === turn.id)}
+              >
+                {(segment) => (
                   <ReaderMessage
                     key={`${segment.itemId}:${segment.startOffset}`}
                     source={segment.text}
+                    itemType={segment.type}
                     label={
                       segment.collapsed
                         ? tr`${itemLabel(segment.type)} · 已读 ${segment.endOffset} / ${segment.length} 字`
@@ -283,7 +285,8 @@ export function PublicationReader({
                     )}
                     shownLength={segment.endOffset}
                   />
-                ))}
+                )}
+              </ReaderSequence>
             </section>
           );
         })}

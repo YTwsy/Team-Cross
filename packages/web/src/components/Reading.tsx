@@ -1,7 +1,8 @@
-import { serviceText, t } from "../i18n";
+import { serviceText, t, tr } from "../i18n";
 import { ResourceActions } from "../library";
 import { resourceScope } from "../execution";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useId,
@@ -20,8 +21,8 @@ import {
   shift,
   useFloating,
 } from "@floating-ui/react";
-import type { Annotation, AnnotationTarget } from "../types";
-import { mappedSelection, sameMessage } from "../reading";
+import type { Annotation, AnnotationTarget, MaterialPage } from "../types";
+import { itemLabel, mappedSelection, sameMessage } from "../reading";
 import {
   captureReadingPosition,
   restoreReadingPosition,
@@ -433,12 +434,113 @@ export function itemExpandLabel(loading: boolean, shown: number) {
   return shown <= 1500 ? t("读取完整输出") : t("继续读取这条输出");
 }
 
+type ReadingSegment = MaterialPage["segments"][number];
+
+// Group only adjacent process records within a turn. The original segments and
+// offsets stay intact for pagination, annotations and reading-position restore.
+export function ReaderSequence({
+  segments,
+  activeTarget,
+  children,
+}: {
+  segments: ReadingSegment[];
+  activeTarget?: AnnotationTarget;
+  children: (
+    segment: ReadingSegment,
+    index: number,
+    all: ReadingSegment[],
+  ) => ReactNode;
+}) {
+  const runs: { start: number; process: boolean; items: ReadingSegment[] }[] =
+    [];
+  segments.forEach((segment, index) => {
+    const process = !["userMessage", "agentMessage", "unavailable"].includes(
+      segment.type,
+    );
+    const previous = runs.at(-1);
+    if (
+      process &&
+      previous?.process &&
+      previous.items[0]!.turnId === segment.turnId
+    )
+      previous.items.push(segment);
+    else runs.push({ start: index, process, items: [segment] });
+  });
+  return runs.map(({ start, process, items }) => {
+    const first = items[0]!;
+    const key = `${first.turnId}:${first.itemId}:${first.startOffset}`;
+    const count = new Set(items.map((item) => item.itemId)).size;
+    const content = items.map((segment, index) =>
+      children(segment, start + index, segments),
+    );
+    return process && count > 1 ? (
+      <ReaderProcessGroup
+        key={key}
+        count={count}
+        first={first}
+        activeTarget={
+          activeTarget &&
+          items.some(
+            (item) =>
+              item.turnId === activeTarget.turnId &&
+              item.itemId === activeTarget.itemId,
+          )
+            ? activeTarget
+            : undefined
+        }
+      >
+        {content}
+      </ReaderProcessGroup>
+    ) : (
+      <Fragment key={key}>{content}</Fragment>
+    );
+  });
+}
+
+function ReaderProcessGroup({
+  count,
+  first,
+  activeTarget,
+  children,
+}: {
+  count: number;
+  first: ReadingSegment;
+  activeTarget?: AnnotationTarget;
+  children: ReactNode;
+}) {
+  const details = useRef<HTMLDetailsElement>(null);
+  useLayoutEffect(() => {
+    if (activeTarget && details.current) details.current.open = true;
+  }, [activeTarget]);
+  return (
+    <details
+      ref={details}
+      className="reader-process-group"
+      data-reader-turn={first.turnId}
+      data-reading-key={`process:${first.turnId}:${first.itemId}`}
+    >
+      <summary aria-label={tr`执行过程 · ${count} 项`}>
+        <span className="reader-process-icon">
+          <Icon name="book" size={16} />
+        </span>
+        <span className="reader-process-title">{t("执行过程")}</span>
+        <span className="reader-process-count">{tr`${count} 项`}</span>
+        <span className="reader-process-action" aria-hidden="true">
+          <Icon name="chevron" size={14} />
+        </span>
+      </summary>
+      <div className="reader-process-items">{children}</div>
+    </details>
+  );
+}
+
 export function ReaderMessage({
   spaceId,
   source,
   target,
   activeTarget,
   label,
+  itemType,
   annotations = [],
   onAnnotate,
   onDiscuss,
@@ -455,6 +557,7 @@ export function ReaderMessage({
   target: AnnotationTarget;
   activeTarget?: AnnotationTarget;
   label: string;
+  itemType?: string;
   annotations?: Annotation[];
   onAnnotate: Annotate;
   onDiscuss?: Discuss;
@@ -476,11 +579,16 @@ export function ReaderMessage({
     message = useRef<HTMLDivElement>(null);
   const details = useRef<HTMLDetailsElement>(null);
   const id = useId();
-  const tool = !speaker && !isDialogueRole(label);
+  const tool =
+    !speaker &&
+    (itemType
+      ? !["userMessage", "agentMessage"].includes(itemType)
+      : !isDialogueRole(label));
+  const toolLabel = itemType ? itemLabel(itemType) : label;
   const expand = onExpand ? (
     <button
       type="button"
-      className="button small reader-expand-item"
+      className={`${tool ? "text-button" : "button small"} reader-expand-item`}
       disabled={expanding}
       onClick={(event) => {
         event.preventDefault();
@@ -580,19 +688,23 @@ export function ReaderMessage({
             <strong>{speaker.name}</strong>
           </span>
         ) : (
-          <span className="reader-role">{label}</span>
+          <span className="reader-role">
+            {tool && itemType === "commandExecution" ? "Shell" : label}
+          </span>
         )}
         <div className="reader-message-actions">
-          <button
-            className="text-button"
-            onClick={() => {
-              setRaw(!raw);
-              setSelected(undefined);
-            }}
-            aria-pressed={raw}
-          >
-            {raw ? t("阅读排版") : t("显示原文")}
-          </button>
+          {!tool && (
+            <button
+              className="text-button"
+              onClick={() => {
+                setRaw(!raw);
+                setSelected(undefined);
+              }}
+              aria-pressed={raw}
+            >
+              {raw ? t("阅读排版") : t("显示原文")}
+            </button>
+          )}
           {!disabled && target.itemId && source.trim() && (
             <button
               className="message-annotate"
@@ -616,10 +728,16 @@ export function ReaderMessage({
           {!tool && expand}
         </div>
       </div>
+      {tool && itemType === "commandExecution" && toolLabel !== label && (
+        <p className="reader-tool-meta">{label}</p>
+      )}
       {notice && <p className="inline-note">{serviceText(notice)}</p>}
       <div
         ref={content}
         data-message-text
+        role={tool ? "region" : undefined}
+        aria-label={tool ? toolLabel : undefined}
+        tabIndex={tool ? 0 : undefined}
         data-turn-id={target.turnId}
         data-item-id={target.itemId}
         onMouseUp={capture}
@@ -696,12 +814,23 @@ export function ReaderMessage({
           open={highlights.some((h) => h.active) || undefined}
         >
           <summary>
-            <span className="reader-tool-summary-text">
-              {label} <span>{t("查看已保存的过程")}</span>
+            <Icon
+              name={
+                itemType === "commandExecution"
+                  ? "terminal"
+                  : itemType === "fileChange"
+                    ? "file"
+                    : "book"
+              }
+              size={16}
+            />
+            <span className="reader-tool-summary-text">{toolLabel}</span>
+            <span className="reader-tool-chevron">
+              <Icon name="chevron" size={14} />
             </span>
             {expand}
           </summary>
-          {contentBody}
+          <div className="reader-tool-content">{contentBody}</div>
         </details>
       ) : (
         contentBody

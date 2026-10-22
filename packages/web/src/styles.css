@@ -204,7 +204,7 @@ details summary {
   user-select: none;
   padding: 8px 0;
 }
-details[open]:not(.runtime-mode-details):not(.sharing-inspector) summary {
+details[open]:not(.runtime-mode-details, .sharing-inspector) > summary {
   margin-bottom: 8px;
 }
 .path {
@@ -4115,36 +4115,138 @@ mark[data-annotation-highlight] {
   background: var(--panel);
 }
 .reader-tool-message {
-  padding: 12px 0;
+  padding: 6px 0;
+  border-bottom: 0;
 }
-.reader-tool summary {
+.reader-tool > summary,
+.reader-process-group > summary {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
-  flex-wrap: wrap;
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 12px;
-  padding: 9px 12px;
-  border-radius: 7px;
-  background: var(--soft);
+  gap: 7px;
+  min-height: 32px;
+  padding: 5px 0;
+  list-style: none;
+  color: var(--space-secondary, var(--muted));
+  font-size: 13px;
+  line-height: 1.6;
+  border-radius: 4px;
+  background: transparent;
+}
+.reader-tool > summary::-webkit-details-marker,
+.reader-process-group > summary::-webkit-details-marker {
+  display: none;
+}
+.reader-tool > summary:hover,
+.reader-process-group > summary:hover {
+  color: var(--text);
+}
+.reader-tool > summary:focus-visible,
+.reader-process-group > summary:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+.reader-tool > summary > svg,
+.reader-tool-chevron,
+.reader-process-icon,
+.reader-process-action {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 .reader-tool-summary-text {
   min-width: 0;
-  flex: 1 1 12em;
-}
-.reader-tool-summary-text > span {
-  font-size: 11px;
-  opacity: 0.75;
-  margin-left: 8px;
+  overflow-wrap: anywhere;
 }
 .reader-tool .reader-expand-item {
-  margin: 0;
+  margin: 0 0 0 auto;
+  padding: 3px 0 3px 8px;
   flex-shrink: 0;
+  font-size: 11px;
+  color: var(--muted);
 }
-.reader-tool[open] > summary {
-  margin-bottom: 16px;
+.reader-tool .reader-expand-item:hover {
+  color: var(--text);
+}
+.reader-tool-chevron,
+.reader-process-action {
+  opacity: 0.8;
+}
+.reader-tool[open] > summary .reader-tool-chevron,
+.reader-process-group[open] > summary .reader-process-action {
+  transform: rotate(90deg);
+}
+details.reader-tool[open] > summary,
+details.reader-process-group[open] > summary {
+  margin-bottom: 0;
+}
+.reader-process-group {
+  min-width: 0;
+  margin: 8px 0 18px;
+}
+.reader-process-group > summary {
+  width: fit-content;
+  max-width: 100%;
+}
+.reader-process-title {
+  font-weight: 400;
+}
+.reader-process-count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0.75;
+}
+.reader-process-items {
+  padding-top: 2px;
+}
+.reader-process-items .reader-tool-message {
+  margin: 0;
+  padding: 2px 0;
+}
+.reader-tool-content {
+  margin: 8px 0 10px;
+  padding: 12px 14px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-width: 0;
+}
+.reader-tool-content .reader-role {
+  font-size: 12px;
+  font-weight: 400;
+}
+.reader-tool-content .message-heading {
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.reader-tool-content .reader-message-actions {
+  margin-left: auto;
+}
+.reader-tool-meta {
+  margin: 0 0 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.reader-tool-content > [data-message-text] {
+  max-height: 360px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 38%, transparent) transparent;
+}
+.reader-tool-content > [data-message-text]:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+.reader-tool-content .reader-raw {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  max-height: none;
+  overflow: visible;
+  background: transparent;
+  color: var(--space-secondary, var(--muted));
 }
 .reader-provenance {
   color: var(--muted);

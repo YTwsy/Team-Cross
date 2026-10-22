@@ -30,6 +30,7 @@ import {
 } from "../reading";
 import {
   ReaderMessage,
+  ReaderSequence,
   ReadingLayout,
   type Annotate,
   type Discuss,
@@ -567,87 +568,90 @@ export function MaterialReader({
           }))}
         >
           <div className="material-body">
-            {joinedSegments.map((segment, i, all) => (
-              <div
-                key={`${version}:${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
-                data-reader-turn={segment.turnId}
-                data-reading-key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
-                data-message-type={segment.type}
-              >
-                {!conversation &&
-                  (!i || all[i - 1]?.turnId !== segment.turnId) && (
-                    <div className="reader-turn-heading">
-                      {t("第") + " "}
-                      {outline.findIndex((t) => t.id === segment.turnId) +
-                        1}{" "}
-                      {t("轮") + " "}
-                    </div>
-                  )}
-                {!!i &&
-                  all[i - 1]?.turnId === segment.turnId &&
-                  all[i - 1]?.itemId === segment.itemId &&
-                  all[i - 1]!.endOffset < segment.startOffset && (
-                    <p className="material-fold-gap">
-                      {t("中间已折叠") + " "}
-                      {segment.startOffset - all[i - 1]!.endOffset}{" "}
-                      {t("字") + " "}
-                    </p>
-                  )}
-                <ReaderMessage
-                  spaceId={spaceId}
-                  source={segment.text}
-                  speaker={
-                    conversation &&
-                    ["userMessage", "agentMessage"].includes(segment.type)
-                      ? {
-                          name:
-                            segment.type === "userMessage"
-                              ? material.author
-                              : tr`${material.author}的 ${v?.provider === "claude" ? "Claude Code" : "Codex"}`,
-                          author: material.author,
-                          assistant: segment.type === "agentMessage",
-                        }
-                      : undefined
-                  }
-                  label={
-                    segment.collapsed
-                      ? tr`${itemLabel(segment.type)} · 共 ${segment.length} 字 · 已显示 ${segment.endOffset - segment.startOffset} 字`
-                      : itemLabel(segment.type)
-                  }
-                  notice={segment.notice}
-                  target={{
-                    kind: "material",
-                    materialId: material.id,
-                    version,
-                    turnId: segment.turnId,
-                    itemId: segment.itemId,
-                    startOffset: segment.startOffset,
-                    endOffset: segment.endOffset,
-                    quote: segment.text,
-                  }}
-                  activeTarget={target}
-                  annotations={annotations}
-                  onAnnotate={onAnnotate}
-                  onDiscuss={onDiscuss}
-                  disabled={disabled}
-                  actionLabel={t("引用这段文字")}
-                  onExpand={
-                    segment.collapsed && segment.endOffset < segment.length
-                      ? () =>
-                          void readItemAt(
-                            segment.turnId,
-                            segment.itemId,
-                            segment.endOffset,
-                          )
-                      : undefined
-                  }
-                  expanding={
-                    itemLoading === `${segment.turnId}:${segment.itemId}`
-                  }
-                  shownLength={segment.endOffset}
-                />
-              </div>
-            ))}
+            <ReaderSequence segments={joinedSegments} activeTarget={target}>
+              {(segment, i, all) => (
+                <div
+                  key={`${version}:${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
+                  data-reader-turn={segment.turnId}
+                  data-reading-key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
+                  data-message-type={segment.type}
+                >
+                  {!conversation &&
+                    (!i || all[i - 1]?.turnId !== segment.turnId) && (
+                      <div className="reader-turn-heading">
+                        {t("第") + " "}
+                        {outline.findIndex((t) => t.id === segment.turnId) +
+                          1}{" "}
+                        {t("轮") + " "}
+                      </div>
+                    )}
+                  {!!i &&
+                    all[i - 1]?.turnId === segment.turnId &&
+                    all[i - 1]?.itemId === segment.itemId &&
+                    all[i - 1]!.endOffset < segment.startOffset && (
+                      <p className="material-fold-gap">
+                        {t("中间已折叠") + " "}
+                        {segment.startOffset - all[i - 1]!.endOffset}{" "}
+                        {t("字") + " "}
+                      </p>
+                    )}
+                  <ReaderMessage
+                    spaceId={spaceId}
+                    source={segment.text}
+                    itemType={segment.type}
+                    speaker={
+                      conversation &&
+                      ["userMessage", "agentMessage"].includes(segment.type)
+                        ? {
+                            name:
+                              segment.type === "userMessage"
+                                ? material.author
+                                : tr`${material.author}的 ${v?.provider === "claude" ? "Claude Code" : "Codex"}`,
+                            author: material.author,
+                            assistant: segment.type === "agentMessage",
+                          }
+                        : undefined
+                    }
+                    label={
+                      segment.collapsed
+                        ? tr`${itemLabel(segment.type)} · 共 ${segment.length} 字 · 已显示 ${segment.endOffset - segment.startOffset} 字`
+                        : itemLabel(segment.type)
+                    }
+                    notice={segment.notice}
+                    target={{
+                      kind: "material",
+                      materialId: material.id,
+                      version,
+                      turnId: segment.turnId,
+                      itemId: segment.itemId,
+                      startOffset: segment.startOffset,
+                      endOffset: segment.endOffset,
+                      quote: segment.text,
+                    }}
+                    activeTarget={target}
+                    annotations={annotations}
+                    onAnnotate={onAnnotate}
+                    onDiscuss={onDiscuss}
+                    disabled={disabled}
+                    actionLabel={t("引用这段文字")}
+                    onExpand={
+                      segment.collapsed && segment.endOffset < segment.length
+                        ? () =>
+                            void readItemAt(
+                              segment.turnId,
+                              segment.itemId,
+                              segment.endOffset,
+                            )
+                        : undefined
+                    }
+                    expanding={
+                      itemLoading === `${segment.turnId}:${segment.itemId}`
+                    }
+                    shownLength={segment.endOffset}
+                  />
+                </div>
+              )}
+            </ReaderSequence>
           </div>
         </ReadingLayout>
       )}

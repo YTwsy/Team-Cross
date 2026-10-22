@@ -469,96 +469,98 @@ export function SpaceWorkbench({
               <Icon name="panel" size={16} />
             </button>
           </div>
-          <div className="space-publish-slot" ref={setPublishing} />
-          <div
-            className="workbench-tabs"
-            role="tablist"
-            aria-orientation="vertical"
-            aria-label={t("空间工作台")}
-          >
-            {nav.map((item, index) => (
-              <button
-                key={item.value}
-                ref={(el) => {
-                  tabs.current[index] = el;
-                }}
-                id={`${uid}-${item.value}-tab`}
-                role="tab"
-                aria-label={item.label}
-                title={item.label}
-                aria-selected={tab === item.value}
-                aria-controls={`${uid}-${item.value}-panel`}
-                tabIndex={
-                  tab === item.value || (tab === "reading" && index === 0)
-                    ? 0
-                    : -1
-                }
-                onClick={() => show(item.value)}
-                onKeyDown={(e) => {
-                  if (
-                    ![
-                      "ArrowLeft",
-                      "ArrowRight",
-                      "ArrowUp",
-                      "ArrowDown",
-                      "Home",
-                      "End",
-                    ].includes(e.key)
-                  )
-                    return;
-                  e.preventDefault();
-                  const next =
-                    e.key === "Home"
-                      ? 0
-                      : e.key === "End"
-                        ? nav.length - 1
-                        : (index +
-                            (["ArrowLeft", "ArrowUp"].includes(e.key)
-                              ? -1
-                              : 1) +
-                            nav.length) %
-                          nav.length;
-                  setTab(nav[next]!.value);
-                  tabs.current[next]?.focus();
-                }}
-              >
-                <Icon
-                  name={
-                    item.value === "overview"
-                      ? "grid"
-                      : item.value === "reading"
-                        ? "book"
-                        : item.value === "sessions"
-                          ? "people"
-                          : item.value === "brief"
-                            ? "pin"
-                            : "request"
-                  }
-                  size={17}
-                />
-                <span className="space-nav-label">{item.label}</span>
-                {item.value === "requests" && content && (
-                  <span className="count">{content.total}</span>
-                )}
-                {item.value === "brief" && briefDraft && (
-                  <span
-                    className="workbench-draft-dot"
-                    aria-hidden="true"
-                    title={t("草稿尚未保存")}
-                  />
-                )}
-              </button>
-            ))}
-          </div>
-          {contextNavigation && (
+          <div className="space-navigation-scroll">
+            <div className="space-publish-slot" ref={setPublishing} />
             <div
-              className="space-context-navigation"
-              onClick={() => show("reading")}
+              className="workbench-tabs"
+              role="tablist"
+              aria-orientation="vertical"
+              aria-label={t("空间工作台")}
             >
-              {contextNavigation}
+              {nav.map((item, index) => (
+                <button
+                  key={item.value}
+                  ref={(el) => {
+                    tabs.current[index] = el;
+                  }}
+                  id={`${uid}-${item.value}-tab`}
+                  role="tab"
+                  aria-label={item.label}
+                  title={item.label}
+                  aria-selected={tab === item.value}
+                  aria-controls={`${uid}-${item.value}-panel`}
+                  tabIndex={
+                    tab === item.value || (tab === "reading" && index === 0)
+                      ? 0
+                      : -1
+                  }
+                  onClick={() => show(item.value)}
+                  onKeyDown={(e) => {
+                    if (
+                      ![
+                        "ArrowLeft",
+                        "ArrowRight",
+                        "ArrowUp",
+                        "ArrowDown",
+                        "Home",
+                        "End",
+                      ].includes(e.key)
+                    )
+                      return;
+                    e.preventDefault();
+                    const next =
+                      e.key === "Home"
+                        ? 0
+                        : e.key === "End"
+                          ? nav.length - 1
+                          : (index +
+                              (["ArrowLeft", "ArrowUp"].includes(e.key)
+                                ? -1
+                                : 1) +
+                              nav.length) %
+                            nav.length;
+                    setTab(nav[next]!.value);
+                    tabs.current[next]?.focus();
+                  }}
+                >
+                  <Icon
+                    name={
+                      item.value === "overview"
+                        ? "grid"
+                        : item.value === "reading"
+                          ? "book"
+                          : item.value === "sessions"
+                            ? "people"
+                            : item.value === "brief"
+                              ? "pin"
+                              : "request"
+                    }
+                    size={17}
+                  />
+                  <span className="space-nav-label">{item.label}</span>
+                  {item.value === "requests" && content && (
+                    <span className="count">{content.total}</span>
+                  )}
+                  {item.value === "brief" && briefDraft && (
+                    <span
+                      className="workbench-draft-dot"
+                      aria-hidden="true"
+                      title={t("草稿尚未保存")}
+                    />
+                  )}
+                </button>
+              ))}
             </div>
-          )}
-          <div className="space-material-navigation" ref={setNavigation} />
+            {contextNavigation && (
+              <div
+                className="space-context-navigation"
+                onClick={() => show("reading")}
+              >
+                {contextNavigation}
+              </div>
+            )}
+            <div className="space-material-navigation" ref={setNavigation} />
+          </div>
           <footer className="space-sidebar-footer">
             <a
               href="#/library"

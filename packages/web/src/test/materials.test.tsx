@@ -161,9 +161,8 @@ it("folds long tool output and reads the selected item without advancing the str
     />,
   );
   await user.click(screen.getByRole("button", { name: "阅读材料" }));
-  expect(
-    (await screen.findAllByText(/工具输出 · 共 10 字 · 已显示 5 字/))[0],
-  ).toBeVisible();
+  expect(await screen.findByText("工具输出", { exact: true })).toBeVisible();
+  expect(screen.getByText(/工具输出 · 共 10 字 · 已显示 5 字/)).not.toBeVisible();
   await user.click(screen.getByRole("button", { name: "读取完整输出" }));
   await waitFor(() =>
     expect(

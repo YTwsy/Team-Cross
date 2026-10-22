@@ -149,6 +149,8 @@ TEAMCROSS_WORKBENCH_BROWSER_DIR=/private/tmp/teamcross-space-browser-fresh \
 
 单侧栏布局另检查发布入口、搜索展开、筛选与材料切换、左栏收起、连续对话的用户与 Agent 消息、评论草稿和更多菜单。空间概览检查固定版本材料跳转及折叠管理入口；阅读底部检查处理要求与材料/批注引用进入发送表单，且未确认接收目标前没有投递。引用选择器中的预览版本不得改变已选版本。`workbench_browser_test.go` 的合成用户消息通过原生 `content` 结构读取，避免仅验证 Agent 正文；共同执行的上下文切换另由 `TestLibraryBrowserFixture` 复核。
 
+连续过程折叠回归见 [reading.test.tsx](../../../../packages/web/src/test/reading.test.tsx)。材料、协作对话及发布预览应保持消息顺序和轮次边界，展开分组不批量读取工具全文，分页后保留展开状态，批注定位打开两层折叠。多会话浏览器 fixture 含十条连续命令/工具和十二份材料；检查默认收起、单条长输出、键盘操作，以及搜索前后侧栏内容宽度不变、中段滚动时头尾入口保持可见。复核展开/收起侧栏、短窗口、中英和深浅主题。
+
 ## 本机数字分身
 
 模型选择改动需覆盖 [启动设置回归](../../../../internal/shadow/settings_test.go) 与 [本机模型目录回归](../../../../internal/collab/shadow_models_test.go)：工作目录有效配置、分页、配置白名单、不创建线程、自定义模型保留、每模型推理选项、未知回执重试固定 settings、原生确认不一致时暂停、所有会话创建和恢复显式应用同一组值。真实 fixture 以 medium 原生默认创建 low 分身，再将专用 home 默认改成 high，核对 S1/S2/W/CM/M 和重启的实际返回值；仍只调用 Luna。浏览器检查创建选择、状态显示与失败路径，不在聊天输入处新增选择。

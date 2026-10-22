@@ -41,6 +41,7 @@ import type {
 import type { AnnotationRequest } from "./Annotations";
 import {
   ReaderMessage,
+  ReaderSequence,
   ReadingLayout,
   type Annotate,
   type Discuss,
@@ -533,93 +534,96 @@ export function Context({
           }))}
         >
           <div className="history">
-            {segments.map((segment, index, all) => (
-              <div
-                key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
-                className="history-turn"
-                data-reader-turn={segment.turnId}
-                data-reading-key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
-              >
-                {!conversation &&
-                  (!index || all[index - 1]?.turnId !== segment.turnId) && (
-                    <div className="reader-turn-heading">
-                      {t("第")}{" "}
-                      {turns.findIndex((turn) => turn.id === segment.turnId) +
-                        1}{" "}
-                      {t("轮") + " "}
-                    </div>
-                  )}
-                {!!index &&
-                  all[index - 1]?.turnId === segment.turnId &&
-                  all[index - 1]?.itemId === segment.itemId &&
-                  all[index - 1]!.endOffset < segment.startOffset && (
-                    <p className="material-fold-gap">
-                      {t("中间已折叠")}{" "}
-                      {segment.startOffset - all[index - 1]!.endOffset}
-                      {" " + t("字") + " "}
-                    </p>
-                  )}
-                <ReaderMessage
-                  spaceId={id}
-                  source={segment.text}
-                  label={
-                    segment.type === "userMessage"
-                      ? t("用户")
-                      : segment.type === "agentMessage"
-                        ? agentName
-                        : segment.collapsed
-                          ? tr`${itemLabel(segment.type)} · 共 ${segment.length} 字 · 已显示 ${segment.endOffset - segment.startOffset} 字`
-                          : itemLabel(segment.type)
-                  }
-                  speaker={
-                    conversation &&
-                    ["userMessage", "agentMessage"].includes(segment.type)
-                      ? {
-                          name:
-                            segment.type === "userMessage"
-                              ? t("用户")
-                              : agentName,
-                          author:
-                            segment.type === "userMessage"
-                              ? t("用户")
-                              : agentName,
-                          assistant: segment.type === "agentMessage",
-                        }
-                      : undefined
-                  }
-                  notice={segment.notice}
-                  target={{
-                    kind: "history",
-                    sessionId,
-                    turnId: segment.turnId,
-                    itemId: segment.itemId,
-                    cursor: data.pageCursor,
-                    startOffset: segment.startOffset,
-                    endOffset: segment.endOffset,
-                    quote: segment.text,
-                  }}
-                  activeTarget={activeTarget}
-                  annotations={annotations}
-                  onAnnotate={onAnnotate}
-                  onDiscuss={onDiscuss}
-                  disabled={!canAnnotate}
-                  onExpand={
-                    segment.collapsed && segment.endOffset < segment.length
-                      ? () =>
-                          void readHistoryItemAt(
-                            segment.turnId,
-                            segment.itemId,
-                            segment.endOffset,
-                          )
-                      : undefined
-                  }
-                  expanding={
-                    itemLoading === `${segment.turnId}:${segment.itemId}`
-                  }
-                  shownLength={segment.endOffset}
-                />
-              </div>
-            ))}
+            <ReaderSequence segments={segments} activeTarget={activeTarget}>
+              {(segment, index, all) => (
+                <div
+                  key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
+                  className="history-turn"
+                  data-reader-turn={segment.turnId}
+                  data-reading-key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
+                >
+                  {!conversation &&
+                    (!index || all[index - 1]?.turnId !== segment.turnId) && (
+                      <div className="reader-turn-heading">
+                        {t("第")}{" "}
+                        {turns.findIndex((turn) => turn.id === segment.turnId) +
+                          1}{" "}
+                        {t("轮") + " "}
+                      </div>
+                    )}
+                  {!!index &&
+                    all[index - 1]?.turnId === segment.turnId &&
+                    all[index - 1]?.itemId === segment.itemId &&
+                    all[index - 1]!.endOffset < segment.startOffset && (
+                      <p className="material-fold-gap">
+                        {t("中间已折叠")}{" "}
+                        {segment.startOffset - all[index - 1]!.endOffset}
+                        {" " + t("字") + " "}
+                      </p>
+                    )}
+                  <ReaderMessage
+                    spaceId={id}
+                    source={segment.text}
+                    itemType={segment.type}
+                    label={
+                      segment.type === "userMessage"
+                        ? t("用户")
+                        : segment.type === "agentMessage"
+                          ? agentName
+                          : segment.collapsed
+                            ? tr`${itemLabel(segment.type)} · 共 ${segment.length} 字 · 已显示 ${segment.endOffset - segment.startOffset} 字`
+                            : itemLabel(segment.type)
+                    }
+                    speaker={
+                      conversation &&
+                      ["userMessage", "agentMessage"].includes(segment.type)
+                        ? {
+                            name:
+                              segment.type === "userMessage"
+                                ? t("用户")
+                                : agentName,
+                            author:
+                              segment.type === "userMessage"
+                                ? t("用户")
+                                : agentName,
+                            assistant: segment.type === "agentMessage",
+                          }
+                        : undefined
+                    }
+                    notice={segment.notice}
+                    target={{
+                      kind: "history",
+                      sessionId,
+                      turnId: segment.turnId,
+                      itemId: segment.itemId,
+                      cursor: data.pageCursor,
+                      startOffset: segment.startOffset,
+                      endOffset: segment.endOffset,
+                      quote: segment.text,
+                    }}
+                    activeTarget={activeTarget}
+                    annotations={annotations}
+                    onAnnotate={onAnnotate}
+                    onDiscuss={onDiscuss}
+                    disabled={!canAnnotate}
+                    onExpand={
+                      segment.collapsed && segment.endOffset < segment.length
+                        ? () =>
+                            void readHistoryItemAt(
+                              segment.turnId,
+                              segment.itemId,
+                              segment.endOffset,
+                            )
+                        : undefined
+                    }
+                    expanding={
+                      itemLoading === `${segment.turnId}:${segment.itemId}`
+                    }
+                    shownLength={segment.endOffset}
+                  />
+                </div>
+              )}
+            </ReaderSequence>
           </div>
         </ReadingLayout>
       ) : (

@@ -211,15 +211,31 @@
   align-self: start;
   height: 100dvh;
   margin-top: -57px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
   background: var(--sidebar);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   z-index: 41;
 }
+.space-navigation-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 38%, transparent) transparent;
+  scroll-padding-block: 12px;
+  padding-bottom: 12px;
+}
+.space-navigation-scroll:hover,
+.space-navigation-scroll:focus-within {
+  scrollbar-color: var(--muted) transparent;
+}
 .space-navigation-heading {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -501,8 +517,9 @@
   padding: 12px 8px;
 }
 .space-sidebar-footer {
+  flex-shrink: 0;
   margin-top: auto;
-  padding: 18px 14px 16px;
+  padding: 0 14px 16px;
 }
 .space-footer-link {
   display: flex;
@@ -909,6 +926,10 @@
   padding: 0 0 24px;
   margin: 0;
 }
+.space-material-reader div:has(+ .reader-process-group)
+  > .space-assistant-message {
+  padding-bottom: 4px;
+}
 .space-material-reader .reader-speaker {
   display: flex;
   align-items: center;
@@ -1018,6 +1039,13 @@
   margin-left: 40px;
   padding-bottom: 13px;
 }
+.space-material-reader .reader-process-group {
+  margin-left: 40px;
+}
+.space-material-reader .reader-process-items .reader-tool-message {
+  margin-left: 0;
+  padding: 2px 0;
+}
 .space-material-reader .reader-tool {
   border: 0;
   background: none;
@@ -1025,8 +1053,7 @@
   padding: 0;
 }
 .space-material-reader .reader-tool > summary {
-  color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 .space-read-caption {
   display: flex;
@@ -1104,6 +1131,7 @@
   display: none;
 }
 .space-reference-compact .space-reference-chips {
+  min-width: 0;
   margin: 0;
 }
 .space-reference-compact .space-reference-chip {
@@ -1773,7 +1801,8 @@
   .space-assistant-message > [data-message-text],
   .space-assistant-message > .reader-note-links,
   .space-read-caption,
-  .space-material-reader .reader-tool-message {
+  .space-material-reader .reader-tool-message,
+  .space-material-reader .reader-process-group {
     margin-left: 0;
   }
   .space-request-label > span:last-child {
