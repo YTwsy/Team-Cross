@@ -19,6 +19,7 @@ import urllib.request
 parser = argparse.ArgumentParser()
 for name in ("old-binary", "new-binary", "next-binary", "codex-bin", "output"):
     parser.add_argument("--" + name, required=True)
+parser.add_argument("--legacy-busy-binary", help="Optional Core with the previous upgradeBusy veto, for first migration")
 args = parser.parse_args()
 old, new, next_binary, codex, root = [Path(value).resolve() for value in
     (args.old_binary, args.new_binary, args.next_binary, args.codex_bin, args.output)]
@@ -245,6 +246,33 @@ try:
     assert observed["pid"] != watched_before["pid"] and observed["url"] == watched_before["url"]
     watch_elapsed = time.monotonic() - watch_started
 
+    migration_elapsed = None
+    migration_build = None
+    if args.legacy_busy_binary:
+        legacy_busy = Path(args.legacy_busy_binary).resolve()
+        migration_build = run(legacy_busy, "version", "--json")
+        # First installation of this policy must also replace an old busy Core.
+        # The old Core cannot enforce the new admission gate, but its authenticated
+        # stop API must not let historical work pin the installation indefinitely.
+        migration = root / "legacy-busy-data"
+        migration.mkdir()
+        directories.append(migration)
+        migration_receipt = {"pairings": {}, "requests": {"legacy-delivery": {
+            "id": "legacy-delivery", "state": "submitted", "instruction": "Never replay migration"}}}
+        (migration / "agent-pairings.json").write_text(json.dumps(migration_receipt))
+        migration_binary = root / "Legacy Busy App.app/Contents/Resources/teamcross"
+        replace(legacy_busy, migration_binary)
+        run(migration_binary, "serve", "--no-open", "--json", "--data-dir", migration)
+        migration_before = status(migration)
+        assert migration_before["upgradeBlocked"] and migration_before.get("upgradePolicy") != "bounded-10s"
+        replace(next_binary, migration_binary)
+        migration_started = time.monotonic()
+        migrated = run(migration_binary, "serve", "--no-open", "--json", "--data-dir", migration)["service"]
+        migration_elapsed = time.monotonic() - migration_started
+        assert 9 <= migration_elapsed < 15, migration_elapsed
+        assert migrated["pid"] != migration_before["pid"] and migrated["commit"] == next_build["commit"]
+        assert json.loads((migration / "agent-pairings.json").read_text()) == migration_receipt
+
     # A durable unknown receipt is retained for reconciliation, not a running
     # write. It must not pin an otherwise idle Core to an old build forever.
     uncertain = root / "unknown-data"
@@ -274,7 +302,8 @@ try:
         "missingInstallationFailsClosed": True, "outstandingDeliveryBoundedUpgrade": True, "graceCannotBeRenewed": True,
         "newWritesRejectedDuringUpgrade": True, "requestPreservedWithoutReplay": True,
         "busyUpgradeElapsedSeconds": elapsed, "coreDetectsInstalledReplacement": True,
-        "watchUpgradeElapsedSeconds": watch_elapsed,
+        "watchUpgradeElapsedSeconds": watch_elapsed, "legacyBusyCoreMigrated": bool(args.legacy_busy_binary), "legacyBusyBuild": migration_build,
+        "legacyMigrationElapsedSeconds": migration_elapsed,
         "unknownReceiptDoesNotBlockUpgrade": True, "unknownReceiptPreserved": True,
         "dataPreserved": True, "startupOptionsPreserved": True, "upgradeIdentityAndAuth": True, "modelInvoked": False}
     (root / "report.json").write_text(json.dumps(report, indent=2) + "\n")

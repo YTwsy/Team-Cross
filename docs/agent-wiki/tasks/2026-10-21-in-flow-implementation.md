@@ -131,3 +131,10 @@ Go `test ./...`、`vet ./...` 及 `internal/collab`、`internal/mcp`、`internal
 插件继续保留原编辑器和草稿，仅明确读取遇到升级状态时有界重试；写入和宿主消息不重发，未知留言继续使用原请求 ID 核对。后台服务切换不等同于界面 bundle 替换，有草稿时仍显示“保留草稿并刷新”。首次迁移的旧 Core 没有新检测器，需新版 App/helper 参与，并使用其原有鉴权停止入口；旧进程的准入保护不能由新调用方补齐。
 
 Go 全量 test/vet、service/collab/mcp/cmd 的 race 通过；最后调整的 service 收尾竞争另跑 race 通过。Web check、21 个文件 201 项测试、1080 条 UI 翻译检查和两套嵌入资源构建通过。首次回归暴露旧测试的更新提示预期、草稿检查点结构预期以及未声明安装归属的合成 Core 兼容边界；调整测试和旧归属处理后复跑通过。源码相对链接、Python 语法及 diff 检查通过。
+
+
+真实升级验证使用同版本号 `0.2.6-dev.upgrade-check` 的 `ae66ff6`、`acc12e4`、`849ba25`，另外用 `08105e6` 覆盖旧活动否决策略的首次迁移；[结构化结果](2026-10-21-in-flow-evidence/priority-upgrade-core.json)。最终一轮：未完成请求的切换共 10.45 秒，旧策略首次迁移 10.22 秒；两者包括进程启动，收尾截止时间固定 10 秒。没有客户端触发时自动检测并切换约 2.04 秒。四个并发启动收敛到同一 PID，重复升级请求返回同一截止时间，新业务请求得到 503，未知和已提交请求记录保留且不重发。实际 Codex CLI 为 `0.163.0-alpha.11`，没有调用模型。首次完整三构建通过后，扩充迁移场景的第二轮误选不含旧活动否决字段的早期基线，检查前提失败；增加准确旧策略构建后第三轮通过。各轮均清理自己启动的 Core/stdio/helper。
+
+从干净提交 `849ba25ab8480d777d2123c3dd8186ad9355e103` 构建 `0.2.6-dev.priority-upgrade.20261022`，buildNumber 180，arm64、最低 macOS 14.0；[构建清单](2026-10-21-in-flow-evidence/priority-upgrade-release.json)。产物保存在主仓库 `dist/release/0.2.6-dev.priority-upgrade.20261022/`，原安装包保留。DMG SHA-256 为 `c79db364a6ce57c00d30da04c495f0888ec7e78c307b49d954a8193b967f94b3`。
+
+标准构建及 DMG 成品验证通过，覆盖校验值、挂载和临时安装、图标、ad-hoc 签名完整性、App/CLI 构建一致、双 App 实例协调、CLI 安装/移除、已有命令保护、兼容服务复用及生命周期；[结构化结果](2026-10-21-in-flow-evidence/priority-upgrade-dmg-verification.json)。临时进程和挂载已清理，没有替换用户已安装 App。未使用 Developer ID、未公证；本轮没有新增真实模型运行中断、实际宿主全流程、Cloud 或跨 Mac 验收。草稿与重连交互由真实组件/宿主桥模拟回归覆盖；原有真实浏览器截图不当作本构建新增验收。成品来源提交后的改动仅补充验证脚本与证据，不改变安装包内的产品代码。
