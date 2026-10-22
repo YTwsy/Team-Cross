@@ -79,6 +79,8 @@ beforeEach(() => {
   messages = [];
   scope = "fixture";
   widget = undefined;
+  delete window.__teamcrossPrivateState;
+  delete window.__teamcrossCheckpoint;
   capabilities = { message: {}, updateModelContext: {} };
   handler = route;
   location.hash = "";

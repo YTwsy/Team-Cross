@@ -11,6 +11,8 @@ import {
 } from "../currentConversation";
 
 import { bindSandboxForms } from "./forms";
+import { beginRefreshState, endRefreshState } from "../refreshState";
+import { watchPanelUpdates } from "./update";
 
 type Snapshot = {
   version: 2;
@@ -55,6 +57,28 @@ export async function initializeEnvironment() {
       }
     }
     const unbindForms = bindSandboxForms();
+    beginRefreshState(scope, window.__teamcrossCheckpoint);
+    const restoredPosition =
+      window.__teamcrossCheckpoint?.scope === scope
+        ? window.__teamcrossCheckpoint.scrollY
+        : undefined;
+    let positionAttempts = 0;
+    const restorePosition = setInterval(() => {
+      if (restoredPosition === undefined || ++positionAttempts > 50) {
+        clearInterval(restorePosition);
+        return;
+      }
+      if (
+        document.documentElement.scrollHeight >=
+        restoredPosition + innerHeight
+      ) {
+        window.scrollTo(0, restoredPosition);
+        clearInterval(restorePosition);
+      }
+    }, 100);
+    const cancelPosition = () => clearInterval(restorePosition);
+    window.addEventListener("pointerdown", cancelPosition, { once: true });
+    window.addEventListener("wheel", cancelPosition, { once: true });
     const persist = () => saveState(state);
     setHostedStorage(state.storage, persist);
     if (!location.hash && state.route) location.hash = state.route;
@@ -105,18 +129,26 @@ export async function initializeEnvironment() {
         },
       });
     }
-    window.addEventListener(
-      "pagehide",
-      () => {
-        routeChanged();
-        unbindForms();
-        window.removeEventListener("hashchange", routeChanged);
-        setHostedStorage();
-        setCurrentConversation();
-        bridge.dispose();
-      },
-      { once: true },
-    );
+    const stopUpdates = watchPanelUpdates(bridge, persist);
+    let disposed = false;
+    const dispose = () => {
+      if (disposed) return;
+      disposed = true;
+      routeChanged();
+      stopUpdates();
+      clearInterval(restorePosition);
+      window.removeEventListener("pointerdown", cancelPosition);
+      window.removeEventListener("wheel", cancelPosition);
+      endRefreshState();
+      unbindForms();
+      window.removeEventListener("hashchange", routeChanged);
+      window.removeEventListener("pagehide", dispose);
+      setHostedStorage();
+      setCurrentConversation();
+      bridge.dispose();
+    };
+    window.addEventListener("pagehide", dispose, { once: true });
+    return dispose;
   } catch (error) {
     bridge.dispose();
     throw error;

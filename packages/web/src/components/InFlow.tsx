@@ -1,3 +1,4 @@
+import { useRefreshState, useRefreshGuard } from "../refreshState";
 import { useState } from "react";
 import { api, APIError, errorText } from "../api";
 import { t, formatDate } from "../i18n";
@@ -78,10 +79,17 @@ export function LeaveSpaceNote({
   notes: SpaceNote[];
   onChanged: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [text, setText] = useState("");
-  const [requestId, setRequestId] = useState("");
-  const [canRetry, setCanRetry] = useState(false);
+  const refreshKey = "LeaveSpaceNote:v1:" + (spaceId + ":" + targetId);
+  const [open, setOpen] = useRefreshState(refreshKey + ":open", false);
+  const [text, setText] = useRefreshState(refreshKey + ":text", "");
+  const [requestId, setRequestId] = useRefreshState(
+    refreshKey + ":requestId",
+    "",
+  );
+  const [canRetry, setCanRetry] = useRefreshState(
+    refreshKey + ":canRetry",
+    false,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function submit() {
@@ -119,6 +127,7 @@ export function LeaveSpaceNote({
       setBusy(false);
     }
   }
+  useRefreshGuard(refreshKey, !!text || !!requestId);
   return (
     <>
       <button className="button small" onClick={() => setOpen(true)}>

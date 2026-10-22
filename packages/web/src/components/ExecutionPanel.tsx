@@ -1,3 +1,4 @@
+import { useRefreshState } from "../refreshState";
 import { useState } from "react";
 import { api, errorText } from "../api";
 import { collaborationAddress } from "../execution";
@@ -38,14 +39,23 @@ export function ExecutionPanel({
   active: boolean;
   onLocateMaterial?: (reference: MaterialReference) => void;
 }) {
+  const refreshKey = "ExecutionPanel:v1:" + (space.id + ":" + c.id);
   const [request, setRequest] = useState<AnnotationRequest>();
   const [location, setLocation] = useState<AnnotationRequest>();
-  const [modal, setModal] = useState<"clients" | "assist" | "end" | null>(null);
+  const [modal, setModal] = useRefreshState<
+    "clients" | "assist" | "end" | null
+  >(refreshKey + ":modal", null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [personalNote, setPersonalNote] = useState("");
+  const [personalNote, setPersonalNote] = useRefreshState(
+    refreshKey + ":personalNote",
+    "",
+  );
   const workbench = useSpaceWorkbench();
-  const [inputOpen, setInputOpen] = useState(false);
+  const [inputOpen, setInputOpen] = useRefreshState(
+    refreshKey + ":inputOpen",
+    false,
+  );
   const id = collaborationAddress({ ...c, spaceId: space.id });
   const owner = space.role === "owner";
   const closed = ["ended", "left", "expired"].includes(space.state);

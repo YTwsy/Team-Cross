@@ -1,3 +1,8 @@
+import {
+  useRefreshState,
+  useRefreshGuard,
+  useRefreshRef,
+} from "../refreshState";
 import { localStorage } from "../storage";
 import { useEffect, useRef, useState } from "react";
 import { api, errorText, useResource } from "../api";
@@ -60,11 +65,15 @@ export function ConnectCurrentConversation({
   spaceId: string;
   disabled?: boolean;
 }) {
+  const refreshKey = "ConnectCurrentConversation:v1:" + spaceId;
   const current = currentConversation();
-  const [name, setName] = useState("");
+  const [name, setName] = useRefreshState(refreshKey + ":name", "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [requested, setRequested] = useState(false);
+  const [requested, setRequested] = useRefreshState(
+    refreshKey + ":requested",
+    false,
+  );
   const [, redraw] = useState(0);
   const connectionPath = current?.connectionStatus
     ? `plugin/current-connection?spaceId=${encodeURIComponent(spaceId)}`
@@ -76,6 +85,7 @@ export function ConnectCurrentConversation({
       : undefined;
   const linked = !!verified?.linked;
   const checking = !!connectionPath && !verified;
+  useRefreshGuard(refreshKey, !!name && !linked);
   if (!current?.connect) return null;
   const state = current.status(`connect:${spaceId}`);
   return (
@@ -184,11 +194,12 @@ export function PairConversation({
 }: {
   onPaired: (id: string) => void;
 }) {
-  const [name, setName] = useState("");
-  const [created, setCreated] = useState<{
+  const refreshKey = "PairConversation:v1:" + location.hash;
+  const [name, setName] = useRefreshState(refreshKey + ":name", "");
+  const [created, setCreated] = useRefreshState<{
     pairing: AgentPairing;
     code: string;
-  }>();
+  }>(refreshKey + ":created");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const pairs = useResource<AgentPairing[]>(
@@ -197,7 +208,7 @@ export function PairConversation({
   );
   const current =
     pairs.data?.find((p) => p.id === created?.pairing.id) || created?.pairing;
-  const delivered = useRef("");
+  const delivered = useRefreshRef(refreshKey + ":delivered", "");
   useEffect(() => {
     if (current?.state === "paired" && delivered.current !== current.id) {
       delivered.current = current.id;
@@ -218,6 +229,7 @@ export function PairConversation({
       setBusy(false);
     }
   }
+  useRefreshGuard(refreshKey, !!name && !created);
   return (
     <div className="agent-pair-flow">
       <p>
@@ -289,9 +301,10 @@ export function PairConversation({
 }
 
 export function AgentPairings() {
+  const refreshKey = "AgentPairings:v1:" + location.hash;
   const pairs = useResource<AgentPairing[]>("agent-pairings", 3000);
   const requests = useResource<AgentRequest[]>("agent-requests", 3000);
-  const [pairing, setPairing] = useState(false);
+  const [pairing, setPairing] = useRefreshState(refreshKey + ":pairing", false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   async function remove(id: string) {
@@ -306,6 +319,7 @@ export function AgentPairings() {
       setBusy("");
     }
   }
+  useRefreshGuard(refreshKey, false);
   return (
     <section className="panel settings-section">
       <div className="panel-heading">
@@ -427,7 +441,18 @@ export function SendToAgent({
   initialInstruction?: string;
   collaboration?: import("../types").Collaboration;
 }) {
-  const [references, setReferences] = useState(initialReferences);
+  const refreshKey =
+    "SendToAgent:v1:" +
+    JSON.stringify([
+      spaceId,
+      initialTargetId,
+      parentRequestId,
+      initialReferences,
+    ]);
+  const [references, setReferences] = useRefreshState(
+    refreshKey + ":references",
+    initialReferences,
+  );
   const library = useLibrary();
   const pairs = useResource<AgentPairing[]>(
     spaceId ? null : "agent-pairings",
@@ -455,20 +480,30 @@ export function SendToAgent({
           expiresAt: "",
         }))
     : pairs.data;
-  const [selected, setSelected] = useState(
+  const [selected, setSelected] = useRefreshState(
+    refreshKey + ":selected",
     () =>
       initialTargetId ||
       (spaceId ? "" : localStorage.getItem("teamcross.agent-target.v1") || ""),
   );
-  const [pairing, setPairing] = useState(false);
-  const [instruction, setInstruction] = useState(
+  const [pairing, setPairing] = useRefreshState(refreshKey + ":pairing", false);
+  const [instruction, setInstruction] = useRefreshState(
+    refreshKey + ":instruction",
     initialInstruction || t("请读取所选内容，核对原文后分析。"),
   );
-  const [intent, setIntent] = useState("analyze");
+  const [intent, setIntent] = useRefreshState(
+    refreshKey + ":intent",
+    "analyze",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [request, setRequest] = useState<AgentRequest>();
-  const [unknownID, setUnknownID] = useState("");
+  const [request, setRequest] = useRefreshState<AgentRequest>(
+    refreshKey + ":request",
+  );
+  const [unknownID, setUnknownID] = useRefreshState(
+    refreshKey + ":unknownID",
+    "",
+  );
   const sending = useRef(false);
   const status = useResource<AgentRequest>(
     request || unknownID
@@ -554,6 +589,7 @@ export function SendToAgent({
       sending.current = false;
     }
   }
+  useRefreshGuard(refreshKey, !request && (!!instruction || !!unknownID));
   return (
     <div
       className={`send-to-agent ${collaboration ? "space-request-composer" : ""}`}
@@ -577,6 +613,7 @@ export function SendToAgent({
       </label>
       {collaboration ? (
         <SpaceReferencePicker
+          refreshId={refreshKey}
           collaboration={collaboration}
           value={references}
           disabled={locked}

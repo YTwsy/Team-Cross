@@ -93,6 +93,59 @@ func TestUIPanelResourceChangesCacheKeyWithContent(t *testing.T) {
 	}
 }
 
+func TestUIPanelUpdatesUseCoreAndStrictReadRoutes(t *testing.T) {
+	for _, path := range []string{"plugin/panel-version", "plugin/panel-bundle?revision=abc"} {
+		if _, err := uiRoute(path, nil, false); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := uiRoute(path, map[string]any{}, true); err == nil {
+			t.Fatal("update endpoint accepts write")
+		}
+	}
+	for _, path := range []string{"plugin/panel-version?url=https://example.invalid", "plugin/panel-bundle?revision=a&revision=b", "plugin/panel-bundle?revision=a&url=file:x"} {
+		if _, err := uiRoute(path, nil, false); err == nil {
+			t.Fatal("unsafe route", path)
+		}
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/plugin/panel-version" || r.Header.Get("Authorization") != "Bearer local" {
+			t.Error(r.URL, r.Header)
+		}
+		w.Write([]byte(`{"protocol":1,"revision":"new-core-revision"}`))
+	}))
+	defer server.Close()
+	b := Backend{URL: server.URL, Token: "local", Client: localClient()}
+	out, err := b.uiRequest(context.Background(), "plugin/panel-version", nil, false)
+	if err != nil || !bytes.Contains(out, []byte("new-core-revision")) {
+		t.Fatal(string(out), err)
+	}
+}
+
+func TestUIPanelBundleIsNotDuplicatedAsText(t *testing.T) {
+	input := strings.NewReader(`{"id":1,"method":"tools/call","params":{"name":"teamcross_ui_read","arguments":{"path":"plugin/panel-bundle?revision=fixture"}}}`)
+	var output bytes.Buffer
+	err := serveWithResources(context.Background(), input, &output, UITools(), "", func(context.Context, string, map[string]any, string) (json.RawMessage, error) {
+		return json.RawMessage(`{"protocol":1,"revision":"fixture","script":"local bundle","style":"body{}"}`), nil
+	}, func(ctx context.Context, method string, params json.RawMessage) (any, error) {
+		return uiResource(method, params)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row struct {
+		Result struct {
+			Content    []any          `json:"content"`
+			Structured map[string]any `json:"structuredContent"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &row); err != nil {
+		t.Fatal(err)
+	}
+	if len(row.Result.Content) != 0 || row.Result.Structured["script"] != "local bundle" {
+		t.Fatal(output.String())
+	}
+}
+
 func TestUICurrentConnectionUsesOnlyTransportIdentityWithoutModelTurn(t *testing.T) {
 	id := uuid.NewString()
 	calls := 0

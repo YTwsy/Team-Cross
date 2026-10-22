@@ -182,6 +182,10 @@ func uiRoute(path string, body any, write bool) (string, error) {
 			allowed, queries = true, "spaceId"
 		case "plugin/current-connection":
 			allowed, queries = true, "spaceId"
+		case "plugin/panel-version":
+			allowed = true
+		case "plugin/panel-bundle":
+			allowed, queries = true, "revision"
 		}
 		if len(parts) == 2 && (parts[0] == "collaborations" || parts[0] == "agent-requests") {
 			allowed = true

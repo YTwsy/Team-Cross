@@ -217,6 +217,9 @@ func (a *App) Handler(web http.Handler) http.Handler {
 func (a *App) http(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/")
 	ctx := r.Context()
+	if a.pluginUpdateHTTP(w, r, path) {
+		return
+	}
 	if strings.HasPrefix(path, "runtime-annotations/") {
 		a.runtimeAnnotationsHTTP(w, r, strings.TrimPrefix(path, "runtime-annotations/"))
 		return

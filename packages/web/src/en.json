@@ -1334,5 +1334,11 @@
   "重新检查接收连接": "Recheck receiving connection",
   "结束共同执行": "End shared execution",
   "结束这个会话的共同执行？": "End shared execution in this session?",
-  "接回此会话输入并暂停执行，等待已接收的工作完成后释放运行时。所有空间成员仍可阅读历史和讨论，其他会话继续运行。": "Reclaim input and pause this session. Its runtime is released after accepted work finishes. All space members can still read its history and discussions, and other sessions continue running."
+  "接回此会话输入并暂停执行，等待已接收的工作完成后释放运行时。所有空间成员仍可阅读历史和讨论，其他会话继续运行。": "Reclaim input and pause this session. Its runtime is released after accepted work finishes. All space members can still read its history and discussions, and other sessions continue running.",
+  "刷新未完成，草稿已保留，请重试。": "Refresh did not finish. Your drafts are preserved. Please retry.",
+  "新版已就绪，当前操作结束后更新。": "An update is ready. Waiting for the current operation to finish.",
+  "新版已就绪，你的草稿将保留。": "An update is ready. Your drafts will be preserved.",
+  "保留草稿并刷新": "Keep drafts and refresh",
+  "刷新到新版": "Refresh to the new version",
+  "正在更新界面，草稿已保留…": "Updating the interface. Your drafts are preserved…"
 }

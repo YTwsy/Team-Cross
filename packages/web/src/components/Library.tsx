@@ -1,3 +1,4 @@
+import { useRefreshState, useRefreshGuard } from "../refreshState";
 import { referenceAddress } from "../execution";
 import { currentConversation } from "../currentConversation";
 import { formatDate, t, tr } from "../i18n";
@@ -56,6 +57,7 @@ export function Library({
   quickActions?: ReactNode;
   initialKey?: string;
 }) {
+  const refreshKey = "Library:v1:" + location.hash;
   const views = [
     ["recent", t("最近使用"), "refresh"],
     ["participated", t("我参与的"), "people"],
@@ -63,10 +65,13 @@ export function Library({
     ["favorites", t("已收藏"), "star"],
   ] as const;
   const lib = useLibrary()!;
-  const [view, setView] = useState("recent"),
-    [kind, setKind] = useState("all"),
-    [search, setSearch] = useState("");
-  const [active, setActive] = useState(initialKey),
+  const [view, setView] = useRefreshState(refreshKey + ":view", "recent"),
+    [kind, setKind] = useRefreshState(refreshKey + ":kind", "all"),
+    [search, setSearch] = useRefreshState(refreshKey + ":search", "");
+  const [active, setActive] = useRefreshState(
+      refreshKey + ":active",
+      initialKey,
+    ),
     [collapsed, setCollapsed] = useState(new Set<string>());
   const searchInput = useRef<HTMLInputElement>(null);
   const memories = useRef(new Map<string, Map<string, ReadingMemory>>());
@@ -135,6 +140,7 @@ export function Library({
     if (r.availability === "available")
       void lib.change({ action: "visit", reference: r.reference });
   }
+  useRefreshGuard(refreshKey, false);
   return (
     <section
       hidden={hidden}
@@ -640,11 +646,21 @@ function LibraryReader({
 }
 
 export function SelectionTray({ quick = false }: { quick?: boolean }) {
+  const refreshKey = "SelectionTray:v1:" + location.hash;
   const lib = useLibrary()!;
-  const [expanded, setExpanded] = useState(false),
-    [mode, setMode] = useState<"read" | "send">();
-  const [snapshot, setSnapshot] = useState<LibraryResource[]>([]);
-  const [entrySerial, setEntrySerial] = useState(0);
+  const [expanded, setExpanded] = useRefreshState(
+      refreshKey + ":expanded",
+      false,
+    ),
+    [mode, setMode] = useRefreshState<"read" | "send">(refreshKey + ":mode");
+  const [snapshot, setSnapshot] = useRefreshState<LibraryResource[]>(
+    refreshKey + ":snapshot",
+    [],
+  );
+  const [entrySerial, setEntrySerial] = useRefreshState(
+    refreshKey + ":entrySerial",
+    0,
+  );
   const tray = useRef<HTMLElement>(null);
   const items = (lib.data?.selection || [])
     .map((key) => lib.data!.resources.find((r) => r.key === key))
@@ -681,6 +697,7 @@ export function SelectionTray({ quick = false }: { quick?: boolean }) {
       document.body.style.removeProperty("--selection-tray-height");
     };
   }, [hasTray]);
+  useRefreshGuard(refreshKey, false);
   if (!items.length && !mode) return null;
   return (
     <>

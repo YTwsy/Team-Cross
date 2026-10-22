@@ -26,13 +26,13 @@ type Host = {
 };
 declare global {
   interface Window {
+    __teamcrossRequestId?: number;
     openai?: {
       widgetState?: unknown;
       setWidgetState?: (state: unknown) => void;
     };
   }
 }
-let nextRequest = 0;
 
 export class MessageDeliveryError extends Error {
   constructor(
@@ -44,6 +44,10 @@ export class MessageDeliveryError extends Error {
 }
 
 export class HostBridge {
+  private writes = 0;
+  get hasPendingWrites() {
+    return this.writes > 0;
+  }
   private pending = new Map<
     number,
     {
@@ -80,9 +84,15 @@ export class HostBridge {
   ): Promise<T> {
     if (signal?.aborted)
       return Promise.reject(new DOMException("Aborted", "AbortError"));
+    const changing =
+      method === "ui/message" ||
+      (method === "tools/call" &&
+        (params as { name?: string })?.name === "teamcross_ui_write");
+    if (changing) this.writes++;
     return new Promise<T>((resolve, reject) => {
       // A late acknowledgement from a disposed bridge cannot match a new one.
-      const id = ++nextRequest;
+      const id = (window.__teamcrossRequestId || 0) + 1;
+      window.__teamcrossRequestId = id;
       const abort = () => {
         const request = this.pending.get(id);
         if (request) {
@@ -110,6 +120,8 @@ export class HostBridge {
       });
       signal?.addEventListener("abort", abort, { once: true });
       window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+    }).finally(() => {
+      if (changing) this.writes--;
     });
   }
   async initialize() {
@@ -233,6 +245,8 @@ export class HostBridge {
 
 export function restoreState<T>(): Partial<T> {
   try {
+    if (window.__teamcrossPrivateState)
+      return window.__teamcrossPrivateState as Partial<T>;
     const snapshot = window.openai?.widgetState as
       | { privateContent?: unknown }
       | undefined;
@@ -246,6 +260,7 @@ export function restoreState<T>(): Partial<T> {
   }
 }
 export function saveState(value: unknown) {
+  window.__teamcrossPrivateState = value;
   try {
     // Drafts and UI-only references are not automatically model-visible context.
     window.openai?.setWidgetState?.({ privateContent: value });

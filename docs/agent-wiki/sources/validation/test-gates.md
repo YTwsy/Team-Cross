@@ -78,6 +78,8 @@ Core 升级相关变更另运行 `scripts/verify-core-upgrade.py`：指定旧、
 
 回归见 [UI MCP](../../../../internal/mcp/ui_test.go)、[本地包管理](../../../../internal/pluginpack/plugin_test.go) 和 [完整 WebGUI 宿主适配](../../../../packages/web/src/test/plugin.test.tsx)。检查 global/thread 元数据、嵌入资源、纯协议握手不启动 Core、UI 路由白名单、共享运行时的原有工具和配对契约保留、完整 App 导航、固定版本、读写分离、沙盒存储、Core scope 隔离、原有配对流程、同请求回复去重与消息不自动重放。构建的 iframe 应在 `connect-src 'none'` 下工作，不依赖外部脚本、字体或语法高亮资源。
 
+界面更新检查 [更新交互回归](../../../../packages/web/src/test/plugin-update.test.tsx)、[Core 资源验证](../../../../internal/collab/plugin_update_test.go) 和 [bundle 摘要](../../../../internal/mcpassets/update_test.go)：无草稿自动更新、有草稿明确刷新、下载中开始输入、写入/组字暂缓、未知请求只核对不重发、Core 与会话隔离、摘要错误及加载失败保留编辑器。真实浏览器使用 `TEAMCROSS_UPDATE_BROWSER_DIR=/fresh/output go test ./internal/collab -run '^TestPluginUpdateBrowserFixture$' -v -count=1 -timeout=26m`；检查新代码实际执行、弹窗内刷新可点击、正文恢复、启动异常回退、零业务写入，并写入该目录 `finish` 后关闭测试页。该夹具使用 production 资源和真实 Core，宿主与版本切换为合成，不代替真实 Codex 宿主更新验收。
+
 空间工作台合入时同时检查插件中的工作台读取、简报保存、参与会话列表与请求入口；显式 UI 路由可用，内部 poll/claim 和原生 RPC 拒绝，写入不能改经读取工具调用。普通浏览器 WebGUI 的验证不能替代插件宿主桥验证。
 
 Composer mentions 的 [MCP 回归](../../../../internal/mcp/mentions_test.go) 与 [Core 回归](../../../../internal/collab/mentions_test.go) 检查 app-only 搜索声明、允许空查询、中文与版本搜索、20 项上限、稳定排序、Core scope 和 URI 严格校验、撤回与成员撤销后的新查询/读取拒绝。检索不改个人选择、创建执行或生成读取编号；通用与共享 MCP 不获得搜索工具。下列验收脚本同时验证真实 stdio 和原生 app-server 所发现的工具元数据、搜索结果、材料固定版本与批注资源读取及回复分页。每个检索同时调用标准 `{query}` 和当前桌面实际使用的 `{query,path:[]}`，结果必须一致；拒绝非空、null 或非数组 path。不能以手工构造的 query-only 调用替代宿主请求格式验收。协议成功仍不能代替桌面输入框的搜索、选择与发送显示验收；成品阶段统一检查，不绕开 Codex 主窗口自动化限制。

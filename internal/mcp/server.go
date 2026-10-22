@@ -344,7 +344,8 @@ func serveWithResources(ctx context.Context, input io.Reader, output io.Writer, 
 				var structured map[string]any
 				if json.Unmarshal(out, &structured) == nil {
 					result.(map[string]any)["structuredContent"] = structured
-					if params.Name == mentionSearchTool {
+					path, _ := params.Arguments["path"].(string)
+					if params.Name == mentionSearchTool || (params.Name == "teamcross_ui_read" && strings.HasPrefix(path, "plugin/panel-bundle?")) {
 						result.(map[string]any)["content"] = []any{}
 					}
 				}

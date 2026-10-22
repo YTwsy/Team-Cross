@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRefreshState, useRefreshGuard } from "../refreshState";
 import { api, errorText, useResource } from "../api";
 import { formatDate, t, tr } from "../i18n";
 import { Copy, ErrorBox, Icon } from "./ui";
@@ -53,11 +54,13 @@ export function SpaceEvents({
   spaceId: string;
   disabled: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const key = `SpaceEvents:v1:${spaceId}`;
+  const [open, setOpen] = useRefreshState(key + ":open", false);
   const data = useResource<EventsView>(open ? "event-access" : null, 3000);
-  const [name, setName] = useState("ChatGPT Work Cloud");
-  const [credential, setCredential] = useState("");
-  const [requestId, setRequestId] = useState("");
+  const [name, setName] = useRefreshState(key + ":name", "ChatGPT Work Cloud");
+  const [credential, setCredential] = useRefreshState(key + ":credential", "");
+  const [requestId, setRequestId] = useRefreshState(key + ":requestId", "");
+  useRefreshGuard(key, open && name !== "ChatGPT Work Cloud");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const connections =

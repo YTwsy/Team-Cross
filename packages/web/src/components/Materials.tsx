@@ -1,3 +1,4 @@
+import { useRefreshState, useRefreshGuard } from "../refreshState";
 import { formatDate, t, tr } from "../i18n";
 import { ResourceActions, useLibrary } from "../library";
 import { ReadingPanelHeading, ReadingPanelTools } from "./ReadingTabs";
@@ -708,19 +709,28 @@ export function Materials({
   location?: AnnotationRequest;
   onActivate?: () => void;
 }) {
+  const refreshKey = "Materials:v1:" + c.id;
   const space = useSpaceWorkbench();
   const library = useLibrary();
-  const [publishing, setPublishing] = useState<Material | null | undefined>();
-  const [reading, setReading] = useState<MaterialReference | undefined>(() => {
-    const first =
-      space && c.materials?.find((m) => !m.withdrawnAt && m.versions.length);
-    return first
-      ? { materialId: first.id, version: first.versions.at(-1)!.version }
-      : undefined;
-  });
-  const [query, setQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [filter, setFilter] = useState("all");
+  const [publishing, setPublishing] = useRefreshState<
+    Material | null | undefined
+  >(refreshKey + ":publishing");
+  const [reading, setReading] = useRefreshState<MaterialReference | undefined>(
+    refreshKey + ":reading",
+    () => {
+      const first =
+        space && c.materials?.find((m) => !m.withdrawnAt && m.versions.length);
+      return first
+        ? { materialId: first.id, version: first.versions.at(-1)!.version }
+        : undefined;
+    },
+  );
+  const [query, setQuery] = useRefreshState(refreshKey + ":query", "");
+  const [searchOpen, setSearchOpen] = useRefreshState(
+    refreshKey + ":searchOpen",
+    false,
+  );
+  const [filter, setFilter] = useRefreshState(refreshKey + ":filter", "all");
   const versions = useRef(new Map<string, number>());
   const [withdraw, setWithdraw] = useState<Material>();
   const [busy, setBusy] = useState(false);
@@ -896,6 +906,7 @@ export function Materials({
       setBusy(false);
     }
   }
+  useRefreshGuard(refreshKey, false);
   return (
     <>
       {space ? (
