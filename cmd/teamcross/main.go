@@ -392,6 +392,8 @@ func serve(ctx context.Context, stop context.CancelFunc, cfg collab.Config, list
 				return
 			}
 			status.Connection = public
+			status.UpgradePolicy = "bounded-10s"
+			status.UpgradeDeadline = admission.UpgradeDeadline()
 			_ = json.NewEncoder(w).Encode(status)
 		case r.Method == "POST" && r.URL.Path == "/api/control/upgrade":
 			var in struct {
@@ -402,14 +404,10 @@ func serve(ctx context.Context, stop context.CancelFunc, cfg collab.Config, list
 				_ = json.NewEncoder(w).Encode(problem.New("instance_mismatch", "服务实例已变化", "请重新读取服务状态"))
 				return
 			}
-			if !admission.DrainIfIdle(func() bool { return !app.UpgradeBusy() }) {
-				w.WriteHeader(409)
-				_ = json.NewEncoder(w).Encode(problem.New("upgrade_busy", "服务仍有活动，暂缓更新", "活动结束后下次打开时自动应用更新"))
-				return
-			}
 			restartArgs := append(append([]string{}, c.StartArgs...), app.ClientLaunchArgs()...)
-			_ = json.NewEncoder(w).Encode(map[string]any{"stopping": true, "startArgs": restartArgs})
-			stop()
+			deadline := admission.BeginUpgrade(service.UpgradeGrace, app.UpgradeWorkBusy, stop)
+			_ = json.NewEncoder(w).Encode(map[string]any{"stopping": true, "startArgs": restartArgs, "deadline": deadline})
+
 		case r.Method == "POST" && r.URL.Path == "/api/control/stop":
 			var in struct {
 				Force bool `json:"force"`
@@ -448,6 +446,7 @@ func serve(ctx context.Context, stop context.CancelFunc, cfg collab.Config, list
 	}()
 	done := make(chan error, 1)
 	go func() { done <- server.Serve(listener) }()
+	go service.WatchInstalled(ctx, c)
 	fmt.Printf("Team Cross %s · %s\n", buildinfo.Version, app.URL)
 	if !noOpen {
 		_ = exec.Command("open", app.URL).Run()

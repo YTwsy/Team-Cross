@@ -81,19 +81,33 @@ func TestUpgradeProtectsLocalShadowWithoutSharedExecution(t *testing.T) {
 	}
 	defer e.Close()
 	a := &App{shadows: map[string]*shadow.Engine{id: e}}
-	if a.UpgradeBusy() {
-		t.Fatal("idle local shadow blocks upgrade")
+	if a.UpgradeBusy() || a.UpgradeWorkBusy() {
+		t.Fatal("idle local shadow delays upgrade")
 	}
 	if _, err := e.Receive(shadow.Message{ID: uuid.NewString(), Actor: shadow.Actor{ID: "owner"}, Text: "accepted work"}); err != nil {
 		t.Fatal(err)
 	}
-	if a.Active() != 0 || !a.UpgradeBusy() {
-		t.Fatal("shadow queue must protect upgrade independently of shared execution")
+	if a.Active() != 0 || !a.UpgradeBusy() || !a.UpgradeWorkBusy() {
+		t.Fatal("shadow queue must receive the upgrade grace period independently of shared execution")
 	}
 	if err := e.SetEnabled(false); err != nil {
 		t.Fatal(err)
 	}
-	if a.UpgradeBusy() {
-		t.Fatal("persisted paused queue blocks upgrade")
+	if a.UpgradeBusy() || a.UpgradeWorkBusy() {
+		t.Fatal("persisted paused queue delays upgrade")
+	}
+}
+
+func TestUpgradeGraceIgnoresIdleReceiversAndInvitations(t *testing.T) {
+	a := &App{}
+	a.pending = map[string]pendingInvite{"pending": {Expires: time.Now().Add(time.Minute)}}
+	a.agentReceivers = map[string]*agentReceiver{"idle": {lastSeen: time.Now()}}
+	a.agents.Requests = map[string]AgentRequest{"old": {State: "unknown"}}
+	if a.UpgradeWorkBusy() {
+		t.Fatal("idle connections or historical receipts consume the grace period")
+	}
+	a.agents.Requests["active"] = AgentRequest{State: "submitted"}
+	if !a.UpgradeWorkBusy() {
+		t.Fatal("outstanding delivery received no grace period")
 	}
 }

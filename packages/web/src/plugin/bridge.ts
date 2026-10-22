@@ -45,6 +45,8 @@ export class MessageDeliveryError extends Error {
 
 export class HostBridge {
   private writes = 0;
+  reconnecting = false;
+  private disposed = false;
   get hasPendingWrites() {
     return this.writes > 0;
   }
@@ -154,6 +156,38 @@ export class HostBridge {
   }
 
   async call<T>(name: string, args: unknown, signal?: AbortSignal): Promise<T> {
+    const deadline = Date.now() + 20000;
+    for (;;) {
+      try {
+        const value = await this.callOnce<T>(name, args, signal);
+        this.reconnecting = false;
+        return value;
+      } catch (error) {
+        const updating =
+          error instanceof APIError &&
+          ["core_updating", "core_update_pending"].includes(error.code);
+        if (updating) this.reconnecting = true;
+        // Only declared reads can retry. Writes and host messages always keep
+        // their original uncertain outcome and request identity.
+        if (
+          !updating ||
+          name !== "teamcross_ui_read" ||
+          this.disposed ||
+          signal?.aborted ||
+          Date.now() >= deadline
+        )
+          throw error;
+        await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+        if (this.disposed || signal?.aborted) throw error;
+      }
+    }
+  }
+
+  private async callOnce<T>(
+    name: string,
+    args: unknown,
+    signal?: AbortSignal,
+  ): Promise<T> {
     const result = await this.request<ToolResult>(
       "tools/call",
       { name, arguments: args },
@@ -232,6 +266,7 @@ export class HostBridge {
     }
   }
   dispose() {
+    this.disposed = true;
     window.removeEventListener("message", this.listener);
     for (const request of this.pending.values()) {
       clearTimeout(request.timer);

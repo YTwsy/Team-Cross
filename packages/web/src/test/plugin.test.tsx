@@ -332,3 +332,37 @@ it("submits the existing React form once in a restricted host and keeps native v
   fireEvent.click(screen.getByRole("button", { name: "Save form" }));
   expect(submit).toHaveBeenCalledTimes(1);
 });
+
+it("retries only reads during Core replacement and never resends a write", async () => {
+  const bridge = new HostBridge();
+  let reads = 0,
+    writes = 0;
+  const updating = {
+    isError: true,
+    structuredContent: {
+      code: "core_updating",
+      error: "本机服务正在更新",
+    },
+  };
+  handler = (m) => {
+    if (m.params.name === "teamcross_ui_read")
+      return ++reads === 1 ? updating : { structuredContent: { ready: true } };
+    writes++;
+    return updating;
+  };
+  try {
+    const reading = bridge.call("teamcross_ui_read", { path: "info" });
+    await waitFor(() => expect(bridge.reconnecting).toBe(true));
+    await expect(reading).resolves.toEqual({ ready: true });
+    expect(reads).toBe(2);
+    await expect(
+      bridge.call("teamcross_ui_write", {
+        path: "collaborations/space/workbench/notes",
+        body: { requestId: "same-id", text: "keep" },
+      }),
+    ).rejects.toMatchObject({ code: "core_updating" });
+    expect(writes).toBe(1);
+  } finally {
+    bridge.dispose();
+  }
+});

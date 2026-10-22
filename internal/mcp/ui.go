@@ -153,7 +153,7 @@ func ServeUI(ctx context.Context, dataDir string, input io.Reader, output io.Wri
 func checkPanelCoreVersion(s service.Status, path string) error {
 	base, _, _ := strings.Cut(path, "?")
 	if s.UpdatePending && (base == "plugin/current-connection" || base == "plugin/panel-version" || base == "plugin/panel-bundle") {
-		return problem.New("core_update_pending", "Team Cross 服务尚未完成更新", "请等待当前活动结束；若仍未更新，请从菜单栏退出并重新打开 Team Cross")
+		return problem.New("core_update_pending", "Team Cross 服务尚未完成更新", "服务正在切换到已安装构建，请稍后重新读取；已提交的请求不会自动重发")
 	}
 	return nil
 }

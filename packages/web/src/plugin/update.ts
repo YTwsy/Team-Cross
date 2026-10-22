@@ -130,12 +130,17 @@ export function watchPanelUpdates(
   button.className = "button small";
   banner.append(label, button);
   document.body.append(banner);
-  const busy = () => bridge.hasPendingWrites || composing;
+  const busy = () => bridge.hasPendingWrites || composing || bridge.reconnecting;
   function show() {
     const parent =
       [...document.querySelectorAll("dialog[open]")].at(-1) || document.body;
     if (banner.parentElement !== parent) parent.appendChild(banner);
-    banner.hidden = !candidate;
+    banner.hidden = !candidate && !bridge.reconnecting;
+    button.hidden = !!bridge.reconnecting;
+    if (bridge.reconnecting) {
+      label.textContent = t("服务正在更新，正在重新连接；草稿已保留。");
+      return;
+    }
     const message = failed
       ? t("刷新未完成，草稿已保留，请重试。")
       : busy()
@@ -177,8 +182,8 @@ export function watchPanelUpdates(
   button.onclick = () => void apply(true);
   async function tick() {
     if (disposed || applying || document.visibilityState === "hidden") return;
-    if (candidate) {
-      show();
+    show();
+    if (candidate && !bridge.reconnecting) {
       if (!busy() && !failed) void apply();
     }
     if (checking || Date.now() - lastCheck < 15000) return;

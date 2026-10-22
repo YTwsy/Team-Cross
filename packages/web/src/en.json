@@ -1428,5 +1428,9 @@
   "本机 Codex 未提供可选择的模型": "Local Codex did not return any selectable models.",
   "本机模型 Provider 已变化，请重新读取模型并创建分身": "The local model provider has changed. Reload models before creating the shadow.",
   "所选模型或推理强度不在本机可用列表中，请重新读取模型": "The selected model or reasoning effort is no longer in the local catalog. Reload models.",
-  "模型": "Model"
+  "模型": "Model",
+  "服务正在更新，正在重新连接；草稿已保留。": "The service is updating and reconnecting. Your drafts are preserved.",
+  "已安装新构建，服务将最多等待 10 秒收尾后切换。草稿保留，已提交的请求不会自动重发。": "A new build is installed. The service will allow up to 10 seconds to finish current work before switching. Drafts are preserved and submitted requests will not be resent automatically.",
+  "服务正在切换到已安装构建，请稍后重新读取；已提交的请求不会自动重发": "The service is switching to the installed build. Read the status again shortly; submitted requests will not be resent automatically.",
+  "正在重新连接；请先核对已提交操作的结果，不要重复提交": "Reconnecting. Check the outcome of submitted operations before submitting again."
 }

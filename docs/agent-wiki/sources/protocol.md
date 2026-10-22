@@ -499,11 +499,11 @@ Agent 按需读取见 [历史与材料投影](../../../internal/collab/agent_rea
 
 ## 命令入口与版本诊断
 
-`GET /info` 的 `version/commit` 是运行 Core 的构建，`installedVersion/installedCommit` 来自稳定安装位置上可执行文件的报告；读取失败返回空值，不把运行构建当作已安装构建。`updatePending` 同时比较版本与 commit，覆盖同版本号的开发包。设置页提示活动结束后下一次打开 App 或调用插件时应用更新。
+`GET /info` 的 `version/commit` 是运行 Core 的构建，`installedVersion/installedCommit` 来自稳定安装位置上可执行文件的报告；读取失败返回空值，不把运行构建当作已安装构建。`updatePending` 同时比较版本与 commit，覆盖同版本号的开发包。设置页提示已安装构建将优先切换，现有工作最多获得 10 秒收尾时间。
 
-`GET /control/status` 同时返回 `executable/startArgs`（此实例的安装位置和启动参数）、`upgradeSupported`（支持空闲升级入口）和 `upgradeBlocked`（有活动或尚未完成的交互）。公共启动器因活动而延后更新时，其返回值增加 `updatePending/installedVersion/installedCommit`；仅查询 control/status 不发起更新。启动器探测失败但运行锁仍被持有时返回 `core_unresponsive`，`recovery` 保留探测错误和日志位置，不重复启动。控制路由不能由插件面板任意调用；新请求在升级收尾期间返回 `core_updating` / 503，业务写入不自动重放。
+`GET /control/status` 同时返回 `executable/startArgs`（此实例的安装位置和启动参数）、`upgradeSupported`、`upgradePolicy:"bounded-10s"` 和 `upgradeDeadline`（尚未开始时为零时间）。`upgradeBlocked` 保留旧客户端的活动提示语义，新启动器不把它当成无限期阻塞。仅查询 control/status 不发起更新；Core 自身另外检查安装变化。启动器探测失败但运行锁仍被持有时返回 `core_unresponsive`，`recovery` 保留探测错误和日志位置，不重复启动。控制路由不能由插件面板任意调用；新请求在升级收尾期间返回 `core_updating` / 503，业务写入不自动重放。
 
-`POST /control/upgrade` 成功返回 `{stopping:true,startArgs}`；交接参数中的 CLI/Desktop 值采用当前有效设置，包括空值所表示的自动发现，防止旧启动参数覆盖后来保存的路径。接收会话视图另返回 `binary/clientError/canRetryCreation/clientRecovered`，路径和错误来自当前检测；可恢复的历史路径错误不再作为当前 `error` 返回，读取不修改保存记录或重放创建。
+`POST /control/upgrade` 成功返回 `{stopping:true,startArgs,deadline}`，重复调用返回同一截止时间。升级停止接收新业务调用，已进入的操作和明确的结果回报最多收尾 10 秒；到期取消剩余请求并停止托管运行时，不等待整个模型任务完成。`finish_agent_request` 在收尾期继续由原身份与权限检查；结束收尾后也拒绝。新 Core 必须在旧运行锁释放后启动；交接参数中的 CLI/Desktop 值采用当前有效设置，包括空值所表示的自动发现，防止旧启动参数覆盖后来保存的路径。接收会话视图另返回 `binary/clientError/canRetryCreation/clientRecovered`，路径和错误来自当前检测；可恢复的历史路径错误不再作为当前 `error` 返回，读取不修改保存记录或重放创建。
 
 `cli` 包含 `executable/target/command/source/installed/canInstall/canRemove/conflict/pathReady`；`source` 为 `app/formula/standalone/unavailable`。命令定位与归属检查只读，不修改 shell 配置。`pathReady` 只反映进程实际继承的 PATH；Finder 下额外检查 Homebrew 位置不代表终端已配置这些目录。
 
