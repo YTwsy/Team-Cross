@@ -179,6 +179,8 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 
 成员 Core 使用已有 TLS 成员访问调用 `POST /v2/workbench/:op`，操作包括上述领域读写以及 `poll/claim/receipt/read/finish/annotations/reply/receiver-check/event-snapshot`。空间托管端从访问凭据派生成员身份；只有接收目标的所属成员能领取和报告该目标的请求。浏览器入口将 `actor` 覆盖为人工，MCP 入口从核对后的传输生成会话身份。成员 Core 是该成员的可信边界，不能以自报 `actor.memberId` 冒充其他成员。
 
+`register` 重试在成员、Provider、不透明会话身份和 executionId 一致时允许更新显示名称，复用原 targetId。`poll` 可随 `presence` 附带 `targetNames: {targetId: name}`；仅更新同批 presence 内属于认证成员、尚未移除的目标名称，限 1–80 字，不创建或重新关联目标。本机配对的 `nameSource` 记录 `custom/native/fallback`，用于保留自定义名称和补全旧默认占位，不作为权限或目标身份。
+
 共同执行目标使用 `executionId` 绑定精确会话，私人接收目标省略该字段；投递时重新检查空间成员资格和该会话输入归属。
 
 `Record.workbench` 保存 `targets`、`requests`、`brief` 和 `assistant`，最多 256 个目标、4096 条请求。目标公开随机目标 ID、成员、名称、Provider、原生身份的不可逆摘要、是否共同执行、可用性和解除关联状态，不公开私人配对 ID、原生 ID 或凭据。请求保存完整发起身份、接收目标、父请求 ID、固定引用、要求、处理方式、状态、摘要/错误以及创建、更新、读取、结束时间。父请求必须属于当前空间，关联深度不超过 16。

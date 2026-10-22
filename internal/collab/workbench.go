@@ -145,6 +145,7 @@ type workbenchInput struct {
 	BaseEpoch       int                  `json:"baseEpoch,omitempty"`
 	Brief           SpaceBrief           `json:"brief"`
 	Presence        map[string]string    `json:"presence,omitempty"`
+	TargetNames     map[string]string    `json:"targetNames,omitempty"`
 	Offset          int                  `json:"offset,omitempty"`
 }
 
@@ -363,11 +364,12 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 			return nil, fmt.Errorf("接收会话信息无效")
 		}
 		if target.ID != "" {
-			if target.MemberID != member || target.Name != in.Name || target.Provider != in.Provider || target.ExecutionID != in.ExecutionID || target.Session != in.Session {
+			if target.MemberID != member || target.Provider != in.Provider || target.ExecutionID != in.ExecutionID || target.Session != in.Session {
 				return nil, fmt.Errorf("关联标识已使用，请重新关联")
 			}
-			if target.Removed {
+			if target.Removed || target.Name != in.Name {
 				target.Removed = false
+				target.Name = in.Name
 				b.Targets[target.ID], changed = target, true
 			}
 			return target, nil
@@ -420,6 +422,10 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 			t := b.Targets[id]
 			if t.ID != "" && t.MemberID == member && !t.Removed {
 				s.workbenchPresence[id] = targetPresence{At: now, Reason: shortText(reason, 300)}
+				if name := strings.TrimSpace(in.TargetNames[id]); actor.Kind == "human" && name != "" && len([]rune(name)) <= 80 && name != t.Name {
+					t.Name = name
+					b.Targets[id], changed = t, true
+				}
 			}
 		}
 		pending := []SpaceRequest{}
