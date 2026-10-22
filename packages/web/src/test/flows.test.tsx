@@ -394,7 +394,7 @@ describe("产品路径", () => {
       />,
     );
     expect(
-      await screen.findByText(/下次打开 Team Cross 或使用插件时自动应用更新/),
+      await screen.findByText(/最多等待 10 秒收尾后切换/),
     ).toHaveAttribute("role", "status");
     expect(screen.getByText("aaaaaaaaaaaa")).toBeVisible();
     expect(screen.getByText("bbbbbbbbbbbb")).toBeVisible();

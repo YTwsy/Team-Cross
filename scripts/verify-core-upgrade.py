@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise App replacement, legacy plugin processes and idle Core upgrades.
+"""Exercise App replacement, legacy plugin processes and bounded Core upgrades.
 
 Uses actual old/new executables and disposable data, no model or user profile.
 --old-binary may be a pre-bootstrap release; new and next must contain this fix
@@ -181,23 +181,69 @@ try:
     finally:
         moved.rename(installed)
 
-    # A synthetic outstanding delivery protects a real Core despite active=0.
-    # It is not evidence of a model turn or a real shared execution.
+    # Outstanding work receives a fixed grace period, not an indefinite veto.
+    # This is synthetic delivery state on a real Core, with no model invocation.
     busy = root / "busy-data"
     busy.mkdir()
     directories.append(busy)
-    (busy / "agent-pairings.json").write_text(json.dumps({"pairings": {}, "requests": {
-        "fixture-delivery": {"id": "fixture-delivery", "state": "submitted"}}}))
+    receipt = {"pairings": {}, "requests": {"fixture-delivery": {
+        "id": "fixture-delivery", "state": "submitted", "instruction": "Do not replay"}}}
+    (busy / "agent-pairings.json").write_text(json.dumps(receipt))
     busy_binary = root / "Busy App.app/Contents/Resources/teamcross"
     replace(new, busy_binary)
     run(busy_binary, "serve", "--no-open", "--json", "--data-dir", busy)
     busy_before = status(busy)
-    assert busy_before["upgradeBlocked"]
+    assert busy_before["upgradeBlocked"] and busy_before["upgradePolicy"] == "bounded-10s"
     replace(next_binary, busy_binary)
-    pending = run(busy_binary, "serve", "--no-open", "--json", "--data-dir", busy)["service"]
-    assert pending["pid"] == busy_before["pid"] and pending["updatePending"]
-    assert pending["installedCommit"] == next_build["commit"]
-    assert api(busy, "info")["updatePending"]
+    started = time.monotonic()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
+        upgrades = [pool.submit(run, busy_binary, "serve", "--no-open", "--json", "--data-dir", busy) for _ in range(4)]
+        deadline = None
+        for _ in range(80):
+            observed = status(busy)
+            candidate = observed.get("upgradeDeadline", "")
+            if candidate and not candidate.startswith("0001-"):
+                deadline = candidate
+                break
+            time.sleep(.1)
+        assert deadline, "upgrade never began draining"
+        for _ in range(3):
+            again = api(busy, "control/upgrade", {"instance": busy_before["instance"]})
+            assert again["deadline"] == deadline, "concurrent requests reset the grace period"
+        try:
+            api(busy, "agent-requests", {"requestId": "must-not-dispatch"})
+            raise AssertionError("draining Core accepted new business work")
+        except urllib.error.HTTPError as error:
+            assert error.code == 503
+            assert json.load(error)["code"] == "core_updating"
+        switched = [future.result()["service"] for future in upgrades]
+    elapsed = time.monotonic() - started
+    assert 9 <= elapsed < 15, elapsed  # 10 s grace, plus process startup.
+    assert len({item["pid"] for item in switched}) == 1
+    assert switched[0]["pid"] != busy_before["pid"] and switched[0]["commit"] == next_build["commit"]
+    assert api(busy, "agent-requests/fixture-delivery")["state"] == "submitted"
+    assert json.loads((busy / "agent-pairings.json").read_text()) == receipt
+
+    # An installed replacement is discovered by the Core itself, even if no
+    # client knows the new upgrade policy or issues another lifecycle call.
+    watched = root / "watch-data"
+    watched.mkdir()
+    directories.append(watched)
+    watched_binary = root / "Watched App.app/Contents/Resources/teamcross"
+    replace(new, watched_binary)
+    run(watched_binary, "serve", "--no-open", "--json", "--data-dir", watched)
+    watched_before = status(watched)
+    replace(next_binary, watched_binary)
+    watch_started = time.monotonic()
+    for _ in range(150):
+        observed = status(watched)  # Probe only; it cannot start or upgrade Core.
+        if observed.get("commit") == next_build["commit"]:
+            break
+        time.sleep(.1)
+    else:
+        raise AssertionError("Core did not discover the installed replacement")
+    assert observed["pid"] != watched_before["pid"] and observed["url"] == watched_before["url"]
+    watch_elapsed = time.monotonic() - watch_started
 
     # A durable unknown receipt is retained for reconciliation, not a running
     # write. It must not pin an otherwise idle Core to an old build forever.
@@ -225,7 +271,10 @@ try:
         "legacyPluginFirst": True, "concurrentUpgrade": True, "sameBrowserAddress": True,
         "residentLegacyMCP": True, "oldCoreResurrectionPrevented": True,
         "futureAppReplacementWithoutPluginSync": True, "residentMCPUsesDiskBuild": True,
-        "missingInstallationFailsClosed": True, "outstandingDeliveryDefersUpgrade": True,
+        "missingInstallationFailsClosed": True, "outstandingDeliveryBoundedUpgrade": True, "graceCannotBeRenewed": True,
+        "newWritesRejectedDuringUpgrade": True, "requestPreservedWithoutReplay": True,
+        "busyUpgradeElapsedSeconds": elapsed, "coreDetectsInstalledReplacement": True,
+        "watchUpgradeElapsedSeconds": watch_elapsed,
         "unknownReceiptDoesNotBlockUpgrade": True, "unknownReceiptPreserved": True,
         "dataPreserved": True, "startupOptionsPreserved": True, "upgradeIdentityAndAuth": True, "modelInvoked": False}
     (root / "report.json").write_text(json.dumps(report, indent=2) + "\n")

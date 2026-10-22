@@ -259,3 +259,31 @@ it("does not carry a draft into a different scope when a component is reused", (
   view.rerender(<Scoped id="second" />);
   expect(screen.getByRole("textbox")).toHaveValue("");
 });
+
+it("keeps drafts mounted during Core replacement and asks before refreshing the UI", async () => {
+  render(<Editor />);
+  fireEvent.change(screen.getByRole("textbox"), {
+    target: { value: "服务重启期间的草稿" },
+  });
+  (bridge as { reconnecting: boolean }).reconnecting = true;
+  stop = watchPanelUpdates(bridge, vi.fn(), replace);
+  await tick();
+  expect(
+    screen.getByText("服务正在更新，正在重新连接；草稿已保留。"),
+  ).toBeVisible();
+  expect(screen.getByRole("textbox")).toHaveValue("服务重启期间的草稿");
+  expect(replace).not.toHaveBeenCalled();
+  (bridge as { reconnecting: boolean }).reconnecting = false;
+  await tick(1000);
+  expect(screen.getByRole("button", { name: "保留草稿并刷新" })).toBeVisible();
+  expect(replace).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "保留草稿并刷新" }));
+  await settle();
+  expect(replace).toHaveBeenCalledTimes(1);
+  expect(captureRefreshState().values["test:text"]).toEqual({ value: "服务重启期间的草稿" });
+  expect(
+    vi
+      .mocked(bridge.call)
+      .mock.calls.every(([name]) => name === "teamcross_ui_read"),
+  ).toBe(true);
+});

@@ -68,3 +68,17 @@ func TestUpgradeUsesEffectiveClientSettings(t *testing.T) {
 		t.Fatal("reintroduced obsolete launch overrides", a.ClientLaunchArgs())
 	}
 }
+
+func TestUpgradeGraceIgnoresIdleReceiversAndInvitations(t *testing.T) {
+	a := &App{}
+	a.pending = map[string]pendingInvite{"pending": {Expires: time.Now().Add(time.Minute)}}
+	a.agentReceivers = map[string]*agentReceiver{"idle": {lastSeen: time.Now()}}
+	a.agents.Requests = map[string]AgentRequest{"old": {State: "unknown"}}
+	if a.UpgradeWorkBusy() {
+		t.Fatal("idle connections or historical receipts consume the grace period")
+	}
+	a.agents.Requests["active"] = AgentRequest{State: "submitted"}
+	if !a.UpgradeWorkBusy() {
+		t.Fatal("outstanding delivery received no grace period")
+	}
+}

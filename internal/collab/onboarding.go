@@ -156,6 +156,29 @@ func (a *App) UpgradeBusy() bool {
 	return false
 }
 
+// UpgradeWorkBusy gives executing work a grace period. Idle receiver heartbeats,
+// invitations and historical unknown receipts never delay a Core replacement.
+func (a *App) UpgradeWorkBusy() bool {
+	if active, known := a.active(true); !known || active > 0 {
+		return true
+	}
+	if !a.agentMu.TryLock() {
+		return true
+	}
+	defer a.agentMu.Unlock()
+	for _, proxy := range a.agentProxies {
+		if proxy.Alive() {
+			return true
+		}
+	}
+	for _, request := range a.agents.Requests {
+		if request.State == "submitting" || request.State == "submitted" || request.State == "received" {
+			return true
+		}
+	}
+	return false
+}
+
 // Settings may have changed since the process was launched with CLI overrides.
 // Hand over the effective values, including an explicit return to auto discovery.
 func (a *App) ClientLaunchArgs() []string {
