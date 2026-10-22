@@ -74,3 +74,9 @@ macOS 本机、Node 24.18.0：Go 全量 test/vet、`internal/collab` 与 `intern
 `TestCurrentConnectionBrowserFixture` 使用真实 Core/持久化和 production 面板，宿主桥与原生身份为合成夹具。浏览器在 1253×705 的中文浅色画面确认已关联名称及接收检查入口，解除关联后恢复连接入口；[截图](2026-10-21-in-flow-evidence/connection-linked.png)。首轮夹具转发遗漏 loopback Host 头，修正后通过；测试页面与两轮夹具均已关闭。没有新增真实 Codex 面板身份传递、Cloud 或两台 Mac 验收。
 
 资源 URI 随 HTML 内容摘要变化，遵循官方缓存键规则。已打开面板仍由宿主刷新/重新打开，不宣称已实现自动热更新或全量草稿恢复。原有路由及 widget 状态恢复保持不变。
+
+## 2026-10-22 本地 DMG
+
+从干净提交 `cf8fc4956c9b4952b341b5ba3ec2341715b5b4da` 构建 `0.2.6-dev.inflow.20261022`，buildNumber 172，arm64、最低 macOS 14.0。产物保存在主仓库的 `dist/release/0.2.6-dev.inflow.20261022/`；[构建清单](2026-10-21-in-flow-evidence/release.json) 记录完整来源和校验值。DMG 的 SHA-256 为 `63c8222137c1b177d0f60ece9138607c59fae2e6a0adb6879cf75dbc4eb39cb8`。
+
+标准 `build-release.py` 与 `verify-release.py` 通过。检查覆盖 CLI/App 版本及提交一致、DMG 挂载与临时安装、图标提取、签名完整性、真实双 App 副本协调、临时 CLI 安装/移除、已有命令保护及兼容 Core 复用；[结构化验证结果](2026-10-21-in-flow-evidence/dmg-verification.json)。脚本退出完成临时进程与挂载清理。构建使用 ad-hoc 签名，未使用 Developer ID、未公证；未运行可选的真实插件启动同步、Homebrew 或公开下载安装验证，未替换用户已安装的 App。

@@ -88,6 +88,8 @@ ChatGPT 云端事件已实现本地协议和隔离入口，实际宿主接收仍
 
 范围来源：[输入与共享](../decisions/input-and-sharing.md)、[安装与首次体验](../distribution-and-onboarding.md)、[构建与发布](../releasing.md)。网络路径、打包、公开发布和桌面交互分别取证。
 
+2026-10-22，本地顺流感知包 `0.2.6-dev.inflow.20261022`，干净提交 `cf8fc49`：DMG/CLI 校验、临时安装、图标与签名完整性、双 App 副本及隔离 Core 生命周期通过。arm64，ad-hoc 签名、未公证；未运行可选的真实插件启动同步、Homebrew 或公开安装检查。见[本地 DMG 记录](../../tasks/2026-10-21-in-flow-implementation.md#2026-10-22-本地-dmg)。
+
 | 具体路径 | 最近已知结果 | 被测代码与环境 | 证据与适用边界 |
 | --- | --- | --- | --- |
 | Tailcat 成员与协作数据面 | 同机实网通过，后续覆盖同链接第三位成员与交接 | 2026-09-15：`42adb81` + 当次改动；2026-09-19：`7a7f7b3` + 当次改动；macOS 14.8.5，Tailcat `v0.6.0`，模拟原生运行时 | [传输报告](../../tasks/finished_archived/tailcat-transport-2026-09-15.md)、[多人补充](../../tasks/finished_archived/space-invitations-2026-09-19.md)。不证明两台物理 Mac、跨 NAT、切网恢复或持续强制 DERP；本页尚无这些路径的通过证据入口。 |
