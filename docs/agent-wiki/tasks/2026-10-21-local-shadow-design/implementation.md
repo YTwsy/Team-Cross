@@ -127,3 +127,14 @@ DMG：`Team-Cross-0.2.6-dev.local-shadow.20261022-arm64.dmg`；SHA-256：`e0203a
 - 真实 API 首次发现 `model/list` 拒绝空字符串 cursor，已修正为首请求省略 cursor，并补充回归。首次原生验收最后的会话数量断言误计为 7（实际是 5 个 thread 加 1 次恢复）；改为按 main/job/steward/memory/bootstrap 的 ID 覆盖及准确 S2 恢复核对，新的独立 fixture 全程通过。
 
 测试目录分别为 `/private/tmp/teamcross-shadow-model-native-20261022-r2` 和 `/private/tmp/teamcross-shadow-model-core-20261022-r2`。仅验证该 Mac 上的 Codex/Luna；未扩展到第三方模型、其他 Harness、两台 Mac 或 ChatGPT 插件宿主的真实界面。本次浏览器与三 Core 已按各自精确归属退出；保留测试记录。安装包来源和验证结果另附在本节下方。
+
+
+### 启动模型选择安装包
+
+安装包版本 `0.2.6-dev.shadow-model.20261022`，源码为干净提交 `7752b75151a0746eb96df7033ee3bdc6f7511b1a`（`feat(shadow): persist model and reasoning choices across sessions`），buildNumber `185`。arm64、macOS 14.0 起，ad-hoc 签名，无 Developer ID 签名或公证。构建输出于原仓库 `dist/release/0.2.6-dev.shadow-model.20261022/`，保留旧版本。本次未替换用户的实际 App 安装，也未 push、打 tag 或公开发布。
+
+DMG 为 `Team-Cross-0.2.6-dev.shadow-model.20261022-arm64.dmg`，SHA-256：`bd71180e0d39aa4ecc34d84927381115e8b1ed8e3b7b36793d37c499ff29f76f`。产物目录包含 `SHA256SUMS`、`release.json` 和额外 `verification.json`，仓库保留 [安装验证记录](evidence/model-settings-package.json)。
+
+- `verify-release.py` 全部通过：校验和、挂载与临时复制安装、图标、签名完整性、CLI/App 版本和源码一致、命令安装/移除、外来命令保留、已有兼容 Core 复用，以及真实 App 的多副本与生命周期验证。可选插件启动同步与真实外网场景不在此安装检查中。
+- 本次使用明确的 arm64 Python 执行 `verify-homebrew.py` **全部通过**：隔离前缀 Formula 安装与 test、Cask 安装、双向冲突阻止、helper 字节一致、稳定 MCP 路径、Formula 升级复用现有 Core、Cask 升级命令归属和卸载保留数据。与上一包的超时结果分别记录；本次是本地临时安装，不代表公开 tap 或 Gatekeeper 首次批准已通过。
+- 原生模型、Core 和浏览器夹具均精确退出，保留测试材料；安装验证脚本完成自身临时资源清理。后续记录提交只新增证据，不改变本 DMG 的源码提交。

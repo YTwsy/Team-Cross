@@ -21,7 +21,7 @@
 本轮不证明 Claude Hook、插件 Hook 的原生自动加载、Desktop/Cloud 宿主或两台 Mac 已验收。插件包导出及命令引号有自动化检查；没有可用 Hook 或 MCP 交互时不会即时投递。当前行为见 [顺流感知契约](../decisions/in-flow-awareness.md)。
 ## 本机数字分身
 
-2026-10-22 的启动模型选择已通过工程回归、Edge 界面、真实 Codex/Luna 和同 Mac 三 Core 验证：先选 low，再把测试 home 默认从 medium 改成 high，S1/S2/W/CM/M 及重启均保留 low。具体请求与原生确认值、故障修正和限制见 [启动配置记录](../../tasks/2026-10-21-local-shadow-design/implementation.md#分身启动模型选择2026-10-22)。模型目录保留第三方配置的结构覆盖不代表第三方模型已调用验收。
+2026-10-22 的启动模型选择已通过工程回归、Edge 界面、真实 Codex/Luna 和同 Mac 三 Core 验证：先选 low，再把测试 home 默认从 medium 改成 high，S1/S2/W/CM/M 及重启均保留 low。具体请求与原生确认值、故障修正和限制见 [启动配置记录](../../tasks/2026-10-21-local-shadow-design/implementation.md#分身启动模型选择2026-10-22)。模型目录保留第三方配置的结构覆盖不代表第三方模型已调用验收。新包 `0.2.6-dev.shadow-model.20261022` 来源为干净提交 `7752b75`，DMG/App/CLI 和隔离 Homebrew Formula/Cask 全部通过；见 [安装包记录](../../tasks/2026-10-21-local-shadow-design/implementation.md#启动模型选择安装包)。仍为 ad-hoc 签名、未公证的本地产物。
 
 本地安装包 `0.2.6-dev.local-shadow.20261022` 来源为干净合并提交 `8cae276`：DMG/CLI/App 完整性、真实 App 生命周期及隔离 Core 升级通过；附加 Homebrew 配方测试超时，未完成全部安装链。详见[Meta 安装包记录](../../tasks/2026-10-21-local-shadow-design/implementation.md#meta-安装包2026-10-22)。ad-hoc 签名、未公证、未公开发布。
 
