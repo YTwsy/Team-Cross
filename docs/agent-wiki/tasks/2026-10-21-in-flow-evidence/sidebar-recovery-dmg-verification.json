@@ -1,0 +1,16 @@
+{
+  "checksums": true,
+  "dmgInstall": true,
+  "appIcon": true,
+  "appSignatureIntegrity": true,
+  "cliAppVersionParity": true,
+  "appSingleInstance": true,
+  "appCLIInstallAndRemove": true,
+  "existingCommandPreserved": true,
+  "compatibleCoreReuse": true,
+  "publicInstallation": false,
+  "packagedMixedVersionPanelReads": true,
+  "panelReadsCreateNoCoreData": true,
+  "sourceCommit": "1f8859985b54fed42707ae6e481135de7f0bbbab",
+  "version": "0.2.6-dev.sidebar-recovery.20261022"
+}

@@ -168,3 +168,8 @@ Go 全量 test/vet、service/collab/mcp/cmd 的 race 通过；最后调整的 se
 验证：先新增真实 `ServeUI` 资源回归，修复前复现相同 -32602，修复后通过；覆盖旧、新、模拟后续版本、固定 v1、错误 authority/scheme/路径/摘要/查询/fragment、静态读取无 Core 数据，以及既有材料跨 Core 拒绝。全量 `go test ./...`、`go vet ./...`、`go test -race ./internal/mcp` 通过；Node 24.18.0 下 Web check（1155 条消息）、22 个文件 207 项测试与两套资源 build 通过，嵌入文件没有差异。
 
 额外用当前安装版与修复版的真实 CLI/stdio 子进程对比，前者拒绝旧摘要和模拟后续摘要，后者全部读到完整页面；其他应用 URI 仍拒绝，两者均未创建 Core 数据目录。见[结构化 stdio 结果](2026-10-21-in-flow-evidence/sidebar-resource-stdio.json)。子进程已正常退出，隔离数据目录由夹具清理。没有调用模型、改写用户安装、自动重放消息或清除宿主缓存；本轮成品安装后的实际侧栏与对话入口双路验收仍需单独完成。
+
+
+本次修复提交 `1f8859985b54fed42707ae6e481135de7f0bbbab` 已快进合入本地 Meta，未推送远程。从该干净提交构建 `0.2.6-dev.sidebar-recovery.20261022`，buildNumber 193，arm64 / macOS 14+；[构建清单](2026-10-21-in-flow-evidence/sidebar-recovery-release.json)。产物在主仓库 `dist/release/0.2.6-dev.sidebar-recovery.20261022/`，原安装包保留；DMG SHA-256 为 `24e1e1ceea7663d99276c1f4d8363c647abf6994016b3a6815f51e4765ded1f9`。
+
+[成品验证](2026-10-21-in-flow-evidence/sidebar-recovery-dmg-verification.json)通过标准 DMG 校验、挂载临时安装、图标、签名完整性、App/CLI 一致性、双实例协调、CLI 安装/移除和已有命令保护、兼容 Core 复用；另直接用成品 helper 验证四种页面地址均返回完整 HTML 且不创建 Core 数据。第一次打包在独立缓存重复下载依赖时主动中止，随后复用已验证的本机 Go 缓存完成标准构建；前端资源此前已完成重新构建且无差异。验证进程与挂载已清理。成品是 ad-hoc 签名，未使用 Developer ID、未公证；没有替换用户已安装 App，首次迁移需安装后完整重开 Codex，让旧 MCP 加载本次兼容代码。实际侧栏/对话双入口的最终显示仍待用户宿主复核，不能由上述协议和成品测试替代。
