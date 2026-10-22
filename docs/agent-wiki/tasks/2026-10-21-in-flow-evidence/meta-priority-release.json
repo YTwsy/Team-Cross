@@ -1,0 +1,14 @@
+{
+  "version": "0.2.6-dev.meta-priority.20261022",
+  "commit": "a7691c4df27a571bc722905fbeae9cda4f661862",
+  "buildNumber": "191",
+  "dirty": false,
+  "architecture": "arm64",
+  "minimumMacOS": "14.0",
+  "developerIDSigned": false,
+  "notarized": false,
+  "artifacts": {
+    "teamcross-0.2.6-dev.meta-priority.20261022-darwin-arm64.tar.gz": "cbf403d5b5e7b8e4a627852777690307148f40e7c413ba3b0ca1a3432fbef67f",
+    "Team-Cross-0.2.6-dev.meta-priority.20261022-arm64.dmg": "b45f462f28a821a7afb8b68f5d8fb974bfbe3fc1e1519ca9897e3df276aad4e1"
+  }
+}

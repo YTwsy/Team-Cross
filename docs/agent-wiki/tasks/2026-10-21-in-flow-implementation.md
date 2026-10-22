@@ -148,3 +148,10 @@ Go 全量 test/vet、service/collab/mcp/cmd 的 race 通过；最后调整的 se
 将 `codex/in-flow-awareness` 的 `c6d4ad8` 合入已包含本机分身和启动模型设置的 Meta `1b187f0`。保留两边功能，重新生成 WebGUI 与插件嵌入资源；翻译和测试冲突按双方新增内容合并。组合检查发现分身原来只参与 `UpgradeBusy`，因此将同一分身活动判断接入新 `UpgradeWorkBusy`：已接收队列、原生轮次和后台任务可获得固定收尾时间，空闲或暂停队列不额外延迟，到期仍按统一 10 秒规则切换。分身契约同步更新，回归同时检查旧状态报告与新收尾判断。
 
 合并工作树的 Go 全量 test/vet，以及 `internal/service`、`internal/shadow`、`internal/collab`、`internal/mcp`、`cmd/teamcross` 的 race 均通过。Node 24.18.0 下 Web check、22 个文件 207 项测试、1155 条翻译检查和双资源构建通过；Markdown 相对链接和 `git diff --check` 通过。未进行新的真实模型或跨 Mac 验收。
+
+
+合并提交为 `a7691c4df27a571bc722905fbeae9cda4f661862`。隔离真实 Core/stdio 升级验证通过，旧基线 `ae66ff6`、已含新策略的 `acc12e4` 与合并构建使用同一版本号；另从已交付分身模型包 `7752b75` 验证旧活动否决策略迁移到合并构建。[升级结果](2026-10-21-in-flow-evidence/meta-priority-core-upgrade.json)记录并发升级收敛、旧 MCP 不复活旧 Core、安装替换自动发现、截止时间不延长、新写入拒绝、原地址和启动参数保留，以及未知/已提交请求不重发。本轮忙碌切换共 10.43 秒，旧分身版迁移共 10.22 秒，自动检测切换约 2.03 秒；包含进程退出与新服务启动耗时。Codex CLI 为 `0.163.0-alpha.11.1`，未调用模型。
+
+全部上述检查完成后，从干净合并提交构建 `0.2.6-dev.meta-priority.20261022`，buildNumber 191，arm64、最低 macOS 14.0，包含 Meta 的本机分身和启动模型设置。产物位于主仓库 `dist/release/0.2.6-dev.meta-priority.20261022/`；[构建清单](2026-10-21-in-flow-evidence/meta-priority-release.json)。DMG SHA-256 为 `b45f462f28a821a7afb8b68f5d8fb974bfbe3fc1e1519ca9897e3df276aad4e1`，保留以前的安装包。
+
+标准 `build-release.py` 与 `verify-release.py` 通过；[成品验证](2026-10-21-in-flow-evidence/meta-priority-dmg-verification.json)覆盖校验值、DMG 挂载与临时安装、图标、签名完整性、App/CLI 构建一致、双 App 实例、CLI 安装/移除与已有命令保护、兼容 Core 复用及生命周期。测试进程与挂载已核对清理，未替换用户已安装 App。本包为 ad-hoc 签名，未使用 Developer ID、未公证；未新增真实模型中断、真实宿主全流程、Cloud、跨 Mac 或 Homebrew 安装验收。成品来源之后仅补充本段和结构化证据，不改变产品代码。
