@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/google/uuid"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -77,6 +78,62 @@ func TestUIHandshakeAndEntrypointsWithoutCore(t *testing.T) {
 	}
 }
 func mustJSON(value any) []byte { b, _ := json.Marshal(value); return b }
+
+func TestUIPanelResourceChangesCacheKeyWithContent(t *testing.T) {
+	if panelResourceURI("first") == panelResourceURI("second") || panelResourceURI("first") != panelResourceURI("first") {
+		t.Fatal("panel resource does not identify its content")
+	}
+	for _, uri := range []string{UIResourceURI, legacyUIResourceURI} {
+		if _, err := uiResource("resources/read", mustJSON(map[string]any{"uri": uri})); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := uiResource("resources/read", mustJSON(map[string]any{"uri": panelResourceURI("unrelated")})); err == nil {
+		t.Fatal("unknown resource accepted")
+	}
+}
+
+func TestUICurrentConnectionUsesOnlyTransportIdentityWithoutModelTurn(t *testing.T) {
+	id := uuid.NewString()
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Method != "POST" || r.URL.Path != "/api/agent-current-connection" || r.Header.Get("Authorization") != "Bearer local" {
+			t.Error(r.Method, r.URL.Path)
+		}
+		var in struct {
+			Caller  CallerSource `json:"caller"`
+			SpaceID string       `json:"spaceId"`
+		}
+		json.NewDecoder(r.Body).Decode(&in)
+		if in.SpaceID != "space" || in.Caller.SourceID != id || in.Caller.TurnID != "" {
+			t.Error(in)
+		}
+		w.Write([]byte(`{"known":true,"linked":true,"receiving":false,"name":"verified"}`))
+	}))
+	defer server.Close()
+	b := Backend{URL: server.URL, Token: "local", Client: localClient()}
+	ctx := callContext(context.Background(), "codex", map[string]json.RawMessage{"threadId": mustJSON(id)})
+	out, err := b.uiRequest(ctx, "plugin/current-connection?spaceId=space", nil, false)
+	if err != nil || !bytes.Contains(out, []byte(`"linked":true`)) || calls != 1 {
+		t.Fatal(string(out), err, calls)
+	}
+	if _, err := callerSource(ctx); err == nil {
+		t.Fatal("status identity weakened model/source verification")
+	}
+	unknown, err := b.uiRequest(context.Background(), "plugin/current-connection?spaceId=space", nil, false)
+	if err != nil || !bytes.Contains(unknown, []byte(`"known":false`)) || calls != 1 {
+		t.Fatal(string(unknown), err, calls)
+	}
+	for _, path := range []string{"plugin/current-connection", "plugin/current-connection?spaceId=space&sourceId=" + id, "plugin/current-connection?spaceId=a&spaceId=b"} {
+		if _, err := b.uiRequest(ctx, path, nil, false); err == nil {
+			t.Fatal("accepted forged/ambiguous status query", path)
+		}
+	}
+	if _, err := b.uiRequest(ctx, "plugin/current-connection?spaceId=space", map[string]any{"caller": id}, false); err == nil {
+		t.Fatal("accepted supplied identity")
+	}
+}
 
 func TestUIClientRecheckKeepsReadOnlyRoute(t *testing.T) {
 	if method, err := uiRoute("info?refreshClients=1", nil, false); err != nil || method != "GET" {

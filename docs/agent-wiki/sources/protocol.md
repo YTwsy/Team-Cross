@@ -181,6 +181,8 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 
 `register` 重试在成员、Provider、不透明会话身份和 executionId 一致时允许更新显示名称，复用原 targetId。`poll` 可随 `presence` 附带 `targetNames: {targetId: name}`；仅更新同批 presence 内属于认证成员、尚未移除的目标名称，限 1–80 字，不创建或重新关联目标。本机配对的 `nameSource` 记录 `custom/native/fallback`，用于保留自定义名称和补全旧默认占位，不作为权限或目标身份。
 
+插件专用只读路由 `plugin/current-connection?spaceId=…` 返回 `{known,linked,receiving,targetId?,name?}`；UI 不能提交调用者身份。MCP 桥只从传输提取 Codex threadId 或 ChatGPT 不透明身份，通过受 Bearer 保护且拒绝 Origin 的 `POST /agent-current-connection` 读取精确关联。内部 `connection-status` 只返回属于认证成员、未移除的目标，不注册目标或连接原生进程。缺少可用身份返回 `known=false`，不等同于确认未关联。
+
 共同执行目标使用 `executionId` 绑定精确会话，私人接收目标省略该字段；投递时重新检查空间成员资格和该会话输入归属。
 
 `Record.workbench` 保存 `targets`、`requests`、`brief` 和 `assistant`，最多 256 个目标、4096 条请求。目标公开随机目标 ID、成员、名称、Provider、原生身份的不可逆摘要、是否共同执行、可用性和解除关联状态，不公开私人配对 ID、原生 ID 或凭据。请求保存完整发起身份、接收目标、父请求 ID、固定引用、要求、处理方式、状态、摘要/错误以及创建、更新、读取、结束时间。父请求必须属于当前空间，关联深度不超过 16。

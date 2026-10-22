@@ -281,7 +281,7 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 	if s.closed || s.record.State == "unsupported" || s.space != nil || !s.callerValidLocked(ctx) {
 		return nil, fmt.Errorf("共享已结束或成员已移除")
 	}
-	if s.record.State == "ended" && op != "view" && op != "request" && op != "annotations" && op != "poll" && op != "receipt" && op != "finish" {
+	if s.record.State == "ended" && op != "view" && op != "request" && op != "annotations" && op != "poll" && op != "receipt" && op != "finish" && op != "connection-status" {
 		return nil, fmt.Errorf("空间已关闭，请重新开放后发起新的协作")
 	}
 	if in.Offset < 0 {
@@ -316,6 +316,12 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 	target := b.Targets[in.TargetID]
 	request, exists := b.Requests[in.RequestID]
 	owner := member == "owner" && actor.Kind == "human"
+	if op == "connection-status" {
+		if actor.Kind != "human" || target.ID == "" || target.MemberID != member || target.Removed {
+			return SpaceTarget{}, nil
+		}
+		return s.spaceTargetLocked(target), nil
+	}
 	if strings.HasPrefix(op, "inflow-") {
 		var mutation bool
 		out, mutation, err = s.inFlowOperationLocked(ctx, op, in, actor)

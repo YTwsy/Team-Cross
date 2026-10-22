@@ -4,7 +4,10 @@ import { api, errorText, useResource } from "../api";
 import { formatDate, serviceText, t, tr } from "../i18n";
 import { sameReference, useLibrary, type LibraryReference } from "../library";
 import type { WorkbenchView } from "../workbench";
-import { currentConversation } from "../currentConversation";
+import {
+  currentConversation,
+  type CurrentConnection,
+} from "../currentConversation";
 import { Copy, ErrorBox, Icon, Loading, Modal } from "./ui";
 import { SpaceReferencePicker } from "./SpaceReferencePicker";
 
@@ -61,7 +64,18 @@ export function ConnectCurrentConversation({
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [requested, setRequested] = useState(false);
   const [, redraw] = useState(0);
+  const connectionPath = current?.connectionStatus
+    ? `plugin/current-connection?spaceId=${encodeURIComponent(spaceId)}`
+    : null;
+  const connection = useResource<CurrentConnection>(connectionPath, 2000);
+  const verified =
+    connection.dataPath === connectionPath && !connection.error
+      ? connection.data
+      : undefined;
+  const linked = !!verified?.linked;
+  const checking = !!connectionPath && !verified;
   if (!current?.connect) return null;
   const state = current.status(`connect:${spaceId}`);
   return (
@@ -71,52 +85,77 @@ export function ConnectCurrentConversation({
           <Icon name="link" />
         </span>
         <div>
-          <h3>{t("连接当前会话")}</h3>
+          <h3>{linked ? t("当前会话已关联") : t("连接当前会话")}</h3>
           <p className="muted">
-            {t("在当前对话核对身份并关联这个空间，接收能力会单独确认。")}
+            {linked
+              ? verified?.name
+              : t("在当前对话核对身份并关联这个空间，接收能力会单独确认。")}
           </p>
+          {linked && (
+            <p className="muted">
+              {verified?.receiving ? t("可以接收") : t("已关联，尚未接通接收")}
+            </p>
+          )}
+          {verified && !verified.known && (
+            <p className="muted">
+              {t("宿主未提供当前会话身份，请在对话中核对是否已关联。")}
+            </p>
+          )}
         </div>
       </div>
-      <details className="workbench-connection-name">
-        <summary>{t("自定义会话名称（可选）")}</summary>
-        <label>
-          {t("接收会话名称")}
-          <input
-            maxLength={80}
-            value={name}
-            placeholder={t("当前会话")}
-            disabled={disabled || busy || !!state}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-      </details>
-      <button
-        className="button primary"
-        disabled={disabled || busy || !!state}
-        onClick={async () => {
-          if (busy) return;
-          setBusy(true);
-          setError("");
-          try {
-            await current.connect!(spaceId, name);
-          } catch (error) {
-            setError(errorText(error));
-          } finally {
-            setBusy(false);
-            redraw((v) => v + 1);
-          }
-        }}
-      >
-        {busy ? t("正在提交，请勿重复发送…") : t("连接当前会话")}
-      </button>
-      {state && (
+      {!linked && (
+        <details className="workbench-connection-name">
+          <summary>{t("自定义会话名称（可选）")}</summary>
+          <label>
+            {t("接收会话名称")}
+            <input
+              maxLength={80}
+              value={name}
+              placeholder={t("当前会话")}
+              disabled={disabled || busy || !!state}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+        </details>
+      )}
+      {(!linked || !verified?.receiving) && (
+        <button
+          className="button primary"
+          disabled={disabled || busy || checking || (!linked && !!state)}
+          onClick={async () => {
+            if (busy) return;
+            setBusy(true);
+            setRequested(true);
+            setError("");
+            try {
+              if (linked) current.allowConnectAgain?.(spaceId);
+              await current.connect!(spaceId, linked ? "" : name);
+            } catch (error) {
+              setError(errorText(error));
+            } finally {
+              setBusy(false);
+              redraw((v) => v + 1);
+              connection.reload();
+            }
+          }}
+        >
+          {busy
+            ? t("正在提交，请勿重复发送…")
+            : checking
+              ? t("正在核对连接状态…")
+              : linked
+                ? t("重新检查接收连接")
+                : t("连接当前会话")}
+        </button>
+      )}
+      {state && (!linked || requested) && (
         <p className="notice" role="status">
           {state === "sent"
             ? t("连接要求已带回当前对话，请查看身份与接收能力的确认结果。")
             : t("连接要求的发送结果需要核对，请查看当前对话。")}
         </p>
       )}
-      {state && current.allowConnectAgain && (
+      {state && !linked && current.allowConnectAgain && (
         <button
           className="text-link"
           disabled={busy || disabled}
@@ -129,7 +168,10 @@ export function ConnectCurrentConversation({
           {t("已核对对话，准备重新连接")}
         </button>
       )}
-      <ErrorBox message={error} />
+      <ErrorBox
+        message={error || connection.error}
+        retry={connection.error ? connection.reload : undefined}
+      />
     </section>
   );
 }

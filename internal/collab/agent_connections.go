@@ -214,3 +214,27 @@ func (a *App) verifyConversation(ctx context.Context, caller mcp.CallerSource) e
 	_, err := a.currentSource(ctx, caller)
 	return err
 }
+
+// Read only the exact transport-identified conversation's active association.
+// Never create a pairing, borrow a receiver, or infer identity from a title.
+func (a *App) currentConnection(ctx context.Context, caller mcp.CallerSource, spaceID string) (any, error) {
+	_, idErr := uuid.Parse(caller.SourceID)
+	if !mcp.ChatGPTConversation(caller) && (caller.Provider != "codex" || idErr != nil) {
+		return nil, fmt.Errorf("当前会话身份不可用")
+	}
+	a.agentMu.Lock()
+	var targetID string
+	for _, p := range a.agents.Pairings {
+		if p.Provider == caller.Provider && p.SessionID == caller.SourceID && p.Links[spaceID] != "" && (p.State == "paired" || p.State == "linked" || p.State == "verifying") {
+			targetID = p.Links[spaceID]
+			break
+		}
+	}
+	a.agentMu.Unlock()
+	raw, err := a.workbenchCall(ctx, spaceID, "connection-status", workbenchInput{TargetID: targetID})
+	if err != nil {
+		return nil, err
+	}
+	target := workbenchDecode[SpaceTarget](raw)
+	return map[string]any{"known": true, "linked": target.ID != "", "receiving": target.ID != "" && target.Available, "targetId": target.ID, "name": target.Name}, nil
+}

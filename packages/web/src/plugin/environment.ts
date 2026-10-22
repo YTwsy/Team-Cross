@@ -65,6 +65,7 @@ export async function initializeEnvironment() {
     window.addEventListener("hashchange", routeChanged);
     if (bridge.host?.hostCapabilities?.message) {
       setCurrentConversation({
+        connectionStatus: true,
         status: (code) => state.deliveries[code],
         allowConnectAgain(spaceId) {
           delete state.deliveries[`connect:${spaceId}`];
