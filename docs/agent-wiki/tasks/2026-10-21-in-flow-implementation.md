@@ -97,3 +97,10 @@ Go `test ./...`、`vet ./...` 及 `internal/collab`、`internal/mcp`、`internal
 - [启动失败回退与草稿保留](2026-10-21-in-flow-evidence/plugin-update-rollback.png)
 
 首轮夹具的合成 turnId 不一致，修正后继续；浏览器检查又发现弹窗之外的按钮不可点击和启动异常需等待超时，分别改为弹窗内提示及立即捕获启动错误，再完成最终复核。所有测试页已关闭，夹具按精确 finish 文件退出；原始日志留在 `/private/tmp/teamcross-refresh-*.log`。本轮未操作用户已安装 App/插件，也未新增真实 Codex 宿主、模型回合、Cloud 或两台 Mac 验收。
+
+
+## 2026-10-22 插件更新版 DMG
+
+从干净提交 `8a5564d0971e728df973386461151380ca45fc5f` 构建 `0.2.6-dev.plugin-refresh.20261022`，buildNumber 174，arm64、最低 macOS 14.0。产物位于主仓库 `dist/release/0.2.6-dev.plugin-refresh.20261022/`，保留上一版安装包；[构建清单](2026-10-21-in-flow-evidence/plugin-refresh-release.json)。DMG SHA-256 为 `3937f3d1680335d7ecef3c5e0f914764da6d42ad8667dfba1b2f7e0b3390ad42`。
+
+`build-release.py` 与 `verify-release.py` 通过。验证覆盖校验值、DMG 挂载与临时安装、图标、签名完整性、App/CLI 来源一致、双 App 实例协调、CLI 安装/移除与既有命令保护、兼容 Core 复用及生命周期；[结构化验证结果](2026-10-21-in-flow-evidence/plugin-refresh-dmg-verification.json)。临时进程、挂载和浏览器页面已清理。本包采用 ad-hoc 签名，未使用 Developer ID、未公证；未执行可选的真实插件启动同步或公开安装验收，未替换用户已安装 App。
