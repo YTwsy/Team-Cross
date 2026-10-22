@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"teamcross/internal/buildinfo"
+	"teamcross/internal/problem"
 	"teamcross/internal/service"
 	"testing"
 )
@@ -118,6 +119,21 @@ func TestUIPanelUpdatesUseCoreAndStrictReadRoutes(t *testing.T) {
 	out, err := b.uiRequest(context.Background(), "plugin/panel-version", nil, false)
 	if err != nil || !bytes.Contains(out, []byte("new-core-revision")) {
 		t.Fatal(string(out), err)
+	}
+}
+
+func TestUIPanelExplainsPendingCoreUpgradeWithoutBlockingOtherReads(t *testing.T) {
+	for _, path := range []string{"plugin/current-connection?spaceId=space", "plugin/panel-version", "plugin/panel-bundle?revision=abc"} {
+		err := checkPanelCoreVersion(service.Status{UpdatePending: true}, path)
+		if err == nil || problem.Describe(err).Code != "core_update_pending" {
+			t.Fatal("missing upgrade explanation", path, err)
+		}
+		if err := checkPanelCoreVersion(service.Status{}, path); err != nil {
+			t.Fatal("current Core rejected", err)
+		}
+	}
+	if err := checkPanelCoreVersion(service.Status{UpdatePending: true}, "collaborations"); err != nil {
+		t.Fatal("pending update blocks existing reads", err)
 	}
 }
 

@@ -28,6 +28,8 @@ App 的菜单“ChatGPT 插件…”和 WebGUI“设置与连接”共用插件�
 
 `upgrade` 更新磁盘上的包与安装缓存，不替换 ChatGPT 已运行的 stdio 进程。已具备下述更新检查的面板可从当前 Core 加载兼容的新界面；旧面板首次获得该能力，或 MCP 工具声明、启动配置及更新协议发生不兼容变化时，仍须由宿主刷新/重新加载。必要时按[官方本机插件流程](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually)重新打开客户端。界面 bundle 更新不冒充新安装代号的 bootstrap 回执，也不证明每个面板均已更新；升级命令不结束 ChatGPT 或其他会话。
 
+App 文件已更新不代表运行中的 Core 已切换。Core 仍受活动保护而暂缓更新时，当前会话查询与界面 bundle 接口返回 `core_update_pending`，提示等待活动结束或从菜单栏正常退出并重开 Team Cross；连接查询失败不再显示持续“正在核对”，也不据此认定未关联。已持久化的 `unknown` 请求保留原状态与内容，不单独阻塞空闲 Core 升级；正在提交、等待处理的请求、接收连接及其他活动仍受原有保护。升级不把未知请求改为成功/失败，也不重发。
+
 ## 一套 WebGUI，两种运行环境
 
 浏览器版与插件版都从 `packages/web/src/main.tsx` 启动，挂载相同的 `App`，加载相同的 `styles.css` 与 `library.css`。插件包含完整的导航、空间、创建与加入、材料阅读、原文批注、资源库、设置及接收会话配对页面，不维护另一套面板或插件专用布局。后续 WebGUI 页面与组件的修改同时进入两种构建；新增 API 需要同步检查宿主桥的路由声明。

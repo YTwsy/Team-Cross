@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"teamcross/internal/mcpassets"
 	"teamcross/internal/pluginpack"
+	"teamcross/internal/problem"
 	"teamcross/internal/service"
 )
 
@@ -127,6 +128,9 @@ func ServeUI(ctx context.Context, dataDir string, input io.Reader, output io.Wri
 		}
 		if name == "teamcross_ui_read" {
 			path, _ := args["path"].(string)
+			if err := checkPanelCoreVersion(s, path); err != nil {
+				return nil, err
+			}
 			if path == "plugin/bootstrap" {
 				info, err := b.Call(ctx, "GET", "ui-language", nil)
 				if err != nil {
@@ -144,6 +148,14 @@ func ServeUI(ctx context.Context, dataDir string, input io.Reader, output io.Wri
 		}
 		return b.Invoke(ctx, name, args)
 	}, uiResources(dataDir))
+}
+
+func checkPanelCoreVersion(s service.Status, path string) error {
+	base, _, _ := strings.Cut(path, "?")
+	if s.UpdatePending && (base == "plugin/current-connection" || base == "plugin/panel-version" || base == "plugin/panel-bundle") {
+		return problem.New("core_update_pending", "Team Cross 服务尚未完成更新", "请等待当前活动结束；若仍未更新，请从菜单栏退出并重新打开 Team Cross")
+	}
+	return nil
 }
 
 // The full WebGUI uses its existing JSON routes. Keep this app-only boundary

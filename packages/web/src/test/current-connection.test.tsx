@@ -132,3 +132,28 @@ it("keeps unavailable identity distinct from a confirmed unlinked conversation",
   expect(screen.queryByText("当前会话已关联")).not.toBeInTheDocument();
   expect(connect).not.toHaveBeenCalled();
 });
+
+it("explains an old Core response, stops the checking state, and recovers on retry without sending", async () => {
+  let old = true;
+  setAPITransport(async () => {
+    if (old) throw new Error("404 page not found");
+    return connection;
+  });
+  render(<ConnectCurrentConversation spaceId="space" />);
+  expect(
+    await screen.findByText(
+      "Team Cross 服务尚未完成更新，请从菜单栏退出并重新打开 Team Cross 后重试。",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "连接状态暂不可用" }),
+  ).toBeDisabled();
+  expect(screen.queryByText("正在核对连接状态…")).not.toBeInTheDocument();
+  expect(screen.queryByText("404 page not found")).not.toBeInTheDocument();
+  old = false;
+  await userEvent.click(screen.getByRole("button", { name: "重试" }));
+  expect(
+    await screen.findByRole("heading", { name: "当前会话已关联" }),
+  ).toBeVisible();
+  expect(connect).not.toHaveBeenCalled();
+});
