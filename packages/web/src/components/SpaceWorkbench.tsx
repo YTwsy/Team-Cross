@@ -1,3 +1,4 @@
+import { useRefreshState, useRefreshGuard } from "../refreshState";
 import {
   createContext,
   useContext,
@@ -112,9 +113,17 @@ export function SpaceReadingRequest({
 }: {
   reference: LibraryReference;
 }) {
+  const refreshKey = "SpaceReadingRequest:v1:" + JSON.stringify(reference);
   const space = useSpaceWorkbench();
-  const [instruction, setInstruction] = useState("");
-  const [references, setReferences] = useState([reference]);
+  const [instruction, setInstruction] = useRefreshState(
+    refreshKey + ":instruction",
+    "",
+  );
+  const [references, setReferences] = useRefreshState(
+    refreshKey + ":references",
+    [reference],
+  );
+  useRefreshGuard(refreshKey, !!instruction);
   if (!space) return null;
   return (
     <section
@@ -139,6 +148,7 @@ export function SpaceReadingRequest({
       />
       <div className="space-request-footer">
         <SpaceReferencePicker
+          refreshId={refreshKey}
           collaboration={space.collaboration}
           value={references}
           onChange={setReferences}
@@ -269,10 +279,12 @@ export function SpaceWorkbench({
   contextNavigation?: ReactNode;
   readingSession?: Collaboration;
 }) {
-  const [tab, setTab] = useState<Tab>("reading");
+  const refreshKey = "SpaceWorkbench:v1:" + c.id;
+  const [tab, setTab] = useRefreshState<Tab>(refreshKey + ":tab", "reading");
   const [navigation, setNavigation] = useState<HTMLDivElement | null>(null);
   const [publishing, setPublishing] = useState<HTMLDivElement | null>(null);
-  const [collapsed, setCollapsed] = useState(
+  const [collapsed, setCollapsed] = useRefreshState(
+    refreshKey + ":collapsed",
     () => window.matchMedia?.("(max-width: 760px)")?.matches ?? false,
   );
   const [commentsTarget, setCommentsTarget] = useState<HTMLDivElement | null>(
@@ -281,9 +293,9 @@ export function SpaceWorkbench({
   const [wide, setWide] = useState(
     () => window.matchMedia?.("(min-width: 1101px)")?.matches ?? false,
   );
-  const [commentVisibility, setCommentVisibility] = useState<
+  const [commentVisibility, setCommentVisibility] = useRefreshState<
     Partial<Record<"wide" | "narrow", boolean>>
-  >({});
+  >(refreshKey + ":commentVisibility", {});
   const layout = wide ? "wide" : "narrow";
   const commentsOpen = commentVisibility[layout] ?? wide;
   const setCommentsOpen = (open: boolean) =>
@@ -305,15 +317,23 @@ export function SpaceWorkbench({
   useEffect(() => {
     if (commentRequest) setCommentsOpen(true);
   }, [commentRequest]);
-  const [offset, setOffset] = useState(0);
+  const [offset, setOffset] = useRefreshState(refreshKey + ":offset", 0);
   const data = useResource<WorkbenchView>(
     `collaborations/${c.id}/workbench/view?offset=${offset}`,
     2500,
   );
-  const [send, setSend] = useState<Send>();
-  const [assistant, setAssistant] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState("");
-  const [briefDraft, setBriefDraft] = useState<SpaceBrief>();
+  const [send, setSend] = useRefreshState<Send>(refreshKey + ":send");
+  const [assistant, setAssistant] = useRefreshState(
+    refreshKey + ":assistant",
+    false,
+  );
+  const [selectedRequest, setSelectedRequest] = useRefreshState(
+    refreshKey + ":selectedRequest",
+    "",
+  );
+  const [briefDraft, setBriefDraft] = useRefreshState<SpaceBrief>(
+    refreshKey + ":briefDraft",
+  );
   const detail = useResource<SpaceRequest>(
     selectedRequest
       ? `collaborations/${c.id}/workbench/request?requestId=${selectedRequest}`
@@ -396,6 +416,7 @@ export function SpaceWorkbench({
       disabled={disabled || busy}
     />
   );
+  useRefreshGuard(refreshKey, !!briefDraft || !!send);
   return (
     <WorkbenchContext.Provider
       value={{
@@ -1281,17 +1302,27 @@ function SpaceSessions({
   onSend: (id: string) => void;
   onRemove: (id: string) => void;
 }) {
+  const refreshKey = "SpaceSessions:v1:" + c.id;
   const pairs = useResource<AgentPairing[]>("agent-pairings", 3000);
   const receivers = useResource<SpaceReceiver[]>(
     `space-receivers?spaceId=${c.id}`,
     2500,
   );
-  const [selected, setSelected] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [method, setMethod] = useState("existing");
-  const [pairing, setPairing] = useState(false);
-  const [name, setName] = useState(t("空间协作助手"));
-  const [creatingID, setCreatingID] = useState("");
+  const [selected, setSelected] = useRefreshState(refreshKey + ":selected", "");
+  const [adding, setAdding] = useRefreshState(refreshKey + ":adding", false);
+  const [method, setMethod] = useRefreshState(
+    refreshKey + ":method",
+    "existing",
+  );
+  const [pairing, setPairing] = useRefreshState(refreshKey + ":pairing", false);
+  const [name, setName] = useRefreshState(
+    refreshKey + ":name",
+    t("空间协作助手"),
+  );
+  const [creatingID, setCreatingID] = useRefreshState(
+    refreshKey + ":creatingID",
+    "",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function associate(pairingId: string) {
@@ -1332,6 +1363,7 @@ function SpaceSessions({
       setBusy(false);
     }
   }
+  useRefreshGuard(refreshKey, adding || !!creatingID);
   return (
     <div className="workbench-sessions">
       <section className="panel workbench-session-list">
@@ -1765,7 +1797,11 @@ function AssistantSetup({
   onSessions: () => void;
   onRequest: (id: string) => void;
 }) {
-  const [target, setTarget] = useState(view.assistant.targetId || "");
+  const refreshKey = "AssistantSetup:v1:" + c.id;
+  const [target, setTarget] = useRefreshState(
+    refreshKey + ":target",
+    view.assistant.targetId || "",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const assistant = view.assistant;
@@ -1789,6 +1825,7 @@ function AssistantSetup({
       setBusy(false);
     }
   }
+  useRefreshGuard(refreshKey, target !== (view.assistant.targetId || ""));
   return (
     <div className="workbench-assistant">
       <p>

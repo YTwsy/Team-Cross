@@ -183,6 +183,8 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 
 插件专用只读路由 `plugin/current-connection?spaceId=…` 返回 `{known,linked,receiving,targetId?,name?}`；UI 不能提交调用者身份。MCP 桥只从传输提取 Codex threadId 或 ChatGPT 不透明身份，通过受 Bearer 保护且拒绝 Origin 的 `POST /agent-current-connection` 读取精确关联。内部 `connection-status` 只返回属于认证成员、未移除的目标，不注册目标或连接原生进程。缺少可用身份返回 `known=false`，不等同于确认未关联。
 
+插件界面更新使用 `teamcross_ui_read` 的两条 app-only 只读路由：`plugin/panel-version` 返回 `{protocol:1,revision}`；`plugin/panel-bundle?revision=…` 返回同一版本的 `{protocol:1,revision,script,style}`。Core 仅接受 GET、精确 Core Bearer 且无 Origin，revision 与当前内嵌资源不符返回 409。revision 为 UTF-8 `style + NUL + script` 的 SHA-256；面板取得 bundle 后再次校验。bundle 仅放在 MCP `structuredContent`，不重复写入文本 content；资源来自正在运行的 Core，不能指定文件或外部 URL。更新过程和草稿边界见[本机插件契约](decisions/chatgpt-local-plugin.md#一套-webgui两种运行环境)。
+
 共同执行目标使用 `executionId` 绑定精确会话，私人接收目标省略该字段；投递时重新检查空间成员资格和该会话输入归属。
 
 `Record.workbench` 保存 `targets`、`requests`、`brief` 和 `assistant`，最多 256 个目标、4096 条请求。目标公开随机目标 ID、成员、名称、Provider、原生身份的不可逆摘要、是否共同执行、可用性和解除关联状态，不公开私人配对 ID、原生 ID 或凭据。请求保存完整发起身份、接收目标、父请求 ID、固定引用、要求、处理方式、状态、摘要/错误以及创建、更新、读取、结束时间。父请求必须属于当前空间，关联深度不超过 16。

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useRefreshGuard, useRefreshState } from "../refreshState";
 import { api, errorText } from "../api";
 import { t, tr } from "../i18n";
 import { sameReference, type LibraryReference } from "../library";
@@ -22,17 +23,27 @@ export function SpaceReferencePicker({
   onChange,
   disabled,
   compact = false,
+  refreshId = "picker",
 }: {
   collaboration: Collaboration;
   value: LibraryReference[];
   onChange: (value: LibraryReference[]) => void;
   disabled: boolean;
   compact?: boolean;
+  refreshId?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<LibraryReference[]>([]);
-  const [kind, setKind] = useState<"material" | "annotation">("material");
-  const [query, setQuery] = useState("");
+  const key = `SpaceReferencePicker:v1:${c.id}:${refreshId}`;
+  const [open, setOpen] = useRefreshState(key + ":open", false);
+  const [draft, setDraft] = useRefreshState<LibraryReference[]>(
+    key + ":draft",
+    [],
+  );
+  const [kind, setKind] = useRefreshState<"material" | "annotation">(
+    key + ":kind",
+    "material",
+  );
+  const [query, setQuery] = useRefreshState(key + ":query", "");
+  useRefreshGuard(key, open && JSON.stringify(draft) !== JSON.stringify(value));
   const [preview, setPreview] = useState<LibraryReference>();
   const [text, setText] = useState<string>();
   const [error, setError] = useState("");

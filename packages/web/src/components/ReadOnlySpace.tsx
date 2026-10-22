@@ -1,3 +1,4 @@
+import { useRefreshState } from "../refreshState";
 import { t, tr } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import { api, errorText } from "../api";
@@ -26,10 +27,12 @@ export function ReadOnlySpace({
   showInvite?: boolean;
   executionId?: string;
 }) {
-  const [modal, setModal] = useState<
+  const refreshKey = "ReadOnlySpace:v1:" + c.id;
+  const [modal, setModal] = useRefreshState<
     "invite" | "end" | "assist" | "create" | null
-  >(showInvite ? "invite" : null);
-  const [visited, setVisited] = useState<string[]>(
+  >(refreshKey + ":modal", showInvite ? "invite" : null);
+  const [visited, setVisited] = useRefreshState<string[]>(
+    refreshKey + ":visited",
     executionId ? [executionId] : [],
   );
   const positions = useRef(new Map<string, number>());

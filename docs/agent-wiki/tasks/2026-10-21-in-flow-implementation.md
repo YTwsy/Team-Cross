@@ -80,3 +80,27 @@ macOS 本机、Node 24.18.0：Go 全量 test/vet、`internal/collab` 与 `intern
 从干净提交 `cf8fc4956c9b4952b341b5ba3ec2341715b5b4da` 构建 `0.2.6-dev.inflow.20261022`，buildNumber 172，arm64、最低 macOS 14.0。产物保存在主仓库的 `dist/release/0.2.6-dev.inflow.20261022/`；[构建清单](2026-10-21-in-flow-evidence/release.json) 记录完整来源和校验值。DMG 的 SHA-256 为 `63c8222137c1b177d0f60ece9138607c59fae2e6a0adb6879cf75dbc4eb39cb8`。
 
 标准 `build-release.py` 与 `verify-release.py` 通过。检查覆盖 CLI/App 版本及提交一致、DMG 挂载与临时安装、图标提取、签名完整性、真实双 App 副本协调、临时 CLI 安装/移除、已有命令保护及兼容 Core 复用；[结构化验证结果](2026-10-21-in-flow-evidence/dmg-verification.json)。脚本退出完成临时进程与挂载清理。构建使用 ad-hoc 签名，未使用 Developer ID、未公证；未运行可选的真实插件启动同步、Homebrew 或公开下载安装验证，未替换用户已安装的 App。
+
+## 2026-10-22 插件更新体验
+
+本轮接续上一节的资源版本化，新增当前 Core bundle 检测与同一 iframe 内的界面更新。可见面板约每 15 秒检查，回到前台时立即检查；没有未保存内容时自动刷新，有草稿时提示“保留草稿并刷新”。更新前保存当前编辑字段、引用、路由和稳定请求 ID，输入法组字及待完成写入暂缓更新；下载后再次判断，避免下载过程中输入被覆盖。摘要不符、读取失败和新代码启动失败均保留/恢复旧编辑器，失败版本等待明确重试。旧 stdio 通过已声明的只读路由读取当前 Core 嵌入资源，不依赖它自身的旧 bundle。
+
+草稿按 Core 和编辑对象隔离，只在 iframe 内存传递；恢复不会发送或重试业务请求。首次从不具备检查器的旧面板迁移仍需宿主刷新一次；不兼容 MCP 声明、启动配置或协议更新也不由本机制代替。此前一节“仍需宿主刷新”的记录描述当时版本，本节新增能力的长期边界维护于[本机插件契约](../sources/decisions/chatgpt-local-plugin.md#一套-webgui两种运行环境)。
+
+Go `test ./...`、`vet ./...` 及 `internal/collab`、`internal/mcp`、`internal/mcpassets` race 通过。Web check、21 个文件 198 项测试、1077 条翻译完整性检查和两套嵌入构建通过。新增 9 项交互回归覆盖无草稿、有草稿、下载中输入、待完成写入/组字、失败重试、摘要错误、结果未知留言只读核对、兄弟会话草稿与复用组件隔离。全量测试发现离开空间时新增 Hook 位于提前返回之后，已移除不必要的检查并复跑通过。
+
+真实浏览器使用 `TestPluginUpdateBrowserFixture` 的 production 面板和真实 Core，宿主桥、原生身份及版本切换为合成。iframe CSP 使用 `connect-src 'none'` 和内联脚本/样式，确认执行代码版本从 0 自动变为 1；有评论草稿时停在旧版，点击后变为 2 并恢复原文；留言弹窗内也可点击刷新且保留正文。故障版本在启动时抛出异常，立即回退到 2 并保留草稿，显示明确重试，不自动循环。以上流程业务写入计数均为零。
+
+- [有草稿时提示](2026-10-21-in-flow-evidence/plugin-update-draft-prompt.png)
+- [刷新后恢复评论](2026-10-21-in-flow-evidence/plugin-update-draft-restored.png)
+- [留言弹窗内的刷新入口](2026-10-21-in-flow-evidence/plugin-update-modal-prompt.png)
+- [启动失败回退与草稿保留](2026-10-21-in-flow-evidence/plugin-update-rollback.png)
+
+首轮夹具的合成 turnId 不一致，修正后继续；浏览器检查又发现弹窗之外的按钮不可点击和启动异常需等待超时，分别改为弹窗内提示及立即捕获启动错误，再完成最终复核。所有测试页已关闭，夹具按精确 finish 文件退出；原始日志留在 `/private/tmp/teamcross-refresh-*.log`。本轮未操作用户已安装 App/插件，也未新增真实 Codex 宿主、模型回合、Cloud 或两台 Mac 验收。
+
+
+## 2026-10-22 插件更新版 DMG
+
+从干净提交 `8a5564d0971e728df973386461151380ca45fc5f` 构建 `0.2.6-dev.plugin-refresh.20261022`，buildNumber 174，arm64、最低 macOS 14.0。产物位于主仓库 `dist/release/0.2.6-dev.plugin-refresh.20261022/`，保留上一版安装包；[构建清单](2026-10-21-in-flow-evidence/plugin-refresh-release.json)。DMG SHA-256 为 `3937f3d1680335d7ecef3c5e0f914764da6d42ad8667dfba1b2f7e0b3390ad42`。
+
+`build-release.py` 与 `verify-release.py` 通过。验证覆盖校验值、DMG 挂载与临时安装、图标、签名完整性、App/CLI 来源一致、双 App 实例协调、CLI 安装/移除与既有命令保护、兼容 Core 复用及生命周期；[结构化验证结果](2026-10-21-in-flow-evidence/plugin-refresh-dmg-verification.json)。临时进程、挂载和浏览器页面已清理。本包采用 ad-hoc 签名，未使用 Developer ID、未公证；未执行可选的真实插件启动同步或公开安装验收，未替换用户已安装 App。

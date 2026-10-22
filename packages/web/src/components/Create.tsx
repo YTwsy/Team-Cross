@@ -1,3 +1,8 @@
+import {
+  useRefreshState,
+  useRefreshGuard,
+  useRefreshRef,
+} from "../refreshState";
 import { sessionStorage } from "../storage";
 import { t, tr } from "../i18n";
 import { useEffect, useRef, useState } from "react";
@@ -33,15 +38,28 @@ export function Create({
   embedded?: boolean;
   onCreated?: (session: Collaboration) => void;
 } = {}) {
-  const [provider, setProvider] = useState<Provider>("codex");
-  const [step, setStep] = useState(1);
-  const [search, setSearch] = useState("");
-  const [query, setQuery] = useState("");
-  const [source, setSource] = useState<Source>();
-  const [mode, setMode] = useState<Mode>("existing");
-  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>("restricted");
-  const [shareTransport, setShareTransport] = useState<ShareTransport>("lan");
-  const [title, setTitle] = useState("");
+  const refreshKey = "Create:v1:" + (spaceId || "new");
+  const [provider, setProvider] = useRefreshState<Provider>(
+    refreshKey + ":provider",
+    "codex",
+  );
+  const [step, setStep] = useRefreshState(refreshKey + ":step", 1);
+  const [search, setSearch] = useRefreshState(refreshKey + ":search", "");
+  const [query, setQuery] = useRefreshState(refreshKey + ":query", "");
+  const [source, setSource] = useRefreshState<Source>(refreshKey + ":source");
+  const [mode, setMode] = useRefreshState<Mode>(
+    refreshKey + ":mode",
+    "existing",
+  );
+  const [runtimeMode, setRuntimeMode] = useRefreshState<RuntimeMode>(
+    refreshKey + ":runtimeMode",
+    "restricted",
+  );
+  const [shareTransport, setShareTransport] = useRefreshState<ShareTransport>(
+    refreshKey + ":shareTransport",
+    "lan",
+  );
+  const [title, setTitle] = useRefreshState(refreshKey + ":title", "");
   const [preview, setPreview] = useState<Preview>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -50,7 +68,10 @@ export function Create({
   const [cursor, setCursor] = useState<string | null>();
   const [loadingMore, setLoadingMore] = useState(false);
   const moreAbort = useRef<AbortController | undefined>(undefined);
-  const requestId = useRef(crypto.randomUUID());
+  const requestId = useRefreshRef(
+    refreshKey + ":requestId",
+    crypto.randomUUID(),
+  );
   const errorRef = useRef<HTMLDivElement>(null);
   const sourcesPath = `sources?provider=${provider}&search=${encodeURIComponent(query)}`;
   const sources = useResource<{ data: Source[]; nextCursor?: string }>(
@@ -138,6 +159,7 @@ export function Create({
     }
   }
   const nextCursor = data && (cursor === undefined ? data.nextCursor : cursor);
+  useRefreshGuard(refreshKey, !!source || !!title);
   return (
     <>
       {!embedded && (

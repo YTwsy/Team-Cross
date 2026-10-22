@@ -5343,3 +5343,36 @@ mark[data-annotation-highlight] {
   overflow-wrap: anywhere;
   min-width: 0;
 }
+/* The update prompt also lives inside an open modal so it remains actionable. */
+.plugin-update-banner {
+  position: fixed;
+  z-index: 10000;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--panel, #fff);
+  color: var(--text, #252925);
+  border: 1px solid var(--line, #ddd);
+  box-shadow: 0 8px 32px #0002;
+}
+.plugin-update-banner[hidden] {
+  display: none;
+}
+.plugin-update-banner .button {
+  flex-shrink: 0;
+}
+.modal > .plugin-update-banner {
+  position: static;
+  transform: none;
+  width: auto;
+  max-width: none;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}

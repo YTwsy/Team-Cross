@@ -1,3 +1,8 @@
+import {
+  useRefreshState,
+  useRefreshGuard,
+  useRefreshRef,
+} from "../refreshState";
 import { resourceScope } from "../execution";
 import { t, tr } from "../i18n";
 import { ResourceActions } from "../library";
@@ -80,20 +85,27 @@ export function Discussion({
   materials?: Material[];
   onLocateMaterial?: (ref: MaterialReference) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [sendToAgent, setSendToAgent] = useState(false);
-  const [text, setText] = useState("");
-  const [refs, setRefs] = useState<MaterialReference[]>([]);
+  const refreshKey = "Discussion:v1:" + (id + ":" + annotation.id);
+  const [open, setOpen] = useRefreshState(refreshKey + ":open", false);
+  const [sendToAgent, setSendToAgent] = useRefreshState(
+    refreshKey + ":sendToAgent",
+    false,
+  );
+  const [text, setText] = useRefreshState(refreshKey + ":text", "");
+  const [refs, setRefs] = useRefreshState<MaterialReference[]>(
+    refreshKey + ":refs",
+    [],
+  );
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [saved, setSaved] = useState(false);
   const editor = useRef<HTMLTextAreaElement>(null);
   const actions = useRef<HTMLDetailsElement>(null);
   const submitting = useRef(false);
-  const attempt = useRef<
+  const attempt = useRefreshRef<
     | { text: string; requestId: string; materials?: MaterialReference[] }
     | undefined
-  >(undefined);
+  >(refreshKey + ":attempt", undefined);
   useEffect(() => {
     if (open) editor.current?.focus();
   }, [open]);
@@ -376,6 +388,7 @@ export function Discussion({
       )}
     </article>
   );
+  useRefreshGuard(refreshKey, !!text || refs.length > 0);
   return origin ? (
     <AnchoredNote origin={origin} onClose={onClose} label={t("原文讨论")}>
       {content}
@@ -404,7 +417,8 @@ export function Annotations({
   materials?: Material[];
   onLocateMaterial?: (ref: MaterialReference) => void;
 }) {
-  const [active, setActive] = useState(general);
+  const refreshKey = "Annotations:v1:" + id;
+  const [active, setActive] = useRefreshState(refreshKey + ":active", general);
   const [origins, setOrigins] = useState<Record<string, AnnotationOrigin>>({});
   const [inspection, setInspection] = useState<{
     id: string;
@@ -413,7 +427,10 @@ export function Annotations({
   const closeInspection = useCallback(() => setInspection(undefined), []);
   const closeEditor = useCallback(() => setActive(general), []);
   const editorID = useId();
-  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [drafts, setDrafts] = useRefreshState<Record<string, Draft>>(
+    refreshKey + ":drafts",
+    {},
+  );
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [pending, setPending] = useState(false);
@@ -595,6 +612,10 @@ export function Annotations({
         </div>
       )}
     </form>
+  );
+  useRefreshGuard(
+    refreshKey,
+    Object.values(drafts).some((d) => !!d.text || !!d.materials?.length),
   );
   return (
     <section className="panel notes-panel" aria-label={t("协作批注")}>

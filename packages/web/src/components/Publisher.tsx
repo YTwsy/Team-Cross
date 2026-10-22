@@ -1,3 +1,8 @@
+import {
+  useRefreshState,
+  useRefreshGuard,
+  useRefreshRef,
+} from "../refreshState";
 import { sessionStorage } from "../storage";
 import { formatDate, t, tr } from "../i18n";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -31,30 +36,58 @@ export function Publisher({
   onPublished: (result: PublicationResult, id: string) => void;
   onStageChange?: (stage: "source" | "range" | "review") => void;
 }) {
+  const refreshKey =
+    "Publisher:v1:" + ((spaceId || "new") + ":" + (material?.id || "new"));
   const latest = material?.versions.at(-1);
-  const [provider, setProvider] = useState<Provider>(
+  const [provider, setProvider] = useRefreshState<Provider>(
+    refreshKey + ":provider",
     latest?.provider || "codex",
   );
-  const [search, setSearch] = useState("");
-  const [query, setQuery] = useState("");
-  const [cursor, setCursor] = useState("");
-  const [sourceId, setSourceId] = useState(latest?.sourceId || "");
-  const [draft, setDraft] = useState<PublicationDraftSummary>();
-  const [preview, setPreview] = useState<PublicationDraftSummary>();
-  const [reviewing, setReviewing] = useState(false);
-  const [previewReady, setPreviewReady] = useState(false);
-  const [source, setSource] = useState<Source>();
-  const [title, setTitle] = useState(latest?.title || "");
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
-  const [reading, setReading] = useState("");
+  const [search, setSearch] = useRefreshState(refreshKey + ":search", "");
+  const [query, setQuery] = useRefreshState(refreshKey + ":query", "");
+  const [cursor, setCursor] = useRefreshState(refreshKey + ":cursor", "");
+  const [sourceId, setSourceId] = useRefreshState(
+    refreshKey + ":sourceId",
+    latest?.sourceId || "",
+  );
+  const [draft, setDraft] = useRefreshState<PublicationDraftSummary>(
+    refreshKey + ":draft",
+  );
+  const [preview, setPreview] = useRefreshState<PublicationDraftSummary>(
+    refreshKey + ":preview",
+  );
+  const [reviewing, setReviewing] = useRefreshState(
+    refreshKey + ":reviewing",
+    false,
+  );
+  const [previewReady, setPreviewReady] = useRefreshState(
+    refreshKey + ":previewReady",
+    false,
+  );
+  const [source, setSource] = useRefreshState<Source>(refreshKey + ":source");
+  const [title, setTitle] = useRefreshState(
+    refreshKey + ":title",
+    latest?.title || "",
+  );
+  const [start, setStart] = useRefreshState(refreshKey + ":start", "");
+  const [end, setEnd] = useRefreshState(refreshKey + ":end", "");
+  const [reading, setReading] = useRefreshState(refreshKey + ":reading", "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [uncertain, setUncertain] = useState(false);
-  const [statusNote, setStatusNote] = useState("");
-  const attempt = useRef(crypto.randomUUID());
-  const spaceRequest = useRef(spaceId || crypto.randomUUID());
-  const createdSpace = useRef(spaceId);
+  const [uncertain, setUncertain] = useRefreshState(
+    refreshKey + ":uncertain",
+    false,
+  );
+  const [statusNote, setStatusNote] = useRefreshState(
+    refreshKey + ":statusNote",
+    "",
+  );
+  const attempt = useRefreshRef(refreshKey + ":attempt", crypto.randomUUID());
+  const spaceRequest = useRefreshRef(
+    refreshKey + ":spaceRequest",
+    spaceId || crypto.randomUUID(),
+  );
+  const createdSpace = useRefreshRef(refreshKey + ":createdSpace", spaceId);
   const mounted = useRef(true);
   const composer = useRef<HTMLElement>(null);
   const [controls, setControls] = useState<HTMLDivElement | null>(null);
@@ -290,6 +323,7 @@ export function Publisher({
     restoreEditor.current = true;
     setReviewing(false);
   }
+  useRefreshGuard(refreshKey, !!draft || !!title || !!uncertain);
   return (
     <section
       ref={composer}
@@ -636,11 +670,16 @@ function keepIntentScroll(e: { preventDefault: () => void }) {
 }
 
 export function StartSpace() {
-  const [mode, setMode] = useState<"readonly" | "execution">("readonly");
-  const [publicationStage, setPublicationStage] = useState<
+  const refreshKey = "StartSpace:v1:" + location.hash;
+  const [mode, setMode] = useRefreshState<"readonly" | "execution">(
+    refreshKey + ":mode",
+    "readonly",
+  );
+  const [publicationStage, setPublicationStage] = useRefreshState<
     "source" | "range" | "review"
-  >("source");
+  >(refreshKey + ":publicationStage", "source");
   const compact = mode === "readonly" && publicationStage !== "source";
+  useRefreshGuard(refreshKey, false);
   return (
     <div className={`start-space ${compact ? "is-publishing" : ""}`}>
       <a href="#/" className="back-link">
