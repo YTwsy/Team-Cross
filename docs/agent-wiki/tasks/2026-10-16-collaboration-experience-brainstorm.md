@@ -1,5 +1,7 @@
 # 协作体验头脑风暴会话原样记录
 
+> 后续记录（2026-10-21）：[本机数字分身的自然交流、分段、记忆与 Harness 设计及独立演示](2026-10-21-local-shadow-design/README.md)。下方保留原始头脑风暴，不作为当前已实现能力的说明。
+
 ## User
 
 头脑风暴一下，我之前想要强化协作体验，想了云端Bot和IM+类似Claude Tag两种模式，还思考借助了Claude Code Channel、monitor这些功能，但是总觉得没有形成比较好的完整的体验，之前还考虑使用MCP Event去绑定Session去通知，但是MCP Event暂时还不支持Claude Code以及Codex的本地会话。这些感觉都打不到我想要的效果，是否可以大胆思考下有什么更好的功能

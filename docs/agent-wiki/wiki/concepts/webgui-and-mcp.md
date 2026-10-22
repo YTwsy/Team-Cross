@@ -17,6 +17,10 @@ flowchart LR
 选择引用、保存讨论、向目标发送请求与目标实际处理是不同动作。界面可用、工具能读取、
 会话能接收分别依赖对应接入；辅助客户端的 Provider 与目标执行 Provider 也分别判断。
 
+顺流感知提供另一种被动进入上下文的机会：会话明确开启后，Core 根据空间关联、评论的
+会话归属或留言的接收目标，在正常 MCP/Hook 交互中附带变化。它不启动执行，也不把
+投递记录当作模型已读。具体分发和客户端边界见 [顺流感知契约](../../sources/decisions/in-flow-awareness.md)。
+
 - 查询页面、发布、阅读、批注与界面语言 → [产品流程](../../sources/product-flows.md)；工具字段与分页 → [协议](../../sources/protocol.md)。
 - 查询固定引用、选择清单与菜单栏速览 → [资源库契约](../../sources/decisions/resource-library.md)。
 - 查询插件面板、带回对话与 mention → [本机插件契约](../../sources/decisions/chatgpt-local-plugin.md)。

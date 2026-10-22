@@ -28,6 +28,7 @@ type AgentPairing struct {
 	RuntimeID   string            `json:"runtimeId,omitempty"`
 	ID          string            `json:"id"`
 	Name        string            `json:"name"`
+	NameSource  string            `json:"nameSource,omitempty"` // custom, native, or fallback; local naming metadata.
 	Provider    string            `json:"provider,omitempty"`
 	SessionID   string            `json:"sessionId,omitempty"`
 	SpaceID     string            `json:"spaceId,omitempty"`
@@ -169,7 +170,7 @@ func (a *App) createAgentPairing(name string) (map[string]any, error) {
 	}
 	code := "TCP-" + secret
 	now := time.Now()
-	p := AgentPairing{ID: uuid.NewString(), Name: name, State: "waiting", CodeHash: agentCodeHash(code), CreatedAt: now, ExpiresAt: now.Add(10 * time.Minute)}
+	p := AgentPairing{ID: uuid.NewString(), Name: name, NameSource: "custom", State: "waiting", CodeHash: agentCodeHash(code), CreatedAt: now, ExpiresAt: now.Add(10 * time.Minute)}
 	a.agentMu.Lock()
 	defer a.agentMu.Unlock()
 	next := libraryClone(a.agents)

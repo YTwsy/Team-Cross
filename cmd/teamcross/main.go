@@ -46,11 +46,17 @@ func run(args []string) error {
 	if binary, err := os.Executable(); err == nil {
 		source, err := pluginpack.RuntimeSource(binary)
 		if err != nil {
+			if len(args) > 0 && args[0] == "inflow-hook" {
+				return nil
+			}
 			return err
 		}
 		if source != binary {
 			return syscall.Exec(source, append([]string{source}, args...), os.Environ())
 		}
+	}
+	if len(args) > 0 && args[0] == "inflow-hook" {
+		return runInFlowHook(args[1:], os.Stdin, os.Stdout)
 	}
 	if len(args) > 0 && args[0] == "events" {
 		return runEvents(args[1:])

@@ -115,9 +115,6 @@ func (a *App) connectCurrentSession(ctx context.Context, c agentCaller, spaceID,
 		return nil, err
 	}
 	name = strings.TrimSpace(name)
-	if name == "" {
-		name = "当前会话"
-	}
 	if len([]rune(name)) > 80 {
 		return nil, fmt.Errorf("接收会话名称最多 80 字")
 	}
@@ -125,10 +122,13 @@ func (a *App) connectCurrentSession(ctx context.Context, c agentCaller, spaceID,
 	// create a second pairing or a second public target.
 	a.agentConnectMu.Lock()
 	defer a.agentConnectMu.Unlock()
-	if runtimeID == "" {
-		if err := a.verifyConversation(ctx, c.Caller); err != nil {
+	var source Source
+	if runtimeID == "" && !mcp.ChatGPTConversation(c.Caller) {
+		current, err := a.currentSource(ctx, c.Caller)
+		if err != nil {
 			return nil, err
 		}
+		source = current["source"].(Source)
 	}
 	a.agentMu.Lock()
 	var p AgentPairing
@@ -139,6 +139,13 @@ func (a *App) connectCurrentSession(ctx context.Context, c agentCaller, spaceID,
 		}
 	}
 	a.agentMu.Unlock()
+	nameSource := "custom"
+	useDefault := name == "" && (p.ID == "" || !customAgentName(p))
+	if useDefault {
+		name, nameSource = defaultAgentName(c.Caller.Provider, c.Caller.SourceID, source.Name)
+	} else if name == "" {
+		name, nameSource = p.Name, p.NameSource
+	}
 	if p.ID == "" && mcp.ChatGPTConversation(c.Caller) {
 		p = AgentPairing{ID: uuid.NewString(), Name: name, Provider: "chatgpt", SessionID: c.Caller.SourceID, State: "linked", Transport: "chatgpt", CreatedAt: time.Now(), Reason: "已关联当前 ChatGPT 对话；后续接收需要单独启用订阅"}
 		a.agentMu.Lock()
@@ -172,6 +179,11 @@ func (a *App) connectCurrentSession(ctx context.Context, c agentCaller, spaceID,
 	if p.State == "unsupported" {
 		p.State = "linked"
 	}
+	if useDefault && runtimeID != "" {
+		if title, ok := a.agentPairingTitle(ctx, p); ok {
+			name, nameSource = defaultAgentName(p.Provider, p.SessionID, title)
+		}
+	}
 	a.agentMu.Lock()
 	stored, exists := a.agents.Pairings[p.ID]
 	if !exists {
@@ -179,6 +191,7 @@ func (a *App) connectCurrentSession(ctx context.Context, c agentCaller, spaceID,
 		return nil, fmt.Errorf("配对已移除，请重新连接")
 	}
 	stored.State, stored.Transport, stored.Reason = p.State, p.Transport, p.Reason
+	stored.Name, stored.NameSource = name, nameSource
 	next := libraryClone(a.agents)
 	next.Pairings[p.ID] = stored
 	err := a.saveAgentsLocked(next)
@@ -200,4 +213,28 @@ func (a *App) verifyConversation(ctx context.Context, caller mcp.CallerSource) e
 	}
 	_, err := a.currentSource(ctx, caller)
 	return err
+}
+
+// Read only the exact transport-identified conversation's active association.
+// Never create a pairing, borrow a receiver, or infer identity from a title.
+func (a *App) currentConnection(ctx context.Context, caller mcp.CallerSource, spaceID string) (any, error) {
+	_, idErr := uuid.Parse(caller.SourceID)
+	if !mcp.ChatGPTConversation(caller) && (caller.Provider != "codex" || idErr != nil) {
+		return nil, fmt.Errorf("当前会话身份不可用")
+	}
+	a.agentMu.Lock()
+	var targetID string
+	for _, p := range a.agents.Pairings {
+		if p.Provider == caller.Provider && p.SessionID == caller.SourceID && p.Links[spaceID] != "" && (p.State == "paired" || p.State == "linked" || p.State == "verifying") {
+			targetID = p.Links[spaceID]
+			break
+		}
+	}
+	a.agentMu.Unlock()
+	raw, err := a.workbenchCall(ctx, spaceID, "connection-status", workbenchInput{TargetID: targetID})
+	if err != nil {
+		return nil, err
+	}
+	target := workbenchDecode[SpaceTarget](raw)
+	return map[string]any{"known": true, "linked": target.ID != "", "receiving": target.ID != "" && target.Available, "targetId": target.ID, "name": target.Name}, nil
 }

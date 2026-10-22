@@ -12,6 +12,19 @@
 
 ## 本机管理 API
 
+### 顺流感知接口
+
+业务范围见 [顺流感知契约](decisions/in-flow-awareness.md)。工作台 `view` 增加 `inFlow`（接收对象到启用布尔值）和最近四十条 `notes`；目标增加 `inFlow`，与主动接收 `available` 分开。
+
+- `POST /collaborations/:spaceId/workbench/inflow-config`：`{targetId|executionId,enabled}`，二选一；成员只设置自己的关联目标，协作会话由发起者设置。
+- `POST .../workbench/inflow-note`：`{requestId,targetId,instruction}`，UUID 去重，正文 1–300 字；返回 `{id,targetId,actor,text,createdAt,deliveredAt?}`。`inflow-note-read` 按 `{requestId}` 查询同一条。
+- 留言校验未通过返回 `inflow_note_rejected`；查询不存在返回 `inflow_note_not_found`。网络失败仍视为结果不明；查询后明确重试沿用原 ID 和正文，不能自动换 ID 重发。
+- 模型工具为 `configure_space_inflow(spaceId,enabled)`、`send_space_note(spaceId,requestId,targetId,instruction)`、`get_space_note(spaceId,requestId)`。绑定运行时省略 spaceId；当前调用者由传输核对，不能由工具参数指定。
+- 内部传输 `POST /inflow` 只接受 Core Bearer 且拒绝 Origin，使用 `{caller,operation:prepare|delivered|release,batch?}`；不是模型工具。绑定运行时通过原 `runtime-annotations/:id` 凭据通道使用内部 `_inflow` 操作，只访问绑定空间。
+- `prepare` 返回 `{spaceId,targetId?|executionId?,receipt?,items}`；receipt 仅供内部写出后记账，不进入模型上下文。条目含 kind、sourceId、version、spaceId、executionId（评论）、署名、有限正文及时间。`delivered` 只提交准备批次中的版本；失败用 `release` 释放，过期批次重新准备。
+
+### 通用管理路径
+
 默认尝试 `http://127.0.0.1:43210/api`，占用时使用动态 loopback 端口，实际地址由本机连接文件和启动输出提供。仅接受 loopback Host；浏览器写入需同源。响应为 JSON，错误返回 `{ "code": "英文类型", "error": "可读说明", "recovery": "下一步（可选）" }`。接收端也必须在自己的 Mac 运行 Core，由它连接远端。
 
 | 方法与路径 | 含义 |
@@ -165,6 +178,10 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 本表对应 Meta 已接入的独立接收协议。调查工作树中的 `activeTurnId`、精确轮次中断与 Desktop 打开扩展保留在[生命周期记录](../tasks/finished_archived/2026-10-05-receiver-lifecycle-validation.md#调查工作树的协议与复现入口)；这些字段及操作尚未进入 Meta，不能据此调用当前接收接口。
 
 成员 Core 使用已有 TLS 成员访问调用 `POST /v2/workbench/:op`，操作包括上述领域读写以及 `poll/claim/receipt/read/finish/annotations/reply/receiver-check/event-snapshot`。空间托管端从访问凭据派生成员身份；只有接收目标的所属成员能领取和报告该目标的请求。浏览器入口将 `actor` 覆盖为人工，MCP 入口从核对后的传输生成会话身份。成员 Core 是该成员的可信边界，不能以自报 `actor.memberId` 冒充其他成员。
+
+`register` 重试在成员、Provider、不透明会话身份和 executionId 一致时允许更新显示名称，复用原 targetId。`poll` 可随 `presence` 附带 `targetNames: {targetId: name}`；仅更新同批 presence 内属于认证成员、尚未移除的目标名称，限 1–80 字，不创建或重新关联目标。本机配对的 `nameSource` 记录 `custom/native/fallback`，用于保留自定义名称和补全旧默认占位，不作为权限或目标身份。
+
+插件专用只读路由 `plugin/current-connection?spaceId=…` 返回 `{known,linked,receiving,targetId?,name?}`；UI 不能提交调用者身份。MCP 桥只从传输提取 Codex threadId 或 ChatGPT 不透明身份，通过受 Bearer 保护且拒绝 Origin 的 `POST /agent-current-connection` 读取精确关联。内部 `connection-status` 只返回属于认证成员、未移除的目标，不注册目标或连接原生进程。缺少可用身份返回 `known=false`，不等同于确认未关联。
 
 共同执行目标使用 `executionId` 绑定精确会话，私人接收目标省略该字段；投递时重新检查空间成员资格和该会话输入归属。
 

@@ -16,10 +16,12 @@ import (
 // Workbench data is explicitly space-public. Local pairings, native histories,
 // receiver credentials and personal requests never enter this record.
 type WorkbenchRecord struct {
-	Targets   map[string]SpaceTarget  `json:"targets"`
-	Requests  map[string]SpaceRequest `json:"requests"`
-	Brief     SpaceBrief              `json:"brief"`
-	Assistant SpaceAssistant          `json:"assistant"`
+	InFlow    map[string]InFlowPreference `json:"inFlow,omitempty"`
+	Notes     map[string]SpaceNote        `json:"notes,omitempty"`
+	Targets   map[string]SpaceTarget      `json:"targets"`
+	Requests  map[string]SpaceRequest     `json:"requests"`
+	Brief     SpaceBrief                  `json:"brief"`
+	Assistant SpaceAssistant              `json:"assistant"`
 }
 
 type SpaceActor struct {
@@ -31,6 +33,7 @@ type SpaceActor struct {
 }
 
 type SpaceTarget struct {
+	InFlow      bool      `json:"inFlow"`
 	Session     string    `json:"session,omitempty"`
 	ID          string    `json:"id"`
 	MemberID    string    `json:"memberId"`
@@ -119,6 +122,8 @@ type SpaceBootstrap struct {
 // The local HTTP and MCP edges set Actor themselves; the space host supplies
 // MemberID from its authenticated grant, including for another member's Core.
 type workbenchInput struct {
+	Enabled         bool                 `json:"enabled"`
+	Receipt         string               `json:"receipt,omitempty"`
 	Session         string               `json:"session,omitempty"`
 	Read            HistoryRead          `json:"read"`
 	Reply           AnnotationReplyInput `json:"reply"`
@@ -140,18 +145,21 @@ type workbenchInput struct {
 	BaseEpoch       int                  `json:"baseEpoch,omitempty"`
 	Brief           SpaceBrief           `json:"brief"`
 	Presence        map[string]string    `json:"presence,omitempty"`
+	TargetNames     map[string]string    `json:"targetNames,omitempty"`
 	Offset          int                  `json:"offset,omitempty"`
 }
 
 type WorkbenchView struct {
-	SpaceID   string         `json:"spaceId"`
-	SelfID    string         `json:"selfId"`
-	Targets   []SpaceTarget  `json:"targets"`
-	Requests  []SpaceRequest `json:"requests"`
-	Total     int            `json:"total"`
-	Next      *int           `json:"nextOffset,omitempty"`
-	Brief     SpaceBrief     `json:"brief"`
-	Assistant SpaceAssistant `json:"assistant"`
+	InFlow    map[string]bool `json:"inFlow"`
+	Notes     []SpaceNote     `json:"notes"`
+	SpaceID   string          `json:"spaceId"`
+	SelfID    string          `json:"selfId"`
+	Targets   []SpaceTarget   `json:"targets"`
+	Requests  []SpaceRequest  `json:"requests"`
+	Total     int             `json:"total"`
+	Next      *int            `json:"nextOffset,omitempty"`
+	Brief     SpaceBrief      `json:"brief"`
+	Assistant SpaceAssistant  `json:"assistant"`
 }
 
 type targetPresence struct {
@@ -215,6 +223,7 @@ func (s *Session) workbenchRefsLocked(refs []LibraryReference) error {
 }
 
 func (s *Session) spaceTargetLocked(t SpaceTarget) SpaceTarget {
+	t.InFlow = s.record.Workbench.InFlow[inFlowRecipient(t.ID, t.ExecutionID)].Enabled && !t.Removed
 	t.Available, t.Reason = false, "接收端未连接"
 	if p, ok := s.workbenchPresence[t.ID]; ok && time.Since(p.At) < 20*time.Second {
 		t.Reason, t.Available = p.Reason, p.Reason == ""
@@ -231,6 +240,16 @@ func (s *Session) spaceTargetLocked(t SpaceTarget) SpaceTarget {
 func (s *Session) workbenchViewLocked(ctx context.Context, offset int) WorkbenchView {
 	b := s.record.Workbench
 	out := WorkbenchView{SpaceID: s.record.ID, SelfID: sharing.MemberID(ctx), Targets: []SpaceTarget{}, Requests: []SpaceRequest{}, Brief: b.Brief, Assistant: b.Assistant, Total: len(b.Requests)}
+	out.InFlow = map[string]bool{}
+	for key, pref := range b.InFlow {
+		out.InFlow[key] = pref.Enabled
+	}
+	out.Notes = []SpaceNote{}
+	for _, note := range b.Notes {
+		out.Notes = append(out.Notes, note)
+	}
+	sort.Slice(out.Notes, func(i, j int) bool { return out.Notes[i].CreatedAt.After(out.Notes[j].CreatedAt) })
+	out.Notes = out.Notes[:min(40, len(out.Notes))]
 	for _, target := range b.Targets {
 		out.Targets = append(out.Targets, s.spaceTargetLocked(target))
 	}
@@ -262,7 +281,7 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 	if s.closed || s.record.State == "unsupported" || s.space != nil || !s.callerValidLocked(ctx) {
 		return nil, fmt.Errorf("共享已结束或成员已移除")
 	}
-	if s.record.State == "ended" && op != "view" && op != "request" && op != "annotations" && op != "poll" && op != "receipt" && op != "finish" {
+	if s.record.State == "ended" && op != "view" && op != "request" && op != "annotations" && op != "poll" && op != "receipt" && op != "finish" && op != "connection-status" {
 		return nil, fmt.Errorf("空间已关闭，请重新开放后发起新的协作")
 	}
 	if in.Offset < 0 {
@@ -297,6 +316,18 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 	target := b.Targets[in.TargetID]
 	request, exists := b.Requests[in.RequestID]
 	owner := member == "owner" && actor.Kind == "human"
+	if op == "connection-status" {
+		if actor.Kind != "human" || target.ID == "" || target.MemberID != member || target.Removed {
+			return SpaceTarget{}, nil
+		}
+		return s.spaceTargetLocked(target), nil
+	}
+	if strings.HasPrefix(op, "inflow-") {
+		var mutation bool
+		out, mutation, err = s.inFlowOperationLocked(ctx, op, in, actor)
+		changed = changed || mutation
+		return out, err
+	}
 	for id, r := range b.Requests {
 		if r.State == "queued" && (now.Sub(r.CreatedAt) > 30*time.Second || s.record.State == "ended") {
 			r.State, r.Error, r.UpdatedAt = "failed", "接收端未及时接手或空间已关闭；请核对后明确新建请求", now
@@ -339,11 +370,12 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 			return nil, fmt.Errorf("接收会话信息无效")
 		}
 		if target.ID != "" {
-			if target.MemberID != member || target.Name != in.Name || target.Provider != in.Provider || target.ExecutionID != in.ExecutionID || target.Session != in.Session {
+			if target.MemberID != member || target.Provider != in.Provider || target.ExecutionID != in.ExecutionID || target.Session != in.Session {
 				return nil, fmt.Errorf("关联标识已使用，请重新关联")
 			}
-			if target.Removed {
+			if target.Removed || target.Name != in.Name {
 				target.Removed = false
+				target.Name = in.Name
 				b.Targets[target.ID], changed = target, true
 			}
 			return target, nil
@@ -363,6 +395,20 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 		}
 		target.Removed, target.Available = true, false
 		b.Targets[target.ID], changed = target, true
+		// Removing a personal association revokes its opt-in. An execution's
+		// independent comment opt-in survives removal of an optional alias.
+		if target.ExecutionID == "" {
+			key := inFlowRecipient(target.ID, "")
+			if pref, ok := b.InFlow[key]; ok {
+				pref.Enabled = false
+				b.InFlow[key] = pref
+			}
+			for token, lease := range s.inFlowLeases {
+				if lease.Recipient == key {
+					delete(s.inFlowLeases, token)
+				}
+			}
+		}
 		for id, r := range b.Requests {
 			if r.TargetID == target.ID && r.State == "queued" {
 				r.State, r.Error, r.UpdatedAt = "cancelled", "接收会话已解除关联", now
@@ -382,6 +428,10 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 			t := b.Targets[id]
 			if t.ID != "" && t.MemberID == member && !t.Removed {
 				s.workbenchPresence[id] = targetPresence{At: now, Reason: shortText(reason, 300)}
+				if name := strings.TrimSpace(in.TargetNames[id]); actor.Kind == "human" && name != "" && len([]rune(name)) <= 80 && name != t.Name {
+					t.Name = name
+					b.Targets[id], changed = t, true
+				}
 			}
 		}
 		pending := []SpaceRequest{}

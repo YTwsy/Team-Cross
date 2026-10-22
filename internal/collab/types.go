@@ -197,6 +197,7 @@ func (d *direct) close() { d.once.Do(func() { close(d.done) }) }
 // Space and its executions share a short-lived state lock. Provider calls never
 // hold it; runtime state, writers, command ledgers and clients remain independent.
 type Session struct {
+	inFlowLeases      map[string]inFlowLease
 	space             *Session
 	executions        map[string]*Session
 	workbenchPresence map[string]targetPresence

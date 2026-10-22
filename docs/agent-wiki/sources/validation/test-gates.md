@@ -38,6 +38,10 @@ go build -o bin/teamcross ./cmd/teamcross
 
 ## 现有自动化入口
 
+顺流感知变更运行 [Core 分发回归](../../../../internal/collab/inflow_test.go)、[MCP 输出边界](../../../../internal/mcp/inflow_test.go)、[Hook CLI](../../../../cmd/teamcross/inflow_test.go) 和 [界面交互](../../../../packages/web/src/test/inflow.test.tsx)。核对首次开启基线、准确会话/空间/成员范围、评论回复版本、本人请求结果、定向留言、跨 Core、撤销后拒绝、重启去重、并发租约及失败输出不记已投递。普通讨论和材料评论不能因可读而自动广播。
+
+真实 Codex 接入使用 `scripts/verify-inflow.py --fixture-dir <全新目录> --teamcross-bin <当前二进制> --codex-bin <原生 CLI>`：脚本仅使用 `gpt-5.6-luna`，创建隔离 home/仓库/Core 和两个 fork，分别验证受限模式的一次 MCP 调用与信任模式的 UserPromptSubmit Hook。通过标准是模型返回只存在于评论中的随机标记，落盘投递版本为 1；Hook 场景不能调用 MCP。原生信任审阅只针对 fixture 创建的精确 Hook，不修改个人配置；退出关闭所建客户端和 Core。此脚本不证明 Claude、插件自动加载、Desktop 或两台 Mac。
+
 Core 升级相关变更另运行 `scripts/verify-core-upgrade.py`：指定旧、新及下一构建的二进制、真实 Codex CLI 与全新输出目录；三个构建使用不同 commit、相同版本号以覆盖开发包。检查旧插件先启动、并发升级、仍存活的旧 MCP 再次启动、新 App 替换后未同步插件、磁盘构建比较、原地址/启动参数与数据保留、源安装缺失和未完成投递延后。隔离 Core/stdio 的行为证据不等于真实模型或桌面面板验收；脚本退出关闭自身进程。
 
 | 文件 | 重点覆盖 |

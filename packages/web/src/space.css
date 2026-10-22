@@ -2164,3 +2164,31 @@
   margin: 0 0 16px;
   overflow-wrap: anywhere;
 }
+/* Passive context controls share the existing session and comment surfaces. */
+.inflow-control {
+  display: grid;
+  gap: 4px;
+  max-width: 300px;
+}
+.inflow-control label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.inflow-control input {
+  width: auto;
+  margin: 0;
+}
+.inflow-notes {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+.inflow-notes article {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  overflow-wrap: anywhere;
+}
+.inflow-notes p {
+  white-space: pre-wrap;
+}

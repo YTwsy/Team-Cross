@@ -120,7 +120,7 @@ func (a *App) workbenchHTTP(w http.ResponseWriter, r *http.Request, path string)
 	switch op {
 	case "register":
 		out, err = a.registerSpacePairing(r.Context(), id, in.PairingID)
-	case "send", "brief", "assistant", "cancel", "remove":
+	case "send", "brief", "assistant", "cancel", "remove", "inflow-config", "inflow-note", "inflow-note-read":
 		out, err = a.workbenchCall(r.Context(), id, op, in)
 	case "create-receiver":
 		out, err = a.createSpaceReceiver(r.Context(), id, in.RequestID, in.Name)
@@ -187,6 +187,7 @@ func (a *App) pumpWorkbench(ctx context.Context) {
 	a.agentMu.Lock()
 	pairs := libraryClone(a.agents.Pairings)
 	a.agentMu.Unlock()
+	a.refreshLegacyAgentNames(ctx, pairs)
 	spaces := map[string]map[string]AgentPairing{}
 	for _, p := range pairs {
 		for id, target := range p.Links {
@@ -201,7 +202,9 @@ func (a *App) pumpWorkbench(ctx context.Context) {
 			return
 		}
 		presence := map[string]string{}
+		names := map[string]string{}
 		for target, p := range targets {
+			names[target] = p.Name
 			reason := ""
 			if p.State == "linked" {
 				reason = "已关联空间，尚未接通主动接收"
@@ -230,7 +233,7 @@ func (a *App) pumpWorkbench(ctx context.Context) {
 			presence[target] = reason
 		}
 		pollCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
-		raw, err := a.workbenchCall(pollCtx, id, "poll", workbenchInput{Presence: presence})
+		raw, err := a.workbenchCall(pollCtx, id, "poll", workbenchInput{Presence: presence, TargetNames: names})
 		cancel()
 		if err != nil {
 			continue

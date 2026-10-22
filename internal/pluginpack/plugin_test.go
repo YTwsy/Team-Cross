@@ -58,6 +58,37 @@ func TestExportUpgradeHasStableRuntimeAndPreservesOtherFiles(t *testing.T) {
 	}
 }
 
+func TestExportInFlowHookPreservesQuotedPaths(t *testing.T) {
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "fixture-cli")
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	dataDir := filepath.Join(dir, "member's data $literal")
+	p, err := Export(filepath.Join(dir, "member's plugin"), binary, dataDir, "fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := os.ReadFile(filepath.Join(p.Root, "plugins/teamcross/hooks/hooks.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config struct {
+		Hooks map[string][]struct {
+			Hooks []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(encoded, &config); err != nil || len(config.Hooks["UserPromptSubmit"]) != 1 || len(config.Hooks["UserPromptSubmit"][0].Hooks) != 1 {
+		t.Fatal(string(encoded), err)
+	}
+	out, err := exec.Command("/bin/sh", "-c", config.Hooks["UserPromptSubmit"][0].Hooks[0].Command).Output()
+	if err != nil || string(out) != "inflow-hook\n--provider\ncodex\n--data-dir\n"+dataDir+"\n" {
+		t.Fatal(string(out), err)
+	}
+}
+
 func TestRuntimeBootstrapFollowsInstallationWithoutResync(t *testing.T) {
 	dir := t.TempDir()
 	binary := filepath.Join(dir, "Team Cross's App", "teamcross")

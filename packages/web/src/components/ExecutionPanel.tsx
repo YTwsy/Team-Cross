@@ -21,6 +21,7 @@ import {
   useSpaceWorkbench,
 } from "./SpaceWorkbench";
 import { SpaceAvatar } from "./SpaceIdentity";
+import { InFlowControl } from "./InFlow";
 
 // A visited pane remains mounted when selecting a sibling. Its comment drafts,
 // history cursor, file path and reading state belong to this execution alone.
@@ -276,6 +277,16 @@ export function ExecutionPanel({
         />
       </div>
       <SpaceSessionComments active={active}>
+        {c.executionId && workbench?.view && (
+          <InFlowControl
+            spaceId={space.id}
+            executionId={c.executionId}
+            enabled={!!workbench.view.inFlow?.[`execution:${c.executionId}`]}
+            canConfigure={owner}
+            disabled={closed}
+            onChanged={workbench.reload}
+          />
+        )}
         <p className="space-comment-scope">
           {c.title} · {t("全体成员可读")}
         </p>
