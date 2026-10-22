@@ -21,6 +21,8 @@
 本轮不证明 Claude Hook、插件 Hook 的原生自动加载、Desktop/Cloud 宿主或两台 Mac 已验收。插件包导出及命令引号有自动化检查；没有可用 Hook 或 MCP 交互时不会即时投递。当前行为见 [顺流感知契约](../decisions/in-flow-awareness.md)。
 ## 本机数字分身
 
+本地安装包 `0.2.6-dev.local-shadow.20261022` 来源为干净合并提交 `8cae276`：DMG/CLI/App 完整性、真实 App 生命周期及隔离 Core 升级通过；附加 Homebrew 配方测试超时，未完成全部安装链。详见[Meta 安装包记录](../../tasks/2026-10-21-local-shadow-design/implementation.md#meta-安装包2026-10-22)。ad-hoc 签名、未公证、未公开发布。
+
 2026-10-22 合入 `Meta` 时补齐分身草稿与插件更新、分身活动与 Core 升级保护的集成；合并后的 Go test/vet、相关 race、Web 204 项与两套构建通过，见[合并回归记录](../../tasks/2026-10-21-local-shadow-design/implementation.md#合入-meta-与集成回归2026-10-22)。本轮没有扩大真实模型、跨 Mac 或插件宿主界面的验收范围。
 
 2026-10-21，`codex/meta-to-main-20261021` / `4d33a78` 加本任务实现：Core 状态、共享传输、MCP 和 Web 回归通过，实际浏览器复核聊天输入、记忆与运行状态。Codex CLI `0.163.0-alpha.11`、`gpt-5.6-luna` 的专用真实会话验证配置/MCP 继承、主会话与独立 W 同时执行、CM、原生压缩、S1 → S2 后晚到结果、记忆纠正/忘掉与准确 thread 恢复。单 Mac 三 Core / TLS 验证全体成员共享历史、持久送达、同 ID 去重、离线失败不自动重发、Core 重启后手动重发与 stdio MCP 读取。

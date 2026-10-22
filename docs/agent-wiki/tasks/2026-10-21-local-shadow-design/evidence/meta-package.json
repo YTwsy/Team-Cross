@@ -1,0 +1,141 @@
+{
+  "date": "2026-10-22",
+  "manifest": {
+    "version": "0.2.6-dev.local-shadow.20261022",
+    "commit": "8cae2766d14faff91f9177632118b112a4718ee2",
+    "buildNumber": "183",
+    "dirty": false,
+    "architecture": "arm64",
+    "minimumMacOS": "14.0",
+    "developerIDSigned": false,
+    "notarized": false,
+    "artifacts": {
+      "teamcross-0.2.6-dev.local-shadow.20261022-darwin-arm64.tar.gz": "1098b8efbc41e9f47c8e8ce3e816daad3df8fb602696bd41b4ecf7f9cfd237ac",
+      "Team-Cross-0.2.6-dev.local-shadow.20261022-arm64.dmg": "e0203a24db72820c1236339c8c1d050077033c99ca5048725a407728759a99c6"
+    }
+  },
+  "mergeParents": [
+    "447cca5b01528e92d307f306a0217c2a81543a93",
+    "80eb86b3c7e2ccf13c1ba0bf9bed34afb70ce90e"
+  ],
+  "engineering": {
+    "goTest": true,
+    "goVet": true,
+    "racePackages": [
+      "shadow",
+      "collab",
+      "mcp",
+      "mcpevents",
+      "sharing",
+      "nativecodex",
+      "nativeclaude",
+      "service",
+      "cliinstall",
+      "pluginpack"
+    ],
+    "webCheck": true,
+    "translatedMessages": 1146,
+    "webTestFiles": 22,
+    "webTests": 204,
+    "webBuildBothEmbeds": true
+  },
+  "lifecycle": {
+    "singleInstance": true,
+    "canonicalPath": true,
+    "defaultPortFallback": true,
+    "explicitPortConflict": true,
+    "authenticatedStop": true,
+    "mcpLazyStart": true,
+    "unresponsiveCoreNoRespawn": true,
+    "crashRecovery": true,
+    "dataPreserved": true
+  },
+  "appInstance": {
+    "concurrentAppCopies": true,
+    "canonicalDataDirectory": true,
+    "homeForwarded": true,
+    "invitationBatchesForwardedOnce": true,
+    "receiptRetryDeduplicated": true,
+    "invalidRequestsRejected": true,
+    "unresponsiveOwnerRecovery": true,
+    "reopenExistingApp": true,
+    "independentDataDirectories": true,
+    "secondaryExitPreservesCore": true,
+    "shellCrashRecovery": true,
+    "explicitQuitStopsCore": true,
+    "dataPreserved": true,
+    "pluginOptInRequired": true,
+    "pluginStartupSync": false,
+    "pluginFollowsAppCore": false,
+    "realCodexOrLAN": false
+  },
+  "releaseVerification": {
+    "checksums": true,
+    "dmgInstall": true,
+    "appIcon": true,
+    "appSignatureIntegrity": true,
+    "cliAppVersionParity": true,
+    "appSingleInstance": true,
+    "appCLIInstallAndRemove": true,
+    "existingCommandPreserved": true,
+    "compatibleCoreReuse": true,
+    "publicInstallation": false
+  },
+  "coreUpgrade": {
+    "oldBuild": {
+      "commit": "ae66ff6906fada7fb480c9fa47873103ddc21768",
+      "protocol": 1,
+      "version": "0.2.6-dev.upgrade-check"
+    },
+    "newBuild": {
+      "commit": "08105e67915ab0e54e4bfd5ab4c068318eddad60",
+      "protocol": 1,
+      "version": "0.2.6-dev.upgrade-check"
+    },
+    "nextBuild": {
+      "commit": "8cae2766d14faff91f9177632118b112a4718ee2",
+      "protocol": 1,
+      "version": "0.2.6-dev.upgrade-check"
+    },
+    "legacyCodexError": "Codex 路径不可用",
+    "recoveredCodexVersion": "codex-cli 0.163.0-alpha.11",
+    "sameVersionDifferentCommit": true,
+    "legacyPluginFirst": true,
+    "concurrentUpgrade": true,
+    "sameBrowserAddress": true,
+    "residentLegacyMCP": true,
+    "oldCoreResurrectionPrevented": true,
+    "futureAppReplacementWithoutPluginSync": true,
+    "residentMCPUsesDiskBuild": true,
+    "missingInstallationFailsClosed": true,
+    "outstandingDeliveryDefersUpgrade": true,
+    "unknownReceiptDoesNotBlockUpgrade": true,
+    "unknownReceiptPreserved": true,
+    "dataPreserved": true,
+    "startupOptionsPreserved": true,
+    "upgradeIdentityAndAuth": true,
+    "modelInvoked": false
+  },
+  "homebrew": {
+    "status": "incomplete",
+    "nativeArchitecture": "arm64",
+    "isolatedFormulaInstall": true,
+    "formulaTest": "timed out after 90 seconds",
+    "caskInstallAndUpgrade": "not reached",
+    "publicInstallation": false
+  },
+  "verificationNotes": [
+    "Initial App test driver Swift compilation exceeded the 30 second fixture timeout. Compiled the same driver into the existing module cache, then reran the unchanged release verifier successfully.",
+    "First Homebrew attempt used a translated x86_64 Python process and failed the arm64 requirement. Retried with the native arm64 Python executable; Formula install succeeded but brew test timed out. No Homebrew pass is claimed."
+  ],
+  "scope": {
+    "localDMG": true,
+    "developerIDSigned": false,
+    "notarized": false,
+    "remotePush": false,
+    "releasePublished": false,
+    "userInstallationReplaced": false,
+    "newModelTurns": false,
+    "crossMacTest": false
+  }
+}
