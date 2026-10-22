@@ -50,7 +50,7 @@ def run(args):
     (root / "fixture-mcp.py").write_text(MCP)
     (root / "repo" / "worker-evidence.txt").write_text("WORKER_EVIDENCE_MARKER: isolated fixture evidence, preserved across S1 to S2.\n")
     (home / "config.toml").write_text(
-        'model = "gpt-5.6-luna"\nmodel_reasoning_effort = "low"\napproval_policy = "on-request"\nsandbox_mode = "workspace-write"\n'
+        'model = "gpt-5.6-luna"\nmodel_reasoning_effort = "medium"\napproval_policy = "on-request"\nsandbox_mode = "workspace-write"\n'
         'developer_instructions = "Append INHERITED_CONFIG_MARKER to ordinary final member replies. Do not append it to structured JSON, handoff checkpoints or HANDOFF_READY bootstrap acknowledgements."\n'
         '[mcp_servers.shadow_fixture]\ncommand = ' + json.dumps(sys.executable) + '\nargs = [' + json.dumps(str(root / "fixture-mcp.py")) + ']\ntool_timeout_sec = 240\n'
     )

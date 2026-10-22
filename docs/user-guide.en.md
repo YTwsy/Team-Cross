@@ -299,7 +299,7 @@ Left-click the menu bar icon to open the collaboration quick view, or press `Con
 
 ## Local digital shadows (current development build)
 
-Open **Local digital shadows** in a space and choose **Create my shadow**. Enter a name and a local working directory. The first version uses local Codex with its configured model, sign-in, permissions, hooks, plugins, MCP and native memory. Existing personal chats are not imported. The owner's Mac must keep Core running; all space members share the same conversation.
+Open **Local digital shadows** in a space and choose **Create my shadow**. Enter a name and a local working directory, then choose a model and reasoning effort from local Codex. Current settings are prefilled. Choose once: chats, new segments, background tasks and restarts keep that selection, with no per-message selector. The first version uses local Codex with its sign-in, permissions, hooks, plugins, MCP and native memory. Existing personal chats are not imported. The owner's Mac must keep Core running; all space members share the same conversation.
 
 Ask questions and follow up naturally without choosing a topic or session. Delegate longer work in the background and continue chatting. **Memories and tasks** shows progress, personal ownership and unconfirmed memory candidates. Ask the shadow to remember, correct or forget information. Forgetting stops using it as active memory; the original conversation and native history remain.
 

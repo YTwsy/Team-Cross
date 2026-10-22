@@ -1,0 +1,11 @@
+{
+  "scope": "one Mac, three Cores, TLS member transport, new native Codex shadow",
+  "model": "gpt-5.6-luna",
+  "allMembersShareAuthoredHistory": true,
+  "durableReceiptAndSameIdDeduplication": true,
+  "launchSettingsSurviveChangedDefaultsAndCoreRestart": true,
+  "offlineManualRetryOnly": true,
+  "exactNativeThreadAndMemoryAfterCoreRestart": true,
+  "nativeThread": "01a162cf-9db2-7ad3-934a-6cee53d541fa",
+  "stdioMCPSharedRead": true
+}

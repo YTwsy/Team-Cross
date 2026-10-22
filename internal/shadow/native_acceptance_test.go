@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,10 +27,20 @@ func TestNativeShadowAcceptance(t *testing.T) {
 	if err != nil || !strings.Contains(string(config), `model = "gpt-5.6-luna"`) {
 		t.Fatal("fixture must explicitly select gpt-5.6-luna")
 	}
+	var confirmationsMu sync.Mutex
+	confirmations := []map[string]any{}
 	cfg := Config{Directory: filepath.Join(root, "engine"), IdleMemoryDelay: time.Hour, Start: func(ctx context.Context, h, c, l string) (Runtime, error) {
-		return nativecodex.StartWithMode(ctx, binary, h, c, l, runtimeconfig.Trusted)
+		p, err := nativecodex.StartWithMode(ctx, binary, h, c, l, runtimeconfig.Trusted)
+		if err != nil {
+			return nil, err
+		}
+		return &settingsAuditRuntime{Runtime: p, record: func(value map[string]any) {
+			confirmationsMu.Lock()
+			defer confirmationsMu.Unlock()
+			confirmations = append(confirmations, value)
+		}}, nil
 	}}
-	e, err := New(cfg, uuid.NewString(), "native-acceptance", "Fixture shadow", home, cwd, Actor{ID: "owner", Name: "Owner"})
+	e, err := New(cfg, uuid.NewString(), "native-acceptance", "Fixture shadow", home, cwd, Actor{ID: "owner", Name: "Owner"}, ModelSettings{Model: "gpt-5.6-luna", ModelProvider: "openai", ReasoningEffort: "low"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +71,7 @@ func TestNativeShadowAcceptance(t *testing.T) {
 			}
 			v := e.View()
 			if v.Error != "" {
-				t.Fatalf("%s: %s", label, v.Error)
+				t.Fatalf("%s: %s", label, e.DiagnosticError())
 			}
 			time.Sleep(150 * time.Millisecond)
 		}
@@ -96,6 +107,12 @@ func TestNativeShadowAcceptance(t *testing.T) {
 	v := e.View()
 	if v.Model != "gpt-5.6-luna" || len(v.Memories) != 1 || v.Memories[0].SubjectID != "B" {
 		t.Fatal(v)
+	}
+	if v.ReasoningEffort != "low" || v.Settings.ReasoningEffort != "low" {
+		t.Fatal("launch effort not confirmed", v)
+	}
+	if err = os.WriteFile(filepath.Join(home, "config.toml"), []byte(strings.ReplaceAll(string(config), `model_reasoning_effort = "medium"`, `model_reasoning_effort = "high"`)), 0600); err != nil {
+		t.Fatal(err)
 	}
 	first := v.Current
 	// The worker stays alive through a main turn and handoff, then the fixture
@@ -194,7 +211,58 @@ func TestNativeShadowAcceptance(t *testing.T) {
 	e.mu.Unlock()
 	e.notify()
 	wait("idle memory watermark advanced", func() bool { e.mu.Lock(); defer e.mu.Unlock(); return e.record.MemoryWatermark > 0 })
-	if err := writeAtomic(filepath.Join(root, "report.json"), map[string]any{"model": v.Model, "provider": v.ModelProvider, "reasoningEffort": v.ReasoningEffort, "firstSegment": first, "currentSegment": v.Current, "workerThread": worker.ThreadID, "configurationAndMCPInherited": true, "mainResponsiveWhileWorkerRan": true, "nativeContextSteward": true, "segmentHandoff": true, "lateWorkerResult": true, "memoryCorrectionAndForget": true, "exactThreadResume": true, "idleMemoryConsolidation": true}); err != nil {
+	confirmationsMu.Lock()
+	audit := clone(confirmations)
+	confirmationsMu.Unlock()
+	starts, resumes := map[string]bool{}, map[string]bool{}
+	for _, got := range audit {
+		if got["method"] == "thread/start" {
+			starts[got["thread"].(string)] = true
+		} else {
+			resumes[got["thread"].(string)] = true
+		}
+	}
+	kinds := map[string]bool{}
+	e.mu.Lock()
+	runs := clone(e.record.Runs)
+	e.mu.Unlock()
+	for _, run := range runs {
+		if starts[run.ThreadID] {
+			kinds[run.Kind] = true
+		}
+	}
+	for _, kind := range []string{"main", "job", "steward", "memory", "bootstrap"} {
+		if !kinds[kind] {
+			t.Fatal("missing setting confirmation for", kind, audit)
+		}
+	}
+	if !resumes[before] {
+		t.Fatal("missing exact S2 resume confirmation", audit)
+	}
+	for _, got := range audit {
+		if got["model"] != "gpt-5.6-luna" || got["modelProvider"] != "openai" || got["reasoningEffort"] != "low" {
+			t.Fatal("settings drifted", got)
+		}
+	}
+	if err := writeAtomic(filepath.Join(root, "settings-confirmations.json"), audit); err != nil {
 		t.Fatal(err)
 	}
+	if err := writeAtomic(filepath.Join(root, "report.json"), map[string]any{"launchSettingsPinnedAcrossAllThreadsAndRestart": true, "settingsConfirmations": len(audit), "model": v.Model, "provider": v.ModelProvider, "reasoningEffort": v.ReasoningEffort, "firstSegment": first, "currentSegment": v.Current, "workerThread": worker.ThreadID, "configurationAndMCPInherited": true, "mainResponsiveWhileWorkerRan": true, "nativeContextSteward": true, "segmentHandoff": true, "lateWorkerResult": true, "memoryCorrectionAndForget": true, "exactThreadResume": true, "idleMemoryConsolidation": true}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Record native responses, not just our requested parameters.
+type settingsAuditRuntime struct {
+	Runtime
+	record func(map[string]any)
+}
+
+func (p *settingsAuditRuntime) Call(ctx context.Context, method string, params, out any) error {
+	err := p.Runtime.Call(ctx, method, params, out)
+	if err == nil && (method == "thread/start" || method == "thread/resume") {
+		value := cloneMap(out)
+		p.record(map[string]any{"method": method, "thread": value["thread"].(map[string]any)["id"], "model": value["model"], "modelProvider": value["modelProvider"], "reasoningEffort": value["reasoningEffort"]})
+	}
+	return err
 }

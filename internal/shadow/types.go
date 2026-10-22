@@ -23,7 +23,7 @@ type Config struct {
 	Directory string
 	Start     func(context.Context, string, string, string) (Runtime, error)
 	// Timing and budget knobs are injectable for deterministic replay; the
-	// production adapter leaves model selection to the native configuration.
+	// production adapter pins the model settings chosen when creating a shadow.
 	CheckRatio       float64
 	IdleMemoryDelay  time.Duration
 	MaxBackground    int
@@ -144,6 +144,7 @@ type Decision struct {
 }
 
 type Record struct {
+	Settings        ModelSettings              `json:"settings"` // Immutable launch settings; fields below are runtime observations.
 	Model           string                     `json:"model,omitempty"`
 	ModelProvider   string                     `json:"modelProvider,omitempty"`
 	ReasoningEffort string                     `json:"reasoningEffort,omitempty"`
@@ -177,23 +178,24 @@ type Record struct {
 // View is safe to replicate to the space host: native configuration paths,
 // permissions requests and tool ledgers remain on the executing member's Core.
 type View struct {
-	Model           string    `json:"model,omitempty"`
-	ModelProvider   string    `json:"modelProvider,omitempty"`
-	ReasoningEffort string    `json:"reasoningEffort,omitempty"`
-	ID              string    `json:"id"`
-	SpaceID         string    `json:"spaceId"`
-	Name            string    `json:"name"`
-	Owner           Actor     `json:"owner"`
-	Revision        int       `json:"revision"`
-	Enabled         bool      `json:"enabled"`
-	Online          bool      `json:"online"`
-	Busy            bool      `json:"busy"`
-	Current         string    `json:"current"`
-	Segments        []Segment `json:"segments"`
-	Messages        []Message `json:"messages"`
-	Memories        []Memory  `json:"memories"`
-	Jobs            []Job     `json:"jobs"`
-	Error           string    `json:"error,omitempty"`
+	Settings        ModelSettings `json:"settings"` // Immutable launch settings; fields below are runtime observations.
+	Model           string        `json:"model,omitempty"`
+	ModelProvider   string        `json:"modelProvider,omitempty"`
+	ReasoningEffort string        `json:"reasoningEffort,omitempty"`
+	ID              string        `json:"id"`
+	SpaceID         string        `json:"spaceId"`
+	Name            string        `json:"name"`
+	Owner           Actor         `json:"owner"`
+	Revision        int           `json:"revision"`
+	Enabled         bool          `json:"enabled"`
+	Online          bool          `json:"online"`
+	Busy            bool          `json:"busy"`
+	Current         string        `json:"current"`
+	Segments        []Segment     `json:"segments"`
+	Messages        []Message     `json:"messages"`
+	Memories        []Memory      `json:"memories"`
+	Jobs            []Job         `json:"jobs"`
+	Error           string        `json:"error,omitempty"`
 }
 
 type Approval struct {

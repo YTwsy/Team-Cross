@@ -109,3 +109,21 @@ DMG：`Team-Cross-0.2.6-dev.local-shadow.20261022-arm64.dmg`；SHA-256：`e0203a
 - 附加 Homebrew 检查**未完成**：首次翻译执行的 Python 触发 arm64 要求；改用明确的 arm64 Python 后，隔离 Formula 安装成功，`brew test` 在 90 秒上限超时，未进入后续 Cask/升级/卸载验证，不记为完整 Homebrew 通过。脚本的 finally 路径清理已安装的临时 Formula 与测试目录。
 
 这些结果证明本次本地 DMG 及所列隔离流程，不代表公开 Homebrew、Gatekeeper 首次批准、Apple 公证、新增模型行为或跨 Mac 验收。构建来源仍为上述合并提交；后续记录提交仅保存验证结果。
+
+
+## 分身启动模型选择（2026-10-22）
+
+在 `Meta` / `1a73c1b` 基础实现一次性模型和推理强度选择。启动表单按本机有效工作目录读取原生配置和模型目录，预填当前设置；每模型推理选项来自原生元数据。已配置但没有能力目录的自定义模型保持可选，需要明确填写推理强度，不推定第三方调用已验收。Provider 标识保留原生路由，未修改个人配置或账户。
+
+持久 `settings` 和运行时确认值分开保存。S1/S2/W/CM/M 创建、准确 thread 恢复、后续 turn 都显式沿用所选设置；原生返回不一致时保留 ID 并暂停。创建回执丢失后手动重试完整原请求，跨插件更新保留草稿；旧客户端对已存在 ID 的无 settings 重试只读取原记录，新建仍要求选择。
+
+验证结果：
+
+- 完整 `go test ./...`、`go vet ./...` 与 `shadow/collab/mcp` race 通过。
+- Web check、22 个测试文件共 205 项通过；WebGUI 和插件面板两套嵌入资源已更新。
+- 原生验收使用 Codex CLI `0.163.0-alpha.11`，只调用 `gpt-5.6-luna`。测试 home 初始默认 medium，分身选择 low；首轮后改默认为 high，随后 S2、W、CM、M 和重启均返回 low。原生报告见 [native](evidence/model-settings-native.json)，6 次实际 thread 创建/恢复确认值见 [confirmations](evidence/model-settings-confirmations.json)。同时完成原生压缩/换段、W 跨段结果、记忆纠正和忘掉、同一 ID 恢复及整理水位。
+- 单 Mac 三 Core、真实 TLS 与 stdio MCP 验收通过，见 [core](evidence/model-settings-core.json)。本机模型目录初始预填 medium，选择 low；Core 重启前修改默认为 high，旧分身仍为 low，保留准确 thread、成员记忆和手动同 ID 重发语义。
+- Edge 真实浏览器使用 production 资源，核对创建选项预填、选择 low、创建成功、首条消息前“等待原生确认”、发送后 `UI_MODEL_SETTINGS_OK` 与原生确认 low、聊天无逐消息选择，以及 1440/1024/768 窗口与浅/深色截图。截图只保留于工作树本地 `output/playwright/shadow-model-20261022/`，未发布。
+- 真实 API 首次发现 `model/list` 拒绝空字符串 cursor，已修正为首请求省略 cursor，并补充回归。首次原生验收最后的会话数量断言误计为 7（实际是 5 个 thread 加 1 次恢复）；改为按 main/job/steward/memory/bootstrap 的 ID 覆盖及准确 S2 恢复核对，新的独立 fixture 全程通过。
+
+测试目录分别为 `/private/tmp/teamcross-shadow-model-native-20261022-r2` 和 `/private/tmp/teamcross-shadow-model-core-20261022-r2`。仅验证该 Mac 上的 Codex/Luna；未扩展到第三方模型、其他 Harness、两台 Mac 或 ChatGPT 插件宿主的真实界面。本次浏览器与三 Core 已按各自精确归属退出；保留测试记录。安装包来源和验证结果另附在本节下方。

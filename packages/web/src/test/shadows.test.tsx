@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { SpaceShadows } from "../components/SpaceShadows";
-import type { Shadow } from "../shadows";
+import type { Shadow, ShadowSettings } from "../shadows";
 import {
   beginRefreshState,
   endRefreshState,
@@ -13,7 +13,12 @@ import {
 let shadow: Shadow;
 let sent: { shadowId: string; message: { id: string; text: string } }[];
 let lose: boolean;
-let created: { requestId: string; name: string; cwd: string }[];
+let created: {
+  requestId: string;
+  name: string;
+  cwd: string;
+  settings: ShadowSettings;
+}[];
 let paths: string[];
 beforeEach(() => {
   window.localStorage.clear();
@@ -48,6 +53,34 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       paths.push(url);
+      if (url.includes("/models?"))
+        return {
+          ok: true,
+          json: async () => ({
+            defaults: {
+              model: "native-default",
+              modelProvider: "fixture",
+              reasoningEffort: "low",
+            },
+            models: [
+              {
+                model: "native-default",
+                displayName: "Native default",
+                defaultReasoningEffort: "low",
+                supportedReasoningEfforts: [
+                  { reasoningEffort: "low" },
+                  { reasoningEffort: "high" },
+                ],
+              },
+              {
+                model: "other-model",
+                displayName: "Other model",
+                defaultReasoningEffort: "medium",
+                supportedReasoningEfforts: [{ reasoningEffort: "medium" }],
+              },
+            ],
+          }),
+        };
       if (url.endsWith("/create")) {
         created.push(JSON.parse(String(init?.body)));
         throw new TypeError("lost create response");
@@ -190,10 +223,19 @@ it("restores an uncertain creation with the same request id and only retries on 
   await user.click(screen.getByRole("button", { name: "创建我的分身" }));
   await user.type(screen.getByLabelText("分身名称"), "我的分身");
   await user.type(screen.getByLabelText("工作目录"), "/fixture/project");
+  await waitFor(() =>
+    expect(screen.getByLabelText("模型")).toHaveValue("native-default"),
+  );
+  await user.selectOptions(screen.getByLabelText("推理强度"), "high");
   await user.click(screen.getByRole("button", { name: "创建分身" }));
   await screen.findByRole("alert");
   expect(created).toHaveLength(1);
-  const original = created[0];
+  const original = created[0]!;
+  expect(original.settings).toEqual({
+    model: "native-default",
+    modelProvider: "fixture",
+    reasoningEffort: "high",
+  });
   const saved = captureRefreshState();
   first.unmount();
   endRefreshState();
@@ -202,8 +244,31 @@ it("restores an uncertain creation with the same request id and only retries on 
   expect(await screen.findByLabelText("分身名称")).toHaveValue("我的分身");
   expect(screen.getByLabelText("工作目录")).toHaveValue("/fixture/project");
   expect(screen.getByLabelText("工作目录")).toBeDisabled();
+  expect(screen.getByLabelText("模型")).toHaveValue("native-default");
+  expect(screen.getByLabelText("推理强度")).toHaveValue("high");
+  expect(screen.getByLabelText("模型")).toBeDisabled();
   expect(created).toEqual([original]);
   await user.click(screen.getByRole("button", { name: "核对并重试创建" }));
   await screen.findByRole("alert");
   expect(created).toEqual([original, original]);
+});
+
+it("uses per-model effort capabilities and invalidates the catalog when cwd changes", async () => {
+  const user = userEvent.setup();
+  render(<SpaceShadows spaceId="space" disabled={false} />);
+  await user.click(screen.getByRole("button", { name: "创建我的分身" }));
+  await user.type(screen.getByLabelText("分身名称"), "选择一次");
+  await user.type(screen.getByLabelText("工作目录"), "/fixture");
+  await waitFor(() =>
+    expect(screen.getByLabelText("模型")).toHaveValue("native-default"),
+  );
+  await user.selectOptions(screen.getByLabelText("推理强度"), "high");
+  await user.selectOptions(screen.getByLabelText("模型"), "other-model");
+  expect(screen.getByLabelText("推理强度")).toHaveValue("medium");
+  expect(
+    screen.queryByRole("option", { name: "high" }),
+  ).not.toBeInTheDocument();
+  await user.clear(screen.getByLabelText("工作目录"));
+  expect(screen.getByRole("button", { name: "创建分身" })).toBeDisabled();
+  expect(created).toHaveLength(0);
 });

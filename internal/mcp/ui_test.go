@@ -280,6 +280,7 @@ func TestUIWebGUIRoutesKeepNativeShapeAndSeparateWrites(t *testing.T) {
 		{"space-receivers/receiver/action", map[string]any{"action": "start"}, true},
 		{"space-receivers/receiver/respond", map[string]any{"id": "approval", "result": map[string]any{"decision": "decline"}}, true},
 		{"collaborations/a/shadows/view?shadowId=b&offset=100", nil, false},
+		{"collaborations/a/shadows/models?cwd=%2Ffixture", nil, false},
 		{"shadows/b/local", nil, false},
 		{"collaborations/a/shadows/create", map[string]any{"requestId": "fixed"}, true},
 		{"collaborations/a/shadows/send", map[string]any{"shadowId": "b"}, true},
@@ -305,7 +306,7 @@ func TestUIWebGUIRoutesKeepNativeShapeAndSeparateWrites(t *testing.T) {
 		"collaborations/a/workbench/send?requestId=fixed", "space-receivers?spaceId=a&spaceId=b",
 		"space-receivers/receiver/rpc", "space-receivers/receiver/events?after=0",
 		"collaborations/a/shadows/sync", "collaborations/a/shadows/register", "collaborations/a/shadows/check",
-		"collaborations/a/shadows/view?shadowId=b&shadowId=c", "shadows/b/rpc", "shadows/b/local?token=secret",
+		"collaborations/a/shadows/view?shadowId=b&shadowId=c", "shadows/b/rpc", "shadows/b/local?token=secret", "collaborations/a/shadows/models?cwd=%2Ffixture&token=secret",
 	} {
 		for _, write := range []bool{false, true} {
 			for _, body := range []any{nil, map[string]any{}} {

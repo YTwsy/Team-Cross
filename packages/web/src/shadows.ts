@@ -8,7 +8,26 @@ export type ShadowMessage = {
   receivedAt?: string;
   error?: string;
 };
+export type ShadowSettings = {
+  model: string;
+  modelProvider: string;
+  reasoningEffort: string;
+};
+export type ShadowModels = {
+  defaults: ShadowSettings;
+  models: {
+    model: string;
+    displayName: string;
+    defaultReasoningEffort: string;
+    supportedReasoningEfforts: {
+      reasoningEffort: string;
+      description: string;
+    }[];
+    custom?: boolean;
+  }[];
+};
 export type Shadow = {
+  settings?: ShadowSettings;
   id: string;
   spaceId: string;
   name: string;

@@ -201,7 +201,11 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 
 ## 本机数字分身
 
-本机入口为 `collaborations/{spaceId}/shadows/view|create|send`。`view` 使用 GET，可传 `shadowId` 和 `offset`，每页最近 100 条，`nextOffset` 向前翻页；不传 ID 仅返回目录元数据。`create` 由当前本机成员提交 UUID `requestId`、`name`、绝对 `cwd`，创建 ID 等于 requestId，同 ID 必须匹配原配置。仅接入本机 Codex。
+本机入口为 `collaborations/{spaceId}/shadows/view|models|create|send`。`view` 使用 GET，可传 `shadowId` 和 `offset`，每页最近 100 条，`nextOffset` 向前翻页；不传 ID 仅返回目录元数据。`create` 由当前本机成员提交 UUID `requestId`、`name`、绝对 `cwd` 和 `settings:{model,modelProvider,reasoningEffort}`，创建 ID 等于 requestId，同 ID 必须匹配原配置（含 settings）。仅接入本机 Codex。
+
+`GET collaborations/{spaceId}/shadows/models?cwd=…` 经成员检查后在当前本机读取原生配置与模型列表，返回 `models` 和 `defaults`；不通过空间主机查询其他成员配置。`models` 包含 model/displayName/defaultReasoningEffort/supportedReasoningEfforts；`custom:true` 表示原生未提供能力列表。`defaults` 与 settings 同结构。只返回模型元数据，不返回配置路径、凭据、MCP 或 Provider 定义。`create` 再核对选择，持久化成功后的同 ID 重试不重新解析默认值；旧客户端省略 settings 重试已存在的 ID 时仅返回原记录，不用于新建。
+
+分身视图的 `settings` 是不可变启动选择，顶层 model/modelProvider/reasoningEffort 是最近原生确认值；尚未确认时保持空值。原生线程创建、恢复和轮次都沿用启动设置，不增加消息级覆盖字段。
 
 `send` 提交 `{shadowId,message:{id,text}}`，ID 为 UUID，正文上限 64 KiB。作者由传输确定；同 ID 只接受相同作者和内容。返回投递状态 `sending|sendFailed|delivered`；前两者不能称为已送达。分身 Core 持久写入后返回 `receivedAt`，共享消息才成为 delivered；后续 `submitted|completed|failed|unknown` 描述处理状态，不能覆盖送达事实。失败只允许明确手动同 ID 重试。
 

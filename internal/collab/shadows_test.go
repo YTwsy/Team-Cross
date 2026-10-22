@@ -25,7 +25,7 @@ func TestShadowPausedRuntimeStopsWhenSpaceEndsOrMemberLeaves(t *testing.T) {
 				defer func() { a.mu.Lock(); delete(a.joined, spaceID); a.mu.Unlock() }()
 			}
 			root, id := t.TempDir(), uuid.NewString()
-			e, err := shadow.New(shadow.Config{Directory: filepath.Join(root, "shadow"), Start: func(context.Context, string, string, string) (shadow.Runtime, error) { return f, nil }}, id, spaceID, "Fixture", root, root, shadow.Actor{ID: "owner"})
+			e, err := shadow.New(shadow.Config{Directory: filepath.Join(root, "shadow"), Start: func(context.Context, string, string, string) (shadow.Runtime, error) { return f, nil }}, id, spaceID, "Fixture", root, root, shadow.Actor{ID: "owner"}, shadow.ModelSettings{Model: "fixture-model", ModelProvider: "fixture-provider", ReasoningEffort: "high"})
 			if err != nil {
 				t.Fatal(err)
 			}

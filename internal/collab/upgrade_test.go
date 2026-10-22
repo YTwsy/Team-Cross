@@ -75,7 +75,7 @@ func TestUpgradeUsesEffectiveClientSettings(t *testing.T) {
 func TestUpgradeProtectsLocalShadowWithoutSharedExecution(t *testing.T) {
 	root := t.TempDir()
 	id := uuid.NewString()
-	e, err := shadow.New(shadow.Config{Directory: filepath.Join(root, "shadow")}, id, "space", "Fixture", root, root, shadow.Actor{ID: "owner"})
+	e, err := shadow.New(shadow.Config{Directory: filepath.Join(root, "shadow")}, id, "space", "Fixture", root, root, shadow.Actor{ID: "owner"}, shadow.ModelSettings{Model: "fixture-model", ModelProvider: "fixture-provider", ReasoningEffort: "high"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -130,6 +130,7 @@ type fakeNative struct {
 	replies       map[string]any
 	loseTurnReply bool
 	holdInterrupt bool
+	wrongSettings bool
 }
 
 func newFake() *fakeNative {
@@ -167,13 +168,19 @@ func (f *fakeNative) Call(_ context.Context, method string, params, out any) err
 	case "thread/start":
 		id = uuid.NewString()
 		f.threads[id] = []nativeTurn{}
-		result = map[string]any{"thread": map[string]any{"id": id}}
+		result = map[string]any{"thread": map[string]any{"id": id}, "model": p["model"], "modelProvider": p["modelProvider"], "reasoningEffort": p["config"].(map[string]any)["model_reasoning_effort"]}
+		if f.wrongSettings {
+			result.(map[string]any)["model"] = "unexpected-default"
+		}
 	case "thread/resume":
 		if _, ok := f.threads[id]; !ok {
 			f.mu.Unlock()
 			return fmt.Errorf("missing thread")
 		}
-		result = map[string]any{"thread": map[string]any{"id": id}}
+		result = map[string]any{"thread": map[string]any{"id": id}, "model": p["model"], "modelProvider": p["modelProvider"], "reasoningEffort": p["config"].(map[string]any)["model_reasoning_effort"]}
+		if f.wrongSettings {
+			result.(map[string]any)["model"] = "unexpected-default"
+		}
 	case "turn/start":
 		if _, ok := f.threads[id]; !ok {
 			f.mu.Unlock()
@@ -263,7 +270,7 @@ func setup(t *testing.T) (*Engine, *fakeNative, Config) {
 		f.mu.Unlock()
 		return f, nil
 	}}
-	e, err := New(cfg, uuid.NewString(), "space-test", "Shadow", root, root, Actor{ID: "owner", Name: "Owner"})
+	e, err := New(cfg, uuid.NewString(), "space-test", "Shadow", root, root, Actor{ID: "owner", Name: "Owner"}, ModelSettings{Model: "fixture-model", ModelProvider: "fixture-provider", ReasoningEffort: "high"})
 	if err != nil {
 		t.Fatal(err)
 	}

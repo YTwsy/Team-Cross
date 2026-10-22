@@ -224,6 +224,9 @@ func uiRoute(path string, body any, write bool) (string, error) {
 		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "shadows" && parts[3] == "view" {
 			allowed, queries = true, "shadowId offset"
 		}
+		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "shadows" && parts[3] == "models" {
+			allowed, queries = true, "cwd"
+		}
 		if len(parts) == 3 && parts[0] == "shadows" && parts[2] == "local" {
 			allowed = true
 		}

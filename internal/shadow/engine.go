@@ -174,15 +174,24 @@ func (e *Engine) startRuntime(ctx context.Context) error {
 		}
 		e.mu.Unlock()
 	})
-	return e.restore(ctx)
+	if err := e.restore(ctx); err != nil {
+		// A retry must resume and confirm settings again, never reuse a partially
+		// restored process merely because it is still alive.
+		p.Close()
+		return err
+	}
+	return nil
 }
 
 func (e *Engine) step(ctx context.Context) error {
 	e.mu.Lock()
-	enabled := e.record.Enabled
+	enabled, settings := e.record.Enabled, e.record.Settings
 	e.mu.Unlock()
 	if !enabled {
 		return nil
+	}
+	if err := settings.Validate(); err != nil {
+		return err
 	}
 	if err := e.startRuntime(ctx); err != nil {
 		return err
@@ -280,13 +289,13 @@ func (e *Engine) createThread(ctx context.Context, kind, jobID string) (string, 
 		e.mu.Unlock()
 		return "", fmt.Errorf("已有原生创建等待核对")
 	}
-	p, cwd := e.runtime, e.record.Cwd
+	p, cwd, settings := e.runtime, e.record.Cwd, e.record.Settings
 	err := e.mutateLocked(func() error { e.record.Creating = kind + ":" + jobID; return nil })
 	e.mu.Unlock()
 	if err != nil {
 		return "", err
 	}
-	params := map[string]any{"cwd": cwd, "serviceName": "teamcross_shadow", "dynamicTools": dynamicTools()}
+	params := settings.threadParams(map[string]any{"cwd": cwd, "serviceName": "teamcross_shadow", "dynamicTools": dynamicTools()})
 	var result struct {
 		Model           string `json:"model"`
 		ModelProvider   string `json:"modelProvider"`
@@ -302,9 +311,15 @@ func (e *Engine) createThread(ctx context.Context, kind, jobID string) (string, 
 		return "", fmt.Errorf("Codex 未返回有效的原生会话 ID")
 	}
 	id := result.Thread.ID
+	confirmation := settings.confirm(result.Model, result.ModelProvider, result.ReasoningEffort)
 	e.mu.Lock()
 	err = e.mutateLocked(func() error {
 		e.record.Creating = ""
+		if confirmation != nil {
+			// Keep the exact created ID even for auxiliary threads and prevent a new
+			// creation or input after a native refusal/normalization of the selection.
+			e.record.Creating = kind + ":" + jobID + ":" + id
+		}
 		switch kind {
 		case "main":
 			e.record.Model, e.record.ModelProvider, e.record.ReasoningEffort = result.Model, result.ModelProvider, result.ReasoningEffort
@@ -324,13 +339,16 @@ func (e *Engine) createThread(ctx context.Context, kind, jobID string) (string, 
 		return nil
 	})
 	e.mu.Unlock()
-	return id, err
+	if err != nil {
+		return id, err
+	}
+	return id, confirmation
 }
 
 func (e *Engine) submit(ctx context.Context, run Run, prompt string, schema any) error {
 	run.ID, run.State, run.CreatedAt, run.Items = uuid.NewString(), "prepared", time.Now(), map[string]string{}
 	e.mu.Lock()
-	p := e.runtime
+	p, settings := e.runtime, e.record.Settings
 	if e.threadBusyLocked(run.ThreadID) {
 		e.mu.Unlock()
 		return nil
@@ -360,7 +378,7 @@ func (e *Engine) submit(ctx context.Context, run Run, prompt string, schema any)
 		return err
 	}
 	text := "[teamcross-shadow-run:" + run.ID + "]\n" + prompt
-	params := map[string]any{"threadId": run.ThreadID, "input": []any{map[string]any{"type": "text", "text": text}}}
+	params := map[string]any{"model": settings.Model, "effort": settings.ReasoningEffort, "threadId": run.ThreadID, "input": []any{map[string]any{"type": "text", "text": text}}}
 	if schema != nil {
 		params["outputSchema"] = schema
 	}

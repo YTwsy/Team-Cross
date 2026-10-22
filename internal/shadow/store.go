@@ -15,7 +15,10 @@ import (
 
 func validID(id string) bool { _, err := uuid.Parse(id); return err == nil }
 
-func New(cfg Config, id, spaceID, name, home, cwd string, owner Actor) (*Engine, error) {
+func New(cfg Config, id, spaceID, name, home, cwd string, owner Actor, settings ModelSettings) (*Engine, error) {
+	if err := settings.Validate(); err != nil {
+		return nil, err
+	}
 	if !validID(id) || spaceID == "" || strings.TrimSpace(name) == "" || len([]rune(name)) > 80 || owner.ID == "" {
 		return nil, fmt.Errorf("分身标识、空间、名称或所有者无效")
 	}
@@ -33,7 +36,7 @@ func New(cfg Config, id, spaceID, name, home, cwd string, owner Actor) (*Engine,
 		return nil, fmt.Errorf("分身记录已存在或无法检查")
 	}
 	now := time.Now()
-	e := newEngine(cfg, Record{Schema: 1, ID: id, SpaceID: spaceID, Name: strings.TrimSpace(name), Owner: owner, Home: home, Cwd: cwd, Enabled: true, Segments: []Segment{}, Messages: []Message{}, Memories: map[string]Memory{}, Topics: map[string]Topic{}, Jobs: map[string]Job{}, Runs: map[string]Run{}, ToolResults: map[string]json.RawMessage{}, CreatedAt: now, UpdatedAt: now})
+	e := newEngine(cfg, Record{Settings: settings, Schema: 1, ID: id, SpaceID: spaceID, Name: strings.TrimSpace(name), Owner: owner, Home: home, Cwd: cwd, Enabled: true, Segments: []Segment{}, Messages: []Message{}, Memories: map[string]Memory{}, Topics: map[string]Topic{}, Jobs: map[string]Job{}, Runs: map[string]Run{}, ToolResults: map[string]json.RawMessage{}, CreatedAt: now, UpdatedAt: now})
 	if err = e.saveLocked(); err != nil {
 		return nil, err
 	}
@@ -51,6 +54,16 @@ func Open(cfg Config) (*Engine, error) {
 	}
 	if r.Schema != 1 || !validID(r.ID) || r.SpaceID == "" {
 		return nil, fmt.Errorf("分身记录版本或身份无效")
+	}
+	// Older shadows with confirmed native settings can freeze that exact choice.
+	// A shadow without a confirmed choice remains paused instead of adopting a
+	// potentially changed native default during an upgrade.
+	if r.Settings.Model == "" {
+		r.Settings = ModelSettings{Model: r.Model, ModelProvider: r.ModelProvider, ReasoningEffort: r.ReasoningEffort}
+	}
+	if err := r.Settings.Validate(); err != nil {
+		r.Enabled = false
+		r.Error = "分身缺少已确认的启动配置，请创建新分身并选择模型和推理强度"
 	}
 	if r.Memories == nil {
 		r.Memories = map[string]Memory{}
@@ -201,7 +214,7 @@ func (e *Engine) View() View {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	r := e.record
-	v := View{ID: r.ID, SpaceID: r.SpaceID, Name: r.Name, Owner: r.Owner, Revision: r.Revision, Enabled: r.Enabled, Online: !e.closed && e.runtime != nil && e.runtime.Alive(), Current: r.Current, Segments: r.Segments, Messages: r.Messages, Memories: []Memory{}, Jobs: []Job{}, Error: r.Error}
+	v := View{Settings: r.Settings, ID: r.ID, SpaceID: r.SpaceID, Name: r.Name, Owner: r.Owner, Revision: r.Revision, Enabled: r.Enabled, Online: !e.closed && e.runtime != nil && e.runtime.Alive(), Current: r.Current, Segments: r.Segments, Messages: r.Messages, Memories: []Memory{}, Jobs: []Job{}, Error: r.Error}
 	v.Model, v.ModelProvider, v.ReasoningEffort = r.Model, r.ModelProvider, r.ReasoningEffort
 	for _, run := range r.Runs {
 		if run.ThreadID == r.Current && activeRun(run) {
@@ -252,6 +265,11 @@ func (e *Engine) SetEnabled(enabled bool) error {
 		return fmt.Errorf("分身运行时已关闭")
 	}
 	err := e.mutateLocked(func() error {
+		if enabled {
+			if err := e.record.Settings.Validate(); err != nil {
+				return err
+			}
+		}
 		if enabled && e.record.Creating != "" {
 			return fmt.Errorf("原生创建结果仍需核对")
 		}

@@ -1414,5 +1414,19 @@
   "连接状态暂不可用": "Connection status unavailable",
   "Team Cross 服务尚未完成更新，请从菜单栏退出并重新打开 Team Cross 后重试。": "The Team Cross service has not finished updating. Quit and reopen Team Cross from the menu bar, then retry.",
   "Team Cross 服务尚未完成更新": "The Team Cross service has not finished updating",
-  "请等待当前活动结束；若仍未更新，请从菜单栏退出并重新打开 Team Cross": "Wait for current activity to finish. If the service still has not updated, quit and reopen Team Cross from the menu bar"
+  "请等待当前活动结束；若仍未更新，请从菜单栏退出并重新打开 Team Cross": "Wait for current activity to finish. If the service still has not updated, quit and reopen Team Cross from the menu bar",
+  "使用本机 Codex，继承登录、权限、hooks、插件和 MCP。整个空间的成员都可以向它发消息。": "Use local Codex with its login, permissions, hooks, plugins and MCP. Everyone in the space can message it.",
+  "正在读取本机模型…": "Loading local models…",
+  "重新读取模型": "Reload models",
+  "填写工作目录后加载": "Enter a working directory to load",
+  "此自定义模型未提供能力列表。请填写推理强度，运行时会核对是否接受。": "This custom model has no capability catalog. Enter a reasoning effort; the runtime will confirm whether it is accepted.",
+  "只在启动时选择一次。后续聊天、换段、后台任务和重启均沿用这组设置。": "Choose once at startup. Chats, new segments, background tasks and restarts keep these settings.",
+  "启动配置": "Startup settings",
+  "运行时确认": "Runtime confirmed",
+  "请选择分身启动时的模型和推理强度": "Choose the model and reasoning effort for the shadow.",
+  "分身工作目录不可用": "The shadow working directory is unavailable.",
+  "本机 Codex 未提供可选择的模型": "Local Codex did not return any selectable models.",
+  "本机模型 Provider 已变化，请重新读取模型并创建分身": "The local model provider has changed. Reload models before creating the shadow.",
+  "所选模型或推理强度不在本机可用列表中，请重新读取模型": "The selected model or reasoning effort is no longer in the local catalog. Reload models.",
+  "模型": "Model"
 }

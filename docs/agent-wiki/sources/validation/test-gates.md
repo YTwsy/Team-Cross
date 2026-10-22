@@ -149,6 +149,8 @@ TEAMCROSS_WORKBENCH_BROWSER_DIR=/private/tmp/teamcross-space-browser-fresh \
 
 ## 本机数字分身
 
+模型选择改动需覆盖 [启动设置回归](../../../../internal/shadow/settings_test.go) 与 [本机模型目录回归](../../../../internal/collab/shadow_models_test.go)：工作目录有效配置、分页、配置白名单、不创建线程、自定义模型保留、每模型推理选项、未知回执重试固定 settings、原生确认不一致时暂停、所有会话创建和恢复显式应用同一组值。真实 fixture 以 medium 原生默认创建 low 分身，再将专用 home 默认改成 high，核对 S1/S2/W/CM/M 和重启的实际返回值；仍只调用 Luna。浏览器检查创建选择、状态显示与失败路径，不在聊天输入处新增选择。
+
 合入插件更新或 Core 升级改动时，另验证分身草稿和结果不明的创建请求跨面板刷新保留、不同 Core 不串草稿、零自动提交；Core 升级须保护独立分身的已接收队列、暂停后的活跃后台轮次和维护/审批，空闲进程及离线未知轮次不永久阻塞。入口为 [分身交互](../../../../packages/web/src/test/shadows.test.tsx)、[分身运行回归](../../../../internal/shadow/engine_test.go) 和 [升级回归](../../../../internal/collab/upgrade_test.go)。
 
 领域契约见[本机数字分身](../decisions/local-shadows.md)。回归入口：[状态与故障接续](../../../../internal/shadow/engine_test.go)、[三 Core 成员与送达](../../../../internal/collab/shadows_test.go)、[共享聊天界面](../../../../packages/web/src/test/shadows.test.tsx)。检查持久化成功才送达、同 ID 手动重发、真实成员归属和跨空间隔离；S1 → S2 后未决项与独立 W/J 不变；纠正/忘掉的版本、候选水位与晚到结果不覆盖当前状态；丢失创建/投递回执时不自动重放；压缩完成后废弃旧 CM 决定并等待新用量，CM 超时忽略晚到建议；空间结束和成员退出停止精确所属进程，暂停则保留已接收工作。

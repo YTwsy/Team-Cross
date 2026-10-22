@@ -70,7 +70,7 @@ func (e *Engine) restore(ctx context.Context) error {
 				ID string `json:"id"`
 			} `json:"thread"`
 		}
-		if err := p.Call(ctx, "thread/resume", map[string]any{"threadId": id}, &resumed); err != nil {
+		if err := p.Call(ctx, "thread/resume", r.Settings.threadParams(map[string]any{"threadId": id}), &resumed); err != nil {
 			return fmt.Errorf("恢复准确原生会话失败，未创建替代会话: %w", err)
 		}
 		if resumed.Thread.ID != id {
@@ -86,6 +86,9 @@ func (e *Engine) restore(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+		}
+		if err := r.Settings.confirm(resumed.Model, resumed.ModelProvider, resumed.ReasoningEffort); err != nil {
+			return err
 		}
 	}
 	return e.reconcileRuns(ctx)

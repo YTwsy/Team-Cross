@@ -11,6 +11,8 @@ import type {
   Shadow,
   ShadowApproval,
   ShadowMessage,
+  ShadowSettings,
+  ShadowModels,
   ShadowView,
 } from "../shadows";
 import { ErrorBox, Icon, Loading, Modal } from "./ui";
@@ -119,6 +121,15 @@ function CreateShadow({
   const refreshKey = `CreateShadow:v1:${spaceId}`;
   const [name, setName] = useRefreshState(refreshKey + ":name", "");
   const [cwd, setCwd] = useRefreshState(refreshKey + ":cwd", "");
+  const [settings, setSettings] = useRefreshState<ShadowSettings>(
+    refreshKey + ":settings",
+    { model: "", modelProvider: "", reasoningEffort: "" },
+  );
+  const [catalog, setCatalog] = useState<ShadowModels>();
+  const [catalogCwd, setCatalogCwd] = useState("");
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelError, setModelError] = useState("");
+  const [reloadModels, setReloadModels] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   // Keep the id on a failed or unknown response. A manual retry cannot create a second shadow.
@@ -126,15 +137,68 @@ function CreateShadow({
     requestId: string;
     name: string;
     cwd: string;
+    settings: ShadowSettings;
   } | null>(refreshKey + ":request", null);
   useRefreshGuard(refreshKey, !!name || !!cwd || !!request.current);
+  useEffect(() => {
+    if (request.current || !cwd.trim().startsWith("/")) return;
+    const abort = new AbortController();
+    setLoadingModels(true);
+    setModelError("");
+    const timer = setTimeout(async () => {
+      try {
+        const next = await api<ShadowModels>(
+          `collaborations/${spaceId}/shadows/models?cwd=${encodeURIComponent(cwd.trim())}`,
+          undefined,
+          abort.signal,
+        );
+        if (abort.signal.aborted) return;
+        setCatalog(next);
+        setCatalogCwd(cwd.trim());
+        setSettings((previous) => {
+          const model = next.models.find((m) => m.model === previous.model);
+          if (
+            model &&
+            previous.modelProvider === next.defaults.modelProvider &&
+            (model.custom ||
+              model.supportedReasoningEfforts.some(
+                (e) => e.reasoningEffort === previous.reasoningEffort,
+              ))
+          )
+            return previous;
+          return next.defaults;
+        });
+      } catch (e) {
+        if (!abort.signal.aborted) setModelError(errorText(e));
+      } finally {
+        if (!abort.signal.aborted) setLoadingModels(false);
+      }
+    }, 500);
+    return () => {
+      clearTimeout(timer);
+      abort.abort();
+    };
+  }, [cwd, spaceId, reloadModels, request, setSettings]);
+  const catalogReady =
+    !!catalog && catalogCwd === cwd.trim() && !loadingModels && !modelError;
+  const selectedModel = catalog?.models.find((m) => m.model === settings.model);
+  const locked = busy || !!request.current;
   async function create() {
+    if (
+      !request.current &&
+      (!catalogReady || !settings.model || !settings.reasoningEffort.trim())
+    )
+      return;
     setBusy(true);
     setError("");
     request.current ||= {
       requestId: crypto.randomUUID(),
       name: name.trim(),
       cwd: cwd.trim(),
+      settings: {
+        ...settings,
+        reasoningEffort: settings.reasoningEffort.trim(),
+      },
     };
     try {
       const result = await api<Shadow>(
@@ -158,7 +222,7 @@ function CreateShadow({
       >
         <p>
           {t(
-            "使用本机 Codex，继承当前模型、登录、权限、hooks、插件和 MCP。整个空间的成员都可以向它发消息。",
+            "使用本机 Codex，继承登录、权限、hooks、插件和 MCP。整个空间的成员都可以向它发消息。",
           )}
         </p>
         <label className="field">
@@ -181,6 +245,103 @@ function CreateShadow({
             disabled={busy || !!request.current}
           />
         </label>
+        {loadingModels && !request.current && (
+          <p role="status">{t("正在读取本机模型…")}</p>
+        )}
+        <ErrorBox message={modelError} />
+        {modelError && (
+          <button
+            type="button"
+            className="button"
+            disabled={locked}
+            onClick={() => setReloadModels((n) => n + 1)}
+          >
+            {t("重新读取模型")}
+          </button>
+        )}
+        <label className="field">
+          {t("模型")}
+          <select
+            value={settings.model}
+            disabled={locked || !catalogReady}
+            required
+            onChange={(e) => {
+              const model = catalog?.models.find(
+                (m) => m.model === e.target.value,
+              );
+              if (model)
+                setSettings({
+                  ...settings,
+                  model: model.model,
+                  reasoningEffort: model.defaultReasoningEffort,
+                });
+            }}
+          >
+            {!catalog && (
+              <option value={settings.model}>
+                {settings.model || t("填写工作目录后加载")}
+              </option>
+            )}
+            {catalog?.models.map((model) => (
+              <option key={model.model} value={model.model}>
+                {model.displayName === model.model
+                  ? model.model
+                  : `${model.displayName} (${model.model})`}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          {t("推理强度")}
+          {selectedModel?.custom ? (
+            <input
+              value={settings.reasoningEffort}
+              required
+              disabled={locked || !catalogReady}
+              onChange={(e) =>
+                setSettings({ ...settings, reasoningEffort: e.target.value })
+              }
+            />
+          ) : (
+            <select
+              value={settings.reasoningEffort}
+              required
+              disabled={locked || !catalogReady}
+              onChange={(e) =>
+                setSettings({ ...settings, reasoningEffort: e.target.value })
+              }
+            >
+              {!selectedModel && (
+                <option value={settings.reasoningEffort}>
+                  {settings.reasoningEffort || t("填写工作目录后加载")}
+                </option>
+              )}
+              {selectedModel?.supportedReasoningEfforts.map((effort) => (
+                <option
+                  key={effort.reasoningEffort}
+                  value={effort.reasoningEffort}
+                >
+                  {effort.reasoningEffort}
+                </option>
+              ))}
+            </select>
+          )}
+        </label>
+        {selectedModel?.custom && (
+          <p className="muted">
+            {t(
+              "此自定义模型未提供能力列表。请填写推理强度，运行时会核对是否接受。",
+            )}
+          </p>
+        )}
+        {settings.modelProvider && (
+          <p className="muted">Provider: {settings.modelProvider}</p>
+        )}
+        <p className="muted">
+          {t(
+            "只在启动时选择一次。后续聊天、换段、后台任务和重启均沿用这组设置。",
+          )}
+        </p>
         <p className="muted">
           {t(
             "创建独立的共享聊天。工作目录中的原生指令与配置会生效，已有私人对话不会导入。",
@@ -189,7 +350,15 @@ function CreateShadow({
         <ErrorBox message={error} />
         <button
           className="button primary"
-          disabled={busy || !name.trim() || !cwd.startsWith("/")}
+          disabled={
+            busy ||
+            !name.trim() ||
+            !cwd.trim().startsWith("/") ||
+            (!request.current &&
+              (!catalogReady ||
+                !settings.model ||
+                !settings.reasoningEffort.trim()))
+          }
         >
           {busy
             ? t("正在创建…")
@@ -538,7 +707,16 @@ function ShadowChat({
           ))}
           <details className="shadow-diagnostics">
             <summary>{t("运行与上下文")}</summary>
-            <p>Codex · {view.model || t("等待原生会话确认模型")}</p>
+            {view.settings && (
+              <p>
+                {t("启动配置")} · {view.settings.modelProvider} /{" "}
+                {view.settings.model} / {view.settings.reasoningEffort}
+              </p>
+            )}
+            <p>
+              {t("运行时确认")} · Codex ·{" "}
+              {view.model || t("等待原生会话确认模型")}
+            </p>
             <p>
               {view.modelProvider} {view.reasoningEffort}
             </p>

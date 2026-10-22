@@ -32,13 +32,14 @@ type ShadowDelivery struct {
 }
 
 type shadowInput struct {
-	ID        string         `json:"shadowId"`
-	Name      string         `json:"name,omitempty"`
-	RequestID string         `json:"requestId,omitempty"`
-	Cwd       string         `json:"cwd,omitempty"`
-	Message   shadow.Message `json:"message"`
-	Snapshot  *shadow.View   `json:"snapshot,omitempty"`
-	Offset    int            `json:"offset,omitempty"`
+	Settings  shadow.ModelSettings `json:"settings"`
+	ID        string               `json:"shadowId"`
+	Name      string               `json:"name,omitempty"`
+	RequestID string               `json:"requestId,omitempty"`
+	Cwd       string               `json:"cwd,omitempty"`
+	Message   shadow.Message       `json:"message"`
+	Snapshot  *shadow.View         `json:"snapshot,omitempty"`
+	Offset    int                  `json:"offset,omitempty"`
 }
 
 type shadowSpaceView struct {
@@ -311,9 +312,11 @@ func (a *App) createShadow(ctx context.Context, spaceID string, in shadowInput) 
 	e := a.shadows[in.RequestID]
 	a.mu.Unlock()
 	if e != nil {
+		// A pre-selection client may retry an already persisted creation without
+		// settings. Return that exact shadow; only new creations require a choice.
 		v := e.View()
 		_, storedSpace, _, cwd := e.Identity()
-		if storedSpace != spaceID || cwd != in.Cwd || v.Name != strings.TrimSpace(in.Name) {
+		if storedSpace != spaceID || cwd != in.Cwd || v.Name != strings.TrimSpace(in.Name) || (in.Settings != (shadow.ModelSettings{}) && v.Settings != in.Settings) {
 			return nil, fmt.Errorf("创建标识已用于不同分身配置")
 		}
 	} else {
@@ -321,7 +324,17 @@ func (a *App) createShadow(ctx context.Context, spaceID string, in shadowInput) 
 		if err != nil {
 			return nil, err
 		}
-		e, err = shadow.New(a.shadowConfig(in.RequestID), in.RequestID, spaceID, in.Name, home, in.Cwd, actor)
+		if err = in.Settings.Validate(); err != nil {
+			return nil, err
+		}
+		options, err := a.shadowModels(ctx, in.Cwd)
+		if err != nil {
+			return nil, err
+		}
+		if err = options.validate(in.Settings); err != nil {
+			return nil, err
+		}
+		e, err = shadow.New(a.shadowConfig(in.RequestID), in.RequestID, spaceID, in.Name, home, in.Cwd, actor, in.Settings)
 		if err != nil {
 			return nil, err
 		}
@@ -416,6 +429,15 @@ func (a *App) shadowsHTTP(w http.ResponseWriter, r *http.Request, path string) b
 	parts := strings.Split(path, "/")
 	if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "shadows" {
 		spaceID, op := parts[1], parts[3]
+		if op == "models" && r.Method == "GET" {
+			if _, err := a.shadowCall(r.Context(), spaceID, "check", shadowInput{}); err != nil {
+				respond(w, nil, err)
+				return true
+			}
+			out, err := a.shadowModels(r.Context(), r.URL.Query().Get("cwd"))
+			respond(w, out, err)
+			return true
+		}
 		if op == "view" && r.Method == "GET" {
 			out, err := a.shadowCall(r.Context(), spaceID, "view", shadowInput{ID: r.URL.Query().Get("shadowId"), Offset: int(number(r.URL.Query().Get("offset")))})
 			respond(w, out, err)

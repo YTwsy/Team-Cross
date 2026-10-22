@@ -42,7 +42,7 @@ def run(args):
     (root/'evidence').mkdir(); (root/'repo').mkdir(); (root/'codex-home').mkdir()
     home = root/'codex-home'
     (home/'auth.json').symlink_to(args.codex_auth.resolve())
-    (home/'config.toml').write_text('model = "gpt-5.6-luna"\nmodel_reasoning_effort = "low"\napproval_policy = "on-request"\nsandbox_mode = "workspace-write"\n')
+    (home/'config.toml').write_text('model = "gpt-5.6-luna"\nmodel_reasoning_effort = "medium"\napproval_policy = "on-request"\nsandbox_mode = "workspace-write"\n')
     env = {k:v for k,v in os.environ.items() if not k.startswith(('CODEX_', 'CLAUDE_', 'ANTHROPIC_')) and k!='CLAUDECODE'}
     env['CODEX_HOME'] = str(home)
     n.ROOT, n.BINARY, n.CLI, n.TOKEN = root, str(args.teamcross_bin.resolve()), '/usr/bin/false', ''
@@ -58,7 +58,11 @@ def run(args):
         jb = b.api('join',{'invitation':shared['invitation']})['id']
         jc = c.api('join',{'invitation':shared['invitation']})['id']
         sid = str(uuid.uuid4())
-        shadow = b.api('collaborations/'+jb+'/shadows/create',{'requestId':sid,'name':'Codex shadow on B','cwd':str(root/'repo')})
+        options = b.api('collaborations/'+jb+'/shadows/models?cwd='+str(root/'repo'))
+        assert options['defaults']['model']==n.MODEL and options['defaults']['reasoningEffort']=='medium'
+        settings = dict(options['defaults'], reasoningEffort='low')
+        shadow = b.api('collaborations/'+jb+'/shadows/create',{'requestId':sid,'name':'Codex shadow on B','cwd':str(root/'repo'),'settings':settings})
+        assert shadow['settings']==settings
         assert shadow['id']==sid
         def view(core,space):
             return core.api('collaborations/'+space+'/shadows/view?shadowId='+sid)
@@ -85,6 +89,7 @@ def run(args):
         n.emit('shared_native_conversation_verified')
         # No cloud queue: an offline attempt remains failed after reconnect
         # until the sender explicitly retries the same id.
+        (home/'config.toml').write_text((home/'config.toml').read_text().replace('model_reasoning_effort = "medium"','model_reasoning_effort = "high"'))
         b.close()
         n.wait_until(lambda:not view(c,jc)['shadows'][0]['online'],20)
         mid2=str(uuid.uuid4())
@@ -105,6 +110,8 @@ def run(args):
             return v if any(m.get('replyTo')==mid2 and 'RESUMED_PIPELINE_OK' in m['text'] and 'amber' in m['text'].lower() for m in v['messages']) else None
         v=n.wait_until(resumed,180)
         assert v['current']==native_id and len([m for m in v['messages'] if m['id']==mid2])==1
+        assert v['settings']==settings and v['reasoningEffort']=='low'
+        report['launchSettingsSurviveChangedDefaultsAndCoreRestart']=True
         report['offlineManualRetryOnly']=True
         report['exactNativeThreadAndMemoryAfterCoreRestart']=True
         report['nativeThread']=native_id
