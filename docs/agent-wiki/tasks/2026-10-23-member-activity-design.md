@@ -36,7 +36,7 @@
 
 依据：[成员实现](../../../internal/collab/members.go)、[批注类型](../../../internal/collab/types.go)、[批注回复](../../../internal/collab/annotation.go)、[材料类型](../../../internal/collab/material_types.go)、[原生状态观察](../../../internal/collab/rpc.go)、[概览](../../../packages/web/src/components/SpaceOverview.tsx)、[资源库契约](../sources/decisions/resource-library.md)。
 
-设计整理时，[顺流感知契约](../sources/decisions/in-flow-awareness.md)不建立面向人的材料／讨论关注关系；[空间事件契约](../sources/decisions/space-events.md)中的 Cloud 宿主接收尚未完成真实验收。[分身主动协作与持续关注](2026-10-22-shadow-collaboration-and-watches.md)也是待实施设计，不能作为当前产品已有关注能力的依据。
+设计整理时，[顺流感知契约](../sources/decisions/in-flow-awareness.md)不建立面向人的材料／讨论关注关系；[空间事件契约](../sources/decisions/space-events.md)中的 Cloud 宿主接收尚未完成真实验收。分身主动协作与持续关注也是独立的待实施设计；现有能力以[本机分身契约](../sources/decisions/local-shadows.md)为准，不能作为当前产品已有成员关注能力的依据。
 
 ## 3. 统一对象与职责
 
@@ -271,7 +271,7 @@ Agent 内容只有在已有明确所属成员或原任务发起成员时，才�
 
 具体字段应复用现有成员资格的唯一身份；若已有不可复用的成员 ID 已足够表达资格代次，则无需另造重复字段。显示名、设备名、Provider、当前目录和最近打开的会话都不能用于合并身份。首版不引入全球账号或自动关联不同 Mac 上的“同一个人”。
 
-与[分身协作设计](2026-10-22-shadow-collaboration-and-watches.md)共同采用 `SpaceSourceRef` 的方向，避免两份实现分别发明不兼容的来源格式。本设计至少需要：
+来源采用 `SpaceSourceRef` 的方向，为后续分身协作保留统一的引用格式，避免分别发明不兼容的来源格式。本设计至少需要：
 
 | 来源类型 | 必须保留的身份 |
 | --- | --- |
