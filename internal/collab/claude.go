@@ -156,15 +156,6 @@ func (s *Session) createClaude(ctx context.Context, preview Preview, title strin
 	if err != nil {
 		return err
 	}
-	if err := s.acquireDirectory(r.ExecutionCwd); err != nil {
-		return err
-	}
-	keepLease := false
-	defer func() {
-		if !keepLease {
-			s.releaseDirectory()
-		}
-	}()
 	dir := s.runtimeDirectory()
 	mcpConfig := launch.claudeConfig()
 	if r.RuntimeMode == runtimeconfig.Trusted {
@@ -197,8 +188,6 @@ func (s *Session) createClaude(ctx context.Context, preview Preview, title strin
 	s.mu.Unlock()
 	if err != nil {
 		p.Close()
-	} else {
-		keepLease = true
 	}
 	return err
 }

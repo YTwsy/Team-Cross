@@ -3,6 +3,7 @@ package collab
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 )
 
 // Inherit the native thread's confirmed settings, falling back to Codex's own
@@ -28,15 +29,18 @@ func (s *Session) modelLocked(model, provider string, effort *string) {
 	s.record.ReasoningEffort = effort
 }
 
-// Read configuration confirmed by Codex rather than displaying a requested
-// model that may have been rejected. This does not start or resume a turn.
-func (s *Session) refreshModel(ctx context.Context, runtime Runtime) {
+// Read native-confirmed state without starting or resuming a turn. Completion
+// refreshes only the workspace, so it cannot overwrite a newer model notice.
+func (s *Session) refreshNativeState(ctx context.Context, runtime Runtime, refreshModel bool) {
+	s.nativeStateMu.Lock()
+	defer s.nativeStateMu.Unlock()
 	s.mu.Lock()
-	id := s.record.SessionID
-	s.mu.Unlock()
-	if id == "" {
+	if s.closed || s.record.ExecutionRecord == nil || s.process != runtime || s.record.SessionID == "" {
+		s.mu.Unlock()
 		return
 	}
+	id, generation := s.record.SessionID, s.generation
+	s.mu.Unlock()
 	var read struct {
 		Thread Source `json:"thread"`
 	}
@@ -45,11 +49,28 @@ func (s *Session) refreshModel(ctx context.Context, runtime Runtime) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.process != runtime {
+	if s.closed || s.process != runtime || s.generation != generation || s.record.SessionID != id {
 		return
 	}
-	s.modelLocked(read.Thread.Model, read.Thread.ModelProvider, read.Thread.ReasoningEffort)
+	if refreshModel {
+		s.modelLocked(read.Thread.Model, read.Thread.ModelProvider, read.Thread.ReasoningEffort)
+	}
+	s.nativeWorkspaceLocked(read.Thread)
 	_ = s.saveLocked()
+}
+
+func (s *Session) nativeWorkspaceLocked(thread Source) {
+	// Claude's workspace belongs to its native job contract. A transcript cwd
+	// must not silently rebind that job. Empty/relative paths are not confirmed
+	// host directories; preserve the last known directory in those cases.
+	if s.record.Provider != "claude" && thread.ID == s.record.SessionID && filepath.IsAbs(thread.Cwd) {
+		if cwd := filepath.Clean(thread.Cwd); cwd != s.record.ExecutionCwd {
+			s.record.ExecutionCwd = cwd
+			// The existing context views reload on sequence changes. A native
+			// read can finish after the completion event has already rendered.
+			s.sequence++
+		}
+	}
 }
 
 func (s *Session) observeModelLocked(method string, params json.RawMessage) {

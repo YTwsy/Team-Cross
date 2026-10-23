@@ -3,6 +3,7 @@ package collab
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,13 +20,18 @@ import (
 func multiExecutionFixture(t *testing.T) (*App, *fakeRuntime, *Session) {
 	t.Helper()
 	a, reader, _ := fixture(t)
+	reader.threads = map[string]Source{}
+	reader.threadsMu = &sync.Mutex{}
 	// One provider per execution is essential: a shared fake would mask runtime
 	// shutdown, approval-ID collisions and accidental handler replacement.
 	a.Config.StartProcess = func(_, _, _, log string) (Runtime, error) {
 		if filepath.Base(log) == "reader.log" {
+			reader.mu.Lock()
+			reader.alive = true
+			reader.mu.Unlock()
 			return reader, nil
 		}
-		return &fakeRuntime{source: reader.source, alive: true}, nil
+		return &fakeRuntime{source: reader.source, alive: true, threads: reader.threads, threadsMu: reader.threadsMu}, nil
 	}
 	space, err := a.CreateSpace(context.Background(), SpaceInput{RequestID: uuid.NewString(), Title: "Multiple executions"})
 	if err != nil {
@@ -116,31 +122,35 @@ func TestExecutionReferencesAndRuntimeTokensCannotCrossSiblings(t *testing.T) {
 	}
 }
 
-func TestDirectoryLeaseUsesWorktreeIdentityAndAliases(t *testing.T) {
+func TestExecutionsCanShareOriginalDirectory(t *testing.T) {
 	a, reader, space := multiExecutionFixture(t)
 	one := createInSpace(t, a, reader, space, "existing")
-	alias := filepath.Join(t.TempDir(), "alias")
-	if err := os.Symlink(reader.source.Cwd, alias); err != nil {
+	two := createInSpace(t, a, reader, space, "existing")
+	original, err := filepath.EvalSymlinks(reader.source.Cwd)
+	if err != nil {
 		t.Fatal(err)
 	}
-	subdir := filepath.Join(reader.source.Cwd, "subdir")
-	if err := os.Mkdir(subdir, 0700); err != nil {
-		t.Fatal(err)
+	if one.record.ExecutionCwd != original || two.record.ExecutionCwd != original || one.record.SessionID == two.record.SessionID || one.process == two.process {
+		t.Fatal("same-directory executions lost their independent native identity")
 	}
-	two := a.newExecution(space, Record{ID: uuid.NewString(), SpaceID: space.record.ID})
-	for _, path := range []string{alias, subdir} {
-		if err := two.acquireDirectory(path); err == nil {
-			t.Fatal("overlapping directory acquired", path)
-		}
+	if !one.online || !two.online {
+		t.Fatal("same-directory executions did not start together")
 	}
 	if err := one.Action(context.Background(), "pause"); err != nil {
 		t.Fatal(err)
 	}
 	waitExecutionReleased(t, one)
-	if err := two.acquireDirectory(alias); err != nil {
-		t.Fatal("released directory still occupied", err)
+	if !two.online || !two.process.Alive() {
+		t.Fatal("pausing one session stopped its neighbor")
 	}
-	two.releaseDirectory()
+	if err := one.Action(context.Background(), "start"); err != nil {
+		t.Fatal("cannot restore while neighbor uses the directory", err)
+	}
+	for _, s := range []*Session{one, two} {
+		if _, err := s.RPC(context.Background(), "owner", "turn/start", map[string]any{"input": []any{}}, "same-id"); err != nil {
+			t.Fatal("same-directory session cannot accept input", err)
+		}
+	}
 }
 
 func TestSpaceAndExecutionCreationCannotReuseIdentity(t *testing.T) {
@@ -300,9 +310,14 @@ func TestExecutionStorageAndFailureLeaveSpaceUsable(t *testing.T) {
 		t.Fatal(err)
 	}
 	in.PreviewHash = preview.Hash
+	start := a.Config.StartProcess
+	a.Config.StartProcess = func(string, string, string, string) (Runtime, error) {
+		return nil, fmt.Errorf("fixture runtime failed to start")
+	}
 	failed, err := a.Create(context.Background(), in)
-	if err == nil || !strings.Contains(err.Error(), "工作目录") {
-		t.Fatal("same worktree allowed concurrent runtimes", err)
+	a.Config.StartProcess = start
+	if err == nil || !strings.Contains(err.Error(), "fixture runtime failed to start") {
+		t.Fatal("runtime failure was not reported", err)
 	}
 	if failed == nil || failed.record.State != "error" || space.record.State != "ready" || !first.online {
 		t.Fatal("child failure corrupted the space or sibling")

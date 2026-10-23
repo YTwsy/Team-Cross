@@ -119,7 +119,9 @@ After a Codex collaboration is created, the host can choose **Open in personal C
 
 ## Multiple collaboration sessions in one space
 
-Choose **Add collaboration session** in the sidebar to create another native fork with its own source, directory, and fixed restricted or trusted mode. Different worktrees can run concurrently. Managed runtimes using the same worktree are mutually exclusive; pause the existing session and wait for release, or select a new worktree.
+Choose **Add collaboration session** in the sidebar to create another native fork with its own source, directory, and fixed restricted or trusted mode. Multiple sessions can use the same original directory or worktree. After creation, the agent handles branches, worktrees, and command locations according to your instructions, repository rules, and native permissions.
+
+The path already shown in **Session actions** reflects the Codex native session's last confirmed working directory. File and changes views use the same directory. Native session directory changes are reflected there, and recovery uses its latest directory. Running an individual command elsewhere does not change the displayed path.
 
 Every member can read all published materials and collaboration sessions. Use **Input handoff** in the selected session to choose its input holder. Pausing waits for accepted work to finish. Ending shared execution also returns input to the host; reading and discussion remain available, and sibling sessions continue independently.
 

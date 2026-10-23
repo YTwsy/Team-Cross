@@ -32,6 +32,7 @@ type fakeRuntime struct {
 	fail              bool
 	alive             bool
 	threads           map[string]Source
+	threadsMu         *sync.Mutex
 	requests          map[string]map[string]any
 	sourceTurnID      string
 	sourceTurnStatus  string
@@ -40,6 +41,10 @@ type fakeRuntime struct {
 func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.threadsMu != nil {
+		f.threadsMu.Lock()
+		defer f.threadsMu.Unlock()
+	}
 	f.calls = append(f.calls, method)
 	params, _ := in.(map[string]any)
 	f.last = params
@@ -65,6 +70,9 @@ func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error 
 		if model, ok := params["model"].(string); ok && model != "" {
 			thread.Model = model
 		}
+		if cwd, ok := params["cwd"].(string); ok && cwd != "" {
+			thread.Cwd = cwd
+		}
 		if effort, ok := params["effort"].(string); ok {
 			thread.ReasoningEffort = &effort
 		}
@@ -73,7 +81,9 @@ func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error 
 				thread.ReasoningEffort = &effort
 			}
 		}
-		f.threads[id] = thread
+		if method != "thread/fork" {
+			f.threads[id] = thread
+		}
 	}
 	var result any = map[string]any{}
 	switch method {
@@ -250,7 +260,7 @@ func TestInputOwnershipDedupAndApproval(t *testing.T) {
 		t.Fatal("duplicate result not replayed", e)
 	}
 	f.mu.Lock()
-	if f.requests["turn/start"]["cwd"] != s.record.ExecutionCwd || f.requests["turn/start"]["model"] != "fixture-client-model" || f.requests["turn/start"]["effort"] != "medium" {
+	if f.requests["turn/start"]["cwd"] != nil || f.requests["turn/start"]["model"] != "fixture-client-model" || f.requests["turn/start"]["effort"] != "medium" {
 		t.Fatal("runtime binding overridden")
 	}
 	f.mu.Unlock()

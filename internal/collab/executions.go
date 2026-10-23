@@ -7,12 +7,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 
 	"teamcross/internal/sharing"
-	"teamcross/internal/workspace"
 )
 
 // The space owns membership. An execution never creates or revokes the space's
@@ -195,56 +193,6 @@ func (s *Session) endExecutionLocked() error {
 	s.releaseWhenIdle, s.annotationAccess = true, false
 	s.releaseIfIdleLocked()
 	return nil
-}
-
-// Directory leases cover managed writable runtimes across spaces, even when
-// two paths differ only by a symlink or refer to subdirectories of one worktree.
-func (s *Session) acquireDirectory(cwd string) error {
-	root, err := canonicalWorkspaceRoot(cwd)
-	if err != nil {
-		return err
-	}
-	s.app.directoryMu.Lock()
-	defer s.app.directoryMu.Unlock()
-	if s.app.directoryOwners == nil {
-		s.app.directoryOwners = map[string]string{}
-	}
-	for occupied, owner := range s.app.directoryOwners {
-		if owner != s.record.ID && (occupied == root || strings.HasPrefix(root, occupied+string(filepath.Separator)) || strings.HasPrefix(occupied, root+string(filepath.Separator))) {
-			return fmt.Errorf("工作目录已由协作会话 %s 使用；请先暂停该会话，或选择新的 worktree", owner)
-		}
-	}
-	s.app.directoryOwners[root] = s.record.ID
-	return nil
-}
-
-func (s *Session) releaseDirectory() {
-	s.app.directoryMu.Lock()
-	defer s.app.directoryMu.Unlock()
-	for root, id := range s.app.directoryOwners {
-		if id == s.record.ID {
-			delete(s.app.directoryOwners, root)
-		}
-	}
-}
-
-func canonicalWorkspaceRoot(cwd string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	abs, err := filepath.Abs(cwd)
-	if err != nil {
-		return "", err
-	}
-	abs, err = filepath.EvalSymlinks(abs)
-	if err != nil {
-		return "", err
-	}
-	root, gitErr := workspace.Git(ctx, abs, "rev-parse", "--show-toplevel")
-	if gitErr == nil {
-		return filepath.EvalSymlinks(strings.TrimSpace(string(root)))
-	}
-	// Independent receiving sessions may use a non-Git directory.
-	return abs, nil
 }
 
 func creationSpaceID(in CreateInput) string {

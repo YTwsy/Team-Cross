@@ -47,8 +47,8 @@ func verifyLiveRelease(t *testing.T, ctx context.Context, s *Session) {
 		t.Fatal(e)
 	}
 	eventually(t, func() bool { return s.view()["runtimeState"] == "released" })
-	if view := executionViewFixture(t, j, s); view["state"] != "restricted" {
-		t.Fatal("member retained execution access after end")
+	if view := executionViewFixture(t, j, s); view["sessionId"] != s.record.SessionID || view["runtimeState"] != "released" || view["writer"] != "owner" {
+		t.Fatal("ending execution lost member reading or retained the runtime/input holder", view)
 	}
 	if _, e = s.Context(ctx, "history", "", 0); e != nil {
 		t.Fatal("released history unreadable", e)
@@ -100,7 +100,13 @@ func TestLiveNativeHandoff(t *testing.T) {
 	t.Setenv("CODEX_HOME", manifest.Home)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	a, e := Open(Config{DataDir: manifest.Data, Repo: manifest.Repo, Loopback: true})
+	// Reuse the fixture's actual CLI for its required annotation MCP. The Go
+	// test executable cannot serve the teamcross mcp entry point.
+	executable := filepath.Join(root, "teamcross")
+	if _, err := os.Stat(executable); err != nil {
+		t.Fatal("dedicated fixture CLI missing", err)
+	}
+	a, e := Open(Config{DataDir: manifest.Data, Repo: manifest.Repo, Loopback: true, Executable: executable})
 	if e != nil {
 		t.Fatal(e)
 	}

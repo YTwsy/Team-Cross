@@ -28,7 +28,6 @@ func (s *Session) releaseIfIdleLocked() {
 	s.generation++ // A late disconnect/turn notification cannot affect a restart.
 	go func() {
 		p.Close() // Wait for process exit without holding Session.mu.
-		s.releaseDirectory()
 		s.mu.Lock()
 		s.stopping = nil
 		close(done)

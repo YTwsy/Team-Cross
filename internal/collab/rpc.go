@@ -104,6 +104,17 @@ func (s *Session) onRuntimeMessage(generation uint64, m nativecodex.Message) {
 			if s.activeTurnID == "" || params.Turn.ID == "" || s.activeTurnID == params.Turn.ID {
 				s.busy = false
 				s.activeTurnID = ""
+				if p := s.process; p != nil && s.record.Provider != "claude" {
+					// The native notification reader must stay free to receive the
+					// thread/read response. Keep the runtime alive until it arrives.
+					s.activeCalls++
+					go func() {
+						defer s.finishCall()
+						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+						defer cancel()
+						s.refreshNativeState(ctx, p, false)
+					}()
+				}
 			}
 		}
 		s.record.UpdatedAt = time.Now()
@@ -326,7 +337,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 				delete(params, "effort")
 			}
 		}
-		for _, k := range []string{"path", "history", "config", "baseInstructions", "developerInstructions", "environments", "runtimeWorkspaceRoots"} {
+		for _, k := range []string{"path", "history", "config", "baseInstructions", "developerInstructions", "environments", "cwd", "runtimeWorkspaceRoots"} {
 			delete(params, k)
 		}
 		if r.RuntimeMode != runtimeconfig.Trusted {
@@ -335,7 +346,11 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 			}
 		}
 		for k, v := range nativecodex.SessionOverrides(r.SessionID, r.ExecutionCwd, r.RuntimeMode) {
-			params[k] = v
+			// Continue in the native thread's current workspace. A client's cwd
+			// is its own local path, not an instruction to relocate the host.
+			if k != "cwd" && k != "runtimeWorkspaceRoots" {
+				params[k] = v
+			}
 		}
 		if len(modelConfig) > 0 {
 			params["config"] = modelConfig
@@ -404,7 +419,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 		}
 	}
 	if err == nil && (method == "turn/start" || method == "thread/resume" || method == "thread/settings/update") {
-		s.refreshModel(ctx, p)
+		s.refreshNativeState(ctx, p, true)
 	}
 	if method == "config/read" && err == nil {
 		var v map[string]any

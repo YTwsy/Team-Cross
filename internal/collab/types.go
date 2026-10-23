@@ -209,6 +209,7 @@ type Session struct {
 	receiverPaused    bool
 	mu                *sync.Mutex
 	materialUploadMu  sync.Mutex
+	nativeStateMu     sync.Mutex
 	record            Record
 	app               *App
 	materialStore     *materialstore.Store
@@ -312,12 +313,11 @@ type App struct {
 	settings        Settings
 	claudeClients   map[string]*nativeclaude.Client
 	reader          Runtime
+	readerHome      string
 	readerMu        sync.Mutex
 	sessions        map[string]*Session
 	executions      map[string]*Session
 	creationMu      sync.Mutex
-	directoryMu     sync.Mutex
-	directoryOwners map[string]string
 	joined          map[string]*Joined
 	closed          bool
 	pending         map[string]pendingInvite

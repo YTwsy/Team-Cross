@@ -288,7 +288,7 @@ TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS/Tailcat 路�
 
 持久化采用 `schema:4`：`collaborations/<spaceId>/collaboration.json` 保存空间材料元数据与公开讨论；`sessions/<executionId>/execution.json` 保存每个会话及会话批注。材料正文仍按内容寻址布局保存。旧格式原样保留，以 `unsupported` 状态报告，不覆盖、迁移或自动恢复。创建绑定 spaceId、requestId 和预览哈希，保留原链接及成员；requestId 同时是 executionId。一个会话创建失败不修改兄弟会话。
 
-暂停持久化 paused，拒绝新写入及新投递，保留阅读与讨论；运行实例实际关闭后才释放目录占用。结束共同执行另接回该会话输入；关闭空间才撤销所有成员。恢复保持同一原生 ID、目录和固定模式，不重放输入。根空间 `action:end` 持久化 ended，再次生成链接恢复 ready；Core 重启只加载记录，不自动启动所有会话。
+暂停持久化 paused，拒绝新写入及新投递，保留阅读与讨论；当前工作结束后关闭专属运行实例并释放原生会话写入锁。不同会话可共用目录。结束共同执行另接回该会话输入；关闭空间才撤销所有成员。恢复保持同一原生 ID 和固定模式，不重放输入。Codex 的 `executionCwd` 跟随同一原生会话最近确认的 `thread.cwd`，恢复前先读取最新值；读取失败或无有效绝对路径时保留最近已知值，不从单条命令的路径推断会话目录。根空间 `action:end` 持久化 ended，再次生成链接恢复 ready；Core 重启只加载记录，不自动启动所有会话。
 
 `role` 仅区分本机发起者 `owner` 与加入者 `remote`；授权不使用共同的 `remote` 身份。`selfId` 为本机成员身份（发起者为 `owner`），`writer` 为 `owner` 或具体成员 ID。直接客户端和辅助工具比较 `selfId` 与 `writer`。`members` 返回 `{id,name,joinedAt,active,online,inputRequested}` 数组，其中 inputRequested 在子会话视图中仅表示该会话的范围；每人凭据独立，显示名称允许重复，不用于授权或去重。`invitations` 仅向发起者返回各邀请的 `{id,state,expiresAt?,joinedCount}`，不含凭据。
 
@@ -364,7 +364,7 @@ MCP 根据 `initialize.clientInfo.name` 识别个人客户端。Codex 从 `tools
 
 状态和错误原子写入 `share-requests/<id>.json`，不保存邀请 secret。Core 关闭会取消并等待工作线程；重启把未完成记录改为 interrupted，不自动重放。ready 表示该请求已完成创建和邀请，不承诺之后共享一直有效；Core 重启后仍按普通协作规则恢复、重新邀请。CLI `share-status/cancel-share --id <请求ID> [--json]` 使用同一查询/取消工具，不从 shell 环境猜当前来源。
 
-Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客户端连接返回。A 的共享网关不支持远端修改主机账户，也不返回主机认证 token；`threadId/cwd/permissionProfile` 等共享执行参数由协作绑定。其他未开放的原生方法返回可读的“不支持”错误，不默认穿透。
+Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客户端连接返回。A 的共享网关不支持远端修改主机账户，也不返回主机认证 token；`threadId` 限定目标协作，目录采用原生会话确认值，权限遵守创建时的协作模式。其他未开放的原生方法返回可读的“不支持”错误，不默认穿透。
 
 空间成员资格授予所有会话读取能力；不提供逐会话执行访问授权接口。`executionAvailable` 与 `hasExecution` 描述该对象是否配置执行，不是成员阅读权限。历史、文件、改动、事件、批注和回复均验证有效空间成员资格与父子会话归属。写入 RPC、直接客户端、审批和输入交接另外验证当前输入者及 epoch；移除成员取消其全部在途请求并接回输入，重新加入不能复活旧请求。
 

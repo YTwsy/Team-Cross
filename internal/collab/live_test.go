@@ -167,6 +167,7 @@ func TestLiveCodex(t *testing.T) {
 		t.Log("file execution confirmed", mode)
 		verifyLiveRelease(t, ctx, s)
 	}
+	verifyLiveNativeWorkspace(t, ctx, a, source, a.executions[ids["existing"]])
 	result := map[string]any{"root": root, "repo": repo, "dataDir": a.Config.DataDir, "codexHome": home, "sourceId": source, "collaborations": ids, "model": liveModel, "createdAt": time.Now()}
 	if e = writeJSONFile(filepath.Join(root, "fixture.json"), result); e != nil {
 		t.Fatal(e)
