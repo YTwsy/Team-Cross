@@ -721,5 +721,6 @@ func (s *Session) workbenchReply(ctx context.Context, in workbenchInput) (any, e
 	if actor.Kind != "session" || (actor.Provider != "codex" && actor.Provider != "claude" && actor.Provider != "chatgpt") || len(actor.Session) != 24 {
 		return nil, fmt.Errorf("参与会话身份无效")
 	}
+	ctx = context.WithValue(ctx, activityActorKey{}, actor)
 	return s.replyAnnotationResult(ctx, in.Reply, actor.Provider+" · "+actor.Name, true)
 }

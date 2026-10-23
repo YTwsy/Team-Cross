@@ -21,6 +21,7 @@ import {
 } from "../types";
 import { Annotations, Discussion, type AnnotationRequest } from "./Annotations";
 import { Context } from "./Context";
+import { MemberFollow } from "./MemberFollow";
 import { SendToAgent } from "./AgentPairings";
 import { MaterialReader, type ReadingMemory } from "./Materials";
 import {
@@ -533,6 +534,7 @@ function LibraryReader({
           disabled={!accessible}
           favorite
         />
+        {r.reference.kind === "material" && r.reference.materialId && <MemberFollow spaceId={r.reference.spaceId} subject={{kind:"material",id:r.reference.materialId}} disabled={!accessible}/>}
       </div>
       {!accessible ? (
         <div className="notice">

@@ -71,6 +71,7 @@ func (s *Session) onRuntimeMessage(generation uint64, m nativecodex.Message) {
 	s.sequence++
 	s.observeModelLocked(m.Method, m.Params)
 	s.events = append(s.events, Event{Sequence: s.sequence, Method: m.Method, Params: m.Params, Time: time.Now()})
+	s.observeActivityNativeLocked(m.Method, m.Params)
 	if len(s.events) > 600 {
 		s.events = append([]Event(nil), s.events[len(s.events)-600:]...)
 	}
@@ -394,11 +395,22 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 			s.record.Commands = map[string]Command{}
 		}
 		s.record.Commands[commandKey] = Command{ID: requestID, Hash: hash, State: "pending"}
+		if s.receiverSpace == "" && (method == "turn/start" || method == "turn/steer") {
+			a := s.activityStateLocked()
+			turnID, _ := params["turnId"].(string)
+			if turnID == "" {
+				turnID, _ = params["expectedTurnId"].(string)
+			}
+			a.Inputs[commandKey] = ActivityTurnInput{MemberID: role, Method: method, TurnID: turnID, State: "pending"}
+		}
 		if method == "turn/start" {
 			s.busy = true
 		}
 		if err := s.saveLocked(); err != nil {
 			delete(s.record.Commands, commandKey)
+			if s.record.Activity != nil {
+				delete(s.record.Activity.Inputs, commandKey)
+			}
 			if method == "turn/start" {
 				s.busy = false
 			}
@@ -466,6 +478,9 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 			c.Result = result
 		}
 		s.record.Commands[commandKey] = c
+		if s.receiverSpace == "" && (method == "turn/start" || method == "turn/steer") {
+			s.activityInputResultLocked(commandKey, result, c.State)
+		}
 		s.record.UpdatedAt = time.Now()
 		_ = s.saveLocked()
 		unlock()

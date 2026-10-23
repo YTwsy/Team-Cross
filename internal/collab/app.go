@@ -162,12 +162,37 @@ func writeJSONFile(path string, value any) error {
 func (a *App) newSession(r Record) *Session {
 	root := filepath.Join(a.Config.DataDir, "collaborations", r.ID, "materials")
 	session := &Session{mu: &sync.Mutex{}, executions: map[string]*Session{}, app: a, record: r, materialStore: materialstore.New(root), writer: "owner", epoch: 1, presence: map[string]memberPresence{}, approvals: map[string]Approval{}}
+	session.activityBaselineLocked()
 	if r.Schema == 4 {
 		_, _, _ = session.cleanupAndMeasureUploads(time.Now(), "")
 	}
 	return session
 }
 func (s *Session) saveLocked() error {
+	if s.receiverSpace != "" {
+		return s.saveRecordLocked()
+	}
+	previous := s.record.Activity
+	s.record.Activity = activityClone(previous)
+	if err := s.prepareActivityLocked(); err != nil {
+		s.record.Activity = previous
+		return err
+	}
+	if data, err := json.Marshal(s.record.Activity); err != nil || len(data) > maxActivityStateBytes {
+		s.record.Activity = previous
+		return fmt.Errorf("成员动态状态已达存储上限，请先处理同步异常")
+	}
+	if err := s.saveRecordLocked(); err != nil {
+		s.record.Activity = previous
+		return err
+	}
+	s.activityBaselineLocked()
+	if err := s.drainActivityLocked(); err != nil {
+		s.activityRoot().activityError = err.Error()
+	}
+	return nil
+}
+func (s *Session) saveRecordLocked() error {
 	if s.receiverSpace != "" {
 		return writeJSONFile(filepath.Join(s.runtimeDirectory(), "receiver.json"), receiverRecord{SpaceID: s.receiverSpace, CreationStage: s.receiverCreation, ReceivingPaused: s.receiverPaused, Record: s.record})
 	}

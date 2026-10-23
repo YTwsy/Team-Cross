@@ -379,6 +379,8 @@ describe("原处批注", () => {
     expect(writes[1]!.body).toEqual({
       annotationId: "saved",
       text: "已核对，会补充说明",
+      mentions: [],
+      replyTo: {kind:"annotation",id:"saved"},
       requestId: expect.any(String),
     });
   });

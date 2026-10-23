@@ -191,6 +191,11 @@ export function joinMaterialSegments(segments: MaterialPage["segments"]) {
       previous.collapsed = previous.endOffset < previous.length;
       previous.sourceLength ||= segment.sourceLength;
       previous.omittedLength ||= segment.omittedLength;
+      if (segment.attachments?.length)
+        previous.attachments = mergeImageMetadata(
+          previous.attachments,
+          segment.attachments,
+        );
     } else result.push({ ...segment });
   }
   return result;
@@ -251,9 +256,25 @@ function coalesceAdjacentSegments(segments: MaterialPage["segments"]) {
       prev.collapsed = prev.endOffset < prev.length;
       prev.sourceLength ||= segment.sourceLength;
       prev.omittedLength ||= segment.omittedLength;
+      if (segment.attachments?.length)
+        prev.attachments = mergeImageMetadata(
+          prev.attachments,
+          segment.attachments,
+        );
     } else {
       out.push({ ...segment });
     }
   }
   return out;
+}
+
+function mergeImageMetadata(
+  first: MaterialPage["segments"][number]["attachments"],
+  second: MaterialPage["segments"][number]["attachments"],
+) {
+  return Array.from(
+    new Map(
+      [...(first || []), ...(second || [])].map((image) => [image.id, image]),
+    ).values(),
+  );
 }

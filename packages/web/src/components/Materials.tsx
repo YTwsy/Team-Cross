@@ -1,3 +1,5 @@
+import { useReaderFollow } from "../reader-follow";
+import { ReaderFind, type ReaderMatch } from "./ReaderFind";
 import { useRefreshState, useRefreshGuard } from "../refreshState";
 import { formatDate, t, tr } from "../i18n";
 import { ResourceActions, useLibrary } from "../library";
@@ -48,6 +50,7 @@ import { Publisher, itemLabel } from "./Publisher";
 import { Copy, ErrorBox, Icon, Loading, Modal } from "./ui";
 import type { AnnotationRequest } from "./Annotations";
 import { SpaceAvatar } from "./SpaceIdentity";
+import { MemberFollow } from "./MemberFollow";
 
 export type ReadingMemory = {
   turn: string;
@@ -59,7 +62,7 @@ export function MaterialReader({
   spaceId,
   material,
   reference,
-  target,
+  target: annotationTarget,
   onAnnotate,
   disabled,
   annotations = [],
@@ -88,8 +91,18 @@ export function MaterialReader({
   };
   conversation?: boolean;
 }) {
+  const [searchTarget, setSearchTarget] = useState<AnnotationTarget>();
+  const target = searchTarget || annotationTarget;
+  const beforeSearch = useRef<{
+    page?: MaterialPage;
+    position?: ReadingPosition;
+  }>({});
   const version = reference.version,
     memoryKey = `${material.id}:${version}`;
+  useEffect(() => {
+    setSearchTarget(undefined);
+    beforeSearch.current = {};
+  }, [spaceId, memoryKey]);
   const cached = memory.get(memoryKey);
   const [turn, setTurn] = useState(reference.turnId || cached?.turn || "");
   const [page, setPage] = useState<MaterialPage>();
@@ -121,6 +134,7 @@ export function MaterialReader({
     !target && !reference.turnId ? cached?.position : undefined,
   );
   const pendingTurn = useRef(reference.turnId || "");
+  useReaderFollow(panel, memoryKey, false, !!target || !!pendingTurn.current);
   useLayoutEffect(
     () => () => {
       const entry = memory.get(memoryKey);
@@ -252,6 +266,49 @@ export function MaterialReader({
       if (serial === request.current) setItemLoading("");
     }
   }
+  async function selectSearch(match: ReaderMatch, signal: AbortSignal) {
+    const serial = request.current;
+    const path = `collaborations/${spaceId}/read-material`;
+    const body = { materialId: material.id, version, turnId: match.turnId };
+    const result = await api<MaterialPage>(
+      path,
+      { ...body, includeOutline: true },
+      signal,
+    );
+    const present = result.segments.some(
+      (s) =>
+        s.itemId === match.itemId &&
+        s.turnId === match.turnId &&
+        s.startOffset <= match.startOffset &&
+        s.endOffset >= match.endOffset,
+    );
+    const item = present
+      ? undefined
+      : await api<MaterialPage>(
+          path,
+          { ...body, itemId: match.itemId, startOffset: match.startOffset },
+          signal,
+        );
+    if (serial !== request.current || signal.aborted) return;
+    const next = item
+      ? {
+          ...result,
+          segments: mergeMaterialSegments(
+            result.segments.filter(
+              (s) => !(s.itemId === match.itemId && s.turnId === match.turnId),
+            ),
+            item.segments,
+          ),
+        }
+      : result;
+    setPage(next);
+    setSearchTarget({
+      kind: "material",
+      materialId: material.id,
+      version,
+      ...match,
+    });
+  }
   const located =
     !!target &&
     joinMaterialSegments(page?.segments || []).some((segment) => {
@@ -339,6 +396,7 @@ export function MaterialReader({
           <div className="space-material-header">
             <h2>{v?.title}</h2>
             <div className="space-reader-header-actions">
+              <MemberFollow spaceId={spaceId} subject={{kind:"material",id:material.id}} disabled={disabled}/>
               <SpaceCommentsButton />
               <details
                 className="space-material-more"
@@ -540,6 +598,33 @@ export function MaterialReader({
         </blockquote>
       )}
       {!conversation && readingStart}
+      <ReaderFind
+        key={`find:${memoryKey}`}
+        resource={{
+          path: `collaborations/${spaceId}/read-material`,
+          body: { materialId: material.id, version },
+        }}
+        onSelect={selectSearch}
+        onActiveChange={(open) => {
+          if (open)
+            beforeSearch.current = {
+              page,
+              position: captureReadingPosition(panel.current),
+            };
+          else {
+            setSearchTarget(undefined);
+            if (beforeSearch.current.page) {
+              setPage(beforeSearch.current.page);
+              memory.set(memoryKey, {
+                turn,
+                page: beforeSearch.current.page,
+                position: beforeSearch.current.position,
+              });
+              restore.current = beforeSearch.current.position;
+            }
+          }
+        }}
+      />
       <ErrorBox message={error} />
       {page && (
         <ReadingLayout
@@ -598,6 +683,16 @@ export function MaterialReader({
                   <ReaderMessage
                     spaceId={spaceId}
                     source={segment.text}
+                    images={segment.attachments}
+                    mediaResource={{
+                      path: `collaborations/${spaceId}/read-material`,
+                      body: {
+                        materialId: material.id,
+                        version,
+                        turnId: segment.turnId,
+                        itemId: segment.itemId,
+                      },
+                    }}
                     itemType={segment.type}
                     speaker={
                       conversation &&

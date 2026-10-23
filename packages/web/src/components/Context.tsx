@@ -1,3 +1,5 @@
+import { useReaderFollow } from "../reader-follow";
+import { ReaderFind, type ReaderMatch } from "./ReaderFind";
 import { resourceScope } from "../execution";
 import { t, tr } from "../i18n";
 import { ResourceActions } from "../library";
@@ -95,11 +97,27 @@ export function Context({
   );
   const [selection, setSelection] = useState<AnnotationTarget>();
   const [selectionHint, setSelectionHint] = useState("");
+  const [searchTarget, setSearchTarget] = useState<AnnotationTarget>();
+  const [finding, setFinding] = useState(false);
+  const beforeSearch = useRef<{ data?: History; position?: ReadingPosition }>(
+    {},
+  );
+  useEffect(() => {
+    setSearchTarget(undefined);
+    setFinding(false);
+    beforeSearch.current = {};
+  }, [id]);
   const [activeTarget, setActiveTarget] = useState<AnnotationTarget>();
   const [locationStatus, setLocationStatus] = useState("");
   const [historyItemError, setHistoryItemError] = useState("");
   const [itemLoading, setItemLoading] = useState("");
   const panel = useRef<HTMLElement>(null);
+  const follow = useReaderFollow(
+    panel,
+    `${id}:${tab}:${cursor}`,
+    tab === "history" && !cursor && !historyTurn,
+    finding || !!activeTarget,
+  );
   const positions = useRef<Partial<Record<ContextTab, ReadingPosition>>>({});
   const restore = useRef<
     { tab: ContextTab; position: ReadingPosition } | undefined
@@ -135,16 +153,92 @@ export function Context({
     if (
       !historyView ||
       historyView.path !== contextPath ||
-      acceptNextHistory.current
+      acceptNextHistory.current ||
+      (historyView.signature !== historySignature &&
+        follow.canFollow() &&
+        (latest.sourcePageComplete || !latest.nextCursor))
     ) {
+      const scroll = follow.canFollow();
       setHistoryView({
         path: contextPath,
         data: latest,
         signature: historySignature,
       });
       acceptNextHistory.current = false;
+      if (scroll)
+        requestAnimationFrame(() => {
+          if (follow.canFollow()) follow.toEnd();
+        });
     }
-  }, [latest, contextPath, historySignature, historyView]);
+  }, [
+    latest,
+    contextPath,
+    historySignature,
+    historyView,
+    follow.atEnd,
+    finding,
+  ]);
+  useEffect(() => {
+    if (
+      !latest ||
+      !("thread" in latest) ||
+      !contextPath ||
+      !follow.canFollow() ||
+      cursor ||
+      historyTurn ||
+      latest.sourcePageComplete ||
+      !latest.nextCursor ||
+      (historyView?.signature === historySignature &&
+        historyView.data.sourcePageComplete)
+    )
+      return;
+    const abort = new AbortController();
+    const path = contextPath;
+    void (async () => {
+      let joined = latest;
+      const seen = new Set<string>();
+      while (
+        !joined.sourcePageComplete &&
+        joined.nextCursor &&
+        !seen.has(joined.nextCursor)
+      ) {
+        seen.add(joined.nextCursor);
+        const query = new URLSearchParams({
+          kind: "history",
+          cursor: joined.nextCursor,
+        });
+        const next = await api<History>(
+          `collaborations/${id}/context?${query}`,
+          undefined,
+          abort.signal,
+        );
+        if (next.contentHash !== latest.contentHash) return;
+        joined = {
+          ...next,
+          pageCursor: latest.pageCursor,
+          turns: latest.turns,
+          segments: mergeMaterialSegments(joined.segments, next.segments),
+        };
+      }
+      if (!abort.signal.aborted && follow.canFollow()) {
+        setHistoryView({ path, data: joined, signature: historySignature });
+        requestAnimationFrame(() => {
+          if (follow.canFollow()) follow.toEnd();
+        });
+      }
+    })().catch((e) => {
+      if (!abort.signal.aborted) setHistoryItemError(errorText(e));
+    });
+    return () => abort.abort();
+  }, [
+    latest,
+    contextPath,
+    historySignature,
+    follow.atEnd,
+    finding,
+    cursor,
+    historyTurn,
+  ]);
   const data =
     tab === "history" && historyView?.path === contextPath
       ? historyView.data
@@ -204,6 +298,65 @@ export function Context({
       pendingHistoryTurn.current = "";
     }
   }, [tab, data, context.loading]);
+  async function selectSearch(match: ReaderMatch, signal: AbortSignal) {
+    if (!contextPath) return;
+    const path = contextPath;
+    const query = new URLSearchParams({
+      kind: "history",
+      cursor: match.pageCursor || "",
+      turnId: match.turnId,
+    });
+    const result = await api<History>(
+      `collaborations/${id}/context?${query}`,
+      undefined,
+      signal,
+    );
+    query.set("itemId", match.itemId);
+    query.set("startOffset", String(match.startOffset));
+    const present = result.segments.some(
+      (s) =>
+        s.itemId === match.itemId &&
+        s.turnId === match.turnId &&
+        s.startOffset <= match.startOffset &&
+        s.endOffset >= match.endOffset,
+    );
+    const item = present
+      ? undefined
+      : await api<History>(
+          `collaborations/${id}/context?${query}`,
+          undefined,
+          signal,
+        );
+    if (signal.aborted) return;
+    setHistoryView((current) =>
+      current?.path === path
+        ? {
+            ...current,
+            data: item
+              ? {
+                  ...result,
+                  segments: mergeMaterialSegments(
+                    result.segments.filter(
+                      (s) =>
+                        !(
+                          s.itemId === match.itemId && s.turnId === match.turnId
+                        ),
+                    ),
+                    item.segments,
+                  ),
+                }
+              : result,
+          }
+        : current,
+    );
+    setSearchTarget({ kind: "history", sessionId, ...match });
+    requestAnimationFrame(() => {
+      if (!signal.aborted)
+        panel.current
+          ?.querySelector("[data-annotation-highlight]")
+          ?.scrollIntoView?.({ block: "center" });
+    });
+  }
   function refresh() {
     acceptNextHistory.current = true;
     context.reload();
@@ -534,7 +687,10 @@ export function Context({
           }))}
         >
           <div className="history">
-            <ReaderSequence segments={segments} activeTarget={activeTarget}>
+            <ReaderSequence
+              segments={segments}
+              activeTarget={searchTarget || activeTarget}
+            >
               {(segment, index, all) => (
                 <div
                   key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
@@ -564,6 +720,16 @@ export function Context({
                   <ReaderMessage
                     spaceId={id}
                     source={segment.text}
+                    images={segment.attachments}
+                    streaming={
+                      !segment.status ||
+                      !["completed", "interrupted", "failed"].includes(
+                        segment.status,
+                      )
+                    }
+                    mediaResource={{
+                      path: `collaborations/${id}/context?${new URLSearchParams({ kind: "history", cursor: data.pageCursor || "", turnId: segment.turnId, itemId: segment.itemId })}`,
+                    }}
                     itemType={segment.type}
                     label={
                       segment.type === "userMessage"
@@ -601,7 +767,7 @@ export function Context({
                       endOffset: segment.endOffset,
                       quote: segment.text,
                     }}
-                    activeTarget={activeTarget}
+                    activeTarget={searchTarget || activeTarget}
                     annotations={annotations}
                     onAnnotate={onAnnotate}
                     onDiscuss={onDiscuss}
@@ -826,7 +992,37 @@ export function Context({
             message={context.error || historyItemError}
             retry={context.error ? refresh : undefined}
           />
-          {historyPending && (
+          {tab === "history" && online && (
+            <ReaderFind
+              key={`find:${id}`}
+              resource={{ path: `collaborations/${id}/context?kind=history` }}
+              onSelect={selectSearch}
+              onActiveChange={(open) => {
+                setFinding(open);
+                if (open)
+                  beforeSearch.current = {
+                    data: data && "thread" in data ? data : undefined,
+                    position: captureReadingPosition(panel.current),
+                  };
+                else {
+                  setSearchTarget(undefined);
+                  if (beforeSearch.current.data && contextPath) {
+                    setHistoryView({
+                      path: contextPath,
+                      data: beforeSearch.current.data,
+                      signature: beforeSearch.current.data.contentHash || "",
+                    });
+                    if (beforeSearch.current.position)
+                      restore.current = {
+                        tab: "history",
+                        position: beforeSearch.current.position,
+                      };
+                  }
+                }
+              }}
+            />
+          )}
+          {historyPending && !finding && (
             <div className="reader-update" role="status">
               <span>{t("对话有新内容，当前阅读位置已保留。")}</span>
               <button
@@ -842,8 +1038,42 @@ export function Context({
               >
                 {t("显示新内容") + " "}
               </button>
+              <button
+                className="button small"
+                onClick={() => {
+                  if (latest && "thread" in latest && contextPath)
+                    setHistoryView({
+                      path: contextPath,
+                      data: latest,
+                      signature: historySignature,
+                    });
+                  requestAnimationFrame(follow.toEnd);
+                }}
+              >
+                {t("回到最新")}
+              </button>
             </div>
           )}
+          {tab === "history" &&
+            online &&
+            !finding &&
+            !historyPending &&
+            !follow.atEnd &&
+            data && (
+              <button
+                className="reader-follow-button button small"
+                onClick={() => {
+                  if (cursor || historyTurn) {
+                    setHistoryTurn("");
+                    setCursor("");
+                    acceptNextHistory.current = true;
+                  }
+                  requestAnimationFrame(follow.toEnd);
+                }}
+              >
+                {t("回到最新")}
+              </button>
+            )}
           {!online ? (
             <Empty
               icon="link"

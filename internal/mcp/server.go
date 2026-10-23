@@ -92,11 +92,14 @@ func Tools() []map[string]any {
 		tool("send_input", "向共享会话发送明确选定的输入。开始新一轮用 start，运行中补充用 steer。Claude 当前只支持空闲时 start，其他操作使用原生 TUI。先确认输入归属；保留 requestId，结果不明时先读取 events，不自动重发。", map[string]any{"id": id, "text": str("发送给共享会话的内容，不自动加入身份前缀"), "mode": map[string]any{"type": "string", "enum": []string{"start", "steer"}}, "turnId": str("steer 时的当前 turn ID"), "requestId": str("本次写入的唯一标识，重试必须保持相同")}, []string{"id", "text", "mode", "requestId"}, false),
 		tool("interrupt_turn", "中断指定协作的当前轮；先检查 capabilities.interruptTurn，Claude 当前使用原生 TUI 中断。", map[string]any{"id": id, "turnId": str("当前 turn ID"), "requestId": str("唯一请求标识")}, []string{"id", "turnId", "requestId"}, false),
 		tool("respond_to_request", "回应 events 中的原生审批或用户输入请求；Claude 当前使用原生 TUI 回应。先向用户展示请求与选择，不代替用户批准未知操作；result 使用该请求类型的原生响应结构。", map[string]any{"id": id, "requestId": map[string]any{"type": []string{"string", "number"}}, "result": map[string]any{"type": "object"}}, []string{"id", "requestId", "result"}, false),
-		tool("add_annotation", "为共享上下文保存一条人工意见，不会自动转为 Agent 输入。建议用 target 携带已读取的原文与位置；整体意见可以不指定 target。", map[string]any{"id": id, "text": str("意见内容"), "reference": str("可选的人工参考说明，不用于自动定位"), "target": target, "materials": materialReferencesSchema()}, []string{"id", "text"}, false),
-		tool("reply_to_annotation", "回复已知批注；已有足够上下文时可直接回复。返回 status=saved 和本次 reply，成功后无需回读整段讨论。保留 requestId；仅结果不明时按 annotationId 查询，重试保持相同 requestId。不启动模型。", map[string]any{"id": id, "annotationId": str("原批注 ID，不能使用回复 ID"), "text": str("回复内容，最多 4000 字"), "requestId": str("本次回复唯一标识，重试保持相同"), "materials": materialReferencesSchema()}, []string{"id", "annotationId", "text", "requestId"}, false),
-	}, append(append(append(managementTools(), currentTools()...), materialTools()...), AgentTools()...)...))
+		tool("add_annotation", "为共享上下文保存一条人工意见，不会自动转为 Agent 输入。建议用 target 携带已读取的原文与位置；整体意见可以不指定 target。", map[string]any{"id": id, "text": str("意见内容"), "reference": str("可选的人工参考说明，不用于自动定位"), "target": target, "materials": materialReferencesSchema(), "mentions": memberMentionsSchema(), "requestId": str("本次评论唯一标识，重试保持相同")}, []string{"id", "text"}, false),
+		tool("reply_to_annotation", "回复已知批注；已有足够上下文时可直接回复。返回 status=saved 和本次 reply，成功后无需回读整段讨论。保留 requestId；仅结果不明时按 annotationId 查询，重试保持相同 requestId。不启动模型。", map[string]any{"id": id, "annotationId": str("原批注 ID，不能使用回复 ID"), "text": str("回复内容，最多 4000 字"), "requestId": str("本次回复唯一标识，重试保持相同"), "materials": materialReferencesSchema(), "mentions": memberMentionsSchema(), "replyTo": replyTargetSchema()}, []string{"id", "annotationId", "text", "requestId"}, false),
+	}, append(append(append(append(managementTools(), memberActivityTools()...), currentTools()...), materialTools()...), AgentTools()...)...))
 }
 func (b Backend) Invoke(ctx context.Context, name string, args map[string]any) (json.RawMessage, error) {
+	if handled, out, err := b.invokeMemberActivity(ctx, name, args); handled {
+		return out, err
+	}
 	if handled, out, err := b.invokeAgent(ctx, name, args); handled {
 		return out, err
 	}
@@ -181,9 +184,14 @@ func (b Backend) Invoke(ctx context.Context, name string, args map[string]any) (
 	case "respond_to_request":
 		return b.Call(ctx, "POST", base+"/respond", map[string]any{"id": args["requestId"], "result": args["result"]})
 	case "add_annotation":
-		return b.Call(ctx, "POST", base+"/annotations", map[string]any{"text": args["text"], "reference": args["reference"], "target": args["target"], "materials": args["materials"]})
+		return b.Call(ctx, "POST", base+"/annotations", map[string]any{"text": args["text"], "reference": args["reference"], "target": args["target"], "materials": args["materials"], "mentions": args["mentions"], "requestId": args["requestId"]})
 	case "reply_to_annotation":
 		body := map[string]any{"annotationId": args["annotationId"], "text": args["text"], "requestId": args["requestId"]}
+		for _, key := range []string{"mentions", "replyTo"} {
+			if value, ok := args[key]; ok {
+				body[key] = value
+			}
+		}
 		if refs, ok := args["materials"]; ok {
 			body["materials"] = refs
 		}

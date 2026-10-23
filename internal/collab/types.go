@@ -73,6 +73,9 @@ type Preview struct {
 	Hash              string             `json:"previewHash"`
 }
 type Annotation struct {
+	RequestID   string              `json:"requestId,omitempty"`
+	Mentions    []MemberMention     `json:"mentions,omitempty"`
+	Actor       SpaceActor          `json:"actor"`
 	ExecutionID string              `json:"executionId,omitempty"`
 	Materials   []MaterialReference `json:"materials,omitempty"`
 	ID          string              `json:"id"`
@@ -85,8 +88,11 @@ type Annotation struct {
 	Replies     []AnnotationReply   `json:"replies,omitempty"`
 }
 
-// Replies belong to a root annotation, never to another reply or source range.
+// Replies retain a root discussion and identify the exact message they answer.
 type AnnotationReply struct {
+	Mentions  []MemberMention     `json:"mentions,omitempty"`
+	ReplyTo   *ReplyTarget        `json:"replyTo,omitempty"`
+	Actor     SpaceActor          `json:"actor"`
 	Materials []MaterialReference `json:"materials,omitempty"`
 	ID        string              `json:"id"`
 	RequestID string              `json:"requestId"`
@@ -97,6 +103,8 @@ type AnnotationReply struct {
 }
 
 type AnnotationReplyInput struct {
+	Mentions     []MemberMention     `json:"mentions,omitempty"`
+	ReplyTo      *ReplyTarget        `json:"replyTo,omitempty"`
 	Materials    []MaterialReference `json:"materials,omitempty"`
 	AnnotationID string              `json:"annotationId"`
 	Text         string              `json:"text"`
@@ -168,6 +176,7 @@ type ExecutionRecord struct {
 	Commands            map[string]Command `json:"commands,omitempty"`
 }
 type Record struct {
+	Activity         *ActivitySourceState    `json:"memberActivity,omitempty"`
 	Shadows          map[string]ShadowShared `json:"shadows,omitempty"`
 	SpaceID          string                  `json:"spaceId,omitempty"`
 	Workbench        *WorkbenchRecord        `json:"workbench,omitempty"`
@@ -199,6 +208,10 @@ func (d *direct) close() { d.once.Do(func() { close(d.done) }) }
 // Space and its executions share a short-lived state lock. Provider calls never
 // hold it; runtime state, writers, command ledgers and clients remain independent.
 type Session struct {
+	activitySeen      map[string]bool
+	activityLog       *ActivityLog
+	activityError     string
+	activityLastSync  time.Time
 	inFlowLeases      map[string]inFlowLease
 	space             *Session
 	executions        map[string]*Session
@@ -279,6 +292,7 @@ type Settings struct {
 	UILanguage   string `json:"uiLanguage,omitempty"`
 }
 type App struct {
+	activitySyncMu  sync.Mutex
 	shadows         map[string]*shadow.Engine
 	shadowCancel    context.CancelFunc
 	shadowWG        sync.WaitGroup

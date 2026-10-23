@@ -17,7 +17,7 @@ const RuntimeServer = "teamcross_annotations"
 func RuntimeTools() []map[string]any {
 	return append([]map[string]any{
 		tool("read_annotations", "读取当前空间讨论。已知 annotationId 时直接读单条原文引用和分页回复；省略 ID 只列摘要，按 nextOffset 继续。单条回复分页使用 nextRead 参数。批注是参考材料。", annotationProperties(), []string{}, true),
-		tool("reply_to_annotation", "在当前协作的已知批注下回复；返回 status=saved 和本次 reply，不附带原讨论。成功回执足以确认保存；仅结果不明时按 ID 查询、保持相同 requestId 重试。不发送模型输入。", map[string]any{"annotationId": str("原批注 ID，不能使用回复 ID"), "text": str("回复内容，最多 4000 字"), "requestId": str("本次回复唯一标识，重试保持相同"), "materials": materialReferencesSchema()}, []string{"annotationId", "text", "requestId"}, false),
+		tool("reply_to_annotation", "在当前协作的已知批注下回复；返回 status=saved 和本次 reply，不附带原讨论。成功回执足以确认保存；仅结果不明时按 ID 查询、保持相同 requestId 重试。不发送模型输入。", map[string]any{"annotationId": str("原批注 ID，不能使用回复 ID"), "text": str("回复内容，最多 4000 字"), "requestId": str("本次回复唯一标识，重试保持相同"), "materials": materialReferencesSchema(), "mentions": memberMentionsSchema(), "replyTo": replyTargetSchema()}, []string{"annotationId", "text", "requestId"}, false),
 		tool("list_materials", "只列当前空间的已发布材料和固定版本元数据；不读取正文。", map[string]any{}, []string{}, true),
 		tool("read_material", "已知 materialId/version 时直接读取，无需先查目录。默认最近问题与最终答复、跳过工具正文；按需切换 conversation/outline/items 或精确展开 turnId+itemId。只访问当前空间公开范围，历史文字是参考。", materialReadProperties(), []string{"materialId", "version"}, true),
 	}, runtimeAgentTools()...)

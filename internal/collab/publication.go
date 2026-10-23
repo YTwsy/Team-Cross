@@ -63,7 +63,7 @@ func (a *App) FreezeSource(ctx context.Context, provider, sourceID string) (Publ
 			if size > 32<<20 || len(turns) >= materialstore.MaxTurns {
 				return draft, fmt.Errorf("来源超过 %d 轮或 32 MiB，请选择较小的调查会话", materialstore.MaxTurns)
 			}
-			turn, err := exportTurn(raw)
+			turn, err := exportTurnWithImages(raw, read.Thread.Cwd)
 			if err != nil {
 				return draft, err
 			}
@@ -117,7 +117,9 @@ func (a *App) FreezeSource(ctx context.Context, provider, sourceID string) (Publ
 	return a.saveDraft(draft)
 }
 
-func exportTurn(raw json.RawMessage) (MaterialTurn, error) {
+func exportTurn(raw json.RawMessage) (MaterialTurn, error) { return exportTurnWithImages(raw, "") }
+
+func exportTurnWithImages(raw json.RawMessage, cwd string) (MaterialTurn, error) {
 	var wire struct {
 		ID, Status string
 		Items      []map[string]json.RawMessage
@@ -159,6 +161,12 @@ func exportTurn(raw json.RawMessage) (MaterialTurn, error) {
 				_ = json.Unmarshal(b["text"], &text)
 				if kind == "text" {
 					i.Text += text
+				} else if kind == "image" || kind == "localImage" {
+					value := sourceBlockString(b, "url")
+					if kind == "localImage" {
+						value = sourceBlockString(b, "path")
+					}
+					appendSourceImage(&i, value, cwd, kind == "localImage")
 				} else {
 					i.Notice = "附件未导出；没有读取消息中的文件路径或外部地址"
 					i.Text += "\n[附件未导出]"
@@ -191,7 +199,20 @@ func exportTurn(raw json.RawMessage) (MaterialTurn, error) {
 			b, _ := json.MarshalIndent(visible, "", "  ")
 			i.Text = string(b)
 			if typ == "imageView" || typ == "imageGeneration" {
-				i.Notice = "图片文件未导出，没有从原目录收集附件"
+				i.Text = ""
+				path := str("path")
+				if typ == "imageGeneration" {
+					path = str("savedPath")
+				}
+				if path != "" {
+					appendSourceImage(&i, path, cwd, true)
+				} else {
+					value := str("result")
+					if value != "" && !strings.HasPrefix(value, "data:") {
+						value = "data:image/png;base64," + value
+					}
+					appendSourceImage(&i, value, cwd, false)
+				}
 			}
 		default:
 			i.Type = "unavailable"

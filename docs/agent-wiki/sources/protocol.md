@@ -77,7 +77,7 @@
 | `POST /collaborations/:id/publication-status` | `{requestId}`，查询自己的发布结果 |
 | `POST /collaborations/:id/withdraw-material` | `{materialId}`，撤回自己材料的所有版本 |
 | `POST /collaborations/:id/annotations` | `{text,target?,reference?,materials?}` |
-| `POST /collaborations/:id/annotation-replies` | `{annotationId,text,requestId,materials?}`，返回更新后的原批注 |
+| `POST /collaborations/:id/annotation-replies` | `{annotationId,text,requestId,materials?,mentions?,replyTo?}`，返回更新后的原批注 |
 | `POST /runtime-annotations/:id` | 仅 A loopback，独立协作凭据，`{name,arguments}`，读取或回复本空间批注，按需读已发布材料 |
 
 会话级 `action/assist/annotations/annotation-replies/endpoint` 使用同一 sessions 层级。空间 action 只管理分享、关闭或离开；会话 action 管理 start、pause、end 与输入交接。会话的 end 接回输入并暂停执行，保留空间及所有成员读取；pause 拒绝新写入，保留当前输入归属和读取。公开讨论保留根路径，会话整体意见即使不带引用也写入子路径。
@@ -376,9 +376,9 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 
 ## 已发布会话材料
 
-冻结来源必须提供准确的 `provider/sourceId`；可使用来源列表，或先由个人 MCP `get_current_source` 核对当前原生身份，不能根据更新时间或目录猜测。冻结只读取已结束的连续历史前缀，不 resume、fork 或读取来源目录；正在运行的一轮留在本机。Codex 还以持久化轮次事件核对结束边界。草稿保存在本机 `publication-drafts/`，新对话不会追加进去。
+冻结来源必须提供准确的 `provider/sourceId`；可使用来源列表，或先由个人 MCP `get_current_source` 核对当前原生身份，不能根据更新时间或目录猜测。冻结只导出已结束的连续历史前缀，不 resume、fork 或扫描来源目录；仅解析原生明确的图片附件字段。正在运行的一轮留在本机。Codex 还以持久化轮次事件核对结束边界。草稿保存在本机 `publication-drafts/`，新对话不会追加进去。
 
-预览在固定草稿中选择连续的 `startTurnId..endTurnId`，每轮包含可导出的用户提问、可见回复和已保存工具过程。`readingStartId` 仅为导航，必须在范围内。WebGUI 对冻结和预览请求传入 `compact:true`；个人 MCP 的 `freeze_source_session` / `preview_publication` 默认也返回小型目录：`{id,hash,frozenAt,title,provider,sourceId,startTurnId,endTurnId,readingStartId?,turnCount,noticeCount,turns,readHint}`，轮次含 `id/status/label/itemCount/noticeCount`。导出说明按带有非空 `notice` 的 item 计数，预览只统计所选范围；正文不内联，WebGUI 通过 `publications/read-draft`、个人 MCP 通过 `read_publication_draft` 按需读取。确认页使用范围预览自己的 `draftId/hash`，不能复用完整来源草稿的游标。隐藏推理不导出；未知内容、未导出的图片/附件与过长项目有明确说明，不凭路径或 URL 额外拉取内容。折叠只是读取投影，完整已保存正文仍属于预览和授权范围。
+预览在固定草稿中选择连续的 `startTurnId..endTurnId`，每轮包含可导出的用户提问、可见回复和已保存工具过程。`readingStartId` 仅为导航，必须在范围内。WebGUI 对冻结和预览请求传入 `compact:true`；个人 MCP 的 `freeze_source_session` / `preview_publication` 默认也返回小型目录：`{id,hash,frozenAt,title,provider,sourceId,startTurnId,endTurnId,readingStartId?,turnCount,noticeCount,turns,readHint}`，轮次含 `id/status/label/itemCount/noticeCount`。导出说明按带有非空 `notice` 的 item 计数，预览只统计所选范围；正文不内联，WebGUI 通过 `publications/read-draft`、个人 MCP 通过 `read_publication_draft` 按需读取。确认页使用范围预览自己的 `draftId/hash`，不能复用完整来源草稿的游标。隐藏推理不导出；未知内容、未导出的图片/附件与过长项目有明确说明，不沿正文中的路径或 URL 额外拉取内容。折叠只是读取投影，完整已保存正文仍属于预览和授权范围。
 
 本机草稿与托管材料都以不可变清单和内容寻址正文保存。清单描述 `turns → items → {id,type,phase?,label?,notice,body}`；`phase` 原样保留来源的可见消息阶段，`label` 是最多 160 字的命令/工具/查询标识；不超过 4 KiB 且清单累计内联不超过 256 KiB 的正文直接放在 `body.kind=inline`，其他正文使用 `body.kind=blob/hash/byteLength/utf16Length/lineCount`。blob 哈希是原始 UTF-8 字节的 SHA-256；轮次和清单使用带版本域的确定性哈希。材料版本哈希就是清单哈希，展示预览不会改变原文、偏移或哈希。
 
@@ -401,6 +401,14 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 
 每段带 `turnId/itemId/type/phase?/status/text/notice/startOffset/endOffset/length`；源头因 8 MiB 上限被省略时另有 `sourceLength/omittedLength`。偏移均为已保存正文的 UTF-16 位置。`includeOutline:true` 只在无游标首页返回轮次目录，WebGUI 首页会显式请求，后续页不重复传输；MCP 使用下述 Agent 视图。流游标与按条游标都绑定 scope、材料（或草稿）、固定版本和清单哈希，不能跨条、跨版本、跨草稿或跨空间使用。读取到公开末尾就结束，没有“继续读取私人历史”的路径。
 
+### 阅读器图片与全文搜索
+
+图片只从 `userMessage.content` 中的 `image.url`（base64 data URI）、`localImage.path`，以及 `imageView.path`、`imageGeneration.savedPath/result` 读取。路径是结构化附件身份，不接受正文、命令参数或工具 JSON 中的任意文件路径；不请求外部 HTTP 图片。图片校验真实格式、MIME、编码及尺寸，支持 PNG/JPEG/GIF/WebP，原始字节最多 6 MiB、宽高分别不超过 16384 且总像素不超过 4000 万。每条消息最多 32 张，缺失或超限保留说明；正文截断时不保留无法准确定位的图片。
+
+清单 item 可含 `attachments:[{id,name,mime,startOffset,endOffset,body}]`，图片 body 是规范 base64 文本的 CAS blob，参与原有版本/空间配额、协商、哈希及持久化。图片对应的可读标记加入导出正文，位置仍为 UTF-16；原图字节不内联到目录或正文分页。segment 在标记起点所在片段返回 `attachments:[{id,name,mime,hash,startOffset,endOffset,quote}]`。固定材料通过 `read-material` 的准确版本读取，草稿通过 `read-draft`，历史通过对应会话 `context?kind=history` 与 `pageCursor` 读取；传 `turnId,itemId,attachmentId,attachmentOffset?`，返回 `attachment:{id,name,mime,hash,data,nextOffset}`。每块最多 128 KiB base64，偏移须为 4 的倍数，`nextOffset:0` 表示结束。每次重查资源权限，哈希不能独立授权读取；材料撤回后所有新块读取拒绝。插件使用相同 JSON 接口，不增加 iframe 网络权限。
+
+材料 `read-material` 可带 `search:{query,includeTools?,cursor?}`；协作历史使用查询参数 `search/includeTools/searchCursor`。正文结果为 `search:{matches,nextCursor,complete}`，每个命中含 `turnId,itemId,startOffset,endOffset,quote,snippet,pageCursor?`。query 为 1–256 个 UTF-16 字符，按字面、不区分大小写匹配；默认仅用户/助手正文，工具输出显式纳入。每批最多 64 个命中，扫描满 1 MiB 正文后也可续页；历史继续翻阅 Provider 页。游标绑定对象、材料哈希/版本、查询和工具开关；历史页变动使该页旧游标失效，需重新搜索。`complete` 前累计数量是部分结果，不是全局总数；范围以实际存储/可读取的投影为准，不搜索原始隐藏推理、未发布轮次或被截断的内容。
+
 ### Agent 按需读取视图
 
 个人 MCP 的 `read_material/read_publication_draft/read_context kind=history`、共享运行时的 `read_material` 和读取编号中的材料/历史默认采用下列契约。未传选项的 Web 读取维持上述完整对话/折叠工具投影。
@@ -421,7 +429,7 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 
 分页在完整 JSON 上计算预算，不截断 JSON 字符串；MCP 读取结果还有 64 KiB 封装预算兜底，超限返回明确错误，不能依赖外层悄悄截断。尚未提供分页的 file/changes/events 等大响应可能命中该保护。状态和回复回执不重复长引用；已知空间、材料版本、批注 ID 或 TC 编号时直接读取目标，只在缺少目标时查目录。执行/交接仍需核对输入归属；收到 saved 回执后不要求例行回读，只有结果不明时查询确认。
 
-当前限制为：来源冻结最多 2048 轮 / 32 MiB 原生响应；清单最多 4 MiB、16384 条 item；单 blob 最多 8 MiB；一个版本引用的唯一 blob 最多 32 MiB；空间所有未撤回版本引用的唯一 blob 最多 256 MiB。超过 8 MiB 的单条在发布者 Core 保留头尾，在中间写入明确省略标记并记录原始/省略 UTF-16 长度；不做隐式分块。附件仍不复制。空间与会话记录以 `schema:4` 分开保存；旧格式目录原样保留并报告 unsupported。撤回当前只停止授权并从活动配额中移除引用，不承诺立即回收 blob；自动回收仍是后续工作。
+当前限制为：来源冻结最多 2048 轮 / 32 MiB 原生响应；清单最多 4 MiB、16384 条 item；单 blob 最多 8 MiB；一个版本引用的唯一 blob 最多 32 MiB；空间所有未撤回版本引用的唯一 blob 最多 256 MiB。超过 8 MiB 的单条在发布者 Core 保留头尾，在中间写入明确省略标记并记录原始/省略 UTF-16 长度；不做隐式分块。非图片附件仍不复制。空间与会话记录以 `schema:4` 分开保存；旧格式目录原样保留并报告 unsupported。撤回当前只停止授权并从活动配额中移除引用，不承诺立即回收 blob；自动回收仍是后续工作。
 
 磁盘布局为：
 
@@ -467,7 +475,7 @@ CLI 复用个人 MCP 适配：`space`、`freeze`、`publication-preview`、`publ
 
 ### 批注回复
 
-`AnnotationReply` 为 `{id,requestId,text,author,authorId,createdAt,materials?}`，没有 `target`、`parentReplyId` 或子回复。`annotation-replies` 接受当前空间的原批注 ID、1–4000 字正文、至多 200 字节的非空 `requestId` 和可选材料引用，拒绝其他字段。主机生成作者、ID 和时间；同一作者的同一请求 ID 返回已保存结果，若原批注、正文或材料引用不同则拒绝。保存失败回滚内存，读取快照不会被并发回复原地修改。普通成员无需获得模型输入权即可讨论；结束共享后拒绝远端读写。完整个人 MCP 使用 `reply_to_annotation(id,annotationId,text,requestId,executionId?,materials?)`。
+`AnnotationReply` 为 `{id,requestId,text,author,authorId,createdAt,materials?,mentions?,replyTo?,actor}`，不建立嵌套子回复树；`replyTo` 明确同一根讨论内的父项。`annotation-replies` 接受当前空间的原批注 ID、1–4000 字正文、至多 200 字节的非空 `requestId`、可选材料引用、结构化 mentions 和 replyTo，拒绝其他字段。主机生成作者、ID 和时间；同一作者的同一请求 ID 返回已保存结果，若原批注、正文、材料引用、mentions 或 replyTo 不同则拒绝。保存失败回滚内存，读取快照不会被并发回复原地修改。普通成员无需获得模型输入权即可讨论；结束共享后拒绝远端读写。完整个人 MCP 使用 `reply_to_annotation(id,annotationId,text,requestId,executionId?,materials?,mentions?,replyTo?)`。
 
 ### 共享运行时的批注工具
 
@@ -522,3 +530,33 @@ Claude 控制 RPC 支持绑定会话的 `thread/read`、`thread/turns/list`、`t
 Claude 事件使用 `teamcross/claudeState`、`teamcross/claudeHistory` 与已确认的 `thread/settings/updated`；状态轮询不是 Codex 的 `turn/completed` 流。控制端需要同时读状态和历史确认结果。原生 TUI 原始输入没有请求 ID 或逐包执行确认，连接层不会缓存或重放；它不提供 RPC 的幂等接收承诺。
 
 多人成员的个人 MCP 入口包括 `create_invitation`（支持 `requestId`、`reset` 与指定取回的 `invitationId`）、`remove_member` 和 `revoke_invitation`。CLI 对应 `invite`，重置使用 `invite --reset --request-id <新ID>`，以及 `remove-member --id <空间> --member <成员ID>`、`revoke-invitation --id <空间> --invitation-id <邀请ID>`；多人交接使用 `input handoff --id <空间> --execution <会话> --member <成员ID> --epoch <版本>`。批注及回复由主机绑定 `authorId` 和显示名称，不采信请求提供的作者。
+
+## 成员动态接口
+
+产品匹配与界面规则见[成员动态](decisions/member-activity.md)。以下路径均相对 `/api`；成员来自当前空间认证上下文，不能在参数中指定别人。全局聚合由本机 Core 分别读取各空间主机，最多八个并发、单空间五秒期限，失败独立返回，不把未知数伪装成零。
+
+| 方法与路径 | 请求／返回 |
+| --- | --- |
+| `GET /activity` | `{spaces: ActivityPage[]}`，本机已关联空间的个人投影 |
+| `GET /collaborations/:spaceId/activity` | `view=mine\|space`、`category=all\|mentions\|replies\|following`、`unread=true`、`cursor`、`limit`；返回 ActivityPage |
+| `GET /collaborations/:spaceId/mention-members` | 当前有效成员 `{id,name,online}[]`，包含 owner，不包含已撤销成员 |
+| `GET /collaborations/:spaceId/follows` | `{items,total,following,nextCursor?}`；默认 50 项，最多 100 项；`cursor` 绑定当前清单版本 |
+| `GET /collaborations/:spaceId/follows?kind=…&subjectId=…&executionId=…` | 查询一个对象时返回单元素数组；包括没有显式记录时的有效继承模式及 revision 0 |
+| `POST` 或 `PUT /collaborations/:spaceId/follow-preferences` | `{subject,mode,revision,requestId}`，返回持久偏好；mode 为 following/direct_only/muted/unmute |
+| `POST /collaborations/:spaceId/activity/read` | `{eventIds?}` 或 `{snapshot,group?}`；原文界面可用 `{visibleSource}` 精确确认实际可见的根批注／回复。返回 ActivityPage，远端已读已落本机队列但未同步时带 pendingSync |
+
+`ActivitySubject` 为 `{kind:material|discussion|execution,id,executionId?}`；仅会话讨论需要额外 executionId，材料不能属于任意执行。`SpaceSourceRef` 为 `{spaceId,executionId?,materialId?,version?,annotationId?,replyId?,turnId?,itemIds?,requestId?}`，固定版本／轮次／回复不能降级为最新材料或相似文本。
+
+`ActivityPage` 包含 `spaceId/title/selfId/groups/unread/snapshot/revision/readRevision/syncedAt`，以及可选 `nextCursor/error/pendingSync`。groups 每项保存 `id/latest/attention?/events/count/unread`；attention 是优先展示的未读 @／直接回复／本人结果，latest 仍用于稳定排序。事件仅返回当前成员的 reasons 与 unread，不返回其他成员收件集合。一次列表默认 50 组、最多 100 组，整体 JSON 预算 64 KiB，每组最多 20 个近期事件，预览最多 240 个 Unicode 字符。游标绑定成员、查询、快照和保留版本；仅未读列表在 readRevision 改变后要求刷新，以免偏移跳过事件。
+
+snapshot 使用主机日志密钥签名并绑定成员与 seq，全部已读取当前水位和快照水位的最大值；单事件确认取集合并集。每次 eventIds 最多 500 项，token 最多 4096 字节；无目标的确认拒绝。visibleSource 必须属于当前空间的准确根讨论和可选 replyId/executionId。普通列表、个人 MCP 读取和运行时读取均不推进人的已读。
+
+关注偏好为 `{subject,mode,previousMode?,origin,revision,updatedAt}`；查询额外返回 effectiveMode、inheritedFrom、available、title。每源记录每成员最多 10,000 个偏好、每源记录最多 50,000 个幂等操作回执。CAS 不匹配及同 requestId 异内容明确失败。会话首次关注先确认原生历史基线，不能读取边界时设置不保存。
+
+成员 @ 为 `{memberId,startOffset,endOffset,label}`，范围按 UTF-16 且须精确覆盖正文 `@label`，按顺序、不得重叠，每条最多 20 位成员。根批注新增可选 `requestId/mentions`，回复输入新增 `mentions/replyTo`；replyTo 为 `{kind:annotation|reply,id}`，仅同一根讨论中已存在的父项有效。创建正文、mentions、父项和附件共同参与幂等校验。Core 写入 typed actor，客户端不能覆盖身份。
+
+源记录中的 activity 状态最多 16 MiB，其中 outbox 最多 10,000 项；空间 `member-activity.json` 最多 50,000 个事件、64 MiB。已读或无个人未读的事件在 90 天后可压缩，未读及待确认 outbox 的事件身份保留。无法保存源事件或自动关注时受控业务提交失败；日志提交失败时 outbox 保留并显示同步错误。原生已发生终态通过已有输入关系／历史回读恢复，不重放模型输入。
+
+参与者的 `member-activity-read-queue.json` 最多 1,000 个动作、8 MiB，绑定空间 ID 与凭据哈希；后台每次最多八项、单次两秒。只在 host_unreachable 时保留待补交，校验失败或资格结束不无限重试。远端列表缓存最多十二个查询页，每页沿用 64 KiB 预算，只保留计数、身份与来源元数据，清除正文预览。主机离线返回缓存并标注 pendingSync/error/syncedAt；已确认撤权不返回缓存。
+
+远端传输为认证后的 `POST /v2/member-activity/{list,follows,members,follow,read}`。个人 MCP 提供 `list_member_activity`、`set_member_follow`、`mark_member_activity_read`；最后一个只能在用户明确要求确认已读时使用。嵌入 UI 通过既有 UI 路由白名单访问上述本机接口。绑定运行时 MCP 不获得个人动态工具或查询权限；其公开回复仅增加结构化 mentions/replyTo 字段，不跨越原空间权限。

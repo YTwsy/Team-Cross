@@ -13,6 +13,7 @@ import { InvitationPanel } from "./InvitationPanel";
 import { SpaceWorkbench } from "./SpaceWorkbench";
 import { SpaceAvatar, SpacePeople } from "./SpaceIdentity";
 import { Badge, ErrorBox, Icon, Modal, PageHeading } from "./ui";
+import type { ActivitySource } from "../activity";
 
 export function ReadOnlySpace({
   collaboration: c,
@@ -20,12 +21,14 @@ export function ReadOnlySpace({
   update,
   showInvite = false,
   executionId,
+  activitySource,
 }: {
   collaboration: Collaboration;
   reload: () => void;
   update: (value: Collaboration) => void;
   showInvite?: boolean;
   executionId?: string;
+  activitySource?: string;
 }) {
   const refreshKey = "ReadOnlySpace:v1:" + c.id;
   const [modal, setModal] = useRefreshState<
@@ -63,6 +66,22 @@ export function ReadOnlySpace({
   const [error, setError] = useState("");
   const [request, setRequest] = useState<AnnotationRequest>();
   const [location, setLocation] = useState<AnnotationRequest>();
+  const [activityLocation, setActivityLocation] = useState<ActivitySource>();
+  useEffect(() => {
+    if (!activitySource) return;
+    try {
+      const source = JSON.parse(activitySource) as ActivitySource;
+      if (source.spaceId !== c.id) return;
+      setActivityLocation(source);
+      if (source.executionId) return;
+      if (source.materialId && source.version) setLocation({target:{kind:"material",materialId:source.materialId,version:source.version,quote:""},serial:Date.now()});
+      if (source.annotationId) {
+        const note = c.annotations?.find((a) => a.id === source.annotationId);
+        setRequest({annotationId:source.annotationId,replyId:source.replyId,serial:Date.now()});
+        if (note?.target) setLocation({target:note.target,serial:Date.now()});
+      }
+    } catch { /* Invalid navigation data cannot select another resource. */ }
+  }, [activitySource, c.id]);
   const owner = c.role === "owner";
   const closed = ["ended", "left", "expired"].includes(c.state);
   const disabled = closed || (!owner && c.reachable === false);
@@ -188,6 +207,7 @@ export function ReadOnlySpace({
       <SpaceWorkbench
         key={c.id}
         collaboration={c}
+        activitySource={activityLocation}
         readingSession={c.sessions?.find(
           (session) => session.id === executionId,
         )}
@@ -370,6 +390,7 @@ export function ReadOnlySpace({
                 active={executionId === id}
                 reload={reload}
                 onLocateMaterial={locateMaterial}
+                activitySource={activityLocation?.executionId === id ? activityLocation : undefined}
               />
             </div>
           ) : null;

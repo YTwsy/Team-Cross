@@ -37,6 +37,8 @@ import { SpaceOverview } from "./SpaceOverview";
 import { SpaceReferencePicker } from "./SpaceReferencePicker";
 import { SpaceShadows } from "./SpaceShadows";
 
+import type { ActivitySource } from "../activity";
+
 type Tab =
   | "overview"
   | "reading"
@@ -276,6 +278,7 @@ export function SpaceWorkbench({
   commentRequest,
   contextNavigation,
   readingSession,
+  activitySource,
 }: {
   collaboration: Collaboration;
   children: ReactNode;
@@ -285,6 +288,7 @@ export function SpaceWorkbench({
   commentRequest?: AnnotationRequest;
   contextNavigation?: ReactNode;
   readingSession?: Collaboration;
+  activitySource?: ActivitySource;
 }) {
   const refreshKey = "SpaceWorkbench:v1:" + c.id;
   const [tab, setTab] = useRefreshState<Tab>(refreshKey + ":tab", "reading");
@@ -341,6 +345,12 @@ export function SpaceWorkbench({
   const [briefDraft, setBriefDraft] = useRefreshState<SpaceBrief>(
     refreshKey + ":briefDraft",
   );
+  useEffect(() => {
+    if (!activitySource) return;
+    if (activitySource.requestId) {setSelectedRequest(activitySource.requestId);setTab("requests");}
+    else if (activitySource.annotationId || activitySource.materialId || activitySource.executionId) {setTab("reading");if (activitySource.annotationId) setCommentsOpen(true);}
+    else setTab("brief");
+  }, [activitySource]);
   const detail = useResource<SpaceRequest>(
     selectedRequest
       ? `collaborations/${c.id}/workbench/request?requestId=${selectedRequest}`

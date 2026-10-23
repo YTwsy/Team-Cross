@@ -93,6 +93,8 @@ ChatGPT 云端事件已实现本地协议和隔离入口，实际宿主接收仍
 
 ## 空间材料与读取
 
+2026-10-23，`codex/reading-experience` 基于 `8bc8397` 的未提交阅读器实现：六项展示、图片随版本保存、全文搜索和当前轮询下的阅读跟随已通过工程、隔离 Core/stdio 与真实浏览器检查；Web 229 项、翻译 1200 条。见[实现与验证记录](../../tasks/finished_archived/2026-10-23-reading-experience/README.md)。原生历史和 iframe 宿主为合成，未重验实际 Desktop、Cloud、Claude 图片格式或跨 Mac；实时同步链路仍另行实施。
+
 范围来源：[协作空间](../decisions/collaboration-spaces.md)、[资源库](../decisions/resource-library.md)、[读取协议](../protocol.md#agent-按需读取视图)。下列合成历史与模拟运行时检查不证明真实 Provider 的全部导出格式。
 
 | 具体路径 | 最近已知结果 | 被测代码与环境 | 证据与适用边界 |
@@ -115,3 +117,9 @@ ChatGPT 云端事件已实现本地协议和隔离入口，实际宿主接收仍
 | 正式 tag 的构建、公开资产复核、Homebrew 发布 | v0.2.4 当次完整链路通过 | 2026-09-23；`f671cb4` / `v0.2.4`；托管 `macos-15` arm64 runner，公开资产及 tap 检查 | [发布报告](../../tasks/finished_archived/release-v0.2.4-2026-09-23.md)。只说明该版本当时发布与复核结果，不宣称它仍是最新版本或 Meta 新功能已发布；ad-hoc 签名不等于 Developer ID/公证，也未增加真实模型或跨机验收。 |
 
 本页只链接已定向核对的报告。需要回答未列出的路径时，按[检索规则](../../README.md#检索边界)继续查相应任务或提交/PR 中的执行说明；找到新证据后补充适用范围，不能因未命中本页就给出否定结论。
+
+## 成员动态
+
+2026-10-23，`codex/reading-experience` / `8bc8397` 加本任务工作树：结构化 @、回复到回复、三类成员关注、全局和空间概览内动态、主机已读与离线补交已实现。验证环境为单 Mac 三 Core 的真实 HTTP/TLS 与合成内容，以及专用 Codex `0.163.0-alpha.11.2` / `gpt-5.6-luna` 原目录和 worktree 两条真实最终答复链。当前行为见[契约](../decisions/member-activity.md)，工程、浏览器截图、原生检查及失败边界见[实现记录](../../tasks/2026-10-23-member-activity-implementation.md)。
+
+真实原生结果只证明 app-server 轮次归属与已读，不扩大到 TUI/Desktop 交互、实验性 Claude、真实 ChatGPT 插件宿主、两台 Mac 或 Tailcat 网络。通用 `TestLiveCodex` 的写文件场景在本次环境停于沙箱审批，未作为通过项；专门的无工具成员动态回合通过。顺流、Cloud 与分身消费者进度仍独立。

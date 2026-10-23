@@ -38,6 +38,10 @@ go build -o bin/teamcross ./cmd/teamcross
 
 ## 现有自动化入口
 
+阅读器展示、图片和搜索变更运行 [Core 阅读回归](../../../../internal/collab/reader_experience_test.go)、[存储校验](../../../../internal/materialstore/store_test.go)、[富文本回归](../../../../packages/web/src/test/rich-reading.test.tsx)、[上下文刷新](../../../../packages/web/src/test/context-refresh.test.tsx) 与 [阅读锚点](../../../../packages/web/src/test/reading-scroll.test.tsx)。核对 UTF-16 源码坐标、图片版本隔离与跨 Core 上传、撤回后的图片/搜索拒绝、未加载正文和工具命中、取消搜索与部分计数、跟随补齐分页及上滚停止。
+
+真实浏览器使用 `TEAMCROSS_READER_BROWSER_DIR=<全新目录> go test ./internal/collab -run '^TestReaderBrowserFixture$' -v -count=1 -timeout=46m` 启动隔离 Core；按输出目录 `fixture.json` 访问并检查深浅主题、中英文、宽窄窗口、图形/图片展开、批注及搜索定位。`POST /fixture/advance` 只在该测试服务器追加合成历史，`?done=true` 模拟完成；不调用模型，也不代表真实 Provider 输出验收。退出在目录创建 `finish` 文件并关闭本次浏览器及插件 harness。
+
 顺流感知变更运行 [Core 分发回归](../../../../internal/collab/inflow_test.go)、[MCP 输出边界](../../../../internal/mcp/inflow_test.go)、[Hook CLI](../../../../cmd/teamcross/inflow_test.go) 和 [界面交互](../../../../packages/web/src/test/inflow.test.tsx)。核对首次开启基线、准确会话/空间/成员范围、评论回复版本、本人请求结果、定向留言、跨 Core、撤销后拒绝、重启去重、并发租约及失败输出不记已投递。普通讨论和材料评论不能因可读而自动广播。
 
 真实 Codex 接入使用 `scripts/verify-inflow.py --fixture-dir <全新目录> --teamcross-bin <当前二进制> --codex-bin <原生 CLI>`：脚本仅使用 `gpt-5.6-luna`，创建隔离 home/仓库/Core 和两个 fork，分别验证受限模式的一次 MCP 调用与信任模式的 UserPromptSubmit Hook。通过标准是模型返回只存在于评论中的随机标记，落盘投递版本为 1；Hook 场景不能调用 MCP。原生信任审阅只针对 fixture 创建的精确 Hook，不修改个人配置；退出关闭所建客户端和 Core。此脚本不证明 Claude、插件自动加载、Desktop 或两台 Mac。
@@ -341,3 +345,11 @@ python3 scripts/verify-agent-channel.py --fixture-dir <另一个新的空目录>
 两者只在专门仓库、独立 home 与 Core 中使用 `gpt-5.6-luna`。Codex 脚本通过共同执行入口新建 fork，验证真实 TUI 配对、发送引用、读取原批注、完成摘要、重复请求不重放和只分析不回复；仅确认本次已知工具请求的原生审批。工作台新建会话的流程由 [空间工作台门槛](#空间工作台)覆盖；两者均未验证将测试前已存在的 Codex 会话接入投递连接的流程，不能将这一覆盖范围当作会话能力分类。Claude 路径要求当前客户端和账户允许开发 Channel，并保持测试模型代理可用；通过 STDIO 写入测试或宿主提示 Channel 不可用时，不能声称真实接收通过。不得为通过测试而伪造挑战回执或绕过宿主能力限制。
 
 完成后关闭本次 TUI、Core、守护进程及测试浏览器，保留检查报告。单机检查不代表两台 Mac 或 ChatGPT Cloud MCP Events 验收。实际结果按任务记录规则另存。
+
+## 成员动态
+
+行为以[成员动态契约](../decisions/member-activity.md)为准。运行 [Core 回归](../../../../internal/collab/member_activity_test.go)、[MCP/UI 权限](../../../../internal/mcp/member_activity_test.go) 与 [界面交互](../../../../packages/web/src/test/member-activity.test.tsx)。覆盖三成员的 @/回复父项/关注原因合并、本人 suppression 与有归属的 Agent 回复、层级取消及静音、持久 outbox 故障恢复、并发已读、分页失效、90 天保留与容量、UTF-16、运行时私密边界、离线缓存和已读补交、撤权及原文内容清除。工程门槛和两套嵌入资源照常执行。
+
+真实浏览器使用 `TEAMCROSS_ACTIVITY_BROWSER_DIR=<全新目录> go test ./internal/collab -run '^TestMemberActivityBrowserFixture$' -v -count=1 -timeout=31m`。它建立同 Mac 三 Core、真实共享 TLS 和合成材料／讨论，fixture.json 给出发起者、成员及全局页地址；不启动模型。检查概览正文的三组摘要／原位展开、侧栏无新增入口、主导航全局角标、@ 候选和键盘选择、父回复引用、精确原文定位、双窗口已读、关注菜单与管理列表。按 1440、1024、843、768 CSS 像素和中英／深浅主题复核截图，特别检查筛选标签和浮层不被截断。结束创建该目录的 finish 并关闭本次页面。
+
+`TEAMCROSS_ACTIVITY_LIVE_DIR=<全新目录> go test ./internal/collab -run '^TestLiveMemberActivity$' -v -count=1 -timeout=9m` 使用独立原生 home、仓库和 `gpt-5.6-luna`；验证真实 app-server 的来源 fork、原目录／worktree 会话最终答复、原生 turn ID 与输入成员归属以及已读确认，不要求模型修改文件。`TestLiveCodex` 仍是更广的原生文件执行与生命周期门槛，两者不能互相替代；直接 TUI/Desktop、实验性 Claude、真实插件宿主及跨 Mac 网络须各自留证据。

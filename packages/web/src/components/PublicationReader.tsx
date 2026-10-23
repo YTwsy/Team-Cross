@@ -1,3 +1,4 @@
+import { useReaderFollow } from "../reader-follow";
 import { t, tr } from "../i18n";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, errorText } from "../api";
@@ -58,6 +59,7 @@ export function PublicationReader({
   const abort = useRef<AbortController | undefined>(undefined);
   const panel = useRef<HTMLDivElement>(null);
   const scrollTo = useRef<string | undefined>(undefined);
+  useReaderFollow(panel, draft.id, false, !!scrollTo.current);
   const scopeStart = draft.turns.findIndex((t) => t.id === scope?.start);
   const scopeEnd = draft.turns.findIndex((t) => t.id === scope?.end);
   const selected = (index: number) =>
@@ -250,6 +252,15 @@ export function PublicationReader({
                   <ReaderMessage
                     key={`${segment.itemId}:${segment.startOffset}`}
                     source={segment.text}
+                    images={segment.attachments}
+                    mediaResource={{
+                      path: "publications/read-draft",
+                      body: {
+                        draftId: draft.id,
+                        turnId: segment.turnId,
+                        itemId: segment.itemId,
+                      },
+                    }}
                     itemType={segment.type}
                     label={
                       segment.collapsed

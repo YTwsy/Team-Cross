@@ -207,6 +207,8 @@ func uiRoute(path string, body any, write bool) (string, error) {
 			allowed = true
 		case "sources":
 			allowed, queries = true, "provider search cursor"
+		case "activity":
+			allowed, queries = true, "view category unread cursor limit"
 		case "space-receivers":
 			allowed, queries = true, "spaceId"
 		case "plugin/current-connection":
@@ -221,10 +223,12 @@ func uiRoute(path string, body any, write bool) (string, error) {
 		}
 		if len(parts) == 3 && parts[0] == "collaborations" {
 			switch parts[2] {
+			case "activity", "follows", "mention-members":
+				allowed, queries = true, "view category unread cursor limit kind subjectId executionId"
 			case "materials":
 				allowed = true
 			case "context":
-				allowed, queries = true, "kind path after cursor view toolOutputs turnLimit maxBytes annotationId compact offset includeQuote turnId itemId startOffset"
+				allowed, queries = true, "kind path after cursor view toolOutputs turnLimit maxBytes annotationId compact offset includeQuote turnId itemId startOffset attachmentId attachmentOffset search includeTools searchCursor"
 			}
 		}
 		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "workbench" {
@@ -255,6 +259,9 @@ func uiRoute(path string, body any, write bool) (string, error) {
 		}
 	}
 	if write && method == "POST" {
+		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "activity" && parts[3] == "read" {
+			allowed = true
+		}
 		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "shadows" && (parts[3] == "create" || parts[3] == "send") {
 			allowed = true
 		}
@@ -278,7 +285,7 @@ func uiRoute(path string, body any, write bool) (string, error) {
 			}
 			if parts[0] == "collaborations" {
 				switch parts[2] {
-				case "action", "invitations", "revoke-invitation", "remove-member", "personal-desktop", "open", "assist", "annotations", "annotation-replies", "materials", "withdraw-material":
+				case "action", "invitations", "revoke-invitation", "remove-member", "personal-desktop", "open", "assist", "annotations", "annotation-replies", "materials", "withdraw-material", "follow-preferences":
 					allowed = true
 				}
 			}
@@ -296,7 +303,7 @@ func uiRoute(path string, body any, write bool) (string, error) {
 		}
 		if len(parts) == 5 {
 			if !write && method == "GET" && parts[4] == "context" {
-				allowed, queries = true, "kind path after cursor view toolOutputs turnLimit maxBytes annotationId compact offset includeQuote turnId itemId startOffset"
+				allowed, queries = true, "kind path after cursor view toolOutputs turnLimit maxBytes annotationId compact offset includeQuote turnId itemId startOffset attachmentId attachmentOffset search includeTools searchCursor"
 			}
 			if write && method == "POST" {
 				switch parts[4] {

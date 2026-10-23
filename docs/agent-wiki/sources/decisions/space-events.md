@@ -25,3 +25,7 @@ HTTP 2xx 只表示宿主收到；`read_space_event` 单独记读取回执，`fin
 协议按 [OpenAI MCP Events](https://developers.openai.com/plugins/build/mcp-events) 实现 MCP 2.0 `2026-07-28` 发现、事件目录、订阅、取消和只读工具。回调必须为 HTTPS；验证签名 challenge 后才能保存订阅。每次连接重新验证全部 DNS 地址并固定拨号目标，拒绝私网/保留地址、重定向和环境代理；签名使用 Standard Webhooks，密钥轮换短期双签。
 
 当前已完成本地协议与隔离入口检查。用户明确暂缓真实 ChatGPT Cloud 宿主验收，未部署公网服务；不能据此声称已经从云端唤醒某个 ChatGPT 会话，也不能把本机 `openai/session` 关联键当作云端投递地址。实现入口：[事件管理](../../../../internal/mcpevents/manager.go)、[签名与出站验证](../../../../internal/mcpevents/webhook.go)、[Core](../../../../internal/collab/space_events.go)、[独立 CLI](../../../../cmd/teamcross/events.go)、[订阅界面](../../../../packages/web/src/components/SpaceEvents.tsx)。
+
+## 与成员动态的关系
+
+[成员关注与动态](member-activity.md)使用人的空间身份和已读状态，Cloud 事件仍按本页订阅授权与回执消费。人的关注、静音或标为已读不创建／撤销 Cloud 订阅，也不推进事件 ack；Cloud 读取不把人的提醒标为已读。两者可引用同一业务来源，不共用消费进度。

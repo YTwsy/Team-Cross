@@ -1,3 +1,8 @@
+import {
+  ReaderImages,
+  type ReaderImage,
+  type ReaderResource,
+} from "./ReaderMedia";
 import { serviceText, t, tr } from "../i18n";
 import { ResourceActions } from "../library";
 import { resourceScope } from "../execution";
@@ -535,6 +540,9 @@ function ReaderProcessGroup({
 }
 
 export function ReaderMessage({
+  images,
+  mediaResource,
+  streaming = false,
   spaceId,
   source,
   target,
@@ -552,6 +560,9 @@ export function ReaderMessage({
   shownLength = 0,
   speaker,
 }: {
+  images?: ReaderImage[];
+  mediaResource?: ReaderResource;
+  streaming?: boolean;
   spaceId?: string;
   source: string;
   target: AnnotationTarget;
@@ -637,6 +648,19 @@ export function ReaderMessage({
         })),
     [source, base, activeTarget, targetKey, notes],
   );
+  useEffect(() => {
+    if (raw || !highlights.some((highlight) => highlight.active)) return;
+    // Markdown delimiters, link destinations and rendered formulae can hide
+    // a source match. Fall back to exact source rather than a blank jump.
+    const frame = requestAnimationFrame(() => {
+      if (
+        content.current &&
+        !content.current.querySelector("[data-annotation-highlight]")
+      )
+        setRaw(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [raw, highlights]);
   useEffect(() => {
     if (!selected) return;
     const clear = () => {
@@ -747,7 +771,49 @@ export function ReaderMessage({
           source={source}
           highlights={highlights}
           raw={raw || tool}
+          streaming={streaming}
+          onAnnotate={
+            !disabled && target.itemId
+              ? (start, end, element) =>
+                  onAnnotate(
+                    {
+                      ...target,
+                      startOffset: base + start,
+                      endOffset: base + end,
+                      quote: source.slice(start, end),
+                    },
+                    { element },
+                  )
+              : undefined
+          }
         />
+        {!!images?.length && mediaResource && (
+          <ReaderImages
+            images={images}
+            resource={mediaResource}
+            onAnnotate={
+              !disabled
+                ? (image) => {
+                    const start = image.startOffset - base,
+                      end = image.endOffset - base;
+                    if (
+                      image.quote ||
+                      (start >= 0 && end <= source.length && end > start)
+                    )
+                      onAnnotate(
+                        {
+                          ...target,
+                          startOffset: image.startOffset,
+                          endOffset: image.endOffset,
+                          quote: image.quote || source.slice(start, end),
+                        },
+                        { element: content.current! },
+                      );
+                  }
+                : undefined
+            }
+          />
+        )}
       </div>
       {hint && (
         <p className="small-text muted" role="status">

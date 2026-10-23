@@ -1,20 +1,20 @@
 import { t } from "../i18n";
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import type { Element, ElementContent, Root, RootContent } from "hast";
 import { codeOffsets, textOffsets } from "../reading";
 import type { syntaxHighlighter } from "../syntax";
-import { Copy } from "./ui";
+import { ReaderCode, ReaderTable, MathFormula, nodeText } from "./ReaderRich";
 
-function nodeText(node: RootContent): string {
-  return node.type === "text"
-    ? node.value
-    : node.type === "element"
-      ? node.children.map(nodeText).join("")
-      : "";
-}
-
+type RichOptions = {
+  activeRanges?: { start: number; end: number }[];
+  source: string;
+  streaming?: boolean;
+  onAnnotate?: (start: number, end: number, element: HTMLElement) => void;
+};
+const RichContext = createContext<RichOptions>({ source: "" });
 const components: Components = {
   a: ({ href, children }) =>
     /^https?:\/\//i.test(href || "") ? (
@@ -24,30 +24,52 @@ const components: Components = {
     ) : (
       <span>{children}</span>
     ),
-  img: ({ alt }) => (
+  img: ({ alt, src }) => (
     <span className="reader-media-note">
       {t("图片：")}
       {alt || t("未命名")}
-      {t("（未加载外部内容）") + " "}
+      {t("（未加载外部内容）")}
+      {/^https?:\/\//i.test(src || "") && (
+        <a href={src} target="_blank" rel="noreferrer noopener">
+          {t("打开图片来源")}
+        </a>
+      )}
     </span>
   ),
-  pre: ({ children, node }) => {
-    const original = node ? nodeText(node) : "";
+  pre: function Pre({ children, node }) {
+    const options = useContext(RichContext);
     return (
-      <div className="reader-code">
-        <div className="reader-code-tools">
-          <span>{t("代码")}</span>
-          <Copy label={t("复制代码")} text={original} />
-        </div>
-        <pre>{children}</pre>
-      </div>
+      <ReaderCode
+        node={node}
+        active={options.activeRanges?.some(
+          (h) =>
+            h.start < (node?.position?.end.offset ?? 0) &&
+            h.end > (node?.position?.start.offset ?? 0),
+        )}
+        streaming={options.streaming}
+        onAnnotate={options.onAnnotate}
+      >
+        {children}
+      </ReaderCode>
     );
   },
-  table: ({ children }) => (
-    <div className="reader-table">
-      <table>{children}</table>
-    </div>
-  ),
+  code: function Code({ children, node, className, ...props }) {
+    return className?.includes("math-inline") && node ? (
+      <MathFormula value={nodeText(node)} />
+    ) : (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    );
+  },
+  table: function Table({ children, node }) {
+    const { source } = useContext(RichContext);
+    return (
+      <ReaderTable source={source} node={node}>
+        {children}
+      </ReaderTable>
+    );
+  },
 };
 
 type Highlight = { start: number; end: number; active?: boolean };
@@ -109,10 +131,14 @@ export function MarkdownText({
   source,
   highlights = [],
   raw = false,
+  streaming = false,
+  onAnnotate,
 }: {
   source: string;
   highlights?: Highlight[];
   raw?: boolean;
+  streaming?: boolean;
+  onAnnotate?: RichOptions["onAnnotate"];
 }) {
   const [colorize, setColorize] = useState<Colorize>();
   useEffect(() => {
@@ -133,6 +159,18 @@ export function MarkdownText({
       function walk(parent: Root | Element) {
         const children: RootContent[] = [];
         for (const node of parent.children) {
+          // remark-math puts the source position on the enclosing pre, while
+          // its generated code child has no position of its own.
+          if (
+            node.type === "element" &&
+            node.tagName === "code" &&
+            String(node.properties.className || "").includes("language-math") &&
+            !node.position &&
+            parent.type === "element" &&
+            parent.tagName === "pre"
+          ) {
+            node.position = parent.position;
+          }
           const start = node.position?.start.offset,
             end = node.position?.end.offset;
           if (
@@ -161,12 +199,30 @@ export function MarkdownText({
                 .join("");
               const block =
                 parent.type === "element" && parent.tagName === "pre";
-              const map = codeOffsets(
-                source.slice(start, end),
-                value,
-                start,
-                block,
+              const math = String(node.properties.className || "").includes(
+                "language-math",
               );
+              let map = math
+                ? undefined
+                : codeOffsets(source.slice(start, end), value, start, block);
+              if (math) {
+                const rawMath = source.slice(start, end);
+                const opening = /^\$+[ \t]*(?:\r?\n)?/.exec(rawMath);
+                if (opening) {
+                  const at = opening[0].length;
+                  // Match only the parser-defined body boundary, never search
+                  // elsewhere in the message for a repeated formula.
+                  const text = value.replace(/\n$/, "");
+                  map = textOffsets(
+                    rawMath.slice(at, at + text.length),
+                    text,
+                    start + at,
+                    true,
+                  );
+                  if (map && value.endsWith("\n"))
+                    map.push(start + at + text.length);
+                }
+              }
               if (map) {
                 const language = String(
                   node.properties.className || "",
@@ -249,15 +305,24 @@ export function MarkdownText({
     );
   }
   return (
-    <div className="reader-markdown">
-      <Markdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[plugin]}
-        skipHtml
-        components={components}
-      >
-        {source}
-      </Markdown>
-    </div>
+    <RichContext.Provider
+      value={{
+        source,
+        streaming,
+        onAnnotate,
+        activeRanges: highlights.filter((h) => h.active),
+      }}
+    >
+      <div className="reader-markdown">
+        <Markdown
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[plugin]}
+          skipHtml
+          components={components}
+        >
+          {source}
+        </Markdown>
+      </div>
+    </RichContext.Provider>
   );
 }

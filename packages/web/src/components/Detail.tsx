@@ -9,9 +9,11 @@ import { ErrorBox, Loading } from "./ui";
 export function Detail({
   id,
   executionId,
+  activitySource,
 }: {
   id: string;
   executionId?: string;
+  activitySource?: string;
 }) {
   const resource = useResource<Collaboration>(`collaborations/${id}`, 2500);
   const [showInvite] = useState(
@@ -40,6 +42,7 @@ export function Detail({
     <ReadOnlySpace
       collaboration={c}
       executionId={executionId}
+      activitySource={activitySource}
       reload={resource.reload}
       update={resource.setData}
       showInvite={showInvite}

@@ -73,7 +73,7 @@ function outlinedHistory(turn: number, nextCursor = "remaining") {
     pageCursor: "page-fixed",
     nextCursor,
     scope: "stream",
-    sourcePageComplete: !nextCursor,
+    sourcePageComplete: nextCursor ? undefined : true,
     pageEndsAtTurnBoundary: true,
     turns: [1, 2, 3].map((i) => ({ id: `turn-${i}`, label: `第 ${i} 轮目录` })),
     segments: [
@@ -140,6 +140,47 @@ async function poll() {
 }
 
 describe("协作上下文刷新", () => {
+  it("回到最新补齐当前页，跟随更新；上滚后保留正在阅读的正文", async () => {
+    readContext = (url) =>
+      outlinedHistory(
+        url.searchParams.get("cursor") ? 2 : 1,
+        url.searchParams.get("cursor") ? "" : "remaining",
+      );
+    await openDetail();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "回到最新" }));
+      await vi.advanceTimersByTimeAsync(40);
+    });
+    expect(
+      contextRequests.some(
+        (path) =>
+          new URL(path, "http://localhost").searchParams.get("cursor") ===
+          "remaining",
+      ),
+    ).toBe(true);
+    expect(
+      screen.getByText("第 2 轮正文", { selector: "[data-source-start]" }),
+    ).toBeVisible();
+    readContext = () => history("自动跟随的新内容");
+    await poll();
+    expect(
+      screen.getByText("自动跟随的新内容", { selector: "[data-source-start]" }),
+    ).toBeVisible();
+    // jsdom's zero-height layout is outside the bottom-follow threshold.
+    fireEvent.scroll(window);
+    readContext = () => history("上滚后到达的内容");
+    await poll();
+    expect(
+      screen.queryByText("上滚后到达的内容", {
+        selector: "[data-source-start]",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("自动跟随的新内容", { selector: "[data-source-start]" }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "显示新内容" })).toBeVisible();
+  });
+
   it.each(["owner", "remote"] as const)(
     "%s 的对话在状态刷新期间保留容器和阅读位置，并显示更新结果",
     async (role) => {

@@ -168,6 +168,8 @@ func (a *App) startWorkbench() {
 			case <-a.workbenchWake:
 			}
 			a.pumpWorkbench(ctx)
+			a.pumpMemberActivity(ctx)
+			a.flushActivityReads(ctx)
 		}
 	}()
 }
