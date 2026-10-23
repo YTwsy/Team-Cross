@@ -21,14 +21,18 @@ type Snapshot = {
   storage: StoredValues;
   deliveries: Record<string, DeliveryState>;
 };
-export async function initializeEnvironment() {
+export async function initializeEnvironment(signal?: AbortSignal) {
   const bridge = new HostBridge();
+  const abort = () => bridge.dispose();
+  signal?.addEventListener("abort", abort, { once: true });
   try {
-    await bridge.initialize();
+    await bridge.initialize(signal);
     const { scope } = await bridge.call<{ scope: string }>(
       "teamcross_ui_read",
       { path: "plugin/bootstrap" },
+      signal,
     );
+    signal?.throwIfAborted();
     const saved = restoreState<Snapshot>();
     const state: Snapshot = {
       version: 2,
@@ -134,6 +138,7 @@ export async function initializeEnvironment() {
     const dispose = () => {
       if (disposed) return;
       disposed = true;
+      signal?.removeEventListener("abort", abort);
       routeChanged();
       stopUpdates();
       clearInterval(restorePosition);
@@ -150,6 +155,7 @@ export async function initializeEnvironment() {
     window.addEventListener("pagehide", dispose, { once: true });
     return dispose;
   } catch (error) {
+    signal?.removeEventListener("abort", abort);
     bridge.dispose();
     throw error;
   }

@@ -1,7 +1,7 @@
 // The browser and the plugin build both start at main.tsx. Only the plugin
 // build replaces this environment adapter before mounting the same WebGUI.
-export async function initializeEnvironment(): Promise<
-  (() => void) | undefined
-> {
+export async function initializeEnvironment(
+  _signal?: AbortSignal,
+): Promise<(() => void) | undefined> {
   return undefined;
 }

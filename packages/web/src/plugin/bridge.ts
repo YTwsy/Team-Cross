@@ -84,7 +84,7 @@ export class HostBridge {
     params: unknown,
     signal?: AbortSignal,
   ): Promise<T> {
-    if (signal?.aborted)
+    if (this.disposed || signal?.aborted)
       return Promise.reject(new DOMException("Aborted", "AbortError"));
     const changing =
       method === "ui/message" ||
@@ -126,12 +126,17 @@ export class HostBridge {
       if (changing) this.writes--;
     });
   }
-  async initialize() {
-    this.host = await this.request<Host>("ui/initialize", {
-      appInfo: { name: "teamcross", version: "1.0.0" },
-      appCapabilities: { availableDisplayModes: ["fullscreen"] },
-      protocolVersion: "2026-01-26",
-    });
+  async initialize(signal?: AbortSignal) {
+    this.host = await this.request<Host>(
+      "ui/initialize",
+      {
+        appInfo: { name: "teamcross", version: "1.0.0" },
+        appCapabilities: { availableDisplayModes: ["fullscreen"] },
+        protocolVersion: "2026-01-26",
+      },
+      signal,
+    );
+    signal?.throwIfAborted();
     this.onContext?.(this.host.hostContext || {});
     window.parent.postMessage(
       { jsonrpc: "2.0", method: "ui/notifications/initialized", params: {} },
@@ -266,6 +271,7 @@ export class HostBridge {
     }
   }
   dispose() {
+    if (this.disposed) return;
     this.disposed = true;
     window.removeEventListener("message", this.listener);
     for (const request of this.pending.values()) {
