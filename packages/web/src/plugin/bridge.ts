@@ -44,6 +44,7 @@ export class MessageDeliveryError extends Error {
 }
 
 export class HostBridge {
+  protocol = 0;
   private writes = 0;
   reconnecting = false;
   private disposed = false;

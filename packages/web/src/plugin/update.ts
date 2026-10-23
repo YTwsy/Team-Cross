@@ -5,9 +5,15 @@ import {
   type RefreshSnapshot,
 } from "../refreshState";
 import { t } from "../i18n";
+import {
+  clearReloadNotice,
+  showReloadNotice,
+  supportsBridge,
+} from "./compatibility";
 
 type Bundle = {
   protocol: number;
+  requiredBridgeProtocol?: number;
   revision: string;
   script?: string;
   style?: string;
@@ -33,6 +39,7 @@ declare global {
 export async function validateBundle(bundle: Bundle, revision: string) {
   if (
     bundle.protocol !== 1 ||
+    !supportsBridge(bundle.requiredBridgeProtocol, Number.MAX_SAFE_INTEGER) ||
     bundle.revision !== revision ||
     !bundle.script ||
     !bundle.style
@@ -155,6 +162,7 @@ export function watchPanelUpdates(
     failed = false,
     composing = false;
   let candidate: Bundle | undefined;
+  let reloadRequired = false;
   let lastCheck = 0;
   const banner = document.createElement("aside");
   banner.className = "plugin-update-banner";
@@ -198,6 +206,7 @@ export function watchPanelUpdates(
       !candidate ||
       applying ||
       busy() ||
+      reloadRequired ||
       (!explicit && (failed || hasRefreshDrafts()))
     )
       return;
@@ -211,6 +220,11 @@ export function watchPanelUpdates(
       });
       stage = "validation";
       await validateBundle(bundle, revision);
+      if (!supportsBridge(bundle.requiredBridgeProtocol, bridge.protocol)) {
+        reloadRequired = true;
+        showReloadNotice();
+        return;
+      }
       // The user may have started typing or submitting while the bundle loaded.
       if (disposed || busy() || (!explicit && hasRefreshDrafts())) return;
       stage = "checkpoint";
@@ -245,7 +259,7 @@ export function watchPanelUpdates(
   async function tick() {
     if (disposed || applying || document.visibilityState === "hidden") return;
     show();
-    if (candidate && !bridge.reconnecting) {
+    if (candidate && !bridge.reconnecting && !reloadRequired) {
       if (!busy() && !failed) void apply();
     }
     if (checking || Date.now() - lastCheck < 15000) return;
@@ -255,11 +269,16 @@ export function watchPanelUpdates(
       const next = await bridge.call<Bundle>("teamcross_ui_read", {
         path: "plugin/panel-version",
       });
-      if (
-        !disposed &&
-        next.protocol === 1 &&
-        /^[a-f0-9]{64}$/.test(next.revision)
-      ) {
+      if (!disposed && /^[a-f0-9]{64}$/.test(next.revision)) {
+        reloadRequired =
+          next.protocol !== 1 ||
+          !supportsBridge(next.requiredBridgeProtocol, bridge.protocol);
+        if (reloadRequired) {
+          candidate = next;
+          showReloadNotice();
+          return;
+        }
+        clearReloadNotice();
         if (next.revision === current) {
           candidate = undefined;
           failed = false;

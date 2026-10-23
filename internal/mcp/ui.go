@@ -20,6 +20,27 @@ import (
 
 const legacyUIResourceURI = "ui://teamcross/workspace-v1.html"
 
+// Cumulative UI route/semantics contract implemented by this MCP process.
+// Core and plugin files can update while this executable remains resident.
+const UIBridgeProtocol = 1
+
+func checkUIBridgeRequirement(body any) error {
+	if body == nil {
+		return nil
+	}
+	data, err := json.Marshal(body)
+	var in struct {
+		Required int `json:"requiredBridgeProtocol"`
+	}
+	if err != nil || json.Unmarshal(data, &in) != nil || in.Required < 0 {
+		return fmt.Errorf("Invalid UI bridge requirement")
+	}
+	if in.Required > UIBridgeProtocol {
+		return problem.New("plugin_reload_required", "插件连接需要重新加载", "请先保存未发送的内容，再退出并重新打开 Codex 或 ChatGPT；仅刷新页面无法更新插件连接")
+	}
+	return nil
+}
+
 // The host treats a resource URI as a cache key. A changed panel must not reuse
 // the previous bundle's address when the plugin is rediscovered after an update.
 var UIResourceURI = panelResourceURI(mcpassets.Panel)
@@ -122,7 +143,7 @@ func ServeUI(ctx context.Context, dataDir string, input io.Reader, output io.Wri
 		}
 		if name == "teamcross_ui_read" || name == "teamcross_ui_write" {
 			path, _ := args["path"].(string)
-			if path != "plugin/bootstrap" || name != "teamcross_ui_read" || args["body"] != nil {
+			if path != "plugin/bootstrap" || name != "teamcross_ui_read" {
 				if _, err := uiRoute(path, args["body"], name == "teamcross_ui_write"); err != nil {
 					return nil, err
 				}
@@ -130,6 +151,11 @@ func ServeUI(ctx context.Context, dataDir string, input io.Reader, output io.Wri
 		}
 		if name == "open_teamcross" {
 			return json.Marshal(map[string]any{"local": true, "scope": "visible-spaces"})
+		}
+		if name == "teamcross_ui_read" && args["path"] == "plugin/bootstrap" {
+			if err := checkUIBridgeRequirement(args["body"]); err != nil {
+				return nil, err
+			}
 		}
 		s, err := service.Ensure(ctx, dataDir, "", nil)
 		if err != nil {
@@ -155,7 +181,7 @@ func ServeUI(ctx context.Context, dataDir string, input io.Reader, output io.Wri
 				}
 				scope := sha256.Sum256([]byte(s.DataDir))
 				_ = pluginpack.MarkUILoaded(s.DataDir)
-				return json.Marshal(map[string]any{"language": json.RawMessage(info), "scope": hex.EncodeToString(scope[:12])})
+				return json.Marshal(map[string]any{"language": json.RawMessage(info), "scope": hex.EncodeToString(scope[:12]), "bridgeProtocol": UIBridgeProtocol})
 			}
 			return b.uiRequest(ctx, path, args["body"], false)
 		}

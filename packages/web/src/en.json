@@ -1542,5 +1542,7 @@
   "{0} 个关注对象": "{0} followed objects",
   "已同步 {0} 个空间，{1} 个空间待同步": "Synced {0} spaces; {1} spaces pending",
   "已读，待同步": "Read, pending sync",
-  "本轮已结束": "Turn ended"
+  "本轮已结束": "Turn ended",
+  "插件连接需要重新加载": "Reload the plugin connection",
+  "请先保存未发送的内容，再退出并重新打开 Codex 或 ChatGPT；仅刷新页面无法更新插件连接": "Save your unsent content, then quit and reopen Codex or ChatGPT. Refreshing this page alone will not update the plugin connection."
 }

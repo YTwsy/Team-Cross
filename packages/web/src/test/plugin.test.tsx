@@ -14,6 +14,7 @@ import { HostBridge } from "../plugin/bridge";
 import { currentConversation } from "../currentConversation";
 import { localStorage as preferences } from "../storage";
 import type { LibraryBundle, LibraryResource } from "../library";
+import { clearReloadNotice } from "../plugin/compatibility";
 
 it("cancels an unfinished panel handshake and ignores its late acknowledgement", async () => {
   const post = vi.mocked(window.parent.postMessage);
@@ -81,7 +82,7 @@ function route(message: any): unknown {
   const { path, body } = message.params.arguments;
   const value =
     path === "plugin/bootstrap"
-      ? { scope }
+      ? { scope, bridgeProtocol: 1 }
       : path === "ui-language"
         ? { mode: "zh-CN", resolved: "zh-CN" }
         : path === "collaborations"
@@ -151,10 +152,104 @@ beforeEach(() => {
   );
 });
 afterEach(() => {
+  clearReloadNotice();
+  delete window.__teamcrossRuntime;
+  delete window.__teamcrossCheckpoint;
   window.dispatchEvent(new Event("pagehide"));
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   delete window.openai;
+});
+
+it("blocks a resident legacy bridge before business reads and keeps the old editor checkpoint", async () => {
+  const previous = { dispose: vi.fn(), mount: vi.fn(async () => {}) };
+  window.__teamcrossRuntime = previous;
+  const checkpoint = {
+    scope: "fixture",
+    scrollY: 0,
+    values: { draft: { value: "unsent" } },
+  };
+  window.__teamcrossCheckpoint = checkpoint;
+  handler = (message) =>
+    message.params?.arguments?.path === "plugin/bootstrap"
+      ? {
+          structuredContent: {
+            scope,
+            language: { mode: "zh-CN", resolved: "zh-CN" },
+          },
+        }
+      : route(message);
+  await expect(initializeEnvironment()).rejects.toMatchObject({
+    code: "plugin_reload_required",
+  });
+  expect(
+    messages
+      .filter((m) => m.method === "tools/call")
+      .map((m) => m.params.arguments.path),
+  ).toEqual(["plugin/bootstrap"]);
+  expect(window.__teamcrossRuntime).toBe(previous);
+  expect(window.__teamcrossCheckpoint).toBe(checkpoint);
+  expect(previous.dispose).not.toHaveBeenCalled();
+  expect(screen.getByText("插件连接需要重新加载")).toBeInTheDocument();
+  expect(window.fetch).not.toHaveBeenCalled();
+});
+
+it("removes the reload notice after a new bridge successfully bootstraps", async () => {
+  const original = handler;
+  window.__teamcrossRuntime = {
+    dispose: vi.fn(),
+    mount: vi.fn(async () => {}),
+  };
+  handler = (message) =>
+    message.params?.arguments?.path === "plugin/bootstrap"
+      ? { structuredContent: { scope } }
+      : route(message);
+  await expect(initializeEnvironment()).rejects.toMatchObject({
+    code: "plugin_reload_required",
+  });
+  handler = original;
+  await initializeEnvironment();
+  expect(document.getElementById("teamcross-bridge-reload")).toBeNull();
+  expect(
+    messages.filter((m) => m.params?.name === "teamcross_ui_write"),
+  ).toEqual([]);
+});
+
+it("probes a historical bodyless bootstrap once without replaying business requests", async () => {
+  handler = (message) => {
+    if (message.method === "ui/initialize")
+      return { hostCapabilities: capabilities, hostContext: { theme: "dark" } };
+    const args = message.params?.arguments;
+    if (args?.path === "plugin/bootstrap")
+      return args.body
+        ? {
+            isError: true,
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({ error: "WebGUI route is not allowed" }),
+              },
+            ],
+          }
+        : { structuredContent: { scope } };
+    return route(message);
+  };
+  await expect(initializeEnvironment()).rejects.toMatchObject({
+    code: "plugin_reload_required",
+  });
+  expect(document.documentElement.dataset.theme).toBe("dark");
+  expect(
+    messages.filter((m) => m.method === "tools/call").map((m) => m.params),
+  ).toEqual([
+    {
+      name: "teamcross_ui_read",
+      arguments: {
+        path: "plugin/bootstrap",
+        body: { requiredBridgeProtocol: 1 },
+      },
+    },
+    { name: "teamcross_ui_read", arguments: { path: "plugin/bootstrap" } },
+  ]);
 });
 
 it("connects only after an explicit host message and does not replay a lost acknowledgement", async () => {

@@ -229,14 +229,16 @@ export function Loading({ text = t("正在加载…") }: { text?: string }) {
 export function ErrorBox({
   message,
   retry,
+  title,
 }: {
   message?: string;
   retry?: () => void;
+  title?: string;
 }) {
   if (!message) return null;
   return (
     <div className="error-box" role="alert">
-      <strong>{t("暂时无法完成")}</strong>
+      <strong>{title || t("暂时无法完成")}</strong>
       <p>{serviceText(message)}</p>
       {retry && (
         <button className="button small" onClick={retry}>

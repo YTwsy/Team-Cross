@@ -95,7 +95,7 @@ addEventListener('message',async event=>{
 				return
 			}
 			if in.Path == "plugin/bootstrap" {
-				respond(w, map[string]string{"scope": "update-fixture"}, nil)
+				respond(w, map[string]any{"scope": "update-fixture", "bridgeProtocol": mcp.UIBridgeProtocol}, nil)
 				return
 			}
 			if in.Path == "plugin/panel-version" {

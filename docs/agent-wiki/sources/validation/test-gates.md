@@ -76,6 +76,12 @@ Core 升级相关变更另运行 `scripts/verify-core-upgrade.py`：指定旧、
 
 ## ChatGPT 本机插件
 
+桥接兼容性须验证驻留进程而非磁盘版本：运行 [bootstrap 边界](../../../../internal/mcp/ui_bridge_test.go)、[启动回归](../../../../packages/web/src/test/plugin.test.tsx)、[更新回归](../../../../packages/web/src/test/plugin-update.test.tsx) 和 bundle 检查。覆盖未声明能力、未来协议、下载前及替换前拒绝、不启动 Core／不写加载回执、旧编辑器检查点保留及新进程恢复；不能用同一新版 handler 模拟旧路由白名单后宣称真实旧进程通过。
+
+跨版本浏览器使用 [专用宿主夹具](../../../../scripts/plugin-bridge-upgrade-browser.py)。先以 `--prepare --legacy-bin <旧安装包 helper> --previous-bin <待复现安装包 helper> --output <新目录>` 导出真实旧资源；启动 `TestChatGPTPluginFixture` 并设置 `TEAMCROSS_PLUGIN_FIXTURE_DIR=<另一个新目录>`、`TEAMCROSS_PLUGIN_UPGRADE_BUNDLES=<资源目录>`、`TEAMCROSS_PLUGIN_FIXTURE_EXECUTABLE=<新 helper 绝对路径>`。新 helper 命名为 `teamcross` 且构建身份与 fixture 一致，让旧 MCP 读取 Core 所属的新安装；不能省略所属安装后把服务升级 404 误当作桥接失败。
+
+随后以 `--fixture <fixture.json> --legacy-bin <旧 helper> --current-bin <新 helper> --output <资源目录>` 启动宿主。依次加载旧故障界面和修复界面，确认同一旧 MCP PID、原报错、重载提示、草稿未提交，再用夹具重载 MCP 验证动态恢复。区分被旧白名单拒绝的已读请求、恢复后的正常已读同步与草稿提交，不能笼统报告零写入。`--initial-ui current` 验证首次打开即不兼容时仅探测 bootstrap；`--theme dark --width 768` 可检查冷启动提示的主题与宽度，语言由隔离 Core 偏好决定。截图核对中英文、深浅色与宽窄窗口；观察超过旧加载器超时。结束写入资源目录的 `finish-browser`、Core 目录的 `finish` 并关闭测试页。真实 stdio/Core 与模拟宿主分别报告，不宣称已操作用户正在运行的 Codex。
+
 资源地址或入口更新须经 `ServeUI` 验证“新入口元数据 → 旧 MCP”和“旧入口元数据 → 新 MCP”的版本地址混用，核对静态页面返回、严格命名空间和无 Core 数据写入；同时回归材料引用的跨 Core 拒绝。实际宿主验收分别从插件列表/侧栏及对话工具打开，不能以其中一路正常代替另一路。
 
 设置与安装回归见 [连接生命周期](../../../../internal/pluginpack/connection_test.go)、[本机 API](../../../../internal/collab/plugin_connection_test.go) 与 [连接页面](../../../../packages/web/src/test/plugin-connection.test.tsx)。覆盖显式首次启用、未创建 profile 的只读状态查询、来源保留、首次连接使用当前 Core、相同字节但绑定不同的自动迁移、切换前后失败的显式重试、无目录参数的 CLI 更新保留绑定、另一 App 不能自动接管、原数据不变、相同版本号不同字节、移除与停用不自动重装、失败后显式重试、并发锁与符号链接保护。旧代号或不同 Core 的界面回执不能清除新版加载提示。

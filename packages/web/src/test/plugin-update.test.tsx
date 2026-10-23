@@ -16,6 +16,7 @@ import { LeaveSpaceNote } from "../components/InFlow";
 import { Annotations } from "../components/Annotations";
 import { setAPITransport, APIError } from "../api";
 import { setLanguageInfo } from "../i18n";
+import { clearReloadNotice } from "../plugin/compatibility";
 
 const style = "body{color:black}",
   script = "// new panel";
@@ -49,6 +50,11 @@ function Editor() {
   );
 }
 beforeEach(() => {
+  vi.mocked(bridge.call).mockImplementation(async (_name, args: any) =>
+    args.path === "plugin/panel-version"
+      ? { protocol: 1, revision }
+      : readBundle(),
+  );
   vi.useFakeTimers();
   vi.stubGlobal("crypto", webcrypto);
   setLanguageInfo({ mode: "zh-CN", resolved: "zh-CN" });
@@ -64,6 +70,7 @@ beforeEach(() => {
   replace = vi.fn(async () => {});
 });
 afterEach(() => {
+  clearReloadNotice();
   stop();
   endRefreshState();
   setAPITransport(undefined);
@@ -73,6 +80,42 @@ afterEach(() => {
   vi.clearAllMocks();
   delete window.__teamcrossFailedRevision;
   delete window.__teamcrossUpdateFailure;
+});
+
+it("keeps drafts and requests host reload instead of downloading an incompatible update", async () => {
+  vi.mocked(bridge.call).mockResolvedValue({
+    protocol: 1,
+    revision,
+    requiredBridgeProtocol: 1,
+  });
+  render(<Editor />);
+  fireEvent.change(screen.getByRole("textbox"), {
+    target: { value: "keep this draft" },
+  });
+  stop = watchPanelUpdates(bridge, vi.fn(), replace);
+  await tick();
+  expect(screen.getByText("插件连接需要重新加载")).toBeInTheDocument();
+  expect(screen.getByRole("textbox")).toHaveValue("keep this draft");
+  expect(replace).not.toHaveBeenCalled();
+  expect(
+    vi
+      .mocked(bridge.call)
+      .mock.calls.every(
+        ([, args]) => (args as any).path === "plugin/panel-version",
+      ),
+  ).toBe(true);
+  await tick(16000);
+  expect(replace).not.toHaveBeenCalled();
+});
+
+it("rechecks the downloaded requirement before disposing an editor", async () => {
+  readBundle = async () => ({ ...bundle, requiredBridgeProtocol: 2 });
+  render(<Editor />);
+  stop = watchPanelUpdates(bridge, vi.fn(), replace);
+  await tick();
+  await settle();
+  expect(replace).not.toHaveBeenCalled();
+  expect(screen.getByText("插件连接需要重新加载")).toBeInTheDocument();
 });
 async function tick(ms = 1600) {
   await act(async () => {

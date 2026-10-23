@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { requiredBridgeProtocol } from "./src/plugin/protocol";
 
 export default defineConfig({
   publicDir: false,
@@ -28,7 +29,7 @@ export default defineConfig({
         const revision = createHash("sha256").update(css + "\0" + js).digest("hex");
         fs.writeFileSync(
           path.join(directory, "panel.html"),
-          `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="teamcross-panel-revision" content="${revision}"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Team Cross</title><style id="teamcross-panel-style">${css}</style></head><body><div id="root"></div><script type="module">${js}</script></body></html>`,
+          `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="teamcross-panel-revision" content="${revision}"><meta name="teamcross-bridge-protocol" content="${requiredBridgeProtocol}"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Team Cross</title><style id="teamcross-panel-style">${css}</style></head><body><div id="root"></div><script type="module">${js}</script></body></html>`,
         );
         fs.unlinkSync(path.join(directory, "panel.js"));
         fs.unlinkSync(path.join(directory, "panel.css"));

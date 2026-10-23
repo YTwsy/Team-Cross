@@ -183,7 +183,9 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 
 插件专用只读路由 `plugin/current-connection?spaceId=…` 返回 `{known,linked,receiving,targetId?,name?}`；UI 不能提交调用者身份。MCP 桥只从传输提取 Codex threadId 或 ChatGPT 不透明身份，通过受 Bearer 保护且拒绝 Origin 的 `POST /agent-current-connection` 读取精确关联。内部 `connection-status` 只返回属于认证成员、未移除的目标，不注册目标或连接原生进程。缺少可用身份返回 `known=false`，不等同于确认未关联。
 
-插件界面更新使用 `teamcross_ui_read` 的两条 app-only 只读路由：`plugin/panel-version` 返回 `{protocol:1,revision}`；`plugin/panel-bundle?revision=…` 返回同一版本的 `{protocol:1,revision,script,style}`。Core 仅接受 GET、精确 Core Bearer 且无 Origin，revision 与当前内嵌资源不符返回 409。revision 为 UTF-8 `style + NUL + script` 的 SHA-256；面板取得 bundle 后再次校验。bundle 仅放在 MCP `structuredContent`，不重复写入文本 content；资源来自正在运行的 Core，不能指定文件或外部 URL。更新过程和草稿边界见[本机插件契约](decisions/chatgpt-local-plugin.md#一套-webgui两种运行环境)。
+插件界面更新使用 `teamcross_ui_read` 的两条 app-only 只读路由：`plugin/panel-version` 返回 `{protocol:1,requiredBridgeProtocol,revision}`；`plugin/panel-bundle?revision=…` 返回同一版本并附带 `{script,style}`。`protocol` 是资源传输格式；`requiredBridgeProtocol` 是该界面需要的累积 MCP 路由与语义能力，当前为 1，历史资源未声明时为 0。Core 仅接受 GET、精确 Core Bearer 且无 Origin，revision 与当前内嵌资源不符返回 409。revision 为 UTF-8 `style + NUL + script` 的 SHA-256；面板取得 bundle 后再次校验。bundle 仅放在 MCP `structuredContent`，不重复写入文本 content；资源来自正在运行的 Core，不能指定文件或外部 URL。
+
+`teamcross_ui_read` 的 `plugin/bootstrap` 接受可选 `body:{requiredBridgeProtocol}`，返回 `{language,scope,bridgeProtocol}`。`bridgeProtocol` 来自处理调用的驻留 MCP，不来自磁盘版本或 Core；当前为 1，未声明按历史 0 处理。MCP 在启动 Core、写入加载回执之前拒绝超出能力的请求，返回 `plugin_reload_required` 和保存未发送内容、重新加载宿主连接的恢复说明。新版面板下载及替换前分别比较需求与驻留能力，启动时再核对 bootstrap；历史 MCP 拒绝带正文的 bootstrap 时，只允许对该只读探测回退一次无正文请求，不重试业务写入。更新过程、旧编辑器回退与草稿边界见[本机插件契约](decisions/chatgpt-local-plugin.md#一套-webgui两种运行环境)。
 
 共同执行目标使用 `executionId` 绑定精确会话，私人接收目标省略该字段；投递时重新检查空间成员资格和该会话输入归属。
 

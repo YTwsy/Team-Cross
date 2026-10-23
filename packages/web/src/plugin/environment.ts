@@ -13,6 +13,15 @@ import {
 import { bindSandboxForms } from "./forms";
 import { beginRefreshState, endRefreshState } from "../refreshState";
 import { watchPanelUpdates } from "./update";
+import { requiredBridgeProtocol } from "./protocol";
+import {
+  clearReloadNotice,
+  reloadRequiredError,
+  showReloadNotice,
+  supportsBridge,
+} from "./compatibility";
+import { setLanguageInfo, type LanguageInfo } from "../i18n";
+import { APIError } from "../api";
 
 type Snapshot = {
   version: 2;
@@ -27,12 +36,42 @@ export async function initializeEnvironment(signal?: AbortSignal) {
   signal?.addEventListener("abort", abort, { once: true });
   try {
     await bridge.initialize(signal);
-    const { scope } = await bridge.call<{ scope: string }>(
-      "teamcross_ui_read",
-      { path: "plugin/bootstrap" },
-      signal,
-    );
+    type Bootstrap = {
+      scope: string;
+      bridgeProtocol?: number;
+      language?: LanguageInfo;
+    };
+    let bootstrap: Bootstrap;
+    try {
+      bootstrap = await bridge.call<Bootstrap>(
+        "teamcross_ui_read",
+        {
+          path: "plugin/bootstrap",
+          body: { requiredBridgeProtocol },
+        },
+        signal,
+      );
+    } catch (error) {
+      // Historical MCPs allow bootstrap only without a body. Probe that exact
+      // read once; never fall back or replay a business read/write this way.
+      if (
+        !(error instanceof APIError) ||
+        error.message !== "WebGUI route is not allowed"
+      )
+        throw error;
+      bootstrap = await bridge.call<Bootstrap>(
+        "teamcross_ui_read",
+        { path: "plugin/bootstrap" },
+        signal,
+      );
+    }
     signal?.throwIfAborted();
+    if (bootstrap.language) setLanguageInfo(bootstrap.language);
+    if (!supportsBridge(requiredBridgeProtocol, bootstrap.bridgeProtocol))
+      throw reloadRequiredError();
+    bridge.protocol = bootstrap.bridgeProtocol!;
+    clearReloadNotice();
+    const { scope } = bootstrap;
     const saved = restoreState<Snapshot>();
     const state: Snapshot = {
       version: 2,
@@ -155,6 +194,20 @@ export async function initializeEnvironment(signal?: AbortSignal) {
     window.addEventListener("pagehide", dispose, { once: true });
     return dispose;
   } catch (error) {
+    if ((error as { code?: string })?.code === "plugin_reload_required") {
+      if (window.__teamcrossRuntime) showReloadNotice();
+      else {
+        // App cannot mount on an incompatible bridge; keep its startup guidance
+        // legible in the host's theme without restoring another Core's state.
+        const theme = bridge.host?.hostContext?.theme;
+        document.documentElement.dataset.theme =
+          theme === "dark" || theme === "light"
+            ? theme
+            : matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+      }
+    }
     signal?.removeEventListener("abort", abort);
     bridge.dispose();
     throw error;

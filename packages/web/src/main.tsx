@@ -1,10 +1,10 @@
 import { StrictMode, useLayoutEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import App from "./App";
-import { api, errorText } from "./api";
+import { api, APIError, errorText } from "./api";
 import { initializeEnvironment } from "./environment";
 import { ErrorBox } from "./components/ui";
-import { browserLanguage, setLanguageInfo, type LanguageInfo } from "./i18n";
+import { browserLanguage, setLanguageInfo, t, type LanguageInfo } from "./i18n";
 import "./styles.css";
 import "./library.css";
 import "./space.css";
@@ -17,6 +17,19 @@ const entryScript = [
 function Mounted({ ready }: { ready: () => void }) {
   useLayoutEffect(ready, [ready]);
   return null;
+}
+function StartupError({ error }: { error: unknown }) {
+  const reloadRequired =
+    error instanceof APIError && error.code === "plugin_reload_required";
+  return (
+    <div className="page">
+      <ErrorBox
+        title={reloadRequired ? t("插件连接需要重新加载") : undefined}
+        message={reloadRequired ? error.recovery : errorText(error)}
+        retry={reloadRequired ? undefined : () => location.reload()}
+      />
+    </div>
+  );
 }
 async function mount() {
   const generation = (window.__teamcrossMountGeneration || 0) + 1;
@@ -84,10 +97,12 @@ try {
   // waits for load, which inline modules do not emit on their own.
   entryScript?.dispatchEvent(new Event("load"));
 } catch (error) {
+  const reloadRequired =
+    error instanceof APIError && error.code === "plugin_reload_required";
   entryScript?.dispatchEvent(new CustomEvent("error", { detail: error }));
   if (!window.__teamcrossRuntime)
     createRoot(document.getElementById("root")!).render(
-      <ErrorBox message={errorText(error)} retry={() => location.reload()} />,
+      <StartupError error={error} />,
     );
-  throw error;
+  if (!reloadRequired) throw error;
 }
