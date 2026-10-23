@@ -42,6 +42,15 @@ func TestPluginUpdateBrowserFixture(t *testing.T) {
 	bundles := []mcpassets.Bundle{}
 	for n := 0; n < 4; n++ {
 		panel := strings.Replace(mcpassets.Panel, "</script>", fmt.Sprintf("\n;document.documentElement.dataset.fixtureBuild='%d';\n</script>", n), 1)
+		// Migration must use an actually old updater, not another copy of the
+		// fixed entrypoint. The supplied file is an explicit local test fixture.
+		if legacy := os.Getenv("TEAMCROSS_UPDATE_LEGACY_PANEL"); n == 0 && legacy != "" {
+			b, err := os.ReadFile(legacy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			panel = string(b)
+		}
 		if n == 3 {
 			panel = strings.Replace(panel, `<script type="module">`, `<script type="module">throw new Error('fixture startup failure');`, 1)
 		}
@@ -66,7 +75,7 @@ func TestPluginUpdateBrowserFixture(t *testing.T) {
 			fmt.Fprintf(w, `<!doctype html><meta charset="utf-8"><style>body{margin:0;font:14px system-ui}header{height:40px;display:flex;align-items:center;gap:20px;padding:0 12px;background:#eee}iframe{width:100vw;height:calc(100vh - 40px);border:0}</style><header><button id="publish">发布下一个测试版本</button><span id="server">服务器版本 0</span><span id="loaded">面板版本 0</span><span id="writes">业务写入 0</span></header><iframe id="panel" sandbox="allow-scripts allow-same-origin allow-modals" src="/panel.html#/collaborations/%s"></iframe><script>
 let writes=0;
 publish.onclick=async()=>{const value=await(await fetch('/fixture-version',{method:'POST'})).json();server.textContent='服务器版本 '+value.version;panel.contentWindow.dispatchEvent(new Event('focus'));};
-setInterval(()=>{loaded.textContent='面板版本 '+(panel.contentDocument.documentElement.dataset.fixtureBuild||'加载中');},200);
+setInterval(()=>{const d=panel.contentDocument;loaded.textContent='面板版本 '+(d.documentElement.dataset.fixtureBuild||'旧版')+' · '+(d.querySelector('meta[name="teamcross-panel-revision"]')?.content||'加载中').slice(0,12);},200);
 addEventListener('message',async event=>{
  const m=event.data;if(event.source!==panel.contentWindow||!m.id)return;let result={};
  if(m.method==='ui/initialize')result={hostCapabilities:{message:{}},hostContext:{theme:'light'}};

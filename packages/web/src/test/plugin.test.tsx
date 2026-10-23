@@ -15,6 +15,36 @@ import { currentConversation } from "../currentConversation";
 import { localStorage as preferences } from "../storage";
 import type { LibraryBundle, LibraryResource } from "../library";
 
+it("cancels an unfinished panel handshake and ignores its late acknowledgement", async () => {
+  const post = vi.mocked(window.parent.postMessage);
+  post.mockImplementation((message) => {
+    messages.push(message);
+  });
+  const controller = new AbortController();
+  const pending = initializeEnvironment(controller.signal).catch(
+    (error) => error,
+  );
+  const initialize = messages.find(
+    (message) => message.method === "ui/initialize",
+  )!;
+  controller.abort();
+  expect((await pending).name).toBe("AbortError");
+  window.dispatchEvent(
+    new MessageEvent("message", {
+      source: window.parent,
+      data: {
+        jsonrpc: "2.0",
+        id: initialize.id,
+        result: { hostCapabilities: {} },
+      },
+    }),
+  );
+  await Promise.resolve();
+  expect(messages.filter((message) => message.method === "tools/call")).toEqual(
+    [],
+  );
+});
+
 const resource: LibraryResource = {
   key: "material-v1",
   reference: {

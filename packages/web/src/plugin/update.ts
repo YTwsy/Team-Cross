@@ -20,6 +20,13 @@ declare global {
     __teamcrossPrivateState?: unknown;
     __teamcrossFailedRevision?: string;
     __teamcrossMountGeneration?: number;
+    __teamcrossCancelMount?: () => void;
+    __teamcrossUpdateFailure?: {
+      revision: string;
+      stage: string;
+      message: string;
+      at: string;
+    };
   }
 }
 
@@ -64,36 +71,65 @@ export async function replacePanel(
   if (meta) meta.content = bundle.revision;
   const script = document.createElement("script");
   script.type = "module";
-  script.textContent = bundle.script!;
+  const source = `teamcross-panel-${bundle.revision}.js`;
+  script.textContent = bundle.script! + `\n//# sourceURL=${source}`;
   try {
     await new Promise<void>((resolve, reject) => {
       const cleanup = () => {
         clearTimeout(timer);
-        window.removeEventListener("error", failed);
-        window.removeEventListener("unhandledrejection", failed);
+        clearInterval(poll);
+        script.removeEventListener("teamcross-panel-ready", ready);
+        window.removeEventListener("error", scriptFailed);
+        script.onload = script.onerror = null;
       };
-      const failed = () => {
+      const failed = (event: Event | string) => {
         cleanup();
-        reject(new Error("Panel startup failed"));
+        const error =
+          typeof event === "string"
+            ? new Error(event)
+            : (event as CustomEvent<unknown>).detail;
+        reject(
+          error instanceof Error ? error : new Error("Panel startup failed"),
+        );
       };
+      const scriptFailed = (event: ErrorEvent) => {
+        if (event.filename?.endsWith(source)) {
+          cleanup();
+          reject(event.error || new Error(event.message));
+        }
+      };
+      const ready = () => {
+        if (
+          !window.__teamcrossRuntime ||
+          window.__teamcrossRuntime === previous
+        )
+          return;
+        cleanup();
+        resolve();
+      };
+      // Inline modules need not emit load. Older bundles publish their runtime
+      // after mount; newer ones also acknowledge the first React commit.
+      const poll = setInterval(ready, 50);
       const timer = setTimeout(() => {
         cleanup();
         reject(new Error("Panel startup timed out"));
       }, 120000);
-      script.onload = () => {
-        cleanup();
-        resolve();
-      };
+      script.onload = ready;
       script.onerror = failed;
-      window.addEventListener("error", failed);
-      window.addEventListener("unhandledrejection", failed);
+      script.addEventListener("teamcross-panel-ready", ready);
+      window.addEventListener("error", scriptFailed);
       document.body.appendChild(script);
     });
-    if (window.__teamcrossRuntime === previous)
-      throw new Error("New panel did not start");
+    delete window.__teamcrossFailedRevision;
+    delete window.__teamcrossUpdateFailure;
   } catch (error) {
     window.__teamcrossFailedRevision = bundle.revision;
-    window.__teamcrossRuntime?.dispose();
+    // A timed-out bootstrap must not later replace the restored editor.
+    window.__teamcrossMountGeneration =
+      (window.__teamcrossMountGeneration || 0) + 1;
+    window.__teamcrossCancelMount?.();
+    if (window.__teamcrossRuntime !== previous)
+      window.__teamcrossRuntime?.dispose();
     style.textContent = oldStyle;
     if (meta) meta.content = oldRevision;
     window.__teamcrossCheckpoint = checkpoint;
@@ -109,7 +145,7 @@ export function watchPanelUpdates(
   persist: () => void,
   replace = replacePanel,
 ) {
-  const current = document.querySelector<HTMLMetaElement>(
+  let current = document.querySelector<HTMLMetaElement>(
     'meta[name="teamcross-panel-revision"]',
   )?.content;
   if (!current) return () => {};
@@ -130,12 +166,18 @@ export function watchPanelUpdates(
   button.className = "button small";
   banner.append(label, button);
   document.body.append(banner);
-  const busy = () => bridge.hasPendingWrites || composing || bridge.reconnecting;
+  const busy = () =>
+    bridge.hasPendingWrites || composing || bridge.reconnecting;
   function show() {
     const parent =
       [...document.querySelectorAll("dialog[open]")].at(-1) || document.body;
     if (banner.parentElement !== parent) parent.appendChild(banner);
     banner.hidden = !candidate && !bridge.reconnecting;
+    if (failed && window.__teamcrossUpdateFailure)
+      banner.dataset.updateFailure = JSON.stringify(
+        window.__teamcrossUpdateFailure,
+      );
+    else delete banner.dataset.updateFailure;
     button.hidden = !!bridge.reconnecting;
     if (bridge.reconnecting) {
       label.textContent = t("服务正在更新，正在重新连接；草稿已保留。");
@@ -161,19 +203,39 @@ export function watchPanelUpdates(
       return;
     applying = true;
     show();
+    const revision = candidate.revision;
+    let stage = "download";
     try {
-      const revision = candidate.revision;
       const bundle = await bridge.call<Bundle>("teamcross_ui_read", {
         path: `plugin/panel-bundle?revision=${revision}`,
       });
+      stage = "validation";
       await validateBundle(bundle, revision);
       // The user may have started typing or submitting while the bundle loaded.
       if (disposed || busy() || (!explicit && hasRefreshDrafts())) return;
+      stage = "checkpoint";
       persist();
       const checkpoint = captureRefreshState();
+      stage = "startup";
       await replace(bundle, checkpoint);
-    } catch {
+      current = revision;
+      candidate = undefined;
+      failed = false;
+      delete window.__teamcrossFailedRevision;
+      delete window.__teamcrossUpdateFailure;
+    } catch (error) {
       failed = true;
+      window.__teamcrossFailedRevision = revision;
+      window.__teamcrossUpdateFailure = {
+        revision,
+        stage,
+        message: error instanceof Error ? error.message : String(error),
+        at: new Date().toISOString(),
+      };
+      console.error(
+        "[Team Cross] Panel update failed",
+        window.__teamcrossUpdateFailure,
+      );
     } finally {
       applying = false;
       if (!disposed) show();
@@ -196,9 +258,14 @@ export function watchPanelUpdates(
       if (
         !disposed &&
         next.protocol === 1 &&
-        /^[a-f0-9]{64}$/.test(next.revision) &&
-        next.revision !== current
+        /^[a-f0-9]{64}$/.test(next.revision)
       ) {
+        if (next.revision === current) {
+          candidate = undefined;
+          failed = false;
+          show();
+          return;
+        }
         if (candidate?.revision !== next.revision)
           failed = window.__teamcrossFailedRevision === next.revision;
         candidate = next;

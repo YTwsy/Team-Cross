@@ -58,6 +58,8 @@ beforeEach(() => {
   document.head.append(meta);
   beginRefreshState("core-a");
   pending = false;
+  delete window.__teamcrossFailedRevision;
+  delete window.__teamcrossUpdateFailure;
   readBundle = async () => bundle;
   replace = vi.fn(async () => {});
 });
@@ -69,6 +71,8 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+  delete window.__teamcrossFailedRevision;
+  delete window.__teamcrossUpdateFailure;
 });
 async function tick(ms = 1600) {
   await act(async () => {
@@ -172,6 +176,45 @@ it("rejects truncated, changed or mismatched update code before execution", asyn
     validateBundle({ ...bundle, script: "different" }, revision),
   ).rejects.toThrow();
   await expect(validateBundle(bundle, "0".repeat(64))).rejects.toThrow();
+});
+it("does not repeatedly apply a successful version on later checks", async () => {
+  stop = watchPanelUpdates(bridge, vi.fn(), replace);
+  await tick();
+  await settle();
+  await tick(45000);
+  expect(replace).toHaveBeenCalledTimes(1);
+  expect(document.querySelector(".plugin-update-banner")).not.toBeVisible();
+});
+it("keeps a failed revision blocked after watcher recreation and records the failing stage", async () => {
+  readBundle = vi.fn(async () => {
+    throw new Error("download interrupted");
+  });
+  stop = watchPanelUpdates(bridge, vi.fn(), replace);
+  await tick();
+  stop();
+  stop = watchPanelUpdates(bridge, vi.fn(), replace);
+  await tick(45000);
+  expect(readBundle).toHaveBeenCalledTimes(1);
+  expect(window.__teamcrossUpdateFailure).toMatchObject({
+    revision,
+    stage: "download",
+    message: "download interrupted",
+  });
+  expect(replace).not.toHaveBeenCalled();
+});
+it("clears a stale candidate when the Core returns to the currently mounted version", async () => {
+  readBundle = async () => {
+    throw new Error("temporary version unavailable");
+  };
+  stop = watchPanelUpdates(bridge, vi.fn(), replace);
+  await tick();
+  vi.mocked(bridge.call).mockResolvedValueOnce({
+    protocol: 1,
+    revision: "0".repeat(64),
+  });
+  await tick(15000);
+  expect(document.querySelector(".plugin-update-banner")).not.toBeVisible();
+  expect(replace).not.toHaveBeenCalled();
 });
 it("restores an open note with its unknown request identity and never resends it", async () => {
   const calls: { path: string; body: any }[] = [];
@@ -280,7 +323,9 @@ it("keeps drafts mounted during Core replacement and asks before refreshing the 
   fireEvent.click(screen.getByRole("button", { name: "保留草稿并刷新" }));
   await settle();
   expect(replace).toHaveBeenCalledTimes(1);
-  expect(captureRefreshState().values["test:text"]).toEqual({ value: "服务重启期间的草稿" });
+  expect(captureRefreshState().values["test:text"]).toEqual({
+    value: "服务重启期间的草稿",
+  });
   expect(
     vi
       .mocked(bridge.call)
