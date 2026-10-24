@@ -59,8 +59,10 @@ type AgentRequest struct {
 }
 
 type agentState struct {
-	Pairings map[string]AgentPairing `json:"pairings"`
-	Requests map[string]AgentRequest `json:"requests"`
+	Pairings        map[string]AgentPairing      `json:"pairings"`
+	Requests        map[string]AgentRequest      `json:"requests"`
+	ShadowReturns   map[string]ShadowReturnRoute `json:"shadowReturns,omitempty"`
+	TaskReturnMuted map[string]bool              `json:"taskReturnMuted,omitempty"`
 }
 
 type agentEvent struct {

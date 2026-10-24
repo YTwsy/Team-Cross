@@ -53,17 +53,18 @@ type Actor struct {
 }
 
 type Message struct {
-	ID         string     `json:"id"`
-	Actor      Actor      `json:"actor"`
-	Role       string     `json:"role"`
-	Text       string     `json:"text"`
-	State      string     `json:"state"` // delivered, submitted, completed, failed, unknown
-	ReplyTo    string     `json:"replyTo,omitempty"`
-	SegmentID  string     `json:"segmentId,omitempty"`
-	TurnID     string     `json:"turnId,omitempty"`
-	Error      string     `json:"error,omitempty"`
-	CreatedAt  time.Time  `json:"createdAt"`
-	ReceivedAt *time.Time `json:"receivedAt,omitempty"`
+	TaskResultID string     `json:"taskResultId,omitempty"`
+	ID           string     `json:"id"`
+	Actor        Actor      `json:"actor"`
+	Role         string     `json:"role"`
+	Text         string     `json:"text"`
+	State        string     `json:"state"` // delivered, submitted, completed, failed, unknown
+	ReplyTo      string     `json:"replyTo,omitempty"`
+	SegmentID    string     `json:"segmentId,omitempty"`
+	TurnID       string     `json:"turnId,omitempty"`
+	Error        string     `json:"error,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	ReceivedAt   *time.Time `json:"receivedAt,omitempty"`
 }
 
 type Segment struct {
@@ -197,39 +198,42 @@ type Decision struct {
 }
 
 type Record struct {
-	Settings         ModelSettings                  `json:"settings"` // Immutable launch settings; fields below are runtime observations.
-	Model            string                         `json:"model,omitempty"`
-	ModelProvider    string                         `json:"modelProvider,omitempty"`
-	ReasoningEffort  string                         `json:"reasoningEffort,omitempty"`
-	Schema           int                            `json:"schema"`
-	ID               string                         `json:"id"`
-	SpaceID          string                         `json:"spaceId"`
-	Name             string                         `json:"name"`
-	Owner            Actor                          `json:"owner"`
-	Home             string                         `json:"home"`
-	Cwd              string                         `json:"cwd"`
-	Enabled          bool                           `json:"enabled"`
-	Revision         int                            `json:"revision"`
-	Current          string                         `json:"current"`
-	Segments         []Segment                      `json:"segments"`
-	Messages         []Message                      `json:"messages"`
-	Memories         map[string]Memory              `json:"memories"`
-	MemoryRevision   int                            `json:"memoryRevision"`
-	MemoryWatermark  int                            `json:"memoryWatermark"`
-	Topics           map[string]Topic               `json:"topics"`
-	Jobs             map[string]Job                 `json:"jobs"`
-	TaskResults      map[string]TaskResult          `json:"taskResults,omitempty"`
-	Runs             map[string]Run                 `json:"runs"`
-	ToolResults      map[string]json.RawMessage     `json:"toolResults"`
-	Actions          map[string]CollaborationAction `json:"actions"`
-	Questions        map[string]TaskQuestion        `json:"questions"`
-	AttentionThreads map[string]string              `json:"attentionThreads"`
-	Transition       *Transition                    `json:"transition,omitempty"`
-	Decision         *Decision                      `json:"decision,omitempty"`
-	Creating         string                         `json:"creating,omitempty"`
-	Error            string                         `json:"error,omitempty"`
-	CreatedAt        time.Time                      `json:"createdAt"`
-	UpdatedAt        time.Time                      `json:"updatedAt"`
+	Settings           ModelSettings                  `json:"settings"` // Immutable launch settings; fields below are runtime observations.
+	Model              string                         `json:"model,omitempty"`
+	ModelProvider      string                         `json:"modelProvider,omitempty"`
+	ReasoningEffort    string                         `json:"reasoningEffort,omitempty"`
+	Schema             int                            `json:"schema"`
+	ID                 string                         `json:"id"`
+	SpaceID            string                         `json:"spaceId"`
+	Name               string                         `json:"name"`
+	Owner              Actor                          `json:"owner"`
+	Home               string                         `json:"home"`
+	Cwd                string                         `json:"cwd"`
+	Enabled            bool                           `json:"enabled"`
+	Revision           int                            `json:"revision"`
+	Current            string                         `json:"current"`
+	Segments           []Segment                      `json:"segments"`
+	Messages           []Message                      `json:"messages"`
+	ReplyOutbox        map[string]Message             `json:"replyOutbox,omitempty"`
+	Memories           map[string]Memory              `json:"memories"`
+	MemoryRevision     int                            `json:"memoryRevision"`
+	MemoryWatermark    int                            `json:"memoryWatermark"`
+	Topics             map[string]Topic               `json:"topics"`
+	Jobs               map[string]Job                 `json:"jobs"`
+	TaskResults        map[string]TaskResult          `json:"taskResults,omitempty"`
+	TaskResultOutbox   map[string]TaskResult          `json:"taskResultOutbox,omitempty"`
+	TaskResultCaptured map[string]string              `json:"taskResultCaptured,omitempty"`
+	Runs               map[string]Run                 `json:"runs"`
+	ToolResults        map[string]json.RawMessage     `json:"toolResults"`
+	Actions            map[string]CollaborationAction `json:"actions"`
+	Questions          map[string]TaskQuestion        `json:"questions"`
+	AttentionThreads   map[string]string              `json:"attentionThreads"`
+	Transition         *Transition                    `json:"transition,omitempty"`
+	Decision           *Decision                      `json:"decision,omitempty"`
+	Creating           string                         `json:"creating,omitempty"`
+	Error              string                         `json:"error,omitempty"`
+	CreatedAt          time.Time                      `json:"createdAt"`
+	UpdatedAt          time.Time                      `json:"updatedAt"`
 }
 
 // View is safe to replicate to the space host: native configuration paths,

@@ -229,7 +229,11 @@ workbench 另存 briefHistory 和 briefCommands，当前版本之外保留最近
 
 分身本机的 `GET shadows/{id}/local` 返回本机工作目录和原生待处理请求；`POST shadows/{id}/action` 接受 `pause|resume|rollover|reconcile|respond`。`respond` 传精确原生请求 ID 与该方法要求的结果。其他成员没有这些管理路由；审批不经空间同步。`rollover` 为本机诊断入口，普通聊天不要求手动换段。
 
-成员 Core 经现有受认证 TLS 传输调用 `/v2/shadows/check|register|view|send|sync`；只有注册 owner 可以同步该分身。空间主机核对接收快照里的原始消息 ID、文本、作者与 `receivedAt`。在线租约为内存态、10 秒过期，投递尝试 12 秒后失败；重启或恢复在线不会把失败尝试重新加入投递。共享快照不包含 Codex home、工具调用账本或审批。
+成员 Core 经现有受认证 TLS 传输调用 `/v2/shadows/check|register|view|source|send|sync|return-prepare|return-delivered|return-release`；只有注册 owner 可以同步该分身。空间主机核对接收快照里的原始消息 ID、文本、作者与 `receivedAt`。在线租约为内存态、10 秒过期，投递尝试 12 秒后失败；重启或恢复在线不会把失败尝试重新加入投递。共享快照不包含 Codex home、工具调用账本或审批。
+
+分身委托的发起 Core 保存本机 `ShadowReturnRoute`，send 的内部传输携带 `returnRouteId/returnSessionKey`；普通模型参数仍只包含原 messageId、text 和分身。主机将返回路线绑定实际成员、分身和原消息。sync 可额外携带最多 256 份固定 `results`；来源历史窗口与待同步/待返回 outbox 分开，成功保存后分身 Core 才确认导出。直接答复的导出每批最多 100 条；任务协调轮消息带 `taskResultId`，不重复作为普通答复返回。
+
+任务返回批次增加 `returnRouteId`，`return-prepare/delivered/release` 复用已有租约与写出确认语义；finish 必须回传此 ID。条目 kind 为 `shadow_reply` 或 `shadow_task_result`，携带 `shadowId`、原始 `sourceId`，以及 `messageId` 或 `resultId/taskId/taskVersion`。item.version 是不可变返回条目的版本，任务目标版本由 taskVersion 单独表达。每批最多 3 项、4096 字节；没有目标配对也可返回，既有明确静音生效。没有关联目标但存在任务路线时，configure_space_inflow 返回 `scope: task_returns`，仅设置此空间、此发起会话的任务返回偏好。
 
 普通 MCP 暴露 `list_space_shadows`、`read_space_shadow`、`send_space_shadow`；可为当前工作开展相关协作，不要求逐条重复确认发送。调用身份经传输核验，分身调用保留 shadow 身份及所属成员。绑定运行时自动确定空间，不允许传入其他 spaceId。UI 桥只允许相应公开读写路由，不暴露 sync/register 或原生 RPC。
 

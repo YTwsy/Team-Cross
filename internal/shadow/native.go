@@ -390,7 +390,16 @@ func (e *Engine) finishRunLocked(id, status, failure string) {
 		job := e.record.Jobs[run.JobID]
 		publish := run.Kind == "main" || job.Follow == nil && (job.Trigger == nil || job.Trigger.Kind != "activity") && job.Version == run.JobVersion && job.State != "stopping" && job.State != "cancelled"
 		if run.Output != "" && publish {
-			e.record.Messages = append(e.record.Messages, Message{ID: "reply-" + run.ID, Actor: Actor{ID: e.record.ID, Name: e.record.Name}, Role: "assistant", Text: run.Output, State: run.State, ReplyTo: run.SourceID, SegmentID: run.ThreadID, TurnID: run.TurnID, CreatedAt: time.Now()})
+			message := Message{ID: "reply-" + run.ID, Actor: Actor{ID: e.record.ID, Name: e.record.Name}, Role: "assistant", Text: run.Output, State: run.State, ReplyTo: run.SourceID, SegmentID: run.ThreadID, TurnID: run.TurnID, CreatedAt: time.Now()}
+			if run.Kind == "result" {
+				message.TaskResultID = run.EventID
+			} else {
+				if e.record.ReplyOutbox == nil {
+					e.record.ReplyOutbox = map[string]Message{}
+				}
+				e.record.ReplyOutbox[message.ID] = message
+			}
+			e.record.Messages = append(e.record.Messages, message)
 		}
 		if s := e.currentSegmentLocked(); s != nil && s.ID == run.ThreadID {
 			s.MemoryRevision = run.MemoryRevision

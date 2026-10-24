@@ -38,6 +38,15 @@ func (e *Engine) captureTaskResultsLocked() {
 	for id, result := range previous {
 		e.record.TaskResults[id] = result
 	}
+	outbox := make(map[string]TaskResult, len(e.record.TaskResultOutbox))
+	for id, result := range e.record.TaskResultOutbox {
+		outbox[id] = result
+	}
+	captured := make(map[string]string, len(e.record.TaskResultCaptured))
+	for id, resultID := range e.record.TaskResultCaptured {
+		captured[id] = resultID
+	}
+	e.record.TaskResultOutbox, e.record.TaskResultCaptured = outbox, captured
 	for _, job := range e.record.Jobs {
 		if job.ResultEventID == "" {
 			continue
@@ -50,7 +59,12 @@ func (e *Engine) captureTaskResultsLocked() {
 		if job.ResultVersion != job.Version && job.State != "cancelled" {
 			continue
 		}
-		if _, exists := e.record.TaskResults[job.ResultEventID]; exists {
+		if captured[job.ID] == job.ResultEventID {
+			continue
+		}
+		captured[job.ID] = job.ResultEventID
+		if prior, exists := e.record.TaskResults[job.ResultEventID]; exists {
+			outbox[prior.ID] = prior
 			continue
 		}
 		r := TaskResult{ID: job.ResultEventID, TaskID: job.ID, TaskVersion: job.Version, Title: job.Title, SourceID: job.SourceID, ParentID: job.ParentID, State: job.State, Outcome: job.Outcome, CompletionCriteria: clone(job.CompletionCriteria), CreatedAt: job.UpdatedAt}
@@ -65,6 +79,7 @@ func (e *Engine) captureTaskResultsLocked() {
 			r.MessageID = job.SourceID
 		}
 		e.record.TaskResults[r.ID] = r
+		outbox[r.ID] = r
 	}
 	if len(e.record.TaskResults) > TaskResultHistoryLimit {
 		results := sortedTaskResults(e.record.TaskResults)
@@ -72,6 +87,69 @@ func (e *Engine) captureTaskResultsLocked() {
 			delete(e.record.TaskResults, result.ID)
 		}
 	}
+}
+
+// The export outbox is separate from bounded browsing history. Core may be
+// offline while work finishes; a result is retained until the host saves it.
+func (e *Engine) ResultExport() []TaskResult {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	results := sortedTaskResults(e.record.TaskResultOutbox)
+	return clone(results[:min(len(results), TaskResultHistoryLimit)])
+}
+
+func (e *Engine) ConfirmResultExport(results []TaskResult) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	found := false
+	for _, result := range results {
+		_, exists := e.record.TaskResultOutbox[result.ID]
+		found = found || exists
+	}
+	if !found {
+		return nil
+	}
+	return e.mutateLocked(func() error {
+		for _, result := range results {
+			delete(e.record.TaskResultOutbox, result.ID)
+		}
+		return nil
+	})
+}
+
+func (e *Engine) ReplyExport() []Message {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	messages := []Message{}
+	for _, m := range e.record.ReplyOutbox {
+		messages = append(messages, m)
+	}
+	sort.Slice(messages, func(i, j int) bool {
+		if messages[i].CreatedAt.Equal(messages[j].CreatedAt) {
+			return messages[i].ID < messages[j].ID
+		}
+		return messages[i].CreatedAt.Before(messages[j].CreatedAt)
+	})
+	return clone(messages[:min(len(messages), 100)])
+}
+
+func (e *Engine) ConfirmReplyExport(messages []Message) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	found := false
+	for _, m := range messages {
+		_, exists := e.record.ReplyOutbox[m.ID]
+		found = found || exists
+	}
+	if !found {
+		return nil
+	}
+	return e.mutateLocked(func() error {
+		for _, m := range messages {
+			delete(e.record.ReplyOutbox, m.ID)
+		}
+		return nil
+	})
 }
 
 func sortedTaskResults(records map[string]TaskResult) []TaskResult {

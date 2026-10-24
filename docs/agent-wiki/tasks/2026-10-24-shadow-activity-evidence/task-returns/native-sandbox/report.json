@@ -1,0 +1,99 @@
+{
+  "hookOutput": "",
+  "items": [],
+  "passed": false,
+  "pendingReplyExports": 0,
+  "pendingResultExports": 0,
+  "scope": "One Mac; two authenticated Core endpoints; real Luna worker and checked task result; fixture originating conversation; actual Hook attachment and receipt. No active wakeup or second Mac.",
+  "view": {
+    "settings": {
+      "model": "gpt-5.6-luna",
+      "modelProvider": "openai",
+      "reasoningEffort": "low"
+    },
+    "model": "gpt-5.6-luna",
+    "modelProvider": "openai",
+    "reasoningEffort": "low",
+    "id": "4d56d33c-a12d-4c48-95bb-eb77c9a84c26",
+    "spaceId": "a3c3c1e2-b2fb-4c08-bf27-ed46b10c1640",
+    "name": "活动分身",
+    "owner": {
+      "id": "owner",
+      "name": "发起者"
+    },
+    "createdAt": "2026-10-24T12:19:15.034372+08:00",
+    "revision": 31,
+    "enabled": true,
+    "online": false,
+    "busy": false,
+    "current": "01a16c22-6788-7540-a22e-bb135ebd7177",
+    "segments": [
+      {
+        "id": "01a16c22-6788-7540-a22e-bb135ebd7177",
+        "number": 1,
+        "createdAt": "2026-10-24T12:19:21.502975+08:00",
+        "memoryRevision": 0,
+        "inputTokens": 20159,
+        "usageValid": true,
+        "contextWindow": 258400,
+        "compactions": 0,
+        "lastCheckTokens": 0
+      }
+    ],
+    "messages": [
+      {
+        "id": "78e79564-d652-46da-98b0-c667629443f7",
+        "actor": {
+          "id": "0b902886-1672-4e20-8ce0-b8aec5c93d54",
+          "name": "wangsiyangdeMacBook-Pro.local"
+        },
+        "role": "user",
+        "text": "这是任务返回验证。请用 shadow_task start 创建一个 kind=work 的后台任务，title=Return evidence，prompt 为“读取文件 /private/tmp/teamcross-native-task-returns-20261024-88eebf8c/repo/worker-evidence.txt，核对真实内容含 WORKER_EVIDENCE_MARKER；用 shadow_task status 获取当前任务版本和 revision，然后显式 finish outcome=completed，result 必须包含 RETURN_EVIDENCE_CONFIRMED 及读到的标记，criteriaChecks 逐项说明实际核对结果。不要仅输出 final 代替 finish。” completionCriteria 只有“已读取指定文件并确认 WORKER_EVIDENCE_MARKER”。主轮登记后回复 TASK_DELEGATED 并结束，结果由后台任务完成后返回，不要询问确认。",
+        "state": "completed",
+        "segmentId": "01a16c22-6788-7540-a22e-bb135ebd7177",
+        "turnId": "01a16c22-7b42-7973-9495-6f3ef73872b9",
+        "createdAt": "2026-10-24T12:19:16.064106+08:00",
+        "receivedAt": "2026-10-24T12:19:16.462563+08:00"
+      },
+      {
+        "id": "reply-79b4c509-b927-4967-a77c-1f2a9fb42f22",
+        "actor": {
+          "id": "4d56d33c-a12d-4c48-95bb-eb77c9a84c26",
+          "name": "活动分身"
+        },
+        "role": "assistant",
+        "text": "TASK_DELEGATED INHERITED_CONFIG_MARKER",
+        "state": "completed",
+        "replyTo": "78e79564-d652-46da-98b0-c667629443f7",
+        "segmentId": "01a16c22-6788-7540-a22e-bb135ebd7177",
+        "turnId": "01a16c22-7b42-7973-9495-6f3ef73872b9",
+        "createdAt": "2026-10-24T12:19:38.255386+08:00"
+      }
+    ],
+    "memories": [],
+    "jobs": [
+      {
+        "id": "6fc07565-9d09-4dad-b0c7-6c9b1cc47fd0",
+        "title": "Return evidence",
+        "prompt": "读取文件 /private/tmp/teamcross-native-task-returns-20261024-88eebf8c/repo/worker-evidence.txt，核对真实内容含 WORKER_EVIDENCE_MARKER；用 shadow_task status 获取当前任务版本和 revision，然后显式 finish outcome=completed，result 必须包含 RETURN_EVIDENCE_CONFIRMED 及读到的标记，criteriaChecks 逐项说明实际核对结果。不要仅输出 final 代替 finish。",
+        "sourceId": "78e79564-d652-46da-98b0-c667629443f7",
+        "trigger": {
+          "kind": "message",
+          "sourceId": "78e79564-d652-46da-98b0-c667629443f7",
+          "messageId": "78e79564-d652-46da-98b0-c667629443f7"
+        },
+        "kind": "work",
+        "revision": 2,
+        "completionCriteria": [
+          "已读取指定文件并确认 WORKER_EVIDENCE_MARKER"
+        ],
+        "version": 1,
+        "runningVersion": 1,
+        "threadId": "01a16c22-b664-77f0-9232-b559001e1e3c",
+        "state": "running",
+        "createdAt": "2026-10-24T12:19:36.650183+08:00",
+        "updatedAt": "2026-10-24T12:19:36.650185+08:00"
+      }
+    ]
+  }
+}

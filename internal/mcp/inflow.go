@@ -62,7 +62,7 @@ func prepareInFlow(ctx context.Context, dataDir, runtimeID, token string, caller
 		finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 1200*time.Millisecond)
 		defer cancel()
 		// Internal output bookkeeping; never exposed as a model acknowledgement.
-		_, _ = call(finishCtx, op, inflow.Batch{SpaceID: batch.SpaceID, TargetID: batch.TargetID, ExecutionID: batch.ExecutionID, Receipt: batch.Receipt})
+		_, _ = call(finishCtx, op, inflow.Batch{SpaceID: batch.SpaceID, TargetID: batch.TargetID, ExecutionID: batch.ExecutionID, ReturnRouteID: batch.ReturnRouteID, Receipt: batch.Receipt})
 	}}
 }
 

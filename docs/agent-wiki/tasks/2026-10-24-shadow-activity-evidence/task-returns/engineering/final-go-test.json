@@ -1,0 +1,5 @@
+{
+  "command": "go test ./...",
+  "exit": 0,
+  "wallSeconds": 70.275
+}

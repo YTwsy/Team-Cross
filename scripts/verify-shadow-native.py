@@ -57,8 +57,8 @@ def run(args):
     )
     env = {key: value for key, value in os.environ.items() if not key.startswith(("CODEX_", "CLAUDE_", "ANTHROPIC_")) and key != "CLAUDECODE"}
     env.update(TEAMCROSS_SHADOW_NATIVE_DIR=str(root), TEAMCROSS_SHADOW_CODEX_BIN=str(args.codex_bin.resolve()))
-    test = "TestNativeShadowResultSources" if args.result_sources else "TestNativeShadowBrief" if args.brief else "TestNativeShadowTaskSources" if args.task_sources else "TestNativeShadowTaskUnderstanding" if args.task_understanding else "TestNativeShadowTaskContexts" if args.task_contexts else "TestNativeShadowTaskQuestion" if args.task_question else "TestNativeShadowTaskFollow" if args.task_follow else "TestNativeShadowWatch" if args.watch else "TestNativeShadowToolsetUpgrade" if args.toolset_upgrade else "TestNativeShadowAcceptance"
-    subprocess.run(["go", "test", "./internal/collab" if args.brief or args.result_sources else "./internal/shadow", "-run", "^" + test + "$", "-v", "-count=1", "-timeout=12m"], cwd=Path(__file__).resolve().parent.parent, env=env, check=True)
+    test = "TestNativeShadowTaskReturns" if args.task_returns else "TestNativeShadowResultSources" if args.result_sources else "TestNativeShadowBrief" if args.brief else "TestNativeShadowTaskSources" if args.task_sources else "TestNativeShadowTaskUnderstanding" if args.task_understanding else "TestNativeShadowTaskContexts" if args.task_contexts else "TestNativeShadowTaskQuestion" if args.task_question else "TestNativeShadowTaskFollow" if args.task_follow else "TestNativeShadowWatch" if args.watch else "TestNativeShadowToolsetUpgrade" if args.toolset_upgrade else "TestNativeShadowAcceptance"
+    subprocess.run(["go", "test", "./internal/collab" if args.brief or args.result_sources or args.task_returns else "./internal/shadow", "-run", "^" + test + "$", "-v", "-count=1", "-timeout=12m"], cwd=Path(__file__).resolve().parent.parent, env=env, check=True)
     print("Native acceptance report: " + str(root / "report.json"))
 
 
@@ -69,6 +69,7 @@ if __name__ == "__main__":
     parser.add_argument("--codex-auth", required=True, type=Path)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--result-sources", action="store_true", help="Verify exact historical shadow results and messages through authenticated Core tools")
+    mode.add_argument("--task-returns", action="store_true", help="Verify a real checked shadow task result returns through the original conversation Hook")
     mode.add_argument("--brief", action="store_true", help="Verify a native shadow merges a concurrent brief update through authenticated Core transport")
     mode.add_argument("--toolset-upgrade", action="store_true", help="Verify main/worker tool registration upgrades and exact native recovery")
     mode.add_argument("--watch", action="store_true", help="Verify real watch tool calls, bounded understanding, pause and restart continuation")

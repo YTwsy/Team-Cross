@@ -183,6 +183,8 @@ TEAMCROSS_WORKBENCH_BROWSER_DIR=/private/tmp/teamcross-space-browser-fresh \
 
 [固定任务结果回放](../../../../internal/shadow/task_results_test.go)覆盖原生 final 与业务完成的区别、目标更新后旧结果不变、重启、失败保存回滚、256 份保留边界和私有运行字段不进入快照。[跨 Core 精确来源](../../../../internal/collab/shadow_result_sources_test.go)覆盖认证读取、空间别名、来源选择器、不可覆盖正文、结果失效与关闭空间；[来源界面](../../../../packages/web/src/test/member-activity.test.tsx)覆盖准确 ID、失效清空及人的已读不变。`verify-shadow-native.py --result-sources` 使用专用 Luna 读取两套认证 Core 中的合成历史结果及消息，并将准确来源写入简报；它验证新工具路径，不替代真实任务结果顺流回传的闭环。
 
+[任务返回回放](../../../../internal/collab/shadow_returns_test.go)覆盖真实认证跨 Core、无配对的准确发起会话、同消息重试、原生身份留本机、绑定运行时身份、明确静音、来源历史过期后的待送达保留、保存失败回滚、回执重试、重启去重和撤权。[结果导出回放](../../../../internal/shadow/task_results_test.go)另外覆盖超过浏览窗口的离线积压、分批同步及失败确认；[MCP/Hook 回归](../../../../internal/mcp/inflow_test.go)核对 returnRouteId 随实际写出确认保留。`verify-shadow-native.py --task-returns` 用专用 Luna 实际创建并完成任务，通过两套认证 Core 与真实 Hook HTTP 入口返回结果；发起会话身份来自测试 transcript，不能宣称真实接收模型已读或双 Mac 验收。
+
 领域契约见[本机数字分身](../decisions/local-shadows.md)。回归入口：[状态与故障接续](../../../../internal/shadow/engine_test.go)、[三 Core 成员与送达](../../../../internal/collab/shadows_test.go)、[共享聊天界面](../../../../packages/web/src/test/shadows.test.tsx)。检查持久化成功才送达、同 ID 手动重发、真实成员归属和跨空间隔离；S1 → S2 后未决项与独立 W/J 不变；纠正/忘掉的版本、候选水位与晚到结果不覆盖当前状态；丢失创建/投递回执时不自动重放；压缩完成后废弃旧 CM 决定并等待新用量，CM 超时忽略晚到建议；空间结束和成员退出停止精确所属进程，暂停则保留已接收工作。
 
 首次关注与目标管理覆盖[主机初始化](../../../../internal/collab/member_follow_signals_test.go)、[本机偏好接收](../../../../internal/shadow/attention_follows_test.go)及[目标接续](../../../../internal/shadow/watch_test.go)：固定来源边界和有界近期回复、远端来源别名、初始化不出现在人的列表或已读、偏好与 outbox 同步回滚、旧初始化分页期间被取消、父级静音、目标版本与认识 revision 独立、真实成员来源、丢失关注回执和重启后同一命令恢复、结束目标保留认识。真实模型还需核对 shadow_watch 的实际调用和更新后后续理解，不由工具注册成功推导行为已验收。

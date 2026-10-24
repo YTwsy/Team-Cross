@@ -34,6 +34,12 @@ func shadowSource(shared ShadowShared, in shadowInput) (ShadowSourceResult, erro
 			return out, nil
 		}
 	}
+	for _, route := range shared.Returns {
+		if event, exists := route.Events["shadow_result:"+in.ResultID]; exists && event.Result != nil {
+			out.Result = event.Result
+			return out, nil
+		}
+	}
 	out.Unavailable = "shadow_result_unavailable"
 	return out, nil
 }

@@ -53,6 +53,9 @@ func (a *App) personalInFlowScope(ctx context.Context, in inFlowCall, scope stri
 			return nil, fmt.Errorf("缺少当前会话身份")
 		}
 	}
+	if out, handled, err := a.shadowReturnInFlow(ctx, in, scope); handled {
+		return out, err
+	}
 	// A managed execution already has an exact native identity. This also lets a
 	// trusted user-level hook reach it without creating an artificial pairing.
 	a.mu.Lock()
@@ -134,9 +137,13 @@ func (a *App) runtimeInFlow(ctx context.Context, s *Session, in inFlowCall) (any
 		return nil, fmt.Errorf("顺流感知不属于当前会话")
 	}
 	caller := mcp.CallerSource{Provider: provider, SourceID: source}
+	in.Caller = caller
 	if receiver != "" {
 		in.Caller = caller
 		return a.personalInFlowScope(ctx, in, receiver)
+	}
+	if out, handled, err := a.shadowReturnInFlow(ctx, in, space); handled {
+		return out, err
 	}
 	if in.Operation != "prepare" && (in.Batch.SpaceID != space || (in.Batch.ExecutionID != "" && in.Batch.ExecutionID != id) || in.Batch.TargetID != "") {
 		return nil, fmt.Errorf("顺流批次不属于绑定协作会话")
@@ -150,7 +157,11 @@ func (a *App) configureCurrentInFlow(ctx context.Context, space string, c mcp.Ca
 		ex := a.executions[runtimeID]
 		a.mu.Unlock()
 		if ex != nil {
-			return a.workbenchCall(ctx, space, "inflow-config", workbenchInput{ExecutionID: runtimeID, Enabled: enabled, Actor: inFlowActor(c)})
+			out, err := a.workbenchCall(ctx, space, "inflow-config", workbenchInput{ExecutionID: runtimeID, Enabled: enabled, Actor: inFlowActor(c)})
+			if err == nil {
+				_, err = a.configureTaskReturns(space, c, enabled)
+			}
+			return out, err
 		}
 	}
 	a.agentMu.Lock()
@@ -166,7 +177,14 @@ func (a *App) configureCurrentInFlow(ctx context.Context, space string, c mcp.Ca
 		return nil, fmt.Errorf("当前会话有多个空间关联，请在界面选择准确的关联设置顺流感知")
 	}
 	for target := range targets {
-		return a.workbenchCall(ctx, space, "inflow-config", workbenchInput{TargetID: target, Enabled: enabled, Actor: inFlowActor(c)})
+		out, err := a.workbenchCall(ctx, space, "inflow-config", workbenchInput{TargetID: target, Enabled: enabled, Actor: inFlowActor(c)})
+		if err == nil {
+			_, err = a.configureTaskReturns(space, c, enabled)
+		}
+		return out, err
+	}
+	if found, err := a.configureTaskReturns(space, c, enabled); found || err != nil {
+		return map[string]any{"spaceId": space, "enabled": enabled, "scope": "task_returns"}, err
 	}
 	return nil, fmt.Errorf("请先明确关联当前会话到此空间")
 }

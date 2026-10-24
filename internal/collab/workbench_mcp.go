@@ -17,9 +17,15 @@ func (a *App) invokeWorkbenchTool(ctx context.Context, name string, args map[str
 		execution := a.executions[runtimeID]
 		a.mu.Unlock()
 		if receiver != nil {
+			receiver.mu.Lock()
 			id = receiver.receiverSpace
+			c.Caller = mcp.CallerSource{Provider: receiver.record.Provider, SourceID: receiver.record.SessionID}
+			receiver.mu.Unlock()
 		} else if execution != nil {
+			execution.mu.Lock()
 			id = execution.record.SpaceID
+			c.Caller = mcp.CallerSource{Provider: execution.record.Provider, SourceID: execution.record.SessionID}
+			execution.mu.Unlock()
 		} else {
 			return nil, fmt.Errorf("绑定运行时不存在")
 		}
@@ -56,6 +62,10 @@ func (a *App) invokeWorkbenchTool(ctx context.Context, name string, args map[str
 		if name == "send_space_shadow" {
 			op = "send"
 			in.Message.ID, in.Message.Text = payload.MessageID, payload.Text
+			in, err = a.bindShadowReturn(id, in, c.Caller)
+			if err != nil {
+				return nil, err
+			}
 		} else if name == "read_space_shadow" && (payload.MessageID != "" || payload.ResultID != "") {
 			op, in.MessageID, in.ResultID = "source", payload.MessageID, payload.ResultID
 		}

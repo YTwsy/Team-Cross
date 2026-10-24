@@ -6,7 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
+	"teamcross/internal/inflow"
+	"teamcross/internal/service"
 	"testing"
 )
 
@@ -92,5 +98,47 @@ func TestInFlowSkipsAppOnlyAndMissingIdentity(t *testing.T) {
 	ctx := withInFlow(context.Background(), t.TempDir(), "", "")
 	if ctx.Value(inFlowKey{}).(inFlowPrepare)(ctx) != nil {
 		t.Fatal("unidentified caller received update")
+	}
+}
+
+func TestInFlowHookPreservesTaskReturnReceiptAndReleasesFailedOutput(t *testing.T) {
+	dir, _ := service.Normalize(t.TempDir())
+	ops := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Operation string       `json:"operation"`
+			Batch     inflow.Batch `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			t.Error(err)
+		}
+		ops = append(ops, in.Operation)
+		if in.Operation == "prepare" {
+			_ = json.NewEncoder(w).Encode(inflow.Batch{SpaceID: "space", ReturnRouteID: "exact-route", Receipt: "receipt", Items: []inflow.Item{{Key: "result", Kind: "shadow_task_result", ShadowID: "shadow", TaskID: "task", TaskVersion: 2, ResultID: "fixed-result"}}})
+			return
+		}
+		if in.Batch.ReturnRouteID != "exact-route" || in.Batch.SpaceID != "space" || in.Batch.Receipt != "receipt" || len(in.Batch.Items) != 0 {
+			t.Errorf("lost task routing: %+v", in.Batch)
+		}
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+	data, _ := json.Marshal(service.Connection{URL: server.URL, PID: os.Getpid(), Instance: "fixture", Token: "local-test-token", DataDir: dir})
+	if err := os.WriteFile(filepath.Join(dir, "connection.json"), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if err := WriteInFlowHook(context.Background(), dir, "", "", CallerSource{Provider: "codex", SourceID: "exact-source"}, &output); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "fixed-result") || strings.Join(ops, ",") != "prepare,delivered" {
+		t.Fatal(output.String(), ops)
+	}
+	ops = nil
+	if err := WriteInFlowHook(context.Background(), dir, "", "", CallerSource{Provider: "codex", SourceID: "exact-source"}, brokenInFlowWriter{}); err == nil {
+		t.Fatal("failed output reported success")
+	}
+	if strings.Join(ops, ",") != "prepare,release" {
+		t.Fatal(ops)
 	}
 }

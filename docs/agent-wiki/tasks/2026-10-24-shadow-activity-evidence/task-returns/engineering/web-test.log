@@ -1,0 +1,95 @@
+$ vitest run
+
+ RUN  v3.2.4 /Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/packages/web
+
+ ✓ src/test/multiple-executions.test.tsx (5 tests) 1771ms
+   ✓ keeps each session's comment and file draft while the URL selects an exact session  924ms
+   ✓ a late save stays bound to its original session and leaving clears cached content  447ms
+ ✓ src/test/space-workbench.test.tsx (16 tests) 3307ms
+   ✓ drains a paused receiver before exposing Desktop continuation and same-session resume  435ms
+   ✓ adds an existing conversation only after selection and confirmation in the add dialog  335ms
+   ✓ preserves brief sources and submits the revision the member reviewed  316ms
+   ✓ merges a concurrent brief without discarding the draft or new peer progress  418ms
+ ✓ src/test/annotations.test.tsx (10 tests) 3201ms
+   ✓ 原处批注 > 参与者、共享状态与技术信息各自归位，长讨论不改变信息结构  683ms
+   ✓ 原处批注 > 选中重复片段时保留准确消息与 UTF-16 范围，保存不发送模型输入  396ms
+   ✓ 原处批注 > 连续文件行自动引用，返回旧批注时不高亮已变化的同号行  605ms
+   ✓ 原处批注 > 保存失败保留正文和引用，切换整体意见后可继续原草稿  495ms
+   ✓ 原处批注 > 直接写整体意见无需按钮或弹窗，回复保持原批注数量和位置  366ms
+   ✓ 原处批注 > 回复失败或收起保留草稿，重试沿用 requestId  471ms
+ ✓ src/test/current-connection.test.tsx (6 tests) 4166ms
+   ✓ reconciles a submitted message against Core and observes removal  4016ms
+ ✓ src/test/flows.test.tsx (41 tests) 3853ms
+   ✓ 邀请者在个人 Codex 中打开协作 > 同事正在操作时不自动跳转，点击才打开已有 fork  470ms
+ ✓ src/test/member-activity.test.tsx (7 tests) 4627ms
+   ✓ clears loaded source content when access revalidation fails  4155ms
+ ✓ src/test/publication.test.tsx (11 tests) 2059ms
+   ✓ keeps scope, the active reader tools, export notices and a single next action in the shared controls  394ms
+   ✓ requires a refreshed confirmation after editing the title and keeps request identity after a lost publish response  367ms
+ ✓ src/test/library.test.tsx (21 tests) 4883ms
+   ✓ 个人资源库 > keeps rows and groups in place after visits, selection, favorites and background refreshes  591ms
+   ✓ 个人资源库 > offers one material selection action and selects the version currently being read  833ms
+   ✓ 个人资源库 > can publish from the overview with retained library selections and a reading entry (execution: false)  408ms
+   ✓ 个人资源库 > can publish from the overview with retained library selections and a reading entry (execution: true)  336ms
+   ✓ 个人资源库 > switches between material and session from the sidebar while retaining each reader  392ms
+   ✓ 个人资源库 > opens the matching reading tab when locating a material or live context annotation  450ms
+ ✓ src/test/space-reading.test.tsx (5 tests) 1475ms
+   ✓ retains each material's fixed version and cached reading when navigating and filtering  394ms
+ ✓ src/test/native-client-settings.test.tsx (7 tests) 422ms
+ ✓ src/test/rich-reading.test.tsx (10 tests) 1411ms
+   ✓ rich source-preserving reading > keeps code selection offsets through wrapping and copies table formats  419ms
+   ✓ pauses very large searches without reporting an incomplete count as final  430ms
+ ✓ src/test/context-refresh.test.tsx (11 tests) 2238ms
+   ✓ 协作上下文刷新 > 回到最新补齐当前页，跟随更新；上滚后保留正在阅读的正文  422ms
+   ✓ 协作对话目录导航 > 读取未加载的轮次后定位，已加载轮次直接跳转，继续分页和返回最近对话清除定位参数  407ms
+ ✓ src/test/reading.test.tsx (18 tests) 1077ms
+ ✓ src/test/shadows.test.tsx (6 tests) 1791ms
+   ✓ keeps an uncertain message and retries only on click with the same id  302ms
+   ✓ restores an uncertain creation with the same request id and only retries on click  705ms
+   ✓ uses per-model effort capabilities and invalidates the catalog when cwd changes  646ms
+ ✓ src/test/space-lifecycle.test.tsx (5 tests) 1187ms
+   ✓ closes an empty read-only space, including sharing=false, and can reopen it  381ms
+stderr | src/test/plugin-update.test.tsx > preserves the editor and allows explicit retry after a failed update
+[Team Cross] Panel update failed {
+  revision: '800d193b47a2b7d8df418e279f4cf24f2e3cead7ee4e621a89c9996d9b7e2cec',
+  stage: 'download',
+  message: 'Core restarting',
+  at: '2026-10-24T04:19:47.908Z'
+}
+
+stderr | src/test/plugin-update.test.tsx > keeps a failed revision blocked after watcher recreation and records the failing stage
+[Team Cross] Panel update failed {
+  revision: '800d193b47a2b7d8df418e279f4cf24f2e3cead7ee4e621a89c9996d9b7e2cec',
+  stage: 'download',
+  message: 'download interrupted',
+  at: '2026-10-24T04:19:47.970Z'
+}
+
+stderr | src/test/plugin-update.test.tsx > clears a stale candidate when the Core returns to the currently mounted version
+[Team Cross] Panel update failed {
+  revision: '800d193b47a2b7d8df418e279f4cf24f2e3cead7ee4e621a89c9996d9b7e2cec',
+  stage: 'download',
+  message: 'temporary version unavailable',
+  at: '2026-10-24T04:19:47.977Z'
+}
+
+ ✓ src/test/plugin-update.test.tsx (15 tests) 375ms
+ ✓ src/test/reading-scroll.test.tsx (8 tests) 574ms
+ ✓ src/test/inflow.test.tsx (6 tests) 282ms
+ ✓ src/test/materials.test.tsx (6 tests) 546ms
+ ✓ src/test/agent-pairings.test.tsx (4 tests) 271ms
+ ✓ src/test/plugin-connection.test.tsx (4 tests) 222ms
+ ✓ src/test/plugin.test.tsx (15 tests) 1358ms
+   ✓ retries only reads during Core replacement and never resends a write  1003ms
+ ✓ src/test/space-events.test.tsx (1 test) 141ms
+ ✓ src/test/brief-merge.test.ts (3 tests) 16ms
+ ✓ src/test/question-handling.test.tsx (3 tests) 200ms
+ ✓ src/test/activity-processing.test.tsx (7 tests) 223ms
+ ✓ src/test/i18n.test.tsx (1 test) 156ms
+ ✓ src/test/plugin-runtime.test.ts (5 tests) 229ms
+ ✓ src/test/shadow-questions.test.tsx (2 tests) 104ms
+
+ Test Files  29 passed (29)
+      Tests  259 passed (259)
+   Start at  12:19:37
+   Duration  10.60s (transform 1.97s, setup 4.58s, collect 11.72s, tests 42.16s, environment 9.43s, prepare 1.71s)

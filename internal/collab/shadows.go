@@ -22,28 +22,35 @@ import (
 // The space host stores only explicitly shared content and short delivery
 // attempts. A message is delivered only after the executing member persists it.
 type ShadowShared struct {
-	View       shadow.View               `json:"view"`
-	LastSeen   time.Time                 `json:"-"`
-	Deliveries map[string]ShadowDelivery `json:"deliveries"`
+	View         shadow.View                  `json:"view"`
+	LastSeen     time.Time                    `json:"-"`
+	Deliveries   map[string]ShadowDelivery    `json:"deliveries"`
+	Returns      map[string]ShadowReturnInbox `json:"returns,omitempty"`
+	ResultHashes map[string]string            `json:"resultHashes,omitempty"`
 }
 
 type ShadowDelivery struct {
-	Message  shadow.Message `json:"message"`
-	Deadline time.Time      `json:"deadline"`
-	State    string         `json:"state"` // sending, delivered, sendFailed
+	Message       shadow.Message `json:"message"`
+	Deadline      time.Time      `json:"deadline"`
+	State         string         `json:"state"` // sending, delivered, sendFailed
+	ReturnRouteID string         `json:"returnRouteId,omitempty"`
 }
 
 type shadowInput struct {
-	Settings  shadow.ModelSettings `json:"settings"`
-	ID        string               `json:"shadowId"`
-	Name      string               `json:"name,omitempty"`
-	RequestID string               `json:"requestId,omitempty"`
-	MessageID string               `json:"messageId,omitempty"`
-	ResultID  string               `json:"resultId,omitempty"`
-	Cwd       string               `json:"cwd,omitempty"`
-	Message   shadow.Message       `json:"message"`
-	Snapshot  *shadow.View         `json:"snapshot,omitempty"`
-	Offset    int                  `json:"offset,omitempty"`
+	Settings         shadow.ModelSettings `json:"settings"`
+	ID               string               `json:"shadowId"`
+	Name             string               `json:"name,omitempty"`
+	RequestID        string               `json:"requestId,omitempty"`
+	MessageID        string               `json:"messageId,omitempty"`
+	ResultID         string               `json:"resultId,omitempty"`
+	Cwd              string               `json:"cwd,omitempty"`
+	Message          shadow.Message       `json:"message"`
+	Snapshot         *shadow.View         `json:"snapshot,omitempty"`
+	Results          []shadow.TaskResult  `json:"results,omitempty"`
+	ReturnRouteID    string               `json:"returnRouteId,omitempty"`
+	ReturnSessionKey string               `json:"returnSessionKey,omitempty"`
+	Receipt          string               `json:"receipt,omitempty"`
+	Offset           int                  `json:"offset,omitempty"`
 }
 
 type shadowSpaceView struct {
@@ -95,6 +102,17 @@ func (s *Session) shadowOperation(ctx context.Context, op string, in shadowInput
 	}
 	shared, exists := s.record.Shadows[in.ID]
 	switch op {
+	case "return-prepare", "return-delivered", "return-release":
+		if !exists {
+			return nil, fmt.Errorf("分身不存在")
+		}
+		var returnChanged bool
+		out, returnChanged, err = s.shadowReturnOperationLocked(op, in, actor, &shared)
+		changed = changed || returnChanged
+		if returnChanged {
+			s.record.Shadows[in.ID] = shared
+		}
+		return out, err
 	case "source":
 		if !exists {
 			return nil, fmt.Errorf("分身不存在")
@@ -182,7 +200,7 @@ func (s *Session) shadowOperation(ctx context.Context, op string, in shadowInput
 			return nil, fmt.Errorf("消息标识或正文无效")
 		}
 		if old, ok := shared.Deliveries[m.ID]; ok {
-			if old.Message.Actor.ID != actor.ID || old.Message.Text != m.Text {
+			if old.Message.Actor.ID != actor.ID || old.Message.Text != m.Text || old.ReturnRouteID != in.ReturnRouteID {
 				return nil, fmt.Errorf("消息 ID 已用于不同作者或内容")
 			}
 			if old.State == "delivered" || old.State == "sending" {
@@ -192,11 +210,14 @@ func (s *Session) shadowOperation(ctx context.Context, op string, in shadowInput
 		} else {
 			m = shadow.Message{ID: m.ID, Actor: actor, Role: "user", Text: m.Text, CreatedAt: now}
 		}
+		if err := bindShadowReturnInbox(&shared, in, actor); err != nil {
+			return nil, err
+		}
 		state := "sending"
 		if !shared.View.Enabled || !shared.View.Online || now.Sub(shared.LastSeen) >= 10*time.Second {
 			state = "sendFailed"
 		}
-		d := ShadowDelivery{Message: m, State: state, Deadline: now.Add(12 * time.Second)}
+		d := ShadowDelivery{Message: m, State: state, Deadline: now.Add(12 * time.Second), ReturnRouteID: in.ReturnRouteID}
 		if shared.Deliveries == nil {
 			shared.Deliveries = map[string]ShadowDelivery{}
 		}
@@ -237,7 +258,7 @@ func (s *Session) shadowOperation(ctx context.Context, op string, in shadowInput
 				}
 				if i, ok := known[m.ID]; ok {
 					old := messages[i]
-					if old.Text != m.Text || old.Actor != m.Actor || old.Role != m.Role || old.ReplyTo != m.ReplyTo || !old.CreatedAt.Equal(m.CreatedAt) {
+					if old.Text != m.Text || old.Actor != m.Actor || old.Role != m.Role || old.ReplyTo != m.ReplyTo || old.TaskResultID != m.TaskResultID || !old.CreatedAt.Equal(m.CreatedAt) {
 						return nil, fmt.Errorf("分身消息正文和原始来源不可覆盖")
 					}
 					messages[i] = m
@@ -247,11 +268,28 @@ func (s *Session) shadowOperation(ctx context.Context, op string, in shadowInput
 				}
 			}
 			v.Messages = messages
-			if err := validateShadowResults(shared.View.TaskResults, v.TaskResults); err != nil {
+			if err := validateShadowReturnResults(shared, v.TaskResults); err != nil {
 				return nil, err
 			}
 			shared.View = v
 			changed = true
+		}
+		if err := validateShadowReturnResults(shared, in.Results); err != nil {
+			return nil, err
+		}
+		if captureShadowReturns(&shared, in.Results) {
+			changed = true
+		}
+		if shared.ResultHashes == nil {
+			shared.ResultHashes = map[string]string{}
+		}
+		for _, results := range [][]shadow.TaskResult{shared.View.TaskResults, in.Results} {
+			for _, result := range results {
+				if shared.ResultHashes[result.ID] == "" {
+					shared.ResultHashes[result.ID] = contentHash(result)
+					changed = true
+				}
+			}
 		}
 		shared.LastSeen = now
 		s.record.Shadows[in.ID] = shared
@@ -463,10 +501,27 @@ func (a *App) pumpShadows(ctx context.Context) {
 		if len(v.Messages) > 200 {
 			v.Messages = v.Messages[len(v.Messages)-200:]
 		}
+		replies := e.ReplyExport()
+		knownMessages := map[string]bool{}
+		for _, m := range v.Messages {
+			knownMessages[m.ID] = true
+		}
+		for _, m := range replies {
+			if !knownMessages[m.ID] {
+				v.Messages = append(v.Messages, m)
+			}
+		}
 		syncCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
-		out, err := a.shadowCall(syncCtx, spaceID, "sync", shadowInput{ID: id, Snapshot: &v})
+		results := e.ResultExport()
+		out, err := a.shadowCall(syncCtx, spaceID, "sync", shadowInput{ID: id, Snapshot: &v, Results: results})
 		cancel()
 		if err != nil {
+			continue
+		}
+		if err = e.ConfirmResultExport(results); err != nil {
+			continue
+		}
+		if err = e.ConfirmReplyExport(replies); err != nil {
 			continue
 		}
 		for _, message := range workbenchDecode[[]shadow.Message](out) {
