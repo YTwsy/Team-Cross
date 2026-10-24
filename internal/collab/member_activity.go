@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"teamcross/internal/sharing"
+	"teamcross/internal/spacecontext"
 )
 
 // Member activity is private durable state, never part of Workbench/View or publication exports.
@@ -27,22 +28,8 @@ type ReplyTarget struct {
 	Kind string `json:"kind"`
 	ID   string `json:"id"`
 }
-type ActivitySubject struct {
-	Kind        string `json:"kind"`
-	ID          string `json:"id"`
-	ExecutionID string `json:"executionId,omitempty"`
-}
-type SpaceSourceRef struct {
-	SpaceID      string   `json:"spaceId"`
-	ExecutionID  string   `json:"executionId,omitempty"`
-	MaterialID   string   `json:"materialId,omitempty"`
-	Version      int      `json:"version,omitempty"`
-	AnnotationID string   `json:"annotationId,omitempty"`
-	ReplyID      string   `json:"replyId,omitempty"`
-	TurnID       string   `json:"turnId,omitempty"`
-	ItemIDs      []string `json:"itemIds,omitempty"`
-	RequestID    string   `json:"requestId,omitempty"`
-}
+type ActivitySubject = spacecontext.Subject
+type SpaceSourceRef = spacecontext.SourceRef
 type MemberFollowPreference struct {
 	Subject      ActivitySubject `json:"subject"`
 	Mode         string          `json:"mode"`
@@ -60,12 +47,15 @@ type ActivityEnvelope struct {
 	Subject   ActivitySubject `json:"subject"`
 	Actor     SpaceActor      `json:"actor"`
 	CreatedAt time.Time       `json:"createdAt"`
-	// Only bounded, source-checked previews. Recipients never appear on the wire.
-	Preview        string              `json:"preview"`
-	Recipients     map[string][]string `json:"recipients,omitempty"`
-	Direct         map[string]string   `json:"direct,omitempty"`
-	Mentions       []MemberMention     `json:"mentions,omitempty"`
-	MaterialAuthor string              `json:"materialAuthor,omitempty"`
+	// Only bounded, source-checked previews. Recipient maps stay on the host;
+	// each consumer receives only its own reasons in ActivityItem.
+	Preview         string                     `json:"preview"`
+	Recipients      map[string][]string        `json:"recipients,omitempty"`
+	AgentRecipients map[string][]string        `json:"agentRecipients,omitempty"`
+	Direct          map[string]string          `json:"direct,omitempty"`
+	Mentions        []MemberMention            `json:"mentions,omitempty"`
+	MaterialAuthor  string                     `json:"materialAuthor,omitempty"`
+	Follow          *spacecontext.FollowChange `json:"follow,omitempty"`
 }
 type ActivityTurn struct {
 	ID        string    `json:"id"`
@@ -101,6 +91,7 @@ type MemberActivityReadState struct {
 	Revision uint64          `json:"revision"`
 }
 type ActivityLog struct {
+	Consumers map[string]ActivityConsumer        `json:"consumers,omitempty"`
 	Retention uint64                             `json:"retention,omitempty"`
 	Secret    string                             `json:"secret"`
 	Seq       uint64                             `json:"seq"`
@@ -267,7 +258,7 @@ func (s *Session) activityCandidatesLocked() []ActivityEnvelope {
 			}
 		}
 		if b.Brief.Revision > 0 {
-			add(fmt.Sprintf("brief/%d", b.Brief.Revision), ActivityEnvelope{Kind: "brief_updated", Subject: ActivitySubject{Kind: "brief", ID: root.record.ID}, Source: SpaceSourceRef{SpaceID: root.record.ID}, Actor: b.Brief.UpdatedBy, CreatedAt: b.Brief.UpdatedAt, Preview: b.Brief.Topic})
+			add(fmt.Sprintf("brief/%d", b.Brief.Revision), ActivityEnvelope{Kind: "brief_updated", Subject: ActivitySubject{Kind: "brief", ID: root.record.ID}, Source: SpaceSourceRef{SpaceID: root.record.ID, BriefRevision: b.Brief.Revision}, Actor: b.Brief.UpdatedBy, CreatedAt: b.Brief.UpdatedAt, Preview: b.Brief.Topic})
 		}
 	}
 	if a := s.record.Activity; a != nil {
@@ -415,7 +406,11 @@ func (s *Session) activityAutoFollowLocked(member string, subject ActivitySubjec
 	if len(a.Preferences[member]) >= maxFollowPreferences {
 		return fmt.Errorf("关注对象数量已达上限，无法保存本次自动关注")
 	}
-	a.Preferences[member][key] = MemberFollowPreference{Subject: subject, Mode: "following", Origin: origin, Revision: 1, UpdatedAt: time.Now()}
+	p := MemberFollowPreference{Subject: subject, Mode: "following", Origin: origin, Revision: 1, UpdatedAt: time.Now()}
+	if err := s.queueFollowChangeLocked(member, p); err != nil {
+		return err
+	}
+	a.Preferences[member][key] = p
 	return nil
 }
 func (s *Session) prepareActivityLocked() error {
@@ -438,7 +433,12 @@ func (s *Session) prepareActivityLocked() error {
 		return fmt.Errorf("动态待发布队列已满，请恢复同步后重试")
 	}
 	for _, e := range newEvents {
-		if e.Actor.MemberID != "" && (e.Kind == "comment" || e.Kind == "reply") {
+		// A first publication/participation already creates a fixed follow
+		// baseline below. Subsequent human writes to an existing follow must
+		// update the shadow even though they do not notify their own author.
+		ownMode, _ := s.activityEffectiveLocked(e.Actor.MemberID, e.Subject)
+		ownFollowing := e.Actor.Kind == "human" && e.Actor.MemberID != "" && ownMode == "following"
+		if e.Actor.MemberID != "" && e.Actor.Kind != "shadow" && (e.Kind == "comment" || e.Kind == "reply") {
 			if err := s.activityAutoFollowLocked(e.Actor.MemberID, e.Subject, "participation"); err != nil {
 				return err
 			}
@@ -458,6 +458,10 @@ func (s *Session) prepareActivityLocked() error {
 		e.Recipients = map[string][]string{}
 		for _, id := range s.activityMembersLocked() {
 			if e.Actor.Kind == "human" && e.Actor.MemberID == id {
+				if ownFollowing {
+					_, kind := s.activityEffectiveLocked(id, e.Subject)
+					e.AgentRecipients = map[string][]string{id: {"own_source_change", "follow_" + kind}}
+				}
 				continue
 			}
 			mode, kind := s.activityEffectiveLocked(id, e.Subject)
@@ -489,6 +493,9 @@ func (s *Session) prepareActivityLocked() error {
 		}
 		e.Direct = nil
 		e.Mentions = nil
+		if len(a.Outbox) >= maxActivityOutbox {
+			return fmt.Errorf("动态待发布队列已满，请恢复同步后重试")
+		}
 		a.Outbox = append(a.Outbox, e)
 	}
 	return nil
@@ -508,6 +515,14 @@ func (s *Session) loadActivityLogLocked() error {
 	}
 	if log.Secret == "" || log.Seen == nil || log.Reads == nil {
 		return fmt.Errorf("动态存储不完整，原始记录已保留")
+	}
+	if log.Consumers == nil {
+		log.Consumers = map[string]ActivityConsumer{}
+	}
+	for member, c := range log.Consumers {
+		if member == "" || c.ShadowID == "" || c.Revision == 0 || c.Through > log.Seq || c.InitialSeq > c.Through || c.InitialDone < 0 || c.InitialDone > len(c.Initial) {
+			return fmt.Errorf("分身动态接收记录无效，原始记录已保留")
+		}
 	}
 	root.activityLog = &log
 	return nil
@@ -581,12 +596,27 @@ func (s *Session) drainActivityLocked() error {
 }
 
 func (log *ActivityLog) pruneActivity(before time.Time, pending map[string]bool) bool {
+	consumerPending := map[string]bool{}
+	for _, consumer := range log.Consumers {
+		for i, id := range consumer.Initial {
+			if i >= consumer.InitialDone {
+				consumerPending[id] = true
+			}
+		}
+	}
 	kept := make([]ActivityEnvelope, 0, len(log.Events))
 	removed := false
 	for _, e := range log.Events {
-		retain := !e.CreatedAt.Before(before) || pending[e.ID]
+		retain := !e.CreatedAt.Before(before) || pending[e.ID] || consumerPending[e.ID]
 		for member := range e.Recipients {
-			if activityUnread(log, e, member) {
+			consumer, consuming := log.Consumers[member]
+			if activityUnread(log, e, member) || (consuming && e.Seq > consumer.Through) {
+				retain = true
+				break
+			}
+		}
+		for member := range e.AgentRecipients {
+			if consumer, ok := log.Consumers[member]; ok && e.Seq > consumer.Through {
 				retain = true
 				break
 			}

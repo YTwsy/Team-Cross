@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -101,8 +102,17 @@ func (a *App) workbenchHTTP(w http.ResponseWriter, r *http.Request, path string)
 		return false
 	}
 	id, op := parts[1], parts[3]
-	if (op == "view" || op == "request") && r.Method == "GET" {
-		out, err := a.workbenchCall(r.Context(), id, op, workbenchInput{RequestID: r.URL.Query().Get("requestId"), Offset: int(number(r.URL.Query().Get("offset")))})
+	if (op == "view" || op == "request" || op == "brief-read") && r.Method == "GET" {
+		revision := 0
+		if raw := r.URL.Query().Get("revision"); raw != "" {
+			var err error
+			revision, err = strconv.Atoi(raw)
+			if err != nil || revision < 1 {
+				respond(w, nil, fmt.Errorf("简报版本需要正整数"))
+				return true
+			}
+		}
+		out, err := a.workbenchCall(r.Context(), id, op, workbenchInput{RequestID: r.URL.Query().Get("requestId"), Offset: int(number(r.URL.Query().Get("offset"))), Revision: revision, ItemID: r.URL.Query().Get("itemId")})
 		respond(w, out, err)
 		return true
 	}
@@ -120,7 +130,7 @@ func (a *App) workbenchHTTP(w http.ResponseWriter, r *http.Request, path string)
 	switch op {
 	case "register":
 		out, err = a.registerSpacePairing(r.Context(), id, in.PairingID)
-	case "send", "brief", "assistant", "cancel", "remove", "inflow-config", "inflow-note", "inflow-note-read":
+	case "send", "brief", "brief-update", "brief-read", "assistant", "cancel", "remove", "inflow-config", "inflow-note", "inflow-note-read":
 		out, err = a.workbenchCall(r.Context(), id, op, in)
 	case "create-receiver":
 		out, err = a.createSpaceReceiver(r.Context(), id, in.RequestID, in.Name)

@@ -1,0 +1,10 @@
+### Result
+{
+  "width": 768,
+  "overflow": false,
+  "dialogOverflow": false
+}
+### Ran Playwright code
+```js
+await page.evaluate('() => ({width:innerWidth, overflow:document.documentElement.scrollWidth>innerWidth, dialogOverflow:[...document.querySelectorAll("[role=dialog]")].some(e=>e.scrollWidth>e.clientWidth)})');
+```

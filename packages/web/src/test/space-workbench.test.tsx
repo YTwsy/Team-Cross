@@ -32,6 +32,11 @@ const ref = {
   materialId: "material",
   version: 1,
 };
+const briefRef = {
+  spaceId: ref.spaceId,
+  materialId: ref.materialId,
+  version: ref.version,
+};
 let view: WorkbenchView;
 let calls: { path: string; body: any }[];
 let lost: boolean;
@@ -60,7 +65,7 @@ beforeEach(() => {
     brief: {
       revision: 3,
       topic: "验证重试策略",
-      decisions: [{ text: "固定材料版本", sources: [ref] }],
+      decisions: [{ text: "固定材料版本", sources: [briefRef] }],
       questions: [],
       updatedBy: { memberId: "owner", name: "发起者", kind: "human" },
       updatedAt: new Date().toISOString(),
@@ -372,15 +377,13 @@ it("keeps chosen fixed sources and an unsaved brief while searching sources and 
   expect(
     screen.getByRole("checkbox", { name: "已确认材料 · 版本 2" }),
   ).toBeChecked();
-  await userEvent.click(
-    screen.getByRole("button", { name: "保存确认后的简报" }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "保存简报" }));
   await waitFor(() =>
     expect(calls.filter((call) => call.body)).toHaveLength(1),
   );
   expect(
     calls.find((call) => call.body)!.body.brief.decisions[0].sources,
-  ).toEqual([ref, { ...ref, version: 2 }]);
+  ).toEqual([briefRef, { ...briefRef, version: 2 }]);
 });
 
 it("shows a paused assistant as unavailable in the participating conversations", async () => {
@@ -480,9 +483,7 @@ it("preserves brief sources and submits the revision the member reviewed", async
   const topic = screen.getByRole("textbox", { name: "当前议题" });
   await userEvent.clear(topic);
   await userEvent.type(topic, "核对新的验证范围");
-  await userEvent.click(
-    screen.getByRole("button", { name: "保存确认后的简报" }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "保存简报" }));
   await waitFor(() =>
     expect(calls.some((c) => c.path.endsWith("/workbench/brief"))).toBe(true),
   );
@@ -492,7 +493,7 @@ it("preserves brief sources and submits the revision the member reviewed", async
     baseRevision: 3,
     brief: {
       topic: "核对新的验证范围",
-      decisions: [{ text: "固定材料版本", sources: [ref] }],
+      decisions: [{ text: "固定材料版本", sources: [briefRef] }],
     },
   });
 });
@@ -578,15 +579,13 @@ it("keeps source progress nearby and proposes results without saving a decision 
     "aria-selected",
     "true",
   );
-  expect(screen.getByRole("textbox", { name: "已确认决定 2" })).toHaveValue(
+  expect(screen.getByRole("textbox", { name: "决定与建议 2" })).toHaveValue(
     request.summary,
   );
   expect(calls.some((c) => c.path.endsWith("/workbench/brief") && c.body)).toBe(
     false,
   );
-  await userEvent.click(
-    screen.getByRole("button", { name: "保存确认后的简报" }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "保存简报" }));
   await waitFor(() =>
     expect(
       calls.some((c) => c.path.endsWith("/workbench/brief") && c.body),
@@ -596,9 +595,11 @@ it("keeps source progress nearby and proposes results without saving a decision 
     (c) => c.path.endsWith("/workbench/brief") && c.body,
   )!.body;
   expect(saved.baseRevision).toBe(3);
-  expect(saved.brief.decisions[1]).toEqual({
+  expect(saved.brief.decisions[1]).toMatchObject({
+    itemId: expect.any(String),
+    status: "proposed",
     text: request.summary,
-    sources: [ref],
+    sources: [briefRef],
     requestId: request.id,
   });
 });
@@ -631,4 +632,209 @@ it("reviews the bootstrap before explicit enable and does not call it ready at s
     baseEpoch: 0,
   });
   expect(screen.queryByText("已接手")).not.toBeInTheDocument();
+});
+
+it("keeps item identity, status and other progress while editing the brief", async () => {
+  view.brief.decisions[0] = {
+    ...view.brief.decisions[0]!,
+    itemId: "contract",
+    status: "proposed",
+    updatedBy: {
+      memberId: "owner",
+      name: "Owner shadow",
+      kind: "shadow",
+      shadowId: "shadow",
+    },
+  };
+  view.brief.progress = [
+    {
+      itemId: "peer-progress",
+      text: "Peer is validating",
+      status: "blocked",
+      sources: [],
+    },
+  ];
+  render(
+    <SpaceWorkbench collaboration={c} onLocate={() => {}}>
+      <p>reader</p>
+    </SpaceWorkbench>,
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "空间简报" }));
+  expect(await screen.findByText("建议 · Owner shadow")).toBeVisible();
+  expect(screen.getByText("受阻")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "编辑简报" }));
+  const statuses = screen.getAllByRole("combobox", { name: "条目状态" });
+  await userEvent.selectOptions(statuses[0]!, "disputed");
+  await userEvent.click(screen.getByRole("button", { name: "保存简报" }));
+  await waitFor(() =>
+    expect(calls.some((call) => call.path.endsWith("/workbench/brief"))).toBe(
+      true,
+    ),
+  );
+  const saved = calls.find((call) =>
+    call.path.endsWith("/workbench/brief"),
+  )!.body;
+  expect(saved.requestId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(saved.brief.decisions[0]).toMatchObject({
+    itemId: "contract",
+    status: "disputed",
+  });
+  expect(saved.brief.progress).toEqual(view.brief.progress);
+});
+
+it("merges a concurrent brief without discarding the draft or new peer progress", async () => {
+  const original = globalThis.fetch;
+  const base = structuredClone(view.brief);
+  let conflicted = false;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).includes("/workbench/brief-read")) {
+        return {
+          ok: true,
+          json: async () => ({
+            brief: String(url).includes("revision=") ? base : view.brief,
+          }),
+        };
+      }
+      if (
+        !conflicted &&
+        String(url).endsWith("/workbench/brief") &&
+        init?.body
+      ) {
+        conflicted = true;
+        calls.push({ path: String(url), body: JSON.parse(String(init.body)) });
+        view.brief = {
+          ...view.brief,
+          revision: 4,
+          topic: "Concurrent peer topic",
+          decisions: [
+            {
+              ...view.brief.decisions[0]!,
+              text: "Peer edited decision",
+              sources: null as unknown as [],
+            },
+          ],
+          progress: [
+            {
+              itemId: "peer-progress",
+              text: "New peer progress",
+              status: "in_progress",
+              sources: [],
+            },
+          ],
+        };
+        return {
+          ok: true,
+          json: async () => ({
+            state: "conflict",
+            brief: view.brief,
+            conflicts: ["$topic"],
+          }),
+        };
+      }
+      return original(url, init);
+    }),
+  );
+  render(
+    <SpaceWorkbench collaboration={c} onLocate={() => {}}>
+      <p>reader</p>
+    </SpaceWorkbench>,
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "空间简报" }));
+  await userEvent.click(
+    await screen.findByRole("button", { name: "编辑简报" }),
+  );
+  await userEvent.clear(screen.getByRole("textbox", { name: "当前议题" }));
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "当前议题" }),
+    "My retained draft",
+  );
+  await userEvent.clear(screen.getByRole("textbox", { name: "决定与建议 1" }));
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "决定与建议 1" }),
+    "My decision",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "保存简报" }));
+  const dialog = await screen.findByRole("dialog", { name: "合并简报修改" });
+  expect(within(dialog).getByText("My retained draft")).toBeVisible();
+  expect(within(dialog).getByText("Concurrent peer topic")).toBeVisible();
+  expect(within(dialog).getByText("Peer edited decision")).toBeVisible();
+  await userEvent.click(within(dialog).getByRole("button", { name: "关闭" }));
+  expect(screen.getByRole("textbox", { name: "当前议题" })).toHaveValue(
+    "My retained draft",
+  );
+  expect(
+    calls.filter((call) => call.path.endsWith("/workbench/brief") && call.body),
+  ).toHaveLength(1);
+  await userEvent.click(screen.getByRole("button", { name: "合并最新内容" }));
+  await userEvent.click(
+    (await screen.findAllByRole("button", { name: "保留我的修改" }))[0]!,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "保留我的修改" }));
+  expect(screen.getByRole("textbox", { name: "工作进展 1" })).toHaveValue(
+    "New peer progress",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "保存简报" }));
+  await waitFor(() =>
+    expect(screen.queryByText("草稿尚未保存")).not.toBeInTheDocument(),
+  );
+  const posts = calls.filter(
+    (call) => call.path.endsWith("/workbench/brief") && call.body,
+  );
+  expect(posts).toHaveLength(2);
+  expect(posts[1]!.body.baseRevision).toBe(4);
+  expect(posts[1]!.body.requestId).not.toBe(posts[0]!.body.requestId);
+  expect(view.brief.topic).toBe("My retained draft");
+  expect(view.brief.decisions[0]!.text).toBe("My decision");
+  expect(view.brief.progress![0]!.text).toBe("New peer progress");
+});
+
+it("reconciles a lost brief response by command ID without submitting again", async () => {
+  const original = globalThis.fetch;
+  let requestId = "";
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith("/workbench/brief") && init?.body) {
+        requestId = JSON.parse(String(init.body)).requestId;
+        await original(url, init);
+        throw new Error("lost response");
+      }
+      if (String(url).includes("/workbench/brief-read?requestId=")) {
+        calls.push({ path: String(url), body: undefined });
+        return {
+          ok: true,
+          json: async () => ({
+            state: "saved",
+            requestId,
+            revision: 4,
+            brief: view.brief,
+          }),
+        };
+      }
+      return original(url, init);
+    }),
+  );
+  render(
+    <SpaceWorkbench collaboration={c} onLocate={() => {}}>
+      <p>reader</p>
+    </SpaceWorkbench>,
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "空间简报" }));
+  await userEvent.click(
+    await screen.findByRole("button", { name: "编辑简报" }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "保存简报" }));
+  await waitFor(() =>
+    expect(screen.queryByText("草稿尚未保存")).not.toBeInTheDocument(),
+  );
+  expect(
+    calls.filter((call) => call.path.endsWith("/workbench/brief") && call.body),
+  ).toHaveLength(1);
+  expect(
+    calls.some((call) =>
+      call.path.endsWith(`/workbench/brief-read?requestId=${requestId}`),
+    ),
+  ).toBe(true);
 });

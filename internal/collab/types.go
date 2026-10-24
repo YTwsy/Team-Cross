@@ -294,6 +294,8 @@ type Settings struct {
 type App struct {
 	activitySyncMu  sync.Mutex
 	shadows         map[string]*shadow.Engine
+	shadowAttention map[string]*shadow.AttentionStore
+	attentionMu     sync.Mutex
 	shadowCancel    context.CancelFunc
 	shadowWG        sync.WaitGroup
 	shadowCreateMu  sync.Mutex

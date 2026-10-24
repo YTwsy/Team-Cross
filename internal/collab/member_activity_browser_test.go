@@ -68,6 +68,11 @@ func TestMemberActivityBrowserFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if os.Getenv("TEAMCROSS_HANDLING_BROWSER") == "1" {
+		a.shadowCancel()
+		a.shadowWG.Wait()
+		seedHandlingBrowser(t, a, s.record.ID, own.ID)
+	}
 	handler := a.Handler(http.FileServer(http.FS(assets)))
 	server := httptest.NewServer(handler)
 	defer server.Close()

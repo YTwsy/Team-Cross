@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"teamcross/internal/mcp"
 	"teamcross/internal/runtimeconfig"
 	"teamcross/internal/shadow"
 	"teamcross/internal/sharing"
+	"teamcross/internal/spacecontext"
 )
 
 // The space host stores only explicitly shared content and short delivery
@@ -36,6 +38,8 @@ type shadowInput struct {
 	ID        string               `json:"shadowId"`
 	Name      string               `json:"name,omitempty"`
 	RequestID string               `json:"requestId,omitempty"`
+	MessageID string               `json:"messageId,omitempty"`
+	ResultID  string               `json:"resultId,omitempty"`
 	Cwd       string               `json:"cwd,omitempty"`
 	Message   shadow.Message       `json:"message"`
 	Snapshot  *shadow.View         `json:"snapshot,omitempty"`
@@ -91,6 +95,11 @@ func (s *Session) shadowOperation(ctx context.Context, op string, in shadowInput
 	}
 	shared, exists := s.record.Shadows[in.ID]
 	switch op {
+	case "source":
+		if !exists {
+			return nil, fmt.Errorf("分身不存在")
+		}
+		return shadowSource(shared, in)
 	case "check":
 		return actor, nil
 	case "register":
@@ -106,7 +115,7 @@ func (s *Session) shadowOperation(ctx context.Context, op string, in shadowInput
 		if len(s.record.Shadows) >= 64 {
 			return nil, fmt.Errorf("空间分身数量已达上限")
 		}
-		shared = ShadowShared{View: shadow.View{ID: in.ID, SpaceID: s.record.ID, Name: in.Name, Owner: actor, Enabled: true, Segments: []shadow.Segment{}, Messages: []shadow.Message{}, Memories: []shadow.Memory{}, Jobs: []shadow.Job{}}, Deliveries: map[string]ShadowDelivery{}}
+		shared = ShadowShared{View: shadow.View{ID: in.ID, SpaceID: s.record.ID, Name: in.Name, Owner: actor, CreatedAt: now, Enabled: true, Segments: []shadow.Segment{}, Messages: []shadow.Message{}, Memories: []shadow.Memory{}, Jobs: []shadow.Job{}}, Deliveries: map[string]ShadowDelivery{}}
 		s.record.Shadows[in.ID], changed = shared, true
 		return shared.View, nil
 	case "view":
@@ -119,9 +128,18 @@ func (s *Session) shadowOperation(ctx context.Context, op string, in shadowInput
 				continue
 			}
 			v := libraryClone(entry.View)
+			v.TaskResultCount = len(v.TaskResults)
+			if len(v.TaskResults) > 20 {
+				v.TaskResults = v.TaskResults[len(v.TaskResults)-20:]
+			}
+			for i := range v.TaskResults {
+				v.TaskResults[i].Text = ""
+				v.TaskResults[i].CompletionCriteria, v.TaskResults[i].CompletionChecks = nil, nil
+				v.TaskResults[i].Checkpoint, v.TaskResults[i].Sources = nil, nil
+			}
 			v.Online = v.Online && now.Sub(entry.LastSeen) < 10*time.Second
 			if in.ID == "" {
-				v.Messages, v.Memories, v.Jobs, v.Segments = nil, nil, nil, nil
+				v.Messages, v.Memories, v.Jobs, v.Segments, v.TaskResults = nil, nil, nil, nil, nil
 			} else {
 				messages := map[string]shadow.Message{}
 				for _, m := range v.Messages {
@@ -153,6 +171,9 @@ func (s *Session) shadowOperation(ctx context.Context, op string, in shadowInput
 		sort.Slice(view.Shadows, func(i, j int) bool { return view.Shadows[i].Name < view.Shadows[j].Name })
 		return view, nil
 	case "send":
+		if source, ok := collaborationShadowActor(ctx); ok {
+			actor = shadow.Actor{ID: source.ShadowID, Name: source.Name, Kind: "shadow", MemberID: source.MemberID, ShadowID: source.ShadowID}
+		}
 		if !exists {
 			return nil, fmt.Errorf("分身不存在")
 		}
@@ -187,10 +208,13 @@ func (s *Session) shadowOperation(ctx context.Context, op string, in shadowInput
 			return nil, fmt.Errorf("只有分身所在成员可以同步状态")
 		}
 		v := *in.Snapshot
+		if !shared.View.CreatedAt.IsZero() {
+			v.CreatedAt = shared.View.CreatedAt
+		}
 		if v.ID != in.ID || v.Owner.ID != actor.ID || v.Name != shared.View.Name || v.SpaceID != s.record.ID {
 			return nil, fmt.Errorf("分身同步身份不匹配")
 		}
-		if v.Revision > shared.View.Revision || v.Online != shared.View.Online {
+		if v.Revision > shared.View.Revision || v.Online != shared.View.Online || (shared.View.CreatedAt.IsZero() && !v.CreatedAt.IsZero()) {
 			known := map[string]int{}
 			messages := libraryClone(shared.View.Messages)
 			for i, m := range messages {
@@ -212,6 +236,10 @@ func (s *Session) shadowOperation(ctx context.Context, op string, in shadowInput
 					return nil, fmt.Errorf("分身回复身份无效")
 				}
 				if i, ok := known[m.ID]; ok {
+					old := messages[i]
+					if old.Text != m.Text || old.Actor != m.Actor || old.Role != m.Role || old.ReplyTo != m.ReplyTo || !old.CreatedAt.Equal(m.CreatedAt) {
+						return nil, fmt.Errorf("分身消息正文和原始来源不可覆盖")
+					}
 					messages[i] = m
 				} else {
 					known[m.ID] = len(messages)
@@ -219,6 +247,9 @@ func (s *Session) shadowOperation(ctx context.Context, op string, in shadowInput
 				}
 			}
 			v.Messages = messages
+			if err := validateShadowResults(shared.View.TaskResults, v.TaskResults); err != nil {
+				return nil, err
+			}
 			shared.View = v
 			changed = true
 		}
@@ -265,6 +296,26 @@ func (a *App) shadowCall(ctx context.Context, spaceID, op string, in shadowInput
 func (a *App) shadowConfig(id string) shadow.Config {
 	return shadow.Config{Directory: filepath.Join(a.Config.DataDir, "shadows", id), Start: func(ctx context.Context, home, cwd, log string) (shadow.Runtime, error) {
 		return a.startProcessWithMode(ctx, home, cwd, log, runtimeconfig.Trusted)
+	}, ReadSource: func(ctx context.Context, ref SpaceSourceRef) (shadow.SourceSnapshot, error) {
+		return a.readShadowSource(ctx, id, ref)
+	}, ReadFollowSource: func(ctx context.Context, signal spacecontext.Signal) (shadow.SourceSnapshot, error) {
+		return a.readShadowFollowSource(ctx, id, signal)
+	}, EnsureFollow: func(ctx context.Context, subject spacecontext.Subject, requestID string) (spacecontext.FollowSetting, error) {
+		return a.ensureShadowFollow(ctx, id, subject, requestID)
+	}, ReadDependency: func(ctx context.Context, dependency shadow.TaskDependency) (shadow.DependencyUpdate, error) {
+		return a.readShadowDependency(ctx, id, dependency)
+	}, ReadTaskSource: func(ctx context.Context, query shadow.TaskSourceQuery) (shadow.TaskSourceUpdate, error) {
+		return a.readShadowTaskSource(ctx, id, query)
+	}, ResolveDependency: func(ctx context.Context, dependency shadow.TaskDependency, signal spacecontext.Signal) (*shadow.DependencySignal, error) {
+		return a.resolveShadowDependency(ctx, id, dependency, signal)
+	}, RouteActivity: func(ctx context.Context, signal spacecontext.Signal) ([]shadow.TaskDelivery, error) {
+		return a.routeShadowActivity(ctx, id, signal)
+	}, ActivityRouteStamp: func() string {
+		return a.shadowActivityRouteStamp(id)
+	}, ContextUses: func(focusID string) shadow.TaskContextUses {
+		return a.shadowContextUses(id, focusID)
+	}, CollaborationTools: mcp.ShadowTools(), ValidateTool: mcp.ValidateShadowCall, CallTool: func(ctx context.Context, name string, args map[string]any) (any, error) {
+		return a.shadowToolCall(ctx, id, name, args)
 	}}
 }
 
@@ -375,6 +426,7 @@ func (a *App) pumpShadows(ctx context.Context) {
 		engines = append(engines, e)
 	}
 	a.mu.Unlock()
+	attention := map[string]*shadow.AttentionStore{}
 	for _, e := range engines {
 		if ctx.Err() != nil {
 			return
@@ -422,6 +474,24 @@ func (a *App) pumpShadows(ctx context.Context) {
 				break
 			}
 		}
+		store, err := a.memberAttention(spaceID, v.Owner.ID)
+		if err == nil {
+			err = e.AttachAttention(store)
+		}
+		if err == nil {
+			attention[spaceID] = store
+		}
+	}
+	// Sync all owned shadows first, including creation times from old records,
+	// then elect/consume once per space. Runtime map order must not choose the
+	// default or cause N copies of one member's event to enter N shadows.
+	for spaceID, store := range attention {
+		if ctx.Err() != nil {
+			return
+		}
+		if err := a.pumpShadowAttention(ctx, spaceID, store); err != nil {
+			_ = store.SetError(err.Error())
+		}
 	}
 }
 
@@ -440,6 +510,11 @@ func (a *App) shadowsHTTP(w http.ResponseWriter, r *http.Request, path string) b
 		}
 		if op == "view" && r.Method == "GET" {
 			out, err := a.shadowCall(r.Context(), spaceID, "view", shadowInput{ID: r.URL.Query().Get("shadowId"), Offset: int(number(r.URL.Query().Get("offset")))})
+			respond(w, out, err)
+			return true
+		}
+		if op == "source" && r.Method == "GET" {
+			out, err := a.shadowCall(r.Context(), spaceID, "source", shadowInput{ID: r.URL.Query().Get("shadowId"), MessageID: r.URL.Query().Get("messageId"), ResultID: r.URL.Query().Get("resultId")})
 			respond(w, out, err)
 			return true
 		}

@@ -81,6 +81,7 @@ export function Discussion({
   onLocateMaterial = () => {},
   origin,
   onClose = () => {},
+  markVisibleRead = true,
 }: {
   id: string;
   annotation: Annotation;
@@ -91,6 +92,7 @@ export function Discussion({
   onClose?: () => void;
   materials?: Material[];
   onLocateMaterial?: (ref: MaterialReference) => void;
+  markVisibleRead?: boolean;
 }) {
   const refreshKey = "Discussion:v1:" + (id + ":" + annotation.id);
   const [open, setOpen] = useRefreshState(refreshKey + ":open", false);
@@ -111,7 +113,7 @@ export function Discussion({
   const editor = useRef<HTMLTextAreaElement>(null);
   const threadElement = useRef<HTMLElement>(null);
   useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") return;
+    if (!markVisibleRead || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver((entries) => {
       if (document.visibilityState === "hidden") return;
       for (const entry of entries) {
@@ -124,7 +126,7 @@ export function Discussion({
     const root = threadElement.current?.querySelector(".annotation-body");if (root) observer.observe(root);
     threadElement.current?.querySelectorAll("[data-reply-id]").forEach((node) => observer.observe(node));
     return () => observer.disconnect();
-  }, [id, annotation.id, annotation.replies?.length]);
+  }, [id, annotation.id, annotation.replies?.length, markVisibleRead]);
   const actions = useRef<HTMLDetailsElement>(null);
   const submitting = useRef(false);
   const attempt = useRefreshRef<

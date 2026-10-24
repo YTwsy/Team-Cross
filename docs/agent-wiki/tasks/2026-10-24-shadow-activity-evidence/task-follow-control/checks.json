@@ -1,0 +1,121 @@
+{
+  "recordedAt": "2026-10-24T05:02:11.291250+08:00",
+  "checks": [
+    {
+      "command": "go test ./... -count=1 -timeout=180s",
+      "exitCode": 0,
+      "log": "go-test.log"
+    },
+    {
+      "command": "go test -race ./internal/shadow -run 'Test(Task|Background|Attention|Watch)' -count=1 -timeout=180s",
+      "exitCode": 0,
+      "log": "race.log"
+    },
+    {
+      "command": "go vet ./...",
+      "exitCode": 0,
+      "log": "go-vet.log"
+    },
+    {
+      "command": "go build -o /private/tmp/teamcross-shadow-task-follow-build-20261024/teamcross ./cmd/teamcross",
+      "exitCode": 0,
+      "log": "go-build.log"
+    },
+    {
+      "command": "pnpm --filter @teamcross/web check",
+      "exitCode": 0,
+      "log": "web-check.log"
+    },
+    {
+      "command": "pnpm --filter @teamcross/web test",
+      "exitCode": 0,
+      "log": "web-test.log"
+    },
+    {
+      "command": "pnpm --filter @teamcross/web build",
+      "exitCode": 0,
+      "log": "web-build.log"
+    },
+    {
+      "command": "python3 scripts/verify-shadow-native.py --task-follow --fixture-dir /private/tmp/teamcross-shadow-task-follow-native-20261024-c --codex-bin <installed-cli> --codex-auth <auth-symlink-source>",
+      "exitCode": 0,
+      "log": "native.log"
+    }
+  ],
+  "node": {
+    "version": "v24.19.0",
+    "binary": "/Users/wsy/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+  },
+  "pnpm": "11.19.0",
+  "native": {
+    "model": "gpt-5.6-luna",
+    "reasoningEffort": "low",
+    "threadStarts": 2,
+    "exactResumes": 2,
+    "acknowledgedInterrupts": 1,
+    "dynamicToolCalls": 13,
+    "taskVersion": 4,
+    "resultVersion": 4,
+    "scope": "single Mac, isolated followed object and inherited MCP fixture; not multi-Core product acceptance"
+  },
+  "goCache": "/private/tmp/teamcross-shadow-activity-gocache",
+  "build": {
+    "path": "/private/tmp/teamcross-shadow-task-follow-build-20261024/teamcross",
+    "sha256": "3a445e00a53d1bfefb22cf03547b3f916c5c0e79b20d148fe0b94fde5a34a11f"
+  },
+  "web": {
+    "testFiles": 25,
+    "tests": 238,
+    "translationMessages": 1265,
+    "embeddedAssetsChanged": false,
+    "browserVerification": false
+  },
+  "cleanup": {
+    "enginesClosed": true,
+    "exactFixtureProcessMatches": 0,
+    "fixtures": [
+      {
+        "suffix": "a",
+        "lsofExitCode": 1,
+        "openHandles": 0
+      },
+      {
+        "suffix": "b",
+        "lsofExitCode": 1,
+        "openHandles": 0
+      },
+      {
+        "suffix": "c",
+        "lsofExitCode": 1,
+        "openHandles": 0
+      }
+    ]
+  },
+  "priorAttempts": [
+    {
+      "log": "native-initial-fixture-failure.log",
+      "exitCode": 1,
+      "reason": "test did not handle dedicated fixture MCP consent"
+    },
+    {
+      "log": "native-restart-fixture-failure.log",
+      "exitCode": 1,
+      "reason": "test approval ID deduplication lacked restarted runtime identity"
+    },
+    {
+      "log": "npm-ci.log",
+      "exitCode": 1,
+      "reason": "workspace uses pnpm lockfile; corrected to frozen pnpm install"
+    },
+    {
+      "logs": [
+        "web-check-node23.log",
+        "web-test-node23.log",
+        "web-build-node23.log"
+      ],
+      "exitCode": 0,
+      "reason": "default Node v23.10.0 below repository engine range; final checks rerun on Node v24.19.0"
+    }
+  ],
+  "codexCLI": "0.163.0-alpha.11.2"
+}

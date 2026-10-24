@@ -1,9 +1,16 @@
 import { useEffect, useState } from "react";
 import { api, useResource } from "./api";
 import type { MemberMention } from "./types";
+import type { ActivityProcessing } from "./attention";
 
 export type ActivitySubject = {
-  kind: "material" | "discussion" | "execution";
+  kind:
+    | "material"
+    | "discussion"
+    | "execution"
+    | "brief"
+    | "request"
+    | "shadow";
   id: string;
   executionId?: string;
 };
@@ -17,8 +24,14 @@ export type ActivitySource = {
   turnId?: string;
   itemIds?: string[];
   requestId?: string;
+  briefRevision?: number;
+  briefItemId?: string;
+  shadowId?: string;
+  shadowMessageId?: string;
+  shadowResultId?: string;
 };
 export type ActivityItem = {
+  processing?: ActivityProcessing;
   id: string;
   seq: number;
   kind: string;
@@ -29,6 +42,8 @@ export type ActivityItem = {
   preview: string;
   reasons: string[];
   unread: boolean;
+  // Local source-reader hint; ordinary activity responses omit it.
+  preserveReadState?: boolean;
 };
 export type ActivityGroup = {
   id: string;
@@ -39,6 +54,7 @@ export type ActivityGroup = {
   unread: number;
 };
 export type ActivityPage = {
+  processingError?: string;
   spaceId: string;
   title: string;
   selfId: string;

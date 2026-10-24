@@ -8,6 +8,11 @@ import {
   type ActivityItem,
   type ActivityPage,
 } from "../activity";
+import {
+  briefStatusLabel,
+  type BriefItem,
+  type SpaceBrief,
+} from "../workbench";
 import { t, tr } from "../i18n";
 import { relativeTime, type Annotation, type MaterialPage } from "../types";
 import type { LibraryReference } from "../library";
@@ -16,6 +21,11 @@ import { MemberFollow, MemberFollowManager } from "./MemberFollow";
 import { MarkdownText } from "./MarkdownText";
 import { ErrorBox, Icon, Loading, Modal } from "./ui";
 import { SpaceAvatar } from "./SpaceIdentity";
+import { MemberWaiting } from "./MemberWaiting";
+import { QuestionHandling } from "./QuestionHandling";
+import { waitingSourceItem } from "../waiting";
+import { ActivityProcessing } from "./ActivityProcessing";
+import { processingSourceItem, jobLabel } from "../attention";
 
 function activityLabel(item: ActivityItem) {
   if (item.reasons.includes("mention")) return t("在讨论中 @了你");
@@ -61,7 +71,10 @@ export function MemberActivity({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [extra, setExtra] = useState<Record<string, ActivityPage>>({});
-  const query = `view=${scope}&category=${scope === "space" ? "all" : category}&unread=${scope === "mine" && unread}`;
+  const waiting =
+    scope === "mine" &&
+    ["needs_owner", "waiting_others", "processing"].includes(category);
+  const query = `view=${scope}&category=${scope === "space" || waiting ? "all" : category}&unread=${scope === "mine" && !waiting && unread}`;
   const data = useActivityResource<ActivityPage | { spaces: ActivityPage[] }>(
     spaceId
       ? `collaborations/${spaceId}/activity?${query}`
@@ -159,7 +172,9 @@ export function MemberActivity({
           ) : (
             <h1 tabIndex={-1}>{t("我的动态")}</h1>
           )}
-          {count > 0 && <span className="activity-badge">{count}</span>}
+          {count > 0 && !waiting && (
+            <span className="activity-badge">{count}</span>
+          )}
         </div>
         <div className="activity-actions">
           {spaceId && (
@@ -205,6 +220,9 @@ export function MemberActivity({
                   ["mentions", t("@我")],
                   ["replies", t("回复")],
                   ["following", t("关注")],
+                  ["needs_owner", t("别人等我")],
+                  ["waiting_others", t("我等别人")],
+                  ["processing", t("待接续")],
                 ].map(([value, label]) => (
                   <button
                     key={value}
@@ -215,14 +233,16 @@ export function MemberActivity({
                   </button>
                 ))}
               </div>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={unread}
-                  onChange={(e) => setUnread(e.target.checked)}
-                />
-                {t("仅未读")}
-              </label>
+              {!waiting && (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={unread}
+                    onChange={(e) => setUnread(e.target.checked)}
+                  />
+                  {t("仅未读")}
+                </label>
+              )}
             </>
           )}
           {!spaceId && (
@@ -239,18 +259,27 @@ export function MemberActivity({
               ))}
             </select>
           )}
-          <button
-            className="text-link"
-            disabled={busy || !visible.some((p) => p.snapshot)}
-            onClick={() => void allRead()}
-          >
-            {spaceId || spaceFilter
-              ? t("本空间全部已读")
-              : t("所有空间全部已读")}
-          </button>
+          {!waiting && (
+            <button
+              className="text-link"
+              disabled={busy || !visible.some((p) => p.snapshot)}
+              onClick={() => void allRead()}
+            >
+              {spaceId || spaceFilter
+                ? t("本空间全部已读")
+                : t("所有空间全部已读")}
+            </button>
+          )}
         </div>
       )}
       <ErrorBox message={data.error} />
+      {visible
+        .filter((p) => p.processingError)
+        .map((p) => (
+          <p className="notice" key={`processing:${p.spaceId}`}>
+            {p.title} · {t("处理状态较多，请缩小动态范围后查看。")}
+          </p>
+        ))}
       {visible
         .filter((p) => p.error)
         .map((p) => (
@@ -259,87 +288,128 @@ export function MemberActivity({
           </p>
         ))}
       {data.loading && !data.data && <Loading />}
-      <div className="activity-list">
-        {(expanded ? groups : groups.slice(0, 3)).map(({ page, group }) => {
-          const primary = group.attention || group.latest;
-          return (
-            <article
-              className={`activity-row ${group.unread ? "unread" : ""}`}
-              key={`${page.spaceId}:${group.id}`}
-            >
-              <SpaceAvatar
-                name={primary.actor.name || t("成员")}
-                agent={primary.actor.kind === "session"}
-              />
-              <button
-                className="activity-open"
-                onClick={() => setSelected(primary)}
+      {waiting ? (
+        <>
+          <p className="muted small-text">
+            {t("按实际问题和任务整理；收到答复后，分身会核对是否足够继续。")}
+          </p>
+          {visible.map((page) => (
+            <MemberWaiting
+              key={`${page.spaceId}:${category}`}
+              spaceId={page.spaceId}
+              title={spaceId ? undefined : page.title}
+              direction={category}
+              onOpen={(item) => setSelected(waitingSourceItem(item))}
+            />
+          ))}
+        </>
+      ) : (
+        <div className="activity-list">
+          {(expanded ? groups : groups.slice(0, 3)).map(({ page, group }) => {
+            const primary = group.attention || group.latest;
+            return (
+              <article
+                className={`activity-row ${group.unread ? "unread" : ""}`}
+                key={`${page.spaceId}:${group.id}`}
               >
-                <span className="activity-row-title">
-                  <strong>{primary.actor.name || t("成员")}</strong>{" "}
-                  {activityLabel(primary)}
+                <SpaceAvatar
+                  name={primary.actor.name || t("成员")}
+                  agent={
+                    primary.actor.kind === "session" ||
+                    primary.actor.kind === "shadow"
+                  }
+                />
+                <button
+                  className="activity-open"
+                  onClick={() => setSelected(primary)}
+                >
+                  <span className="activity-row-title">
+                    <strong>{primary.actor.name || t("成员")}</strong>{" "}
+                    {activityLabel(primary)}
+                    {group.unread > 0 && (
+                      <span
+                        className="activity-unread-dot"
+                        aria-label={t("未读")}
+                      />
+                    )}
+                  </span>
+                  <span className="activity-preview">
+                    {primary.preview || t("查看动态详情")}
+                  </span>
+                  <small>
+                    {!spaceId && `${page.title} · `}
+                    {primary.source.materialId &&
+                      `v${primary.source.version} · `}
+                    {relativeTime(primary.createdAt)}
+                    {group.unread > 0 && ` · ${tr`${group.unread} 条未读`}`}
+                  </small>
+                </button>
+                <div className="activity-row-actions">
                   {group.unread > 0 && (
-                    <span
-                      className="activity-unread-dot"
-                      aria-label={t("未读")}
+                    <button
+                      className="icon-button"
+                      title={t("标为已读")}
+                      aria-label={t("标为已读")}
+                      onClick={() => void groupRead(page, group)}
+                    >
+                      <Icon name="check" size={16} />
+                    </button>
+                  )}
+                  {["discussion", "material", "execution"].includes(
+                    primary.subject.kind,
+                  ) && (
+                    <MemberFollow
+                      spaceId={page.spaceId}
+                      subject={primary.subject}
                     />
                   )}
-                </span>
-                <span className="activity-preview">
-                  {primary.preview || t("查看动态详情")}
-                </span>
-                <small>
-                  {!spaceId && `${page.title} · `}
-                  {primary.source.materialId && `v${primary.source.version} · `}
-                  {relativeTime(primary.createdAt)}
-                  {group.unread > 0 && ` · ${tr`${group.unread} 条未读`}`}
-                </small>
-              </button>
-              <div className="activity-row-actions">
-                {group.unread > 0 && (
-                  <button
-                    className="icon-button"
-                    title={t("标为已读")}
-                    aria-label={t("标为已读")}
-                    onClick={() => void groupRead(page, group)}
-                  >
-                    <Icon name="check" size={16} />
-                  </button>
-                )}
-                {["discussion", "material", "execution"].includes(
-                  primary.subject.kind,
-                ) && (
-                  <MemberFollow
-                    spaceId={page.spaceId}
-                    subject={primary.subject}
+                </div>
+                {scope === "mine" && (
+                  <ActivityProcessing
+                    info={primary.processing}
+                    event={{ spaceId: page.spaceId, id: primary.id }}
+                    onOpen={(source) =>
+                      setSelected(processingSourceItem(source))
+                    }
                   />
                 )}
-              </div>
-              {expanded && group.count > 1 && (
-                <details className="activity-group-history">
-                  <summary>{tr`${group.count} 条动态`}</summary>
-                  {group.events
-                    .slice()
-                    .reverse()
-                    .map((item) => (
-                      <button key={item.id} onClick={() => setSelected(item)}>
-                        {item.unread && "● "}
-                        {item.actor.name} ·{" "}
-                        {item.preview || activityLabel(item)}
-                      </button>
-                    ))}
-                  {group.count > group.events.length && (
-                    <p className="muted small-text">
-                      {t("较早内容可在原讨论中查看")}
-                    </p>
-                  )}
-                </details>
-              )}
-            </article>
-          );
-        })}
-      </div>
-      {data.data && !groups.length && (
+                {expanded && group.count > 1 && (
+                  <details className="activity-group-history">
+                    <summary>{tr`${group.count} 条动态`}</summary>
+                    {group.events
+                      .slice()
+                      .reverse()
+                      .map((item) => (
+                        <div key={item.id}>
+                          <button onClick={() => setSelected(item)}>
+                            {item.unread && "● "}
+                            {item.actor.name} ·{" "}
+                            {item.preview || activityLabel(item)}
+                          </button>
+                          {scope === "mine" && (
+                            <ActivityProcessing
+                              info={item.processing}
+                              event={{ spaceId: page.spaceId, id: item.id }}
+                              onOpen={(source) =>
+                                setSelected(processingSourceItem(source))
+                              }
+                            />
+                          )}
+                        </div>
+                      ))}
+                    {group.count > group.events.length && (
+                      <p className="muted small-text">
+                        {t("较早内容可在原讨论中查看")}
+                      </p>
+                    )}
+                  </details>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+      {!waiting && data.data && !groups.length && (
         <div className="activity-empty">
           <Icon name="comment" size={24} />
           <p>
@@ -354,7 +424,8 @@ export function MemberActivity({
           )}
         </div>
       )}
-      {expanded &&
+      {!waiting &&
+        expanded &&
         visible.map((page) => {
           const last = extra[page.spaceId] || page;
           return last.nextCursor ? (
@@ -401,7 +472,7 @@ export function MemberActivity({
     </section>
   );
 }
-function ActivitySource({
+export function ActivitySource({
   item,
   onLocate,
   onClose,
@@ -478,6 +549,62 @@ function ActivitySource({
           if (!data.segments?.some((s) => s.turnId === source.turnId))
             throw new Error(t("尚未定位到原始轮次"));
           nextSegments = data.segments;
+        } else if (source.shadowId) {
+          const data = await api<{
+            message?: { text: string; actor: { name: string } };
+            result?: {
+              title: string;
+              taskVersion: number;
+              state: string;
+              text?: string;
+              completionChecks?: string[];
+            };
+            unavailable?: string;
+          }>(
+            `collaborations/${source.spaceId}/shadows/source?shadowId=${encodeURIComponent(source.shadowId)}&messageId=${encodeURIComponent(source.shadowMessageId || "")}&resultId=${encodeURIComponent(source.shadowResultId || "")}`,
+            undefined,
+            abort.signal,
+          );
+          if (data.unavailable || (!data.message && !data.result))
+            throw new Error(t("该分身消息或任务结果已不可用"));
+          nextSummary = data.message
+            ? `${data.message.actor.name}\n\n${data.message.text}`
+            : [
+                data.result!.title,
+                tr`任务结果 · 版本 ${data.result!.taskVersion}`,
+                jobLabel(data.result!.state),
+                data.result!.text || "",
+                ...(data.result!.completionChecks || []),
+              ]
+                .filter(Boolean)
+                .join("\n\n");
+        } else if (source.briefRevision) {
+          const data = await api<{
+            brief?: SpaceBrief;
+            item?: BriefItem;
+            unavailable?: string;
+          }>(
+            `collaborations/${source.spaceId}/workbench/brief-read?revision=${source.briefRevision}&itemId=${encodeURIComponent(source.briefItemId || "")}`,
+            undefined,
+            abort.signal,
+          );
+          if (data.unavailable || (!data.brief && !data.item))
+            throw new Error(t("该简报版本或条目已不可用"));
+          const itemText = (entry: BriefItem) =>
+            `${briefStatusLabel(entry.status)}${entry.updatedBy?.name ? ` · ${entry.updatedBy.name}` : ""}\n\n${entry.text}`;
+          nextSummary = [
+            tr`空间简报 · 版本 ${source.briefRevision}`,
+            data.item
+              ? itemText(data.item)
+              : [
+                  data.brief!.topic,
+                  ...[
+                    ...(data.brief!.decisions || []),
+                    ...(data.brief!.questions || []),
+                    ...(data.brief!.progress || []),
+                  ].map(itemText),
+                ].join("\n\n"),
+          ].join("\n\n");
         } else if (source.requestId) {
           const data = await api<{
             summary?: string;
@@ -524,14 +651,20 @@ function ActivitySource({
     };
   }, [item.id]);
   useEffect(() => {
-    if (!loaded || !item.unread) return;
+    if (!loaded) return;
     const element = source.replyId
       ? Array.from(
           panel.current?.querySelectorAll<HTMLElement>("[data-reply-id]") || [],
         ).find((node) => node.dataset.replyId === source.replyId)
       : panel.current;
-    if (!element || typeof IntersectionObserver === "undefined") return;
+    if (!element) return;
     if (source.replyId) element.scrollIntoView?.({ block: "center" });
+    if (
+      item.preserveReadState ||
+      !item.unread ||
+      typeof IntersectionObserver === "undefined"
+    )
+      return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (
@@ -578,9 +711,21 @@ function ActivitySource({
       <ErrorBox message={readError} />
       {!loaded && !error && <Loading />}
       {note && (
+        <QuestionHandling
+          key={`${source.spaceId}:${source.executionId || ""}:${source.annotationId}:${source.replyId || ""}`}
+          source={source}
+          question={
+            source.replyId
+              ? note.replies?.find((reply) => reply.id === source.replyId)?.text
+              : note.text
+          }
+        />
+      )}
+      {note && (
         <Discussion
           id={address}
           annotation={note}
+          markVisibleRead={!item.preserveReadState}
           disabled={false}
           onSaved={(next) => {
             setNote(next);
@@ -602,9 +747,11 @@ function ActivitySource({
           </section>
         ))}
       {summary && <MarkdownText source={summary} />}
-      <button className="button small" onClick={locate}>
-        {t("打开原文")}
-      </button>
+      {!source.briefRevision && !source.shadowId && (
+        <button className="button small" onClick={locate}>
+          {t("打开原文")}
+        </button>
+      )}
     </div>
   );
 }

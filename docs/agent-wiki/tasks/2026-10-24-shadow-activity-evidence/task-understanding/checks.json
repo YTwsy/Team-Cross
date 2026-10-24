@@ -1,0 +1,54 @@
+[
+  {
+    "name": "go-test",
+    "command": [
+      "go",
+      "test",
+      "-p",
+      "2",
+      "./...",
+      "-count=1",
+      "-timeout=180s"
+    ],
+    "exitCode": 0,
+    "seconds": 103.876
+  },
+  {
+    "name": "go-vet",
+    "command": [
+      "go",
+      "vet",
+      "./..."
+    ],
+    "exitCode": 0,
+    "seconds": 0.828
+  },
+  {
+    "name": "race",
+    "command": [
+      "go",
+      "test",
+      "-race",
+      "-p",
+      "2",
+      "./internal/shadow",
+      "./internal/collab",
+      "-count=1",
+      "-timeout=240s"
+    ],
+    "exitCode": 0,
+    "seconds": 87.528
+  },
+  {
+    "name": "web-check",
+    "command": [
+      "npm",
+      "run",
+      "check",
+      "--workspace",
+      "packages/web"
+    ],
+    "exitCode": 1,
+    "seconds": 0.269
+  }
+]

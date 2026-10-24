@@ -1,0 +1,10 @@
+### Result
+{
+  "width": 1024,
+  "overflow": false,
+  "theme": "dark"
+}
+### Ran Playwright code
+```js
+await page.evaluate('() => ({width:innerWidth, overflow:document.documentElement.scrollWidth>innerWidth, theme:document.documentElement.dataset.theme})');
+```

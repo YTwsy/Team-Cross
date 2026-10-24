@@ -1,11 +1,95 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useRef, useState } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { MemberActivity } from "../components/MemberActivity";
+import { MemberActivity, ActivitySource } from "../components/MemberActivity";
 import { MemberMentionInput } from "../components/MemberMentionInput";
 import { Discussion } from "../components/Annotations";
-import { editedMentions, type ActivityPage } from "../activity";
+import {
+  editedMentions,
+  type ActivityPage,
+  type ActivityItem,
+} from "../activity";
 import type { Annotation, MemberMention } from "../types";
+
+it.each(["message", "result"])(
+  "reads an exact shadow %s source and clears unavailable content without marking human read",
+  async (kind) => {
+    let available = true;
+    const reads: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        reads.push(String(url));
+        expect(init?.body).toBeUndefined();
+        return {
+          ok: true,
+          json: async () =>
+            available
+              ? kind === "message"
+                ? {
+                    message: {
+                      text: "Original shadow answer",
+                      actor: { name: "Fixture shadow" },
+                    },
+                  }
+                : {
+                    result: {
+                      title: "Compatibility",
+                      taskVersion: 1,
+                      state: "completed",
+                      text: "Original task evidence",
+                      completionChecks: ["Verified original requirement"],
+                    },
+                  }
+              : { unavailable: "shadow_result_unavailable" },
+        };
+      }),
+    );
+    const item: ActivityItem = {
+      id: "fixed-shadow-source",
+      seq: 0,
+      kind: "source",
+      subject: { kind: "brief", id: "space" },
+      source: {
+        spaceId: "space",
+        shadowId: "shadow",
+        ...(kind === "message"
+          ? { shadowMessageId: "reply-original" }
+          : { shadowResultId: "result-original" }),
+      },
+      actor: { kind: "shadow", name: "Fixture shadow" },
+      createdAt: "",
+      preview: "New version must not replace old evidence",
+      reasons: [],
+      unread: false,
+      preserveReadState: true,
+    };
+    const rendered = render(<ActivitySource item={item} onClose={() => {}} />);
+    const original =
+      kind === "message" ? "Original shadow answer" : "Original task evidence";
+    expect(await screen.findByText(original)).toBeVisible();
+    expect(reads[0]).toContain(
+      kind === "message"
+        ? "messageId=reply-original"
+        : "resultId=result-original",
+    );
+    if (kind === "result")
+      expect(screen.getByText("Verified original requirement")).toBeVisible();
+    available = false;
+    rendered.rerender(
+      <ActivitySource
+        item={{ ...item, id: "read-again" }}
+        onClose={() => {}}
+      />,
+    );
+    expect(
+      await screen.findByText("该分身消息或任务结果已不可用"),
+    ).toBeVisible();
+    expect(screen.queryByText(original)).not.toBeInTheDocument();
+    expect(screen.queryByText(item.preview)).not.toBeInTheDocument();
+    expect(reads.every((path) => path.includes("/shadows/source?"))).toBe(true);
+  },
+);
 
 let page: ActivityPage;
 let sourceAvailable: boolean;
@@ -199,4 +283,68 @@ it("clears loaded source content when access revalidation fails", async () => {
     { timeout: 5500 },
   );
   expect(screen.getByText("来源已不可用")).toBeInTheDocument();
+});
+
+it("reads the exact brief item version and clears unavailable historical content", async () => {
+  let available = true;
+  const reads: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      reads.push(String(url));
+      expect(init?.body).toBeUndefined();
+      return {
+        ok: true,
+        json: async () =>
+          available
+            ? {
+                revision: 2,
+                item: {
+                  itemId: "decision",
+                  text: "Historical brief evidence",
+                  status: "confirmed",
+                  sources: [],
+                },
+              }
+            : { unavailable: "brief_revision_unavailable", revision: 2 },
+      };
+    }),
+  );
+  const item: ActivityItem = {
+    id: "brief-source",
+    seq: 0,
+    source: {
+      spaceId: "activity-test",
+      briefRevision: 2,
+      briefItemId: "decision",
+    },
+    subject: { kind: "brief", id: "activity-test" },
+    kind: "brief_updated",
+    actor: { kind: "shadow", name: "Shadow" },
+    createdAt: "",
+    preview: "Latest text must not replace history",
+    reasons: [],
+    unread: false,
+    preserveReadState: true,
+  };
+  const rendered = render(<ActivitySource item={item} onClose={() => {}} />);
+  expect(await screen.findByText("Historical brief evidence")).toBeVisible();
+  expect(reads[0]).toContain("brief-read?revision=2&itemId=decision");
+  expect(
+    screen.queryByText("Latest text must not replace history"),
+  ).not.toBeInTheDocument();
+  available = false;
+  rendered.rerender(
+    <ActivitySource
+      item={{ ...item, id: "brief-source-again" }}
+      onClose={() => {}}
+    />,
+  );
+  expect(await screen.findByText("该简报版本或条目已不可用")).toBeVisible();
+  expect(
+    screen.queryByText("Historical brief evidence"),
+  ).not.toBeInTheDocument();
+  expect(reads.every((path) => path.includes("brief-read?revision=2"))).toBe(
+    true,
+  );
 });

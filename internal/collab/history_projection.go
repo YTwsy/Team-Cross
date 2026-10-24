@@ -20,6 +20,8 @@ type HistoryRead struct {
 
 	readview.Options
 	AnnotationID string
+	ReplyID      string
+	SourceOnly   bool
 	Compact      bool
 	Offset       int
 	IncludeQuote *bool

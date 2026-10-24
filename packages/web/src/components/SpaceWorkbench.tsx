@@ -37,7 +37,10 @@ import { SpaceOverview } from "./SpaceOverview";
 import { SpaceReferencePicker } from "./SpaceReferencePicker";
 import { SpaceShadows } from "./SpaceShadows";
 
-import type { ActivitySource } from "../activity";
+import type { ActivitySource, ActivityItem } from "../activity";
+import { ActivitySource as SourceReader } from "./MemberActivity";
+import { briefStatusLabel } from "../workbench";
+import { mergeBrief, resolveBriefMerge } from "../brief-merge";
 
 type Tab =
   | "overview"
@@ -347,9 +350,19 @@ export function SpaceWorkbench({
   );
   useEffect(() => {
     if (!activitySource) return;
-    if (activitySource.requestId) {setSelectedRequest(activitySource.requestId);setTab("requests");}
-    else if (activitySource.annotationId || activitySource.materialId || activitySource.executionId) {setTab("reading");if (activitySource.annotationId) setCommentsOpen(true);}
-    else setTab("brief");
+    if (activitySource.requestId) {
+      setSelectedRequest(activitySource.requestId);
+      setTab("requests");
+    } else if (activitySource.briefRevision) {
+      setTab("brief");
+    } else if (
+      activitySource.annotationId ||
+      activitySource.materialId ||
+      activitySource.executionId
+    ) {
+      setTab("reading");
+      if (activitySource.annotationId) setCommentsOpen(true);
+    } else setTab("brief");
   }, [activitySource]);
   const detail = useResource<SpaceRequest>(
     selectedRequest
@@ -423,7 +436,11 @@ export function SpaceWorkbench({
           )
             draft[kind].push({
               text: request.summary || "",
-              sources: request.references,
+              sources: request.references.map(
+                ({ kind: _kind, ...source }) => source,
+              ),
+              itemId: crypto.randomUUID(),
+              status: kind === "decisions" ? "proposed" : "open",
               requestId: request.id,
             });
           return draft;
@@ -931,19 +948,42 @@ function RequestCard({
           <summary>{t("查看接手上下文")}</summary>
           <p>{r.context.brief.topic || t("议题尚未填写")}</p>
           {r.context.brief.decisions.map((item, index) => (
-            <p key={index}>{item.text}</p>
+            <div key={item.itemId || index}>
+              <span className="small-text muted">
+                {briefStatusLabel(item.status)}
+              </span>
+              <p>{item.text}</p>
+            </div>
           ))}
           {!!r.context.brief.questions?.length && (
             <div>
               <h4>{t("待解决事项")}</h4>
               {r.context.brief.questions.map((item, index) => (
-                <p key={index}>{item.text}</p>
+                <div key={item.itemId || index}>
+                  <span className="small-text muted">
+                    {briefStatusLabel(item.status)}
+                  </span>
+                  <p>{item.text}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {!!r.context.brief.progress?.length && (
+            <div>
+              <h4>{t("工作进展")}</h4>
+              {r.context.brief.progress.map((item, index) => (
+                <div key={item.itemId || index}>
+                  <span className="small-text muted">
+                    {briefStatusLabel(item.status)}
+                  </span>
+                  <p>{item.text}</p>
+                </div>
               ))}
             </div>
           )}
           {r.context.previousBriefRevision !== undefined &&
             r.context.previousBriefRevision !== r.context.brief.revision && (
-              <p className="notice">{tr`简报已从版本 ${r.context.previousBriefRevision} 更新到 ${r.context.brief.revision}，请重新核对已确认决定。`}</p>
+              <p className="notice">{tr`简报已从版本 ${r.context.previousBriefRevision} 更新到 ${r.context.brief.revision}，请核对条目内容与状态。`}</p>
             )}
           {r.context.parent && (
             <p>{r.context.parent.summary || r.context.parent.instruction}</p>
@@ -1010,6 +1050,65 @@ function RequestCard({
   );
 }
 
+function briefSourceName(c: Collaboration, source: ActivitySource): string {
+  if (source.shadowId)
+    return source.shadowResultId ? t("分身任务结果") : t("分身消息");
+  if (source.annotationId)
+    return (
+      referenceName(c, {
+        spaceId: source.spaceId,
+        kind: "annotation",
+        annotationId: source.annotationId,
+        executionId: source.executionId,
+      }) + (source.replyId ? ` · ${t("具体回复")}` : "")
+    );
+  if (source.materialId)
+    return referenceName(c, {
+      spaceId: source.spaceId,
+      kind: "material",
+      materialId: source.materialId,
+      version: source.version,
+    });
+  if (source.briefRevision) return tr`空间简报 · 版本 ${source.briefRevision}`;
+  if (source.requestId) return t("协作请求结果");
+  return t("协作会话轮次");
+}
+function briefSourceItem(source: ActivitySource): ActivityItem {
+  const kind = source.shadowId
+    ? "shadow"
+    : source.annotationId
+      ? "discussion"
+      : source.materialId
+        ? "material"
+        : source.briefRevision
+          ? "brief"
+          : source.requestId
+            ? "request"
+            : "execution";
+  return {
+    id: `source:${JSON.stringify(source)}`,
+    seq: 0,
+    source,
+    subject: {
+      kind,
+      id:
+        source.annotationId ||
+        source.materialId ||
+        source.requestId ||
+        source.executionId ||
+        source.shadowId ||
+        source.spaceId,
+      executionId: source.executionId,
+    },
+    kind: "source",
+    preview: "",
+    actor: { kind: "unknown", name: "" },
+    createdAt: "",
+    reasons: [],
+    unread: false,
+    preserveReadState: true,
+  };
+}
 function BriefSources({
   c,
   options,
@@ -1019,20 +1118,23 @@ function BriefSources({
 }: {
   c: Collaboration;
   options: LibraryReference[];
-  sources: LibraryReference[];
+  sources: ActivitySource[];
   disabled: boolean;
-  onChange: (sources: LibraryReference[]) => void;
+  onChange: (sources: ActivitySource[]) => void;
 }) {
   const [query, setQuery] = useState("");
-  // Keep fixed references selectable even if a published source was withdrawn.
-  const choices = [
-    ...options,
+  const choices: ActivitySource[] = options.map(
+    ({ kind: _kind, ...ref }) => ref,
+  );
+  const key = (source: ActivitySource) =>
+    JSON.stringify({ ...source, kind: undefined });
+  choices.push(
     ...sources.filter(
-      (ref) => !options.some((option) => sameReference(ref, option)),
+      (ref) => !choices.some((option) => key(option) === key(ref)),
     ),
-  ];
+  );
   const matching = choices.filter((ref) =>
-    referenceName(c, ref)
+    briefSourceName(c, ref)
       .toLocaleLowerCase()
       .includes(query.trim().toLocaleLowerCase()),
   );
@@ -1058,22 +1160,20 @@ function BriefSources({
         aria-label={t("关联已发布来源")}
       >
         {matching.map((ref) => (
-          <label key={JSON.stringify(ref)}>
+          <label key={key(ref)}>
             <input
               type="checkbox"
               disabled={disabled}
-              checked={sources.some((selected) => sameReference(selected, ref))}
+              checked={sources.some((selected) => key(selected) === key(ref))}
               onChange={(event) =>
                 onChange(
                   event.target.checked
                     ? [...sources, ref]
-                    : sources.filter(
-                        (selected) => !sameReference(selected, ref),
-                      ),
+                    : sources.filter((selected) => key(selected) !== key(ref)),
                 )
               }
             />
-            <span>{referenceName(c, ref)}</span>
+            <span>{briefSourceName(c, ref)}</span>
           </label>
         ))}
         {!matching.length && (
@@ -1105,6 +1205,11 @@ function BriefPanel({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [source, setSource] = useState<ActivitySource>();
+  const [merge, setMerge] = useState<ReturnType<typeof mergeBrief>>();
+  const command = useRef<{ payload: string; id: string } | undefined>(
+    undefined,
+  );
   const options: LibraryReference[] = (c.materials || [])
     .filter((m) => !m.withdrawnAt)
     .flatMap((m) =>
@@ -1124,16 +1229,35 @@ function BriefPanel({
         annotationId: a.id,
       })),
   );
-  async function save() {
-    if (!draft || busy) return;
+  async function mergeLatest(latest?: SpaceBrief) {
+    if (!draft) return;
     setBusy(true);
     setError("");
     try {
-      await api(`collaborations/${c.id}/workbench/brief`, {
-        baseRevision: draft.revision,
-        brief: draft,
-      });
-      setDraft(undefined);
+      const [old, current] = await Promise.all([
+        draft.revision > 0
+          ? api<{ brief?: SpaceBrief }>(
+              `collaborations/${c.id}/workbench/brief-read?revision=${draft.revision}`,
+            )
+          : Promise.resolve({
+              brief: {
+                ...draft,
+                topic: "",
+                decisions: [],
+                questions: [],
+                progress: [],
+              },
+            }),
+        latest
+          ? Promise.resolve({ brief: latest })
+          : api<{ brief?: SpaceBrief }>(
+              `collaborations/${c.id}/workbench/brief-read`,
+            ),
+      ]);
+      if (!current.brief) throw new Error(t("当前简报暂不可读取。"));
+      const next = mergeBrief(old.brief, draft, current.brief);
+      if (next.conflicts.length) setMerge(next);
+      else setDraft(next.brief);
       onSaved();
     } catch (e) {
       setError(errorText(e));
@@ -1141,7 +1265,54 @@ function BriefPanel({
       setBusy(false);
     }
   }
-  const items = (kind: "decisions" | "questions", label: string) => (
+  async function save() {
+    if (!draft || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const payload = JSON.stringify(draft);
+      if (command.current?.payload !== payload)
+        command.current = { payload, id: crypto.randomUUID() };
+      const result = await api<{ state?: string; brief?: SpaceBrief }>(
+        `collaborations/${c.id}/workbench/brief`,
+        {
+          requestId: command.current!.id,
+          baseRevision: draft.revision,
+          brief: draft,
+        },
+      );
+      if (result.state === "conflict") {
+        await mergeLatest(result.brief);
+        return;
+      }
+      command.current = undefined;
+      setDraft(undefined);
+      onSaved();
+    } catch (e) {
+      if (command.current) {
+        try {
+          const receipt = await api<{ state?: string }>(
+            `collaborations/${c.id}/workbench/brief-read?requestId=${encodeURIComponent(command.current.id)}`,
+          );
+          if (receipt.state === "saved") {
+            command.current = undefined;
+            setDraft(undefined);
+            onSaved();
+            return;
+          }
+        } catch {
+          /* Preserve the draft when the original receipt is still unknown. */
+        }
+      }
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const items = (
+    kind: "decisions" | "questions" | "progress",
+    label: string,
+  ) => (
     <section className={`workbench-brief-group ${kind}`}>
       <div className="workbench-brief-group-heading">
         <Icon name={kind === "decisions" ? "check" : "comment"} />
@@ -1149,7 +1320,7 @@ function BriefPanel({
         <span className="count">{(draft || brief)[kind]?.length || 0}</span>
       </div>
       {(draft || brief)[kind]?.map((item, i) => (
-        <div className="workbench-brief-item" key={i}>
+        <div className="workbench-brief-item" key={item.itemId || i}>
           {draft ? (
             <>
               <label>
@@ -1162,12 +1333,45 @@ function BriefPanel({
                   onChange={(e) =>
                     setDraft({
                       ...draft,
-                      [kind]: draft[kind].map((v, index) =>
+                      [kind]: (draft[kind] || []).map((v, index) =>
                         index === i ? { ...v, text: e.target.value } : v,
                       ),
                     })
                   }
                 />
+              </label>
+              <label>
+                {t("条目状态")}
+                <select
+                  value={
+                    item.status ||
+                    (kind === "decisions"
+                      ? "proposed"
+                      : kind === "questions"
+                        ? "open"
+                        : "in_progress")
+                  }
+                  disabled={busy || disabled}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      [kind]: (draft[kind] || []).map((v, index) =>
+                        index === i ? { ...v, status: event.target.value } : v,
+                      ),
+                    })
+                  }
+                >
+                  {(kind === "decisions"
+                    ? ["proposed", "confirmed", "disputed"]
+                    : kind === "questions"
+                      ? ["open", "resolved"]
+                      : ["in_progress", "completed", "blocked"]
+                  ).map((status) => (
+                    <option key={status} value={status}>
+                      {briefStatusLabel(status)}
+                    </option>
+                  ))}
+                </select>
               </label>
               <BriefSources
                 c={c}
@@ -1177,7 +1381,7 @@ function BriefPanel({
                 onChange={(sources) => {
                   setDraft({
                     ...draft,
-                    [kind]: draft[kind].map((v, index) =>
+                    [kind]: (draft[kind] || []).map((v, index) =>
                       index === i ? { ...v, sources } : v,
                     ),
                   });
@@ -1189,7 +1393,9 @@ function BriefPanel({
                 onClick={() =>
                   setDraft({
                     ...draft,
-                    [kind]: draft[kind].filter((_, index) => index !== i),
+                    [kind]: (draft[kind] || []).filter(
+                      (_, index) => index !== i,
+                    ),
                   })
                 }
               >
@@ -1198,8 +1404,41 @@ function BriefPanel({
             </>
           ) : (
             <>
+              <p className="small-text muted">
+                {briefStatusLabel(item.status)}
+                {item.updatedBy?.name ? ` · ${item.updatedBy.name}` : ""}
+              </p>
               <p>{item.text}</p>
-              <References c={c} refs={item.sources || []} onLocate={onLocate} />
+              <div className="workbench-references">
+                {(item.sources || []).map((ref) => (
+                  <button
+                    className="text-link"
+                    key={JSON.stringify(ref)}
+                    onClick={() => {
+                      if (ref.materialId && !ref.annotationId)
+                        onLocate({
+                          spaceId: ref.spaceId,
+                          kind: "material",
+                          materialId: ref.materialId,
+                          version: ref.version,
+                        });
+                      else if (
+                        ref.annotationId &&
+                        !ref.replyId &&
+                        !ref.executionId
+                      )
+                        onLocate({
+                          spaceId: ref.spaceId,
+                          kind: "annotation",
+                          annotationId: ref.annotationId,
+                        });
+                      else setSource(ref);
+                    }}
+                  >
+                    {briefSourceName(c, ref)}
+                  </button>
+                ))}
+              </div>
             </>
           )}
           {item.requestId && (
@@ -1214,17 +1453,34 @@ function BriefPanel({
       ))}
       {!(draft || brief)[kind]?.length && (
         <p className="workbench-brief-placeholder">
-          {kind === "decisions" ? t("尚无已确认决定") : t("暂无待解决事项")}
+          {kind === "decisions"
+            ? t("暂无决定或建议")
+            : kind === "questions"
+              ? t("暂无待解决事项")
+              : t("暂无进展记录")}
         </p>
       )}
       {draft && (
         <button
           className="button small"
-          disabled={busy || disabled || draft[kind].length >= 32}
+          disabled={busy || disabled || (draft[kind]?.length || 0) >= 32}
           onClick={() =>
             setDraft({
               ...draft,
-              [kind]: [...draft[kind], { text: "", sources: [] } as BriefItem],
+              [kind]: [
+                ...(draft[kind] || []),
+                {
+                  itemId: crypto.randomUUID(),
+                  text: "",
+                  status:
+                    kind === "decisions"
+                      ? "proposed"
+                      : kind === "questions"
+                        ? "open"
+                        : "in_progress",
+                  sources: [],
+                } as BriefItem,
+              ],
             })
           }
         >
@@ -1239,7 +1495,7 @@ function BriefPanel({
       <div className="workbench-section-heading">
         <div>
           <h2>{t("空间简报")}</h2>
-          <p className="muted small-text">{tr`版本 ${brief.revision} · 由成员确认，所有参与会话均可读取。`}</p>
+          <p className="muted small-text">{tr`版本 ${brief.revision} · 所有参与者均可读取。`}</p>
         </div>
         {!draft && (
           <button
@@ -1259,9 +1515,7 @@ function BriefPanel({
         <div className="workbench-draft-notice" role="status">
           <span className="workbench-draft-dot" aria-hidden="true" />
           <strong>{t("草稿尚未保存")}</strong>
-          <span>
-            {t("保存表示你已核对这些内容。会话建议需要由成员确认后纳入。")}
-          </span>
+          <span>{t("保存所做修改；条目的确认状态分别保留。")}</span>
         </div>
       )}
       {draft ? (
@@ -1282,18 +1536,96 @@ function BriefPanel({
         </div>
       )}
       <div className="workbench-brief-columns">
-        {items("decisions", t("已确认决定"))}
+        {items("decisions", t("决定与建议"))}
         {items("questions", t("待解决事项"))}
+        {items("progress", t("工作进展"))}
       </div>
+      {source && (
+        <Modal title={t("来源详情")} onClose={() => setSource(undefined)}>
+          <SourceReader
+            item={briefSourceItem(source)}
+            onLocate={onLocate}
+            onClose={() => setSource(undefined)}
+          />
+        </Modal>
+      )}
+      {merge && (
+        <Modal title={t("合并简报修改")} onClose={() => setMerge(undefined)}>
+          <p className="muted">
+            {t(
+              "不同条目的修改已合并。请选择冲突内容，完成后仍可编辑，再保存简报。",
+            )}
+          </p>
+          {merge.conflicts.map((conflict) => (
+            <section className="workbench-brief-merge" key={conflict.key}>
+              {(["local", "remote"] as const).map((choice) => {
+                const entry =
+                  conflict.kind === "item" ? conflict[choice] : undefined;
+                return (
+                  <div key={choice}>
+                    <strong>
+                      {choice === "local" ? t("我的修改") : t("最新内容")}
+                    </strong>
+                    {entry && (
+                      <p className="muted small-text">
+                        {briefStatusLabel(entry.item.status)} ·{" "}
+                        {entry.item.updatedBy?.name || ""}
+                      </p>
+                    )}
+                    <p>
+                      {conflict.kind === "topic"
+                        ? conflict[choice]
+                        : entry?.item.text || t("已移除此条目")}
+                    </p>
+                    {(entry?.item.sources || []).map((ref) => (
+                      <p className="muted small-text" key={JSON.stringify(ref)}>
+                        {briefSourceName(c, ref)}
+                      </p>
+                    ))}
+                    <button
+                      className="button"
+                      onClick={() => {
+                        const next = resolveBriefMerge(
+                          merge.brief,
+                          conflict,
+                          choice,
+                        );
+                        const conflicts = merge.conflicts.filter(
+                          (item) => item.key !== conflict.key,
+                        );
+                        if (conflicts.length)
+                          setMerge({ brief: next, conflicts });
+                        else {
+                          setDraft(next);
+                          setMerge(undefined);
+                        }
+                      }}
+                    >
+                      {choice === "local"
+                        ? t("保留我的修改")
+                        : t("采用最新内容")}
+                    </button>
+                  </div>
+                );
+              })}
+            </section>
+          ))}
+        </Modal>
+      )}
       <ErrorBox message={error} />
       {draft && (
         <>
           {brief.revision !== draft.revision && (
-            <p className="notice">
-              {t(
-                "其他成员已更新简报。请保留草稿内容，取消编辑后读取最新版本再合并。",
-              )}
-            </p>
+            <div className="notice">
+              <p>{t("其他成员已更新简报。合并最新内容会保留未冲突的修改。")}</p>
+              <button
+                className="button"
+                disabled={busy}
+                onClick={() => void mergeLatest()}
+              >
+                {t("合并最新内容")}
+              </button>
+            </div>
           )}
           <div className="workbench-card-actions workbench-brief-save">
             <button
@@ -1302,7 +1634,7 @@ function BriefPanel({
               onClick={() => void save()}
             >
               <Icon name="check" />
-              {busy ? t("正在保存…") : t("保存确认后的简报")}
+              {busy ? t("正在保存…") : t("保存简报")}
             </button>
             <button
               className="button"
@@ -1872,7 +2204,7 @@ function AssistantSetup({
       <div className="workbench-bootstrap-preview">
         <h3>{t("启动时会交给它的信息")}</h3>
         <ul>
-          <li>{tr`当前议题与已确认简报 · 版本 ${view.brief.revision}`}</li>
+          <li>{tr`当前议题与空间简报 · 版本 ${view.brief.revision}`}</li>
           <li>{t("已发布材料目录与固定版本，不自动导入私人历史")}</li>
           <li>{t("明确关联的接收会话、待处理请求和当前进展")}</li>
           <li>{t("按需介入的规则：先读取并确认接手，再响应明确请求")}</li>

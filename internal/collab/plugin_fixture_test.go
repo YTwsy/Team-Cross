@@ -110,7 +110,7 @@ func TestChatGPTPluginFixture(t *testing.T) {
 	// real Core storage. Model delivery has a separate opt-in native fixture.
 	_, caller, target := spaceChannel(t, a, space.record.ID)
 	ref := LibraryReference{SpaceID: space.record.ID, Kind: "material", MaterialID: mid, Version: 1}
-	wb(t, a, space.record.ID, "brief", workbenchInput{Brief: SpaceBrief{Topic: "核对连接池调查与协作重试。", Decisions: []BriefItem{{Text: "先核对已发布的固定版本。", Sources: []LibraryReference{ref}}}, Questions: []BriefItem{}}})
+	wb(t, a, space.record.ID, "brief", workbenchInput{Brief: SpaceBrief{Topic: "核对连接池调查与协作重试。", Decisions: []BriefItem{{Text: "先核对已发布的固定版本。", Sources: []SpaceSourceRef{{SpaceID: ref.SpaceID, MaterialID: ref.MaterialID, Version: ref.Version, AnnotationID: ref.AnnotationID}}}}, Questions: []BriefItem{}}})
 	requestID := uuid.NewString()
 	wb(t, a, space.record.ID, "send", workbenchInput{RequestID: requestID, TargetID: target.ID, References: []LibraryReference{ref, {SpaceID: space.record.ID, Kind: "annotation", AnnotationID: note.ID}}, Instruction: "请核对固定版本的样本条件和待复测事项。", Intent: "analyze"})
 	a.pumpWorkbench(ctx)

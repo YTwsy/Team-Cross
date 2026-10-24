@@ -1,0 +1,17 @@
+[
+  {
+    "name": "web-check-final",
+    "exitCode": 0,
+    "seconds": 4.357
+  },
+  {
+    "name": "web-test-final",
+    "exitCode": 0,
+    "seconds": 9.554
+  },
+  {
+    "name": "web-build-final",
+    "exitCode": 0,
+    "seconds": 9.202
+  }
+]

@@ -167,7 +167,9 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 | `POST …/workbench/remove` | `{targetId}`，仅目标所属成员或空间发起者解除关联；保留记录，取消未投递请求 |
 | `POST …/workbench/send` | `{requestId,targetId,parentRequestId?,references,instruction,intent}`；0–32 项本空间固定材料/公开批注，空引用可用于简报协作；其他限额沿用配对请求 |
 | `POST …/workbench/cancel` | `{requestId}`，仅发起成员或空间发起者取消 `queued` 请求 |
-| `POST …/workbench/brief` | `{baseRevision,brief:{topic,decisions,questions}}`，人工成员确认，CAS 更新；条目为 `{text,sources,requestId?}`，引用请求须已完成/失败且有摘要 |
+| `GET …/workbench/brief-read?revision=&itemId=&requestId=` | 默认读取当前简报；revision 选准确历史版本，itemId 只返回该条目，requestId 核对保存命令。无效版本参数拒绝，不回退到当前正文 |
+| `POST …/workbench/brief` | `{requestId,baseRevision,brief:{topic,decisions,questions,progress}}`，以实际作者完整保存，CAS 更新；界面使用此入口 |
+| `POST …/workbench/brief-update` | `{requestId,baseRevision,topic?,changes}`，每项为 `{operation:upsert\|remove,section:decisions\|questions\|progress,itemId?,item?}`；upsert 在 item 中提供稳定 itemId，remove 在修改项提供 itemId |
 | `POST …/workbench/assistant` | `{baseEpoch,state,targetId?,requestId?}`，仅空间发起者；`state=initializing|paused|disabled`，初始化需就绪的独立目标和新的请求 ID |
 | `POST …/workbench/create-receiver` | `{requestId,name}`，在当前成员 Core 创建并关联独立 Codex 接收会话；相同 ID 不重复创建 |
 | `GET /space-receivers?spaceId=…` | 当前 Core 自己的接收会话、原生 TUI 命令、运行时确认模型及状态；含 `activeTurnId`、持久化的 `receivingPaused`、等待执行/进程退出的 `releasePending`，不通过远端返回 |
@@ -195,19 +197,33 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 
 普通请求保存 `briefRevision` 与 `context:{brief,previousBriefRevision?,parent?}`；`parent` 为 `{requestId,state,instruction,summary?}` 的发送时快照。`previousBriefRevision` 按目标最近的读取时间计算，包括角色接手。列表省略 `context`；完整读取保留。创建时为读取封装和后续结果预留 16 KiB，超过读取预算的上下文在外部投递前拒绝；重复请求保持旧快照。
 
-简报议题最多 2000 字，决定/问题各最多 32 条、每条 2000 字，整体 JSON 最大 24 KB，来源同样逐次核对公开范围。`revision` 递增并记录确认成员。专用角色为 `disabled/initializing/ready/paused/failed`，启用、暂停、停用或更换时递增 `epoch`；启动请求保存 `SpaceBootstrap`，包含空间身份、角色版本、完整确认简报、最多 16 份材料的最新固定版本目录、16 个目标、32 个待处理 ID、对应总数及规则。接手必须同时匹配当前 bootstrap ID 和 epoch，先读取再成功完成，不能由送达推断。
+简报议题最多 2000 字，决定/问题/进展各最多 32 条、每条 2000 字，整体 JSON 最大 24 KB。条目为 `{itemId,text,status,sources,requestId?,updatedBy,updatedAt}`；实际作者与时间由 Core 写入，未变化条目保留原记录。决定状态为 proposed/confirmed/disputed，问题为 open/resolved，进展为 in_progress/completed/blocked。新决定默认 proposed，保存不自动确认全部内容；无条目状态的既有人工简报保留原确认含义。
 
-个人 MCP 和绑定运行时都提供：`list_space_targets`、`read_space_brief`、`list_space_requests`、`get_space_request`、`send_space_request`。个人工具需要 `spaceId`，绑定运行时移除顶层选择字段并拒绝额外空间选择。请求目录每页最多 10 项，返回短预览和 `nextOffset`，完整正文按 ID 读取。投递是需要用户明确授权的写工具；不因读取材料、简报或收到其他请求自动获得授权。
+来源沿用 SpaceSourceRef，新增 `briefRevision/briefItemId` 精确定位历史简报；每条最多 32 项本空间公开依据，支持固定材料、准确讨论/回复、已完成或失败且有摘要的请求、历史简报及已终结的公开执行轮次。新增或修改条目逐项核对来源，未改动条目可保留后来已撤回的历史引用。简报事件携带实际修订；失效来源明确返回不可用，不拿最新正文替换。
+
+每次更新最多 32 项修改，requestId 为稳定 UUID，内容实际改变才递增 revision；无变化仍保存命令回执。成功返回 `{state:saved,requestId,revision,source,brief,readBack:{tool:read_space_brief,requestId}}`，同一命令及作者重试取得原修订，同 ID 换内容或作者拒绝。CAS 冲突返回 `{state:conflict,revision,brief,conflicts}`，不写入；conflicts 为改变的相关条目或 `$topic/$history`，其他条目引起的全局版本冲突可为空。合并后使用新命令 ID。
+
+workbench 另存 briefHistory 和 briefCommands，当前版本之外保留最近 256 份历史快照，最多 4096 条命令回执。保存失败回滚正文、历史和回执；容量达到上限时拒绝新命令，不删去去重记录后重新执行。按 requestId 读取返回实际保存版本，必要时只返回指定条目；历史过期为 brief_revision_unavailable，条目缺失为 brief_item_missing。历史正文不可用时仍保留已保存状态，避免不明结果被误当作未执行。
+
+专用角色为 `disabled/initializing/ready/paused/failed`，启用、暂停、停用或更换时递增 `epoch`；启动请求保存 SpaceBootstrap，包含空间身份、角色版本、完整简报及条目状态、最多 16 份材料的最新固定版本目录、16 个目标、32 个待处理 ID、对应总数及规则。角色可根据当前工作直接咨询、跟进和整理简报。接手必须同时匹配当前 bootstrap ID 和 epoch，先读取再成功完成，不能由送达推断。
+
+个人 MCP 和绑定运行时都提供：`list_space_targets`、`read_space_brief`、`update_space_brief`、`list_space_requests`、`get_space_request`、`send_space_request`；分身使用同一简报业务接口。个人工具需要 spaceId，绑定运行时移除顶层选择字段并拒绝额外空间选择。请求目录每页最多 10 项，返回短预览和 nextOffset，完整正文按 ID 读取。按当前工作发起普通咨询、接续和整理简报无需逐次发送许可，保留真实身份、来源及共同执行的输入归属。简报更新回执使用 read_space_brief(requestId)，get_space_request 仅查询实际协作请求。
 
 独立接收会话保存于 `DataDir/receivers/receiver-<requestId>/receiver.json`，专用目录为其 `workspace/`。使用 `thread/start` 并核对实际 ID，不创建空间 `execution`；`runtime-annotations/receiver-…` 使用自己的 token，所有工具调用均验证原生 Provider/Session/Turn 身份。Core 重启不自动启动进程；明确 `start` 沿用原生 ID。配对、成员引用别名与请求回执在接收 Core 桥接，重映射只处理 `spaceId` 字段，不改写用户文本。
 
 ## 本机数字分身
 
-本机入口为 `collaborations/{spaceId}/shadows/view|models|create|send`。`view` 使用 GET，可传 `shadowId` 和 `offset`，每页最近 100 条，`nextOffset` 向前翻页；不传 ID 仅返回目录元数据。`create` 由当前本机成员提交 UUID `requestId`、`name`、绝对 `cwd` 和 `settings:{model,modelProvider,reasoningEffort}`，创建 ID 等于 requestId，同 ID 必须匹配原配置（含 settings）。仅接入本机 Codex。
+本机入口为 `collaborations/{spaceId}/shadows/view|source|models|create|send`。`view` 使用 GET，可传 `shadowId` 和 `offset`，每页最近 100 条，`nextOffset` 向前翻页；不传 ID 仅返回目录元数据。`create` 由当前本机成员提交 UUID `requestId`、`name`、绝对 `cwd` 和 `settings:{model,modelProvider,reasoningEffort}`，创建 ID 等于 requestId，同 ID 必须匹配原配置（含 settings）。仅接入本机 Codex。
+
+`GET collaborations/{spaceId}/shadows/source` 接受 `shadowId` 和 `messageId`／`resultId` 二选一，返回 `{source,message?|result?|unavailable?}`；`read_space_shadow` 使用相同选择器，不与 offset 分页混用。消息正文身份不可覆盖，结果为固定 `TaskResult`，保留 taskId/taskVersion/sourceId/messageId/parentId、state/outcome/text、completionCriteria/completionChecks/checkpoint/sources/createdAt。不可用时返回 shadow_message_unavailable 或 shadow_result_unavailable，不回退到当前结果。
+
+本机 `Record.taskResults` 随业务结束同次落盘；跨 Core sync 带结果快照，主机拒绝改写已知结果 ID 的内容。每个分身保留 256 份，普通 view 仅带最近 20 份不含正文的 taskResults 索引与 taskResultCount；目录省略结果索引。已有原生投递与结果通知账本的语义不变。
 
 `GET collaborations/{spaceId}/shadows/models?cwd=…` 经成员检查后在当前本机读取原生配置与模型列表，返回 `models` 和 `defaults`；不通过空间主机查询其他成员配置。`models` 包含 model/displayName/defaultReasoningEffort/supportedReasoningEfforts；`custom:true` 表示原生未提供能力列表。`defaults` 与 settings 同结构。只返回模型元数据，不返回配置路径、凭据、MCP 或 Provider 定义。`create` 再核对选择，持久化成功后的同 ID 重试不重新解析默认值；旧客户端省略 settings 重试已存在的 ID 时仅返回原记录，不用于新建。
 
 分身视图的 `settings` 是不可变启动选择，顶层 model/modelProvider/reasoningEffort 是最近原生确认值；尚未确认时保持空值。原生线程创建、恢复和轮次都沿用启动设置，不增加消息级覆盖字段。
+
+本机 `Segment`、`Job` 和在途 `Transition` 保存 `toolsetDigest`，根据实际动态工具注册及角色版本生成；不向 `thread/resume` 发送不存在的工具参数。主段通过既有交接切换到新注册，工作任务升级保存 `previousThreads` 并保留原目标版本、检查点及运行账本。摘要和工作会话升级链只作本机记录，不进入共享 View；普通恢复继续准确原生 ID。创建回执未知仍由既有 creating/unknown 状态处理，不凭工具变化重新创建。
 
 `send` 提交 `{shadowId,message:{id,text}}`，ID 为 UUID，正文上限 64 KiB。作者由传输确定；同 ID 只接受相同作者和内容。返回投递状态 `sending|sendFailed|delivered`；前两者不能称为已送达。分身 Core 持久写入后返回 `receivedAt`，共享消息才成为 delivered；后续 `submitted|completed|failed|unknown` 描述处理状态，不能覆盖送达事实。失败只允许明确手动同 ID 重试。
 
@@ -215,9 +231,33 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 
 成员 Core 经现有受认证 TLS 传输调用 `/v2/shadows/check|register|view|send|sync`；只有注册 owner 可以同步该分身。空间主机核对接收快照里的原始消息 ID、文本、作者与 `receivedAt`。在线租约为内存态、10 秒过期，投递尝试 12 秒后失败；重启或恢复在线不会把失败尝试重新加入投递。共享快照不包含 Codex home、工具调用账本或审批。
 
-普通 MCP 暴露 `list_space_shadows`、`read_space_shadow`、`send_space_shadow`；发送要求明确用户授权和经核验的调用会话身份，作者仍归属空间成员。绑定运行时自动确定空间，不允许传入其他 spaceId。UI 桥只允许相应公开读写路由，不暴露 sync/register 或原生 RPC。
+普通 MCP 暴露 `list_space_shadows`、`read_space_shadow`、`send_space_shadow`；可为当前工作开展相关协作，不要求逐条重复确认发送。调用身份经传输核验，分身调用保留 shadow 身份及所属成员。绑定运行时自动确定空间，不允许传入其他 spaceId。UI 桥只允许相应公开读写路由，不暴露 sync/register 或原生 RPC。
 
-分身原生 thread 附加 `shadow_recall|shadow_remember|shadow_task|shadow_topics|shadow_history` 动态工具。只有处理真实成员输入的主轮可写记忆、话题或派发任务；工作、管家、整理轮只能读取这些 Core 工具。原生工具与权限继续继承；各状态及故障接续见 [分身契约](decisions/local-shadows.md)。
+新建分身原生 thread 附加 `shadow_recall|shadow_remember|shadow_task|shadow_topics|shadow_history|shadow_watch` 及现有空间协作动态工具。工作、结果和接续轮可维护任务与话题，观察及维护轮不执行公开协作写入；长期记忆仍基于实际成员输入。Core 按实际工具注册摘要在空闲边界升级旧主段及待接续 W；不向 thread/resume 传新增工具参数，不重放未知输入。原生工具与权限继续继承；各状态及故障接续见 [分身契约](decisions/local-shadows.md)。
+
+`shadow_watch` 接受 operation 为 read/list/start/update/pause/resume/complete。read 使用 id 或 subject；list 使用 limit 1–50 和带当前清单版本的 cursor，默认 20 个索引。写入需要稳定 requestId 和 baseGoalVersion；新对象为 0，已有对象从 read 取得。start 需要准确 subject（material/discussion/execution），可带 goal；update 修改 goal；其他操作保持目标正文。实际来源由活动轮次追溯至所属成员原消息，不接受调用方指定作者。成员 Core 将意图、目标与回执保存在本机 attention，最多 10,000 个操作回执，受同一 32 MiB 总预算限制。
+
+start 通过所属成员的认证 `/v2/member-activity/ensure-follow` 复用已有关注，输入为 subject/requestId；主机核对对象并原子保存新 revision 与初始化信号。同一 requestId 返回原结果，不因其后取消关注而重做。普通 `follow` 仍要求显式偏好 revision；该内部接续入口不替代其比较更新语义。目标版本与认识 revision 独立；完成目标不会自动取消成员关注。
+
+`shadow_task ask` 传 `question:{tool,arguments,condition,respondsTo?}` 与 checkpoint；tool 为现有 `reply_to_annotation` 或 `add_annotation`，arguments 复用其完整业务 schema，必须有稳定 requestId。respondsTo 为本空间准确讨论/回复来源数组，多原问题的新根讨论必须指定，显式空数组表示独立问题；真实回复目标不能移除，总关联最多八项。显式来源核对实际根项或回复并保存短摘录，关系与发送意图一起持久化，重试不能改换。关联现有任务还需 id/baseVersion/baseRevision；同时新建任务需 title/prompt/completionCriteria，kind 默认 coordination，可选 work。Core 原子保存私有 `TaskQuestion`、J 的 discussion 依赖和行动记录，然后执行原业务工具；返回 `{question,task,tasks,totalTasks,totalConditions,note}`，task 带创建任务的当前 revision，tasks 最多 16 项，各保留自己的条件、状态和下一步。`questions` 无 id 返回最近 32 条索引，指定 id 回读问题及当前任务。问题 ID 由 shadowId 与 requestId 稳定派生，和公开行动 requestId 分开。wait 可传已登记 questionId，实际来源由 Core 填充，调用方不能伪造待核对行动身份。
+
+`shadow_task` 的 start 或 checkpoint/wait/finish 可传 `relatedFocuses:[{id,reason,mode?}]`，表示本任务使用的已有认识对象完整清单，最多八项；省略保留原关联，空数组移除关联。mode 默认 live，持续接收准确对象的事实；snapshot 固定登记时的事实与证据，省略 mode 保留已有关系模式。它不改变 followId 的目标控制。`contexts` 返回 subject、用途、current/reviewed 有界事实及 needsReview；每份快照最多 3 KiB，带 revision、processedSeq、准确 evidence 与 partial。`contextReviews:[{id,revision,explanation}]` 核对本任务当前事实版本及其影响。Core 指纹和原生轮 contextInputs 仅供持久去重，不向模型或共享 View 投影。wait 可等待准确依赖或已关联认识的变化，完成仍需核对所有当前认识和任务条件；共享 View 与普通任务索引不含 contexts。
+
+内部 `POST /v2/shadow-task-source` 接受 `{shadowId,query:{subject,cursor:{seq,retention,initialized}}}`；只由创建成员的 Core 为该空间的分身读取，不发送任务目标、私人关注清单或完整认识。响应 `{cursor,signals,resync?}` 每页最多十六个信号，包含稳定事件 ID、准确 source、作者、state 和短 preview；普通成员偏好与人的已读不影响该来源查询。讨论保留根身份，会话保留 executionId，加入方的 spaceId 在返回时映射成本机别名。
+
+任务私有 `contexts[].sourceChanges` 保存 cursor、signals、错误及最近一次不完整重建的 historyGap（afterSeq/throughSeq/retention），cursor 与该页信号原子保存；认识回写后才取后续页，最多四项异步查询。压缩代次改变时，以 `resync=true` 和 `state=source_resync_partial` 返回有界当前来源，明确历史缺口；认识合并清除待处理信号后仍保留该缺口记录，预览不作为完整原文，按准确来源继续读取。任务暂停或结束后不接收在途旧结果，恢复从保存位置继续；snapshot 关系不查询来源。普通观察与任务对同一不可变讨论项共用认识回执，分身已理解普通变化不代表已答复新的直接问题。
+
+任务实际答复或关联来源变化还有待合并时，status 和工作输入提供 `understandings:[{id,subject,current,answers,answerCount}]`，最多八个对象，每对象列出前十六个答案 ID；current 复用 3 KiB 事实快照。`shadow_task understand` 传 id/baseVersion/baseRevision/requestId 和 `understandings:[{id,baseRevision,signalIds,summary,evidence,openQuestions}]`，一次最多八项，每项 signalIds 最多十六个。对象来自准确答复来源、任务原触发对象、已登记提问的 respondsTo 或 live 任务关系的实际来源变化；新对象以 revision 0 表示尚无认识，不能任意写入其他对象。证据只接受该对象原有效依据、指定实际答复和本轮成功读取的来源，且必须保留本次答复依据。
+
+认识正文、答案回执与命令结果在同一 attention 写入中提交。成功返回 saved 和各对象 revision；同 requestId 同内容返回原结果，不依赖原生工具 callId。版本冲突先回读再合并，不覆盖并发新认识。更新完成后重新 status；剩余目标继续分批处理。该操作不推进任务完成状态或人的已读，wait/completed/needs_input 仍有未回写答案时拒绝提交。内部 understandingRevision 防止在途旧观察覆盖任务刚保存的事实；冲突批次按最新认识重新观察，已发业务动作保留。认识目标、答案回执及命令账本不进入共享 View 或普通任务索引。
+
+`shadow_task start` 保存 kind（work 或 coordination）、title、prompt 和 completionCriteria。目标变更用 version，普通进展用 revision；checkpoint/wait/finish 传 id、baseVersion、baseRevision 和 `{summary,nextStep,evidence?,openQuestions?}` 检查点。wait 最多登记八项 discussion/request/job/time 依赖，各有稳定 id 和 condition；discussion 使用原提问的 source，job 固定 jobId/jobVersion，time 使用带时区的 dueAt。Core 管理 cursor、signals 和满足状态，调用方不能写入伪造答复或消费位置。
+
+start 可传 followId 关联已有活动关注；普通关注分析及绑定父任务派生的子任务默认继承，直接 @ 和独立成员消息默认不绑定。私有 `follow:{focusId,goalVersion,state,needsReplan?}` 与公开触发来源分开保存，不进入共享 View 或主段任务索引。关注目标变化使任务 version 递增；停止在途 job/result 回合后进入 paused、cancelled 或 queued。queued 且 needsReplan 的原工作轮必须调用 replan，参数为 id/baseVersion/baseRevision、prompt、completionCriteria、checkpoint 和 retainDependencyIds 数组（空数组表示不再保留依赖）。该操作保留同一 J/W 和所有行动记录，仅保留指定的已有依赖及其答复，不允许凭空添加接收结果；后续新依赖仍用 wait。paused 可接收匹配的答复但不触发模型运行。
+
+`resolutions` 使用 `{id,explanation,signalIds}` 解释哪些真实答复满足哪个依赖。finish 提交 outcome/result；completed 还需 criteriaChecks 与每项完成条件对应，且没有未解决依赖或问题。原生 final 未显式结束业务时为 needs_followup；wait 保持 waiting。status 指定 id 返回完整当前记录，省略 id 返回最多 32 个活跃及 8 个近期结束任务的索引和 totalJobs。work 在原 W 接续，coordination 在当前主段接续。
+
+成员 Core 的 `POST /v2/shadow-tools` 传 `{shadowId,name,arguments}`，主机核对所属成员并复用公开业务方法，Core 写入 `{kind:shadow,shadowId,memberId,name}` 作者。个人动态和关注清单不通过这个入口传入共享运行时。`POST /v2/shadow-dependency` 传 `{shadowId,dependency,candidate?}`，仅读取该任务登记的讨论或请求，返回 `{cursor,signals,questionSource?}`；讨论一次最多 16 个匹配回复，按原父项及后续回复链读取。它不依赖成员提醒，因此包含本人自己的答复；不推进人的已读，也不把答复到达当作条件已满足。原文仍按 signals 中的准确来源读取。 待回执的提问依赖另带 Core 保存的 questionId/questionActionId/questionTool/questionSourcePending；主机按所属 shadow/member 的真实命令查回准确 annotationId/replyId，通过 questionSource 返回。candidate 路由在核对原问题后检查准确回复链，来源绑定和答案在成员 Core 原子保存；没有找到命令只返回空增量，不发送新问题，不将相似正文当成同一行动。问题发送状态保存在本机 Questions，公开 View 不包含内部 questionActionId、待核对标记或回执索引。
 
 ## 空间事件网关
 
@@ -477,6 +517,8 @@ CLI 复用个人 MCP 适配：`space`、`freeze`、`publication-preview`、`publ
 
 ### 批注回复
 
+紧凑读取可传 `annotationId + replyId` 精确读取回复、根批注和直接父回复；`sourceOnly:true` 只读取根批注与回复数。精确读取不与回复分页 offset 混用，超过预算明确报错，不自动把全文截为预览。分身收到的动态预览仅用于定位，理解与答复须回读原文。
+
 `AnnotationReply` 为 `{id,requestId,text,author,authorId,createdAt,materials?,mentions?,replyTo?,actor}`，不建立嵌套子回复树；`replyTo` 明确同一根讨论内的父项。`annotation-replies` 接受当前空间的原批注 ID、1–4000 字正文、至多 200 字节的非空 `requestId`、可选材料引用、结构化 mentions 和 replyTo，拒绝其他字段。主机生成作者、ID 和时间；同一作者的同一请求 ID 返回已保存结果，若原批注、正文、材料引用、mentions 或 replyTo 不同则拒绝。保存失败回滚内存，读取快照不会被并发回复原地修改。普通成员无需获得模型输入权即可讨论；结束共享后拒绝远端读写。完整个人 MCP 使用 `reply_to_annotation(id,annotationId,text,requestId,executionId?,materials?,mentions?,replyTo?)`。
 
 ### 共享运行时的批注工具
@@ -546,8 +588,10 @@ Claude 事件使用 `teamcross/claudeState`、`teamcross/claudeHistory` 与已�
 | `GET /collaborations/:spaceId/follows?kind=…&subjectId=…&executionId=…` | 查询一个对象时返回单元素数组；包括没有显式记录时的有效继承模式及 revision 0 |
 | `POST` 或 `PUT /collaborations/:spaceId/follow-preferences` | `{subject,mode,revision,requestId}`，返回持久偏好；mode 为 following/direct_only/muted/unmute |
 | `POST /collaborations/:spaceId/activity/read` | `{eventIds?}` 或 `{snapshot,group?}`；原文界面可用 `{visibleSource}` 精确确认实际可见的根批注／回复。返回 ActivityPage，远端已读已落本机队列但未同步时带 pendingSync |
+| `GET /collaborations/:spaceId/activity-agent` | 本人成员的默认分身 shadowId、revision、enabled、独立接收 through 和 initialRemaining |
+| `PUT /collaborations/:spaceId/activity-agent` | `{shadowId,baseRevision,enabled?,requestId}`，CAS 改选路线或暂停自动接手 |
 
-`ActivitySubject` 为 `{kind:material|discussion|execution,id,executionId?}`；仅会话讨论需要额外 executionId，材料不能属于任意执行。`SpaceSourceRef` 为 `{spaceId,executionId?,materialId?,version?,annotationId?,replyId?,turnId?,itemIds?,requestId?}`，固定版本／轮次／回复不能降级为最新材料或相似文本。
+可关注的 `ActivitySubject` 为 `{kind:material|discussion|execution,id,executionId?}`；仅会话讨论需要额外 executionId，材料不能属于任意执行。事件还可使用 brief/request subject，不增加新的成员关注类别。`SpaceSourceRef` 为 `{spaceId,executionId?,materialId?,version?,annotationId?,replyId?,turnId?,itemIds?,requestId?,briefRevision?,briefItemId?,shadowId?,shadowMessageId?,shadowResultId?}`，固定版本／轮次／回复／简报修订／分身结果不能降级为最新正文或相似文本。分身来源须具有 shadowId 和一种准确消息／结果选择器，不能混入其他对象字段。
 
 `ActivityPage` 包含 `spaceId/title/selfId/groups/unread/snapshot/revision/readRevision/syncedAt`，以及可选 `nextCursor/error/pendingSync`。groups 每项保存 `id/latest/attention?/events/count/unread`；attention 是优先展示的未读 @／直接回复／本人结果，latest 仍用于稳定排序。事件仅返回当前成员的 reasons 与 unread，不返回其他成员收件集合。一次列表默认 50 组、最多 100 组，整体 JSON 预算 64 KiB，每组最多 20 个近期事件，预览最多 240 个 Unicode 字符。游标绑定成员、查询、快照和保留版本；仅未读列表在 readRevision 改变后要求刷新，以免偏移跳过事件。
 
@@ -557,8 +601,33 @@ snapshot 使用主机日志密钥签名并绑定成员与 seq，全部已读取�
 
 成员 @ 为 `{memberId,startOffset,endOffset,label}`，范围按 UTF-16 且须精确覆盖正文 `@label`，按顺序、不得重叠，每条最多 20 位成员。根批注新增可选 `requestId/mentions`，回复输入新增 `mentions/replyTo`；replyTo 为 `{kind:annotation|reply,id}`，仅同一根讨论中已存在的父项有效。创建正文、mentions、父项和附件共同参与幂等校验。Core 写入 typed actor，客户端不能覆盖身份。
 
-源记录中的 activity 状态最多 16 MiB，其中 outbox 最多 10,000 项；空间 `member-activity.json` 最多 50,000 个事件、64 MiB。已读或无个人未读的事件在 90 天后可压缩，未读及待确认 outbox 的事件身份保留。无法保存源事件或自动关注时受控业务提交失败；日志提交失败时 outbox 保留并显示同步错误。原生已发生终态通过已有输入关系／历史回读恢复，不重放模型输入。
+源记录中的 activity 状态最多 16 MiB，其中 outbox 最多 10,000 项；空间 `member-activity.json` 最多 50,000 个事件、64 MiB。已读或无个人未读的事件在 90 天后可压缩，未读、待确认 outbox 及尚未持久接收的分身消费者事件身份保留。无法保存源事件或自动关注时受控业务提交失败；日志提交失败时 outbox 保留并显示同步错误。原生已发生终态通过已有输入关系／历史回读恢复，不重放模型输入。
+
+分身使用独立的认证 `/v2/activity-consumer/{status,ensure,configure,consume,ack}`。ensure 选择本空间本人最早自建分身并保存路线；consume 读取顺序事件，支持 throughSeq 固定上界、limit 1–100，条目整体预算 64 KiB。返回 receipt 绑定成员、路线及 revision，ack 只确认该批已到达成员 Core；人的 readRevision 不影响它。首次回顾固定事件集合，后续事件按空间 seq 接续，不使用 UI 仅未读分页。成员 Core 的 attention 存储上限为 50,000 个事件、10,000 个认识和 32 MiB，达到边界显示错误并保留未确认回执。
+
+已有关注对象的本人 human 写入可携带仅供所属成员分身使用的 `own_source_change` 与有效 follow 原因，来源、作者、事件 ID 和 seq 沿用原业务事件。空间主机保存的 agentRecipients 不进入人的动态或公开响应，消费者只返回当前成员的 reasons；当前取消或静音仍抑制普通事实同步。首次消费也包含切换前已登记但尚未接收的本人变化；这类事件的保留核对独立消费者进度，不因人的已读而提前删除。
+
+该消费者另接收 `kind:follow_changed`，包含 `follow:{mode,revision,parent?,baseline?,partial?}`。baseline 是保存偏好时固定的 SourceRef，最多九个（讨论根项及八条近期回复）；parent 为当时明确存在的父偏好快照。旧 revision 或当前已取消的初始化不再投递。内部信号不出现在人的 activity/list、空间全部动态或 read 入口。初始化按来源读取，每个来源正文最多 32 KiB，合成正文最多 64 KiB；实际读到的 references 和 partial 随内部 SourceSnapshot 保存，不能用来源清单声称已读全部历史。
 
 参与者的 `member-activity-read-queue.json` 最多 1,000 个动作、8 MiB，绑定空间 ID 与凭据哈希；后台每次最多八项、单次两秒。只在 host_unreachable 时保留待补交，校验失败或资格结束不无限重试。远端列表缓存最多十二个查询页，每页沿用 64 KiB 预算，只保留计数、身份与来源元数据，清除正文预览。主机离线返回缓存并标注 pendingSync/error/syncedAt；已确认撤权不返回缓存。
 
 远端传输为认证后的 `POST /v2/member-activity/{list,follows,members,follow,read}`。个人 MCP 提供 `list_member_activity`、`set_member_follow`、`mark_member_activity_read`；最后一个只能在用户明确要求确认已读时使用。嵌入 UI 通过既有 UI 路由白名单访问上述本机接口。绑定运行时 MCP 不获得个人动态工具或查询权限；其公开回复仅增加结构化 mentions/replyTo 字段，不跨越原空间权限。
+
+
+### 本机问题回复交接与等待索引
+
+以下只经本机 `/api` 和本机 UI bridge 提供，不增加共享 `/v2` 私有投影。先向空间主机核对当前成员；处理详情和问题交接只使用同空间该成员的本机记录，问题交接不接受非本机 shadowId。默认路线可以选择空间已登记的本人分身，即使它当前没有可用本机运行实例。跨成员与跨空间的分身选择不接受。
+
+- `GET /api/collaborations/{id}/attention/route`：返回 `{route:{shadowId,revision,enabled,...},runtime?:{shadowId,name,state},localShadows}`；runtime 由本机 Core 报告 ready/offline/paused/error/starting。读取不执行 ensure、不创建默认路线或模型轮次。
+- `POST /api/collaborations/{id}/attention/route`：正文 `{shadowId,baseRevision,requestId}`，选择该成员已登记分身；此入口不接受 enabled。成功或同 ID 重试后读取并应用主机当前路线，再返回上述结构；原命令的旧回执不回滚较新路线。
+- `GET /api/collaborations/{id}/attention/event?eventId=`：准确事件的私有处理详情，eventId 非空且最多 256 字节。返回 state、shadowId/name、hold、error、receivedAt 和 jobs/actions，各最多 16 项并保留 totalJobs/totalActions；总响应 32 KiB，超出时减少明细项。行动只带类型、状态、更新时间、一个准确来源及白名单中的历史 receiptState，不返回工具参数、原始回执、提示词或原生 thread ID。读取不标已读、不确认 Agent 接收、不重试动作。
+- `GET /api/collaborations/{id}/attention/questions?shadowId=&history=true|false&cursor=&limit=`：本人成员本机分身的提问索引，默认仅关联未结束任务，history=true 包含历史。返回 `{items,total,revision,nextCursor?}`，每项只带简短正文、发送/处理状态、已核实来源及关联数量，默认最多 20 项，响应最多 48 KiB。
+- `GET /api/collaborations/{id}/attention/question?shadowId=&id=&cursor=&limit=`：准确问题详情，增加 condition、respondsTo、tasks、totalConditions、revision、nextCursor。原问题关系保留准确 source，摘录按 600 字符、正文按 4000 字符截取，截断时另加省略号；每页最多 16 项关联条件并保留各任务的 state、version、active、dependencyState、answerReceived、unavailable 和 nextStep，总响应最多 48 KiB，预算不足时缩小本页。两种游标均绑定分身、查询及当前投影版本，变更后返回首批读取；来源仅在实际提问已核实保存后出现。只读本机 UI 路由和插件桥可用，不进入远端共享 View，不启动模型或改变人的已读。
+
+- `GET /api/collaborations/{id}/attention?direction=needs_owner|waiting_others|processing&cursor=&limit=`：返回 `{waiting:{items,total,revision,nextCursor?},route,localShadows}`；不传 direction 读取全部。默认 30、最多 50 项，游标绑定当前投影版本，变化时从第一页重读。每项含准确 source、question、state、direction、tasks、totalTasks，tasks 最多展示 16 项并保留实际 dependencyId 与各自 condition。time/job 等内部等待进入 processing；未确认提问不会将父引用伪装成已发送问题。
+- `GET /api/collaborations/{id}/attention/handling?annotationId=&replyId=&executionId=`：返回准确问题的 `{id,source,handler,revision,question,state,canHandoff,...}`。默认 handler=shadow、revision=0。canHandoff 只表示本机存在本人分身，不承诺原生运行中。
+- `POST /api/collaborations/{id}/attention/handling`：正文 `{requestId,source,handler:owner|shadow,baseRevision,shadowId?}`。默认使用稳定分身路线；只有一个本机本人分身且路线未建立时可直接选择它。先读取准确问题，再持久保存。相同 requestId 重试返回原回执，不重新覆盖后来交接；内容不一致拒绝。交回只登记内部 continuation，暂停分身恢复后再运行。
+
+本机个人 activity/list 与全局 activity 的每空间页面在原始响应后附加 `processing` 简短投影，只含状态、分身名称/ID、等待原因、明细存在标志及总数。主机原始页面和远端缓存仍为 64 KiB；本机附加状态后的页面最多 96 KiB，先省略分身名称/ID和等待原因，仍超出则省略处理投影并返回 processingError，原动态内容不变。任务及动作明细通过上述 event 接口按需加载。空间全部动态不附加私有投影。
+
+原生 `shadow_task handling` 读准确 source，`handoff` 使用同一 source/requestId/handler/baseRevision，须来自实际本人成员请求。交接是回复分工，不是普通发送审批。`CollaborationAction.submittedAt/responseSources` 保存提交排序及问题关系；held_for_owner 表示尚未发送，unknown 与 saved 仍分别表示回执不明和已收到业务保存回执。

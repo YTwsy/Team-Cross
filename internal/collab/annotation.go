@@ -59,6 +59,7 @@ func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, 
 		return Annotation{}, fmt.Errorf("共享已结束或连接已变化")
 	}
 	authorID := sharing.MemberID(ctx)
+	actor := s.activityAuthorLocked(ctx, author)
 	if in.ReplyTo == nil {
 		in.ReplyTo = &ReplyTarget{Kind: "annotation", ID: in.AnnotationID}
 	}
@@ -72,6 +73,9 @@ func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, 
 		}
 		for _, reply := range annotation.Replies {
 			if reply.RequestID == in.RequestID && reply.AuthorID == authorID && reply.Author == author {
+				if (reply.Actor.Kind == "shadow" || actor.Kind == "shadow") && reply.Actor != actor {
+					return Annotation{}, fmt.Errorf("requestId 已属于其他实际作者")
+				}
 				parent := reply.ReplyTo
 				if parent == nil {
 					parent = &ReplyTarget{Kind: "annotation", ID: annotation.ID}
@@ -106,7 +110,7 @@ func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, 
 	previous, updated := s.record.Annotations, s.record.UpdatedAt
 	annotation := previous[index]
 	annotation.Replies = append(append([]AnnotationReply(nil), annotation.Replies...), AnnotationReply{
-		Mentions: in.Mentions, ReplyTo: in.ReplyTo, Actor: s.activityAuthorLocked(ctx, author),
+		Mentions: in.Mentions, ReplyTo: in.ReplyTo, Actor: actor,
 		Materials: in.Materials, ID: uuid.NewString(), RequestID: in.RequestID, Text: in.Text, Author: author, AuthorID: authorID, CreatedAt: time.Now(),
 	})
 	// Context and view readers can still hold the previous snapshot outside mu.

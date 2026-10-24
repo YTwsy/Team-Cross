@@ -1,0 +1,8 @@
+{
+  "fixture": "/private/tmp/teamcross-native-task-contexts-20261024-bde40531",
+  "nativeTestExitCode": 0,
+  "lsofExitCode": 1,
+  "openFiles": [],
+  "lsofStderr": [],
+  "processScan": "ps unavailable in workspace sandbox; no process termination attempted"
+}

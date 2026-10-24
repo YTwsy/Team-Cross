@@ -4968,6 +4968,20 @@ details.reader-process-group[open] > summary {
   align-items: start;
   gap: 18px;
 }
+.workbench-brief-group.progress {
+  grid-column: 1 / -1;
+}
+.workbench-brief-merge {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.workbench-brief-merge p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .workbench-brief-topic p,
 .workbench-brief-item p {
   white-space: pre-wrap;
@@ -5783,3 +5797,32 @@ details.reader-process-group[open] > summary {
 @media (max-width: 900px) { .activity-row-actions { grid-column: 2 / -1; } .activity-row { grid-template-columns: 32px minmax(0,1fr); } .activity-heading { gap: 10px; } .activity-filters { align-items: flex-start; } }
 @media (max-width: 600px) { .global-activity { padding: 20px 16px; } .activity-tabs button { padding: 7px 9px; } .activity-actions { gap: 10px; font-size: 12px; } }
 .activity-located { outline: 2px solid var(--blue); outline-offset: 5px; border-radius: 6px; }
+
+.question-handling { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:16px; margin:0 0 16px; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+.question-handling p { margin:4px 0 0; }
+.member-waiting { margin:16px 0; }
+.waiting-item { padding:16px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
+.waiting-item-heading { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 20px; justify-content:space-between; }
+.waiting-item-heading > strong { max-width:65ch; }
+.waiting-item > p { line-height:1.6; margin:10px 0; }
+.activity-filters .activity-tabs { flex-wrap:wrap; }
+
+.handling-source-question { color:var(--muted); font-size:13px; line-height:1.6; padding-bottom:8px; }
+.default-shadow {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.default-shadow > div:first-child { flex: 1; min-width: 0; }
+.default-shadow label { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.default-shadow select { max-width: 100%; min-width: 150px; }
+.default-shadow p { margin: 5px 0 0; }
+.activity-processing { grid-column: 2 / -1; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.activity-processing summary { cursor: pointer; }
+.activity-processing ul { padding-left: 18px; margin: 8px 0; }
+.activity-processing li { margin: 5px 0; }
+.activity-processing .text-link { margin-left: 8px; }
+.activity-group-history .activity-processing { margin: 3px 0 9px; }

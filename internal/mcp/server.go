@@ -153,7 +153,7 @@ func (b Backend) Invoke(ctx context.Context, name string, args map[string]any) (
 			return nil, err
 		}
 		q := url.Values{}
-		for _, k := range []string{"kind", "path", "after", "cursor", "turnId", "itemId", "startOffset", "view", "toolOutputs", "turnLimit", "maxBytes", "annotationId", "offset", "includeQuote"} {
+		for _, k := range []string{"kind", "path", "after", "cursor", "turnId", "itemId", "startOffset", "view", "toolOutputs", "turnLimit", "maxBytes", "annotationId", "replyId", "sourceOnly", "offset", "includeQuote"} {
 			if v, ok := args[k]; ok {
 				q.Set(k, fmt.Sprint(v))
 			}

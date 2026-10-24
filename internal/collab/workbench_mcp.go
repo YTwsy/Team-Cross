@@ -41,6 +41,7 @@ func (a *App) invokeWorkbenchTool(ctx context.Context, name string, args map[str
 			ID        string `json:"shadowId"`
 			Offset    int    `json:"offset"`
 			MessageID string `json:"messageId"`
+			ResultID  string `json:"resultId"`
 			Text      string `json:"text"`
 		}
 		encoded, err := json.Marshal(args)
@@ -55,6 +56,8 @@ func (a *App) invokeWorkbenchTool(ctx context.Context, name string, args map[str
 		if name == "send_space_shadow" {
 			op = "send"
 			in.Message.ID, in.Message.Text = payload.MessageID, payload.Text
+		} else if name == "read_space_shadow" && (payload.MessageID != "" || payload.ResultID != "") {
+			op, in.MessageID, in.ResultID = "source", payload.MessageID, payload.ResultID
 		}
 		return a.shadowCall(ctx, id, op, in)
 	}
@@ -67,6 +70,13 @@ func (a *App) invokeWorkbenchTool(ctx context.Context, name string, args map[str
 		return nil, fmt.Errorf("空间工具参数类型无效: %w", err)
 	}
 	in.Actor = SpaceActor{Kind: "session", Provider: c.Caller.Provider, Session: contentHash([]string{c.Caller.Provider, c.Caller.SourceID})[:24]}
+	if name == "update_space_brief" {
+		return a.workbenchCall(ctx, id, "brief-update", in)
+	}
+	if name == "read_space_brief" {
+		in.Actor = SpaceActor{Kind: "human"}
+		return a.workbenchCall(ctx, id, "brief-read", in)
+	}
 	if name == "configure_space_inflow" {
 		return a.configureCurrentInFlow(ctx, id, c.Caller, runtimeID, in.Enabled)
 	}
@@ -100,6 +110,10 @@ func (a *App) invokeWorkbenchTool(ctx context.Context, name string, args map[str
 		return out, nil
 	}
 	view := workbenchDecode[WorkbenchView](out)
+	return projectWorkbenchRead(name, id, in.Offset, view)
+}
+
+func projectWorkbenchRead(name, id string, offset int, view WorkbenchView) (any, error) {
 	switch name {
 	case "list_space_targets":
 		return map[string]any{"spaceId": id, "targets": view.Targets}, nil
@@ -111,8 +125,8 @@ func (a *App) invokeWorkbenchTool(ctx context.Context, name string, args map[str
 			items = append(items, map[string]any{"id": r.ID, "targetId": r.TargetID, "actor": r.Actor, "parentRequestId": r.ParentRequestID, "state": r.State, "instructionPreview": shortText(r.Instruction, 160), "summaryPreview": shortText(r.Summary, 200), "updatedAt": r.UpdatedAt, "bootstrap": r.Bootstrap != nil})
 		}
 		out := map[string]any{"spaceId": id, "requests": items, "total": view.Total, "guidance": "已省略完整引用与长正文；按请求 ID 使用 get_space_request 读取。"}
-		if in.Offset+len(items) < view.Total {
-			out["nextOffset"] = in.Offset + len(items)
+		if offset+len(items) < view.Total {
+			out["nextOffset"] = offset + len(items)
 		}
 		return out, nil
 	}

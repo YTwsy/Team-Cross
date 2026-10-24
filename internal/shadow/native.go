@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"teamcross/internal/nativecodex"
 )
 
@@ -45,6 +44,9 @@ func (e *Engine) restore(ctx context.Context) error {
 	p, r := e.runtime, clone(e.record)
 	e.mu.Unlock()
 	ids := map[string]bool{}
+	for _, id := range r.AttentionThreads {
+		ids[id] = true
+	}
 	if r.Current != "" {
 		ids[r.Current] = true
 	}
@@ -57,7 +59,7 @@ func (e *Engine) restore(ctx context.Context) error {
 		}
 	}
 	for _, j := range r.Jobs {
-		if j.ThreadID != "" && (j.State == "running" || j.State == "stopping" || j.State == "queued") {
+		if j.ThreadID != "" && j.Kind != "coordination" && (j.State == "running" || j.State == "stopping" || j.State == "queued" || j.State == "waiting" || j.State == "paused" || j.State == "needs_followup") {
 			ids[j.ThreadID] = true
 		}
 	}
@@ -359,6 +361,11 @@ func (e *Engine) finishRunLocked(id, status, failure string) {
 	if !activeRun(run) {
 		return
 	}
+	if run.JobID != "" {
+		if job, changed := e.refreshedTaskFollowLocked(e.record.Jobs[run.JobID]); changed {
+			e.record.Jobs[job.ID] = job
+		}
+	}
 	run.State = "completed"
 	if status != "completed" {
 		run.State, run.Error = "failed", failure
@@ -367,7 +374,7 @@ func (e *Engine) finishRunLocked(id, status, failure string) {
 		}
 	}
 	e.record.Runs[id] = run
-	if run.Kind == "steward" || run.Kind == "memory" {
+	if run.Kind == "steward" || run.Kind == "memory" || run.Kind == "attention" {
 		e.releaseThreads = append(e.releaseThreads, run.ThreadID)
 	}
 	e.lastActivity = time.Now()
@@ -380,7 +387,9 @@ func (e *Engine) finishRunLocked(id, status, failure string) {
 				}
 			}
 		}
-		if run.Output != "" {
+		job := e.record.Jobs[run.JobID]
+		publish := run.Kind == "main" || job.Follow == nil && (job.Trigger == nil || job.Trigger.Kind != "activity") && job.Version == run.JobVersion && job.State != "stopping" && job.State != "cancelled"
+		if run.Output != "" && publish {
 			e.record.Messages = append(e.record.Messages, Message{ID: "reply-" + run.ID, Actor: Actor{ID: e.record.ID, Name: e.record.Name}, Role: "assistant", Text: run.Output, State: run.State, ReplyTo: run.SourceID, SegmentID: run.ThreadID, TurnID: run.TurnID, CreatedAt: time.Now()})
 		}
 		if s := e.currentSegmentLocked(); s != nil && s.ID == run.ThreadID {
@@ -388,6 +397,12 @@ func (e *Engine) finishRunLocked(id, status, failure string) {
 		}
 		if run.Kind == "result" {
 			j := e.record.Jobs[run.JobID]
+			if j.State == "stopping" && j.StopReason == "follow" && j.Follow != nil && !e.taskControlRunActiveLocked(j.ID) {
+				settleTaskFollow(&j)
+				j.Revision++
+				j.UpdatedAt = time.Now()
+				e.record.Jobs[j.ID] = j
+			}
 			// Consume a failed notification too: never repeat it automatically.
 			if j.ResultEventID == run.EventID {
 				j.DeliveredEventID = run.EventID
@@ -395,27 +410,7 @@ func (e *Engine) finishRunLocked(id, status, failure string) {
 			}
 		}
 	case "job":
-		j := e.record.Jobs[run.JobID]
-		if j.ThreadID != run.ThreadID {
-			break
-		}
-		if j.State == "stopping" {
-			if j.StopReason == "update" {
-				j.State = "queued"
-			} else {
-				j.State = "cancelled"
-			}
-		} else if j.Version == run.JobVersion {
-			j.State, j.Result, j.ResultVersion, j.Error = run.State, run.Output, run.JobVersion, run.Error
-			if status == "interrupted" {
-				j.State = "interrupted"
-			}
-		}
-		if j.State != "queued" {
-			j.ResultEventID = uuid.NewString()
-		}
-		j.UpdatedAt = time.Now()
-		e.record.Jobs[j.ID] = j
+		e.finishTaskRunLocked(run, status)
 	case "steward":
 		e.finishStewardLocked(run)
 	case "handoff":
@@ -424,6 +419,9 @@ func (e *Engine) finishRunLocked(id, status, failure string) {
 		}
 		if run.State != "completed" {
 			e.record.Error = "交接笔记生成失败，保留原段和未完成事项"
+			if e.record.Transition.Reason == "native-tools-updated" {
+				e.record.Enabled = false
+			}
 			e.record.Transition = nil
 			break
 		}

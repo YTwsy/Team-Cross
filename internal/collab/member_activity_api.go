@@ -14,7 +14,9 @@ import (
 	"sync"
 	"time"
 
+	"teamcross/internal/shadow"
 	"teamcross/internal/sharing"
+	"teamcross/internal/spacecontext"
 )
 
 type ActivityInput struct {
@@ -33,16 +35,18 @@ type ActivityInput struct {
 	Group         string          `json:"group,omitempty"`
 }
 type ActivityItem struct {
-	ID        string          `json:"id"`
-	Seq       uint64          `json:"seq"`
-	Kind      string          `json:"kind"`
-	Source    SpaceSourceRef  `json:"source"`
-	Subject   ActivitySubject `json:"subject"`
-	Actor     SpaceActor      `json:"actor"`
-	CreatedAt time.Time       `json:"createdAt"`
-	Preview   string          `json:"preview"`
-	Reasons   []string        `json:"reasons"`
-	Unread    bool            `json:"unread"`
+	Processing *shadow.ActivityProcessing `json:"processing,omitempty"`
+	ID         string                     `json:"id"`
+	Seq        uint64                     `json:"seq"`
+	Kind       string                     `json:"kind"`
+	Source     SpaceSourceRef             `json:"source"`
+	Subject    ActivitySubject            `json:"subject"`
+	Actor      SpaceActor                 `json:"actor"`
+	CreatedAt  time.Time                  `json:"createdAt"`
+	Preview    string                     `json:"preview"`
+	Reasons    []string                   `json:"reasons"`
+	Unread     bool                       `json:"unread"`
+	Follow     *spacecontext.FollowChange `json:"follow,omitempty"`
 }
 type ActivityGroup struct {
 	ID        string         `json:"id"`
@@ -53,18 +57,19 @@ type ActivityGroup struct {
 	Unread    int            `json:"unread"`
 }
 type ActivityPage struct {
-	PendingSync  bool            `json:"pendingSync,omitempty"`
-	SpaceID      string          `json:"spaceId"`
-	Title        string          `json:"title"`
-	SelfID       string          `json:"selfId"`
-	Groups       []ActivityGroup `json:"groups"`
-	Unread       int             `json:"unread"`
-	Snapshot     string          `json:"snapshot"`
-	Next         string          `json:"nextCursor,omitempty"`
-	Revision     uint64          `json:"revision"`
-	ReadRevision uint64          `json:"readRevision"`
-	Error        string          `json:"error,omitempty"`
-	SyncedAt     time.Time       `json:"syncedAt"`
+	ProcessingError string          `json:"processingError,omitempty"`
+	PendingSync     bool            `json:"pendingSync,omitempty"`
+	SpaceID         string          `json:"spaceId"`
+	Title           string          `json:"title"`
+	SelfID          string          `json:"selfId"`
+	Groups          []ActivityGroup `json:"groups"`
+	Unread          int             `json:"unread"`
+	Snapshot        string          `json:"snapshot"`
+	Next            string          `json:"nextCursor,omitempty"`
+	Revision        uint64          `json:"revision"`
+	ReadRevision    uint64          `json:"readRevision"`
+	Error           string          `json:"error,omitempty"`
+	SyncedAt        time.Time       `json:"syncedAt"`
 }
 type FollowView struct {
 	MemberFollowPreference
@@ -116,6 +121,11 @@ func (s *Session) activityCursorLocked(token, member string) (activityCursor, er
 	return c, nil
 }
 func (s *Session) activityAvailableLocked(e ActivityEnvelope) bool {
+	if e.Follow != nil {
+		// Preference changes must reach the member Core even after withdrawal
+		// or removal. Source reading supplies a tombstone, not old content.
+		return true
+	}
 	root := s.activityRoot()
 	if e.Source.MaterialID != "" {
 		for _, m := range root.record.Materials {
@@ -144,7 +154,7 @@ func (s *Session) activityAvailableLocked(e ActivityEnvelope) bool {
 }
 func activityUnread(log *ActivityLog, e ActivityEnvelope, member string) bool {
 	r := log.Reads[member]
-	return len(e.Recipients[member]) > 0 && e.Seq > r.Through && !r.Events[e.ID]
+	return e.Follow == nil && len(e.Recipients[member]) > 0 && e.Seq > r.Through && !r.Events[e.ID]
 }
 func activityMatches(e ActivityEnvelope, member, category string) bool {
 	if category == "" || category == "all" {
@@ -201,7 +211,7 @@ func (s *Session) activityPageLocked(member string, in ActivityInput) (ActivityP
 	groups := map[string]*ActivityGroup{}
 	unread := map[string]bool{}
 	for _, e := range s.activityLog.Events {
-		if !s.activityAvailableLocked(e) {
+		if e.Follow != nil || !s.activityAvailableLocked(e) {
 			continue
 		}
 		isUnread := activityUnread(s.activityLog, e, member)
@@ -295,7 +305,7 @@ func (s *Session) activityOperation(ctx context.Context, op string, in ActivityI
 		return nil, fmt.Errorf("运行时不能访问成员个人动态")
 	}
 	s = s.activityRoot()
-	if op == "follow" && in.Subject.Kind == "execution" && (in.Mode == "following" || in.Mode == "unmute") {
+	if (op == "follow" || op == "ensure-follow") && in.Subject.Kind == "execution" && (op == "ensure-follow" || in.Mode == "following" || in.Mode == "unmute") {
 		s.mu.Lock()
 		target, err := s.activitySubjectSessionLocked(in.Subject, true)
 		valid := s.callerValidLocked(ctx)
@@ -397,13 +407,16 @@ func (s *Session) activityOperation(ctx context.Context, op string, in ActivityI
 			page.Next = s.activityTokenLocked(cursor)
 		}
 		return page, nil
-	case "follow":
+	case "follow", "ensure-follow":
 		target, err := s.activitySubjectSessionLocked(in.Subject, true)
 		if err != nil {
 			return nil, err
 		}
 		if strings.TrimSpace(in.RequestID) == "" || len(in.RequestID) > 200 {
 			return nil, fmt.Errorf("关注设置需要唯一 requestId")
+		}
+		if op == "ensure-follow" {
+			in.Mode = "following"
 		}
 		if in.Mode != "following" && in.Mode != "direct_only" && in.Mode != "muted" && in.Mode != "unmute" {
 			return nil, fmt.Errorf("关注模式无效")
@@ -412,6 +425,11 @@ func (s *Session) activityOperation(ctx context.Context, op string, in ActivityI
 		key := subjectKey(in.Subject)
 		command := member + ":" + in.RequestID
 		hash := contentHash([]any{in.Subject, in.Mode, in.Revision})
+		if op == "ensure-follow" {
+			// An owner-originated shadow_watch retries the same intent across
+			// turns, including a lost response after the preference was saved.
+			hash = contentHash([]any{op, in.Subject})
+		}
 		if old, ok := a.FollowCommands[command]; ok {
 			if old.Hash != hash {
 				return nil, fmt.Errorf("requestId 已用于不同关注设置")
@@ -419,7 +437,7 @@ func (s *Session) activityOperation(ctx context.Context, op string, in ActivityI
 			return old.Preference, nil
 		}
 		current := a.Preferences[member][key]
-		if current.Revision != in.Revision {
+		if op == "follow" && current.Revision != in.Revision {
 			return nil, fmt.Errorf("关注设置已变化，请刷新后重试")
 		}
 		if len(a.Preferences[member]) >= maxFollowPreferences && current.Revision == 0 {
@@ -458,6 +476,10 @@ func (s *Session) activityOperation(ctx context.Context, op string, in ActivityI
 		current.Mode = in.Mode
 		a.Preferences[member][key] = current
 		a.FollowCommands[command] = FollowReceipt{Hash: hash, Preference: current}
+		if err := target.queueFollowChangeLocked(member, current); err != nil {
+			target.record.Activity = old
+			return nil, err
+		}
 		if err := target.saveLocked(); err != nil {
 			target.record.Activity = old
 			return nil, err
@@ -473,7 +495,7 @@ func (s *Session) activityOperation(ctx context.Context, op string, in ActivityI
 				return nil, fmt.Errorf("阅读确认需要当前空间的准确讨论来源")
 			}
 			for _, e := range s.activityLog.Events {
-				if e.Source.AnnotationID == ref.AnnotationID && e.Source.ReplyID == ref.ReplyID && e.Source.ExecutionID == ref.ExecutionID && len(e.Recipients[member]) > 0 && s.activityAvailableLocked(e) {
+				if e.Follow == nil && e.Source.AnnotationID == ref.AnnotationID && e.Source.ReplyID == ref.ReplyID && e.Source.ExecutionID == ref.ExecutionID && len(e.Recipients[member]) > 0 && s.activityAvailableLocked(e) {
 					in.EventIDs = append(in.EventIDs, e.ID)
 				}
 			}
@@ -498,7 +520,7 @@ func (s *Session) activityOperation(ctx context.Context, op string, in ActivityI
 				read.Through = max(read.Through, cursor.Through)
 			} else {
 				for _, e := range next.Events {
-					if e.Group == in.Group && e.Seq <= cursor.Through && len(e.Recipients[member]) > 0 && s.activityAvailableLocked(e) {
+					if e.Follow == nil && e.Group == in.Group && e.Seq <= cursor.Through && len(e.Recipients[member]) > 0 && s.activityAvailableLocked(e) {
 						read.Events[e.ID] = true
 					}
 				}
@@ -507,7 +529,7 @@ func (s *Session) activityOperation(ctx context.Context, op string, in ActivityI
 		for _, id := range in.EventIDs {
 			found := false
 			for _, e := range next.Events {
-				if e.ID == id && len(e.Recipients[member]) > 0 && s.activityAvailableLocked(e) {
+				if e.Follow == nil && e.ID == id && len(e.Recipients[member]) > 0 && s.activityAvailableLocked(e) {
 					read.Events[id] = true
 					found = true
 					break
@@ -574,6 +596,9 @@ func (a *App) memberActivityCall(ctx context.Context, id, op string, in Activity
 	return s.activityOperation(ctx, op, in)
 }
 func (a *App) activityHTTP(w http.ResponseWriter, r *http.Request, path string) bool {
+	if a.activityConsumerHTTP(w, r, path) {
+		return true
+	}
 	if path == "activity" && r.Method == "GET" {
 		a.mu.Lock()
 		ids := []string{}
@@ -603,6 +628,7 @@ func (a *App) activityHTTP(w http.ResponseWriter, r *http.Request, path string) 
 				}
 				b, _ := json.Marshal(out)
 				_ = json.Unmarshal(b, &pages[index])
+				pages[index] = a.activityProcessingPage(pages[index], r.URL.Query().Get("view"))
 			}(index, id)
 		}
 		wg.Wait()
@@ -644,6 +670,9 @@ func (a *App) activityHTTP(w http.ResponseWriter, r *http.Request, path string) 
 		return true
 	}
 	out, err := a.memberActivityCall(r.Context(), parts[1], op, in)
+	if err == nil && (op == "list" || op == "read") {
+		out = a.activityProcessingPage(workbenchDecode[ActivityPage](out), in.View)
+	}
 	respond(w, out, err)
 	return true
 }
@@ -653,6 +682,9 @@ func activityInputURL(r *http.Request) ActivityInput {
 	return ActivityInput{View: q.Get("view"), Category: q.Get("category"), Unread: q.Get("unread") == "true", Cursor: q.Get("cursor"), Limit: limit, Subject: ActivitySubject{Kind: q.Get("kind"), ID: q.Get("subjectId"), ExecutionID: q.Get("executionId")}}
 }
 func (s *Session) remoteActivityHTTP(w http.ResponseWriter, r *http.Request) bool {
+	if s.remoteActivityConsumerHTTP(w, r) {
+		return true
+	}
 	if !strings.HasPrefix(r.URL.Path, "/v2/member-activity/") {
 		return false
 	}

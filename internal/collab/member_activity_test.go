@@ -151,8 +151,8 @@ func TestMemberActivityOutboxCrashAndConcurrentReads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(s.record.Activity.Outbox) != 1 {
-		t.Fatal("source committed without durable pending event")
+	if len(s.record.Activity.Outbox) != 2 || s.record.Activity.Outbox[0].Follow == nil || s.record.Activity.Outbox[1].Kind != "comment" {
+		t.Fatal("source committed without both the private follow baseline and public event")
 	}
 	var disk Record
 	if err = readJSON(filepath.Join(s.runtimeDirectory(), "collaboration.json"), &disk); err != nil {
@@ -165,10 +165,10 @@ func TestMemberActivityOutboxCrashAndConcurrentReads(t *testing.T) {
 	if _, err = recovered.activityOperation(ctx, "list", ActivityInput{View: "space"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(recovered.activityLog.Events) != 1 || recovered.activityLog.Events[0].Source.AnnotationID != note.ID {
+	if len(recovered.activityLog.Events) != 2 || recovered.activityLog.Events[0].Source.AnnotationID != note.ID || recovered.activityLog.Events[1].Source.AnnotationID != note.ID {
 		t.Fatal(recovered.activityLog)
 	}
-	if err = recovered.drainActivityLocked(); err != nil || len(recovered.activityLog.Events) != 1 {
+	if err = recovered.drainActivityLocked(); err != nil || len(recovered.activityLog.Events) != 2 {
 		t.Fatal("replay duplicated", err)
 	}
 	// Concurrent old-watermark confirmations cannot lower a newer watermark.
@@ -185,7 +185,7 @@ func TestMemberActivityOutboxCrashAndConcurrentReads(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if recovered.activityLog.Reads["owner"].Through != 1 {
+	if recovered.activityLog.Reads["owner"].Through != 2 {
 		t.Fatal("read watermark lost")
 	}
 }

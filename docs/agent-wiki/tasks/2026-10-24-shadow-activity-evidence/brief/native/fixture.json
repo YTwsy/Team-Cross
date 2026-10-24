@@ -1,0 +1,7 @@
+{
+  "directory": "/private/tmp/teamcross-native-brief-20261024-7a176160",
+  "binary": "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+  "model": "gpt-5.6-luna",
+  "provider": "openai",
+  "reasoningEffort": "low"
+}

@@ -249,6 +249,8 @@ func uiRoute(path string, body any, write bool) (string, error) {
 		}
 		if len(parts) == 3 && parts[0] == "collaborations" {
 			switch parts[2] {
+			case "attention":
+				allowed, queries = true, "direction cursor limit"
 			case "activity", "follows", "mention-members":
 				allowed, queries = true, "view category unread cursor limit kind subjectId executionId"
 			case "materials":
@@ -264,6 +266,21 @@ func uiRoute(path string, body any, write bool) (string, error) {
 			case "request":
 				allowed, queries = true, "requestId"
 			}
+		}
+		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "attention" && parts[3] == "handling" {
+			allowed, queries = true, "executionId annotationId replyId"
+		}
+		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "attention" && parts[3] == "route" {
+			allowed = true
+		}
+		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "attention" && parts[3] == "event" {
+			allowed, queries = true, "eventId"
+		}
+		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "attention" && parts[3] == "questions" {
+			allowed, queries = true, "shadowId history cursor limit"
+		}
+		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "attention" && parts[3] == "question" {
+			allowed, queries = true, "shadowId id cursor limit"
 		}
 		if len(parts) == 3 && parts[0] == "space-receivers" && parts[2] == "events" {
 			allowed = true
@@ -285,6 +302,12 @@ func uiRoute(path string, body any, write bool) (string, error) {
 		}
 	}
 	if write && method == "POST" {
+		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "attention" && parts[3] == "route" {
+			allowed = true
+		}
+		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "attention" && parts[3] == "handling" {
+			allowed = true
+		}
 		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "activity" && parts[3] == "read" {
 			allowed = true
 		}

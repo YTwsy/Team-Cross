@@ -1,0 +1,7 @@
+=== RUN   TestNativeShadowTaskQuestion
+    task_questions_native_test.go:102: native ask registered the real waiting dependency
+    task_questions_native_test.go:126: restored task consumed exact answer and completed
+--- PASS: TestNativeShadowTaskQuestion (65.07s)
+PASS
+ok  	teamcross/internal/shadow	65.552s
+Native acceptance report: /private/tmp/teamcross-shadow-task-question-native-20261024-a/report.json

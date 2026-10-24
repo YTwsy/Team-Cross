@@ -1,0 +1,8 @@
+{
+  "fixture": "/private/tmp/teamcross-native-task-understanding-20261024-a032d196",
+  "nativeExitCode": 0,
+  "lsofExitCode": 1,
+  "openHandles": [],
+  "diagnostics": [],
+  "scope": "Dedicated test exited and Engine.Close ran; no global process scan or process termination was attempted."
+}

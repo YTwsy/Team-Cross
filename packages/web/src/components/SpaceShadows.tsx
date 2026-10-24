@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, errorText, useResource } from "../api";
+import { jobLabel } from "../attention";
 import { formatDate, serviceText, t } from "../i18n";
 import { localStorage } from "../storage";
 import {
@@ -17,6 +18,8 @@ import type {
 } from "../shadows";
 import { ErrorBox, Icon, Loading, Modal } from "./ui";
 import { MarkdownText } from "./MarkdownText";
+import { DefaultShadow } from "./DefaultShadow";
+import { ShadowQuestions } from "./ShadowQuestions";
 import "../shadows.css";
 
 export function SpaceShadows({
@@ -56,6 +59,15 @@ export function SpaceShadows({
         </button>
       </header>
       <ErrorBox message={list.error} />
+      {list.data && (
+        <DefaultShadow
+          key={spaceId}
+          spaceId={spaceId}
+          selfId={list.data.selfId}
+          shadows={list.data.shadows}
+          disabled={disabled}
+        />
+      )}
       {list.loading && !list.data ? (
         <Loading />
       ) : list.data?.shadows.length ? (
@@ -662,6 +674,13 @@ function ShadowChat({
       </div>
       {details && (
         <aside className="shadow-details panel">
+          {own && local.data && (
+            <ShadowQuestions
+              key={view.id}
+              spaceId={spaceId}
+              shadowId={view.id}
+            />
+          )}
           <h3>{t("后台任务")}</h3>
           {!view.jobs?.length && <p className="muted">{t("还没有后台任务")}</p>}
           {view.jobs?.map((j) => (
@@ -783,19 +802,6 @@ function ShadowChat({
   );
 }
 
-function jobLabel(state: string) {
-  const labels: Record<string, string> = {
-    queued: t("排队中"),
-    running: t("执行中"),
-    stopping: t("正在停止"),
-    completed: t("已完成"),
-    failed: t("失败"),
-    cancelled: t("已取消"),
-    interrupted: t("已中断"),
-    unknown: t("待核对"),
-  };
-  return labels[state] || state;
-}
 function NativeRequest({
   refreshKey,
   request,

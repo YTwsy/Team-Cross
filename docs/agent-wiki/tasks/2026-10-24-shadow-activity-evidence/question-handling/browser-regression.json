@@ -1,0 +1,6 @@
+{
+  "fixture": "b",
+  "observed": "Opening a waiting source reduced unread groups from 2 to 1 via Discussion IntersectionObserver",
+  "fix": "Waiting source readers disable nested visible-read reporting; actual activity views retain normal read behavior",
+  "regression": "question-handling.test.tsx now provides IntersectionObserver and verifies zero writes"
+}

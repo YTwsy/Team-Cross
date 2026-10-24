@@ -1,0 +1,27 @@
+ok  	teamcross/cmd/teamcross	0.378s
+?   	teamcross/internal/buildinfo	[no test files]
+ok  	teamcross/internal/cliinstall	7.063s
+ok  	teamcross/internal/collab	64.659s
+?   	teamcross/internal/inflow	[no test files]
+ok  	teamcross/internal/materialstore	0.695s
+ok  	teamcross/internal/mcp	2.594s
+ok  	teamcross/internal/mcpassets	1.357s
+ok  	teamcross/internal/mcpevents	1.910s
+ok  	teamcross/internal/nativeclaude	16.849s
+ok  	teamcross/internal/nativecodex	7.367s
+ok  	teamcross/internal/pluginpack	14.690s
+?   	teamcross/internal/problem	[no test files]
+?   	teamcross/internal/readview	[no test files]
+?   	teamcross/internal/runtimeconfig	[no test files]
+--- FAIL: TestEnsureUsesInstalledBuildAndPrioritizesUpgrade (5.46s)
+    --- FAIL: TestEnsureUsesInstalledBuildAndPrioritizesUpgrade/active (3.01s)
+        service_test.go:99: activity incorrectly delayed upgrade 无法读取已安装的 Team Cross 构建 0
+FAIL
+FAIL	teamcross/internal/service	10.039s
+ok  	teamcross/internal/shadow	66.323s
+ok  	teamcross/internal/sharing	1.757s
+?   	teamcross/internal/spacecontext	[no test files]
+ok  	teamcross/internal/uilanguage	2.963s
+?   	teamcross/internal/webassets	[no test files]
+ok  	teamcross/internal/workspace	1.783s
+FAIL

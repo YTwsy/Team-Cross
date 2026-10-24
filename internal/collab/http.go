@@ -56,6 +56,7 @@ func historyReadFromURL(u *url.URL) HistoryRead {
 		ReaderRequest: ReaderRequest{AttachmentID: u.Query().Get("attachmentId"), AttachmentOffset: integer("attachmentOffset"), Search: search},
 		Options:       readview.Options{View: u.Query().Get("view"), ToolOutputs: u.Query().Get("toolOutputs"), TurnLimit: integer("turnLimit"), MaxBytes: integer("maxBytes")},
 		AnnotationID:  u.Query().Get("annotationId"), Compact: u.Query().Get("compact") == "true", Offset: integer("offset"), IncludeQuote: quote,
+		ReplyID: u.Query().Get("replyId"), SourceOnly: u.Query().Get("sourceOnly") == "true",
 		Cursor: u.Query().Get("cursor"), TurnID: u.Query().Get("turnId"),
 		ItemID: u.Query().Get("itemId"), StartOffset: start,
 	}
@@ -165,6 +166,9 @@ func (s *Session) annotate(in Annotation, author string, contexts ...context.Con
 	if in.RequestID != "" {
 		for _, old := range s.record.Annotations {
 			if old.RequestID == in.RequestID && old.AuthorID == in.AuthorID {
+				if (old.Actor.Kind == "shadow" || in.Actor.Kind == "shadow") && old.Actor != in.Actor {
+					return Annotation{}, fmt.Errorf("requestId 已属于其他实际作者")
+				}
 				if old.Text != in.Text || contentHash(old.Mentions) != contentHash(in.Mentions) || contentHash(old.Target) != contentHash(in.Target) || contentHash(old.Materials) != contentHash(in.Materials) || old.Reference != in.Reference {
 					return Annotation{}, fmt.Errorf("requestId 已用于不同批注")
 				}
@@ -268,7 +272,7 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 	if a.inFlowHTTP(w, r, path) || a.agentsHTTP(w, r, path) {
 		return
 	}
-	if a.activityHTTP(w, r, path) || a.workbenchHTTP(w, r, path) || a.receiversHTTP(w, r, path) || a.spaceEventsHTTP(w, r, path) || a.shadowsHTTP(w, r, path) {
+	if a.activityHTTP(w, r, path) || a.shadowHandlingHTTP(w, r, path) || a.workbenchHTTP(w, r, path) || a.receiversHTTP(w, r, path) || a.spaceEventsHTTP(w, r, path) || a.shadowsHTTP(w, r, path) {
 		return
 	}
 	switch path {

@@ -1,3 +1,5 @@
+import { t } from "./i18n";
+import type { ActivitySource } from "./activity";
 import type { LibraryReference } from "./library";
 
 export type SpaceTarget = {
@@ -15,7 +17,8 @@ export type SpaceTarget = {
 export type SpaceActor = {
   memberId: string;
   name: string;
-  kind: "human" | "session";
+  kind: "human" | "session" | "shadow";
+  shadowId?: string;
   provider?: string;
   session?: string;
 };
@@ -60,8 +63,12 @@ export type SpaceRequest = {
   };
 };
 export type BriefItem = {
+  itemId?: string;
   text: string;
-  sources: LibraryReference[];
+  status?: string;
+  updatedBy?: SpaceActor;
+  updatedAt?: string;
+  sources: ActivitySource[];
   requestId?: string;
 };
 export type SpaceBrief = {
@@ -69,6 +76,7 @@ export type SpaceBrief = {
   topic: string;
   decisions: BriefItem[];
   questions: BriefItem[];
+  progress?: BriefItem[];
   updatedBy: SpaceActor;
   updatedAt: string;
 };
@@ -122,3 +130,20 @@ export type SpaceReceiver = {
   command?: string;
   pairingId: string;
 };
+
+export function briefStatusLabel(status?: string) {
+  return (
+    (
+      {
+        proposed: t("建议"),
+        confirmed: t("已确认"),
+        disputed: t("有争议"),
+        open: t("待解决"),
+        resolved: t("已解决"),
+        in_progress: t("进行中"),
+        completed: t("已完成"),
+        blocked: t("受阻"),
+      } as Record<string, string>
+    )[status || ""] || t("待核对")
+  );
+}

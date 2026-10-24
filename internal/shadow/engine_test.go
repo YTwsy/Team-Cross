@@ -567,7 +567,7 @@ func TestUpgradeProtectsAcceptedAndPausedBackgroundWork(t *testing.T) {
 		t.Fatal("paused reception hid live background work")
 	}
 	f.complete(job.ThreadID, "done", "completed", true)
-	until(t, func() bool { return e.View().Jobs[0].State == "completed" })
+	until(t, func() bool { return e.View().Jobs[0].State == "needs_followup" })
 	until(t, func() bool { return !e.UpgradeBusy() })
 	if !e.View().Online {
 		t.Fatal("test must exercise an idle live runtime")

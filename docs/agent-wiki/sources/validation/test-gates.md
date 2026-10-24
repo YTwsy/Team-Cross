@@ -150,7 +150,7 @@ python3 scripts/verify-space-workbench.py \
 
 脚本只用 `gpt-5.6-luna` 和隔离原生配置，启动同一台 Mac 上的三个 Core，通过真实 TLS 成员资格关联两名成员的独立接收会话。必须验证启动简报读取和接手、经明确授权的会话到会话 MCP 投递、关联请求及三个成员一致的完成回执、同 ID 去重、暂停/停用保留原生会话，且未启用共同执行。只能回应本测试精确原生会话、工具名称和请求 ID 的必要审批。模型返回摘要按明确指定的标记核对，协议完成不代表正文正确。脚本保留证据并退出自身 Core；不改写个人配置，不等价于两台 Mac 或 ChatGPT MCP Events 验证。
 
-[space-workbench.test.tsx](../../../../packages/web/src/test/space-workbench.test.tsx) 验证工作台键盘导航、阅读器保留、固定引用发送、丢失响应只查同 ID、成员确认简报和显式接手预览。真实浏览器 fixture 使用合成材料和模拟接收者，但空间存储、成员访问和 HTTP 是真实的：
+[space-workbench.test.tsx](../../../../packages/web/src/test/space-workbench.test.tsx) 验证工作台键盘导航、阅读器保留、固定引用发送、丢失响应只查同 ID、简报状态编辑和显式接手预览。真实浏览器 fixture 使用合成材料和模拟接收者，但空间存储、成员访问和 HTTP 是真实的：
 
 ```sh
 TEAMCROSS_WORKBENCH_BROWSER_DIR=/private/tmp/teamcross-space-browser-fresh \
@@ -165,11 +165,33 @@ TEAMCROSS_WORKBENCH_BROWSER_DIR=/private/tmp/teamcross-space-browser-fresh \
 
 ## 本机数字分身
 
+[简报回放](../../../../internal/collab/workbench_brief_test.go)覆盖真实跨 Core 分身作者、按条目写入与无关内容保留、CAS 合并、固定历史来源、回执重启/重试、存储失败回滚、来源状态与混合对象校验、历史保留边界及非法 HTTP 修订不得回退到最新。专用 `scripts/verify-shadow-native.py --brief` 使用 Luna 在两套认证 Core 间读取真实测试讨论、遭遇并合并实际并发更新、回读简报命令回执及旧条目；模型调用不替换为来源回调。仍为单 Mac 的合成空间，不代表完整默认 @/任务/顺流闭环。
+
+[简报界面交互](../../../../packages/web/src/test/space-workbench.test.tsx)、[合并边界](../../../../packages/web/src/test/brief-merge.test.ts)和[动态来源](../../../../packages/web/src/test/member-activity.test.tsx)覆盖条目状态与作者、不同修改合并、同条目/删除/来源冲突、原快照过期、取消合并保留草稿、丢失回执先查原命令、准确历史来源及失效后清除旧正文。真实浏览器使用独立 TestWorkbenchBrowserFixture，核对中英/深浅/窄布局、编辑保存、历史来源、键盘返回及真实并发合并；关闭本次浏览器和测试 Core 后记录清理结果。
+
+[本人事实同步](../../../../internal/collab/member_activity_own_changes_test.go)覆盖源提交后的日志故障恢复、初始消费者、取消/静音、远端作者与本机来源别名、材料固定版本及消费者接收前保留；[内部认识](../../../../internal/shadow/attention_own_changes_test.go)核对本人已有答复不重复创建工作或共享消息，直接批次仍保留准确本人变化。
+
+[多份任务认识](../../../../internal/shadow/task_contexts_test.go)覆盖具体用途与有界快照、旧/新依据分别保存、只有关联事实变化才接续、相同原生 W 的重启恢复、未核对/旧版本不得完成、保存失败回滚、wait 后晚到变化、已呈现输入不自动重复及真实观察结果接回既有任务。[本机索引](../../../../internal/collab/shadow_contexts_test.go)核对旧默认分身仍在使用的来源可见，同成员与同空间隔离，共享 View 不含私有关联。专用 `--task-contexts` 模式由 Luna 真实创建双来源任务、核对后等待、重启后处理一份变化并核对原条件完成；认识正文由受控夹具提供，不替代真实多 Core 材料发布路径。独立于普通关注偏好的原始变化由下方任务来源回放验证。
+
+[任务答案回写](../../../../internal/shadow/task_understanding_test.go)覆盖任务分流后更新认识并接续关联工作、依赖满足与认识回写分开、答案早于成员动态、命令及事实同次存盘、重启回执、存储失败回滚、过时或伪造更新不落盘，以及晚到观察不能覆盖新事实或重放已发动作。`--task-understanding` 专用原生模式验证真实 understand 工具、等待后重启、原 W 接续和旧有效事实保留；答复来源由夹具控制，不能推广为真实多 Core 问答与顺流验收。
+
+[任务来源回放](../../../../internal/shadow/task_sources_test.go)覆盖取消/静音后的同一 W 重启接续、固定 snapshot 不跟随、cursor 与信号同次保存、磁盘失败回滚、非法/越域/旧版本返回不推进位置、暂停与完成后的晚到结果、最多四项并发和来源公平性、wait 后新输入接续、忽略旧输入不循环，以及事实去重保留直接问题入口；认识合并后的缺口记录跨重启保留。[跨 Core 来源](../../../../internal/collab/shadow_task_sources_test.go)验证真实认证传输、本人成员归属、超过 UI 二十项的分页、本人和同事变化、材料子讨论与撤回、准确执行轮次与兄弟会话隔离、日志压缩后的有界重建提示。专用 `--task-sources` 使用 Luna 真实登记 live/snapshot 关系，等待、静音和重启后合并新来源、保留固定旧证据，并在同一 W 核对原条件完成；退出前核对结果实际送达及启动轮次全部结束。来源正文受夹具控制，与完整多 Core 模型问答和顺流验收分开。
+
 模型选择改动需覆盖 [启动设置回归](../../../../internal/shadow/settings_test.go) 与 [本机模型目录回归](../../../../internal/collab/shadow_models_test.go)：工作目录有效配置、分页、配置白名单、不创建线程、自定义模型保留、每模型推理选项、未知回执重试固定 settings、原生确认不一致时暂停、所有会话创建和恢复显式应用同一组值。真实 fixture 以 medium 原生默认创建 low 分身，再将专用 home 默认改成 high，核对 S1/S2/W/CM/M 和重启的实际返回值；仍只调用 Luna。浏览器检查创建选择、状态显示与失败路径，不在聊天输入处新增选择。
 
 合入插件更新或 Core 升级改动时，另验证分身草稿和结果不明的创建请求跨面板刷新保留、不同 Core 不串草稿、零自动提交；Core 升级须保护独立分身的已接收队列、暂停后的活跃后台轮次和维护/审批，空闲进程及离线未知轮次不永久阻塞。入口为 [分身交互](../../../../packages/web/src/test/shadows.test.tsx)、[分身运行回归](../../../../internal/shadow/engine_test.go) 和 [升级回归](../../../../internal/collab/upgrade_test.go)。
 
+[固定任务结果回放](../../../../internal/shadow/task_results_test.go)覆盖原生 final 与业务完成的区别、目标更新后旧结果不变、重启、失败保存回滚、256 份保留边界和私有运行字段不进入快照。[跨 Core 精确来源](../../../../internal/collab/shadow_result_sources_test.go)覆盖认证读取、空间别名、来源选择器、不可覆盖正文、结果失效与关闭空间；[来源界面](../../../../packages/web/src/test/member-activity.test.tsx)覆盖准确 ID、失效清空及人的已读不变。`verify-shadow-native.py --result-sources` 使用专用 Luna 读取两套认证 Core 中的合成历史结果及消息，并将准确来源写入简报；它验证新工具路径，不替代真实任务结果顺流回传的闭环。
+
 领域契约见[本机数字分身](../decisions/local-shadows.md)。回归入口：[状态与故障接续](../../../../internal/shadow/engine_test.go)、[三 Core 成员与送达](../../../../internal/collab/shadows_test.go)、[共享聊天界面](../../../../packages/web/src/test/shadows.test.tsx)。检查持久化成功才送达、同 ID 手动重发、真实成员归属和跨空间隔离；S1 → S2 后未决项与独立 W/J 不变；纠正/忘掉的版本、候选水位与晚到结果不覆盖当前状态；丢失创建/投递回执时不自动重放；压缩完成后废弃旧 CM 决定并等待新用量，CM 超时忽略晚到建议；空间结束和成员退出停止精确所属进程，暂停则保留已接收工作。
+
+首次关注与目标管理覆盖[主机初始化](../../../../internal/collab/member_follow_signals_test.go)、[本机偏好接收](../../../../internal/shadow/attention_follows_test.go)及[目标接续](../../../../internal/shadow/watch_test.go)：固定来源边界和有界近期回复、远端来源别名、初始化不出现在人的列表或已读、偏好与 outbox 同步回滚、旧初始化分页期间被取消、父级静音、目标版本与认识 revision 独立、真实成员来源、丢失关注回执和重启后同一命令恢复、结束目标保留认识。真实模型还需核对 shadow_watch 的实际调用和更新后后续理解，不由工具注册成功推导行为已验收。
+
+[实际提问与接续](../../../../internal/shadow/task_questions_test.go)和[业务来源核对](../../../../internal/collab/shadow_dependencies_test.go)覆盖发送前原子登记、保存失败零发送、正文/目标幂等冲突、待回执来源绑定回滚、不同 shadow 不串命令、早到答案、本人答复、重启后只读核对与原 W 接续、同一问题多任务明确引用，以及直接回合的真实任务/本人待答证明。无登记的未来工作不得推进理解水位；no_action 不结束已登记任务。专用 `--task-question` 模式由 Luna 实际 ask，模拟已写入但回执丢失，重启后核对准确来源与答案并 finish；它验证原生工具调用与持久恢复，业务对象仍由夹具提供，另由 collab 的真实 HTTP/TLS 回归验证来源和身份，不替代完整产品链路。
+
+[原问题关系](../../../../internal/shadow/task_question_relations_test.go)另覆盖多来源新讨论的明确 respondsTo、真实 replyTo 始终保留、本人接回其中一项不阻塞其他问题、回执丢失后不重绑来源、慢速读取期间正常聊天可用，以及旧任务版本不提交晚到发送。[提问索引](../../../../internal/shadow/question_index_test.go)、[本机路由](../../../../internal/collab/shadow_questions_test.go)和[前端交互](../../../../packages/web/src/test/shadow-questions.test.tsx)覆盖各任务独立条件、接收与满足的区别、分页预算、版本化游标、无原生内部数据泄露及只读页面不启动模型。浏览器夹具追加 `TEAMCROSS_HANDLING_BROWSER=1 TEAMCROSS_QUESTIONS_BROWSER=1`，从“记忆与任务”打开详情，检查两个原问题与已发问题的准确定位、独立条件及下一步、键盘返回、人的已读保持，以及 1440/1024/768 CSS 像素、中英文和深浅主题。此夹具使用暂停分身与受控任务；实际 Luna 的 `--task-question` 另核对关系读取、持久恢复和只发送一次。
+
+[关联任务控制](../../../../internal/shadow/task_follows_test.go)覆盖停止回执与实际终止的区别、连续修改和暂停、旧 native final 先于调度检查到达、独立直接 @ 不受影响、暂停期间答复保存、重启后原 W 重核条件、未知输入先核对以及保存失败不推进版本。目标结束不得把任务伪造为 completed，私有绑定和认识不得进入共享视图。真实原生验证使用全新 fixture 的 `--task-follow` 模式：Luna 实际创建绑定任务、进入继承 MCP 的隔离等待、中断、改目标、重启、恢复同一 W，并调用 replan 后核对新完成条件。该模式的关注对象与等待工具仍是受控夹具，不能替代跨 Core 完整产品验收。
 
 真实 Codex 接续与空间产品流程分别运行，输出目录必须全新：
 
@@ -187,6 +209,10 @@ python3 scripts/verify-local-shadow.py \
 ```
 
 第一个脚本创建隔离 home/repo，固定测试模型 `gpt-5.6-luna`，用可控的只读 MCP 工具让 W 跨越主会话回答、原生压缩和 S2 接手；同时验证继承标记、显式记忆变更、准确 thread 恢复和空闲整理水位。只降低 Core 的 CM 触发线，真实窗口和原生压缩保持不变；CM 若选择 compact，再显式触发换段以确定性覆盖两条路径。这证明机制接通，不证明默认阈值最优。
+
+工具注册升级另用 `verify-shadow-native.py` 的 `--toolset-upgrade` 模式和全新 fixture 目录。它先创建真实主段与等待中的 W，再添加一个只读 fixture 工具，验证主段交接、同一任务及依赖在新 W 接续、两个新原生会话实际调用新增工具、完成条件核对，以及再次重启仍复用新主段。答复来源由测试夹具控制，该项证明原生工具升级，不代替跨 Core @、界面或顺流回传的完整验收。工程回归见 `internal/shadow/toolsets_test.go`，同时覆盖活跃轮次/审批边界、相同工具不重复升级、旧动作与证据保留和交接失败停止重试。
+
+关注目标另用 `--watch` 模式和全新 fixture 目录。专用 Luna 实际调用 shadow_watch start/update/pause/resume/complete，验证首次有界认识、暂停期间队列保留、原生重启后同一主会话继续理解、目标版本递增及内部观察不进入 C1。该测试的源对象和关注回执由夹具控制；主机关注、outbox、TLS 和别名另由 collab 测试验证，仍需完整产品闭环确认组合后的行为。
 
 第二个脚本运行单 Mac 三个 Core 与真实 TLS，成员 B 创建分身、C 发消息，三方读取相同作者和完成结果；停止 B 后验证失败消息不补发，重启后手动同 ID 重发，核对原生 thread 和记忆仍在，再通过真实 stdio MCP 读取结果。可加 `--keep-browser` 暂留现场，按 `fixture.json` 进入实际 WebGUI，检查共享聊天、回执、失败重发、记忆/任务和本机控制。创建 fixture 的 `finish` 文件结束并清理脚本进程。浏览器复核使用构建后的嵌入资源，不把单 Mac 当成两台 Mac，也不把普通浏览器当成 ChatGPT 插件宿主验收。
 
@@ -359,3 +385,16 @@ python3 scripts/verify-agent-channel.py --fixture-dir <另一个新的空目录>
 真实浏览器使用 `TEAMCROSS_ACTIVITY_BROWSER_DIR=<全新目录> go test ./internal/collab -run '^TestMemberActivityBrowserFixture$' -v -count=1 -timeout=31m`。它建立同 Mac 三 Core、真实共享 TLS 和合成材料／讨论，fixture.json 给出发起者、成员及全局页地址；不启动模型。检查概览正文的三组摘要／原位展开、侧栏无新增入口、主导航全局角标、@ 候选和键盘选择、父回复引用、精确原文定位、双窗口已读、关注菜单与管理列表。按 1440、1024、843、768 CSS 像素和中英／深浅主题复核截图，特别检查筛选标签和浮层不被截断。结束创建该目录的 finish 并关闭本次页面。
 
 `TEAMCROSS_ACTIVITY_LIVE_DIR=<全新目录> go test ./internal/collab -run '^TestLiveMemberActivity$' -v -count=1 -timeout=9m` 使用独立原生 home、仓库和 `gpt-5.6-luna`；验证真实 app-server 的来源 fork、原目录／worktree 会话最终答复、原生 turn ID 与输入成员归属以及已读确认，不要求模型修改文件。`TestLiveCodex` 仍是更广的原生文件执行与生命周期门槛，两者不能互相替代；直接 TUI/Desktop、实验性 Claude、真实插件宿主及跨 Mac 网络须各自留证据。
+
+
+### 问题回复交接与等待页
+
+修改问题交接时覆盖准确根项/回复、同讨论其他问题不受影响、发送前接回和在途回执排序、稳定 ID 重试不覆盖新交接、本人回答与同事回答区别、失败存盘不推进、默认分身变化、普通关注暂停／改目标不丢失明确交回。入口为[问题交接回归](../../../../internal/shadow/question_handling_test.go)、[等待投影](../../../../internal/shadow/waiting_test.go)、[实际 Core 来源与本人答复](../../../../internal/collab/shadow_handling_test.go)。
+
+等待页需检查多个任务复用同一问题、收到答复仍未满足条件、未确认发送不能要求本人回答、稳定分页失效，以及只读取本人本机记录。前端覆盖无确认交接、失联同 ID 重试、等待详情不标已读；入口为[交互回归](../../../../packages/web/src/test/question-handling.test.tsx)。页面主改动需 rebuild 两套嵌入资源，再用 `TEAMCROSS_HANDLING_BROWSER=1 TEAMCROSS_ACTIVITY_BROWSER_DIR=<全新目录>` 运行 `TestMemberActivityBrowserFixture` 检查中英文及窄窗口；该夹具使用实际业务消息和暂停分身的受控任务记录，不运行真实模型。完整原生多 Core 问答及准确顺流闭环需另行验收。
+
+### 默认分身与动态处理状态
+
+修改默认选择或处理投影时，覆盖仅本人分身、读取不创建路线/模型、稳定命令重试不回滚后来选择、并发 revision 冲突后可重新选择，以及新默认不夺取旧任务答复。状态验证分别检查持久接收、观察/接续、任务等待和显式业务完成；同讨论不同事件不得相互借用完成事实，已保存发送回执和原生 final 不等于业务完成。入口为[状态投影](../../../../internal/shadow/activity_status_test.go)、[本机 API](../../../../internal/collab/shadow_activity_status_test.go)、[UI 路由](../../../../internal/mcp/ui_handling_test.go)和[交互回归](../../../../packages/web/src/test/activity-processing.test.tsx)。
+
+列表只显示简短状态，展开才读取准确事件详情；查看实际动作的不同讨论来源必须保持人的未读，不能沿用原通知的来源、预览或已读身份。Web check/test/build 与两套嵌入资源更新后，使用 `TEAMCROSS_HANDLING_BROWSER=1 TEAMCROSS_STATUS_BROWSER=1 TEAMCROSS_ACTIVITY_BROWSER_DIR=<全新目录>` 运行 `TestMemberActivityBrowserFixture`。检查中英文、默认选择无额外确认、切换后旧任务归属、同组新旧动态的不同状态、展开和查看来源时未读保持不变。夹具包含两位暂停的本人分身、真实讨论和受控任务记录，不启动模型；不能替代完整原生协作验证。

@@ -94,6 +94,15 @@ func Open(cfg Config) (*Engine, error) {
 }
 
 func newEngine(cfg Config, r Record) *Engine {
+	if r.Questions == nil {
+		r.Questions = map[string]TaskQuestion{}
+	}
+	if r.Actions == nil {
+		r.Actions = map[string]CollaborationAction{}
+	}
+	if r.AttentionThreads == nil {
+		r.AttentionThreads = map[string]string{}
+	}
 	if cfg.CheckRatio <= 0 || cfg.CheckRatio >= .95 {
 		cfg.CheckRatio = .8
 	}
@@ -105,6 +114,18 @@ func newEngine(cfg Config, r Record) *Engine {
 	}
 	if cfg.AuxiliaryTimeout <= 0 {
 		cfg.AuxiliaryTimeout = 90 * time.Second
+	}
+	for id, job := range r.Jobs {
+		if job.Kind == "" {
+			job.Kind = "work"
+		}
+		if job.Revision == 0 {
+			job.Revision = 1
+		}
+		if len(job.CompletionCriteria) == 0 {
+			job.CompletionCriteria = []string{job.Prompt}
+		}
+		r.Jobs[id] = job
 	}
 	return &Engine{cfg: cfg, record: r, wake: make(chan struct{}, 1), done: make(chan struct{}), approvals: map[string]Approval{}, compacting: map[string]bool{}, lastActivity: time.Now()}
 }
@@ -153,9 +174,15 @@ func writeAtomic(path string, value any) error {
 }
 
 func (e *Engine) saveLocked() error {
+	previousResults := e.record.TaskResults
+	e.captureTaskResultsLocked()
 	e.record.Revision++
 	e.record.UpdatedAt = time.Now()
-	return writeAtomic(filepath.Join(e.cfg.Directory, "shadow.json"), e.record)
+	if err := writeAtomic(filepath.Join(e.cfg.Directory, "shadow.json"), e.record); err != nil {
+		e.record.TaskResults = previousResults
+		return err
+	}
+	return nil
 }
 
 func (e *Engine) mutateLocked(fn func() error) error {
@@ -216,6 +243,9 @@ func (e *Engine) View() View {
 	r := e.record
 	v := View{Settings: r.Settings, ID: r.ID, SpaceID: r.SpaceID, Name: r.Name, Owner: r.Owner, Revision: r.Revision, Enabled: r.Enabled, Online: !e.closed && e.runtime != nil && e.runtime.Alive(), Current: r.Current, Segments: r.Segments, Messages: r.Messages, Memories: []Memory{}, Jobs: []Job{}, Error: r.Error}
 	v.Model, v.ModelProvider, v.ReasoningEffort = r.Model, r.ModelProvider, r.ReasoningEffort
+	v.CreatedAt = r.CreatedAt
+	v.TaskResults = sortedTaskResults(r.TaskResults)
+	v.TaskResultCount = len(v.TaskResults)
 	for _, run := range r.Runs {
 		if run.ThreadID == r.Current && activeRun(run) {
 			v.Busy = true
@@ -230,6 +260,9 @@ func (e *Engine) View() View {
 	sort.Slice(v.Memories, func(i, j int) bool { return v.Memories[i].Revision < v.Memories[j].Revision })
 	sort.Slice(v.Jobs, func(i, j int) bool { return v.Jobs[i].CreatedAt.Before(v.Jobs[j].CreatedAt) })
 	v = clone(v)
+	for i := range v.Segments {
+		v.Segments[i].ToolsetDigest = ""
+	}
 	if v.Error != "" {
 		v.Error = "本机运行需要核对，请联系分身所在成员"
 	}
@@ -239,6 +272,26 @@ func (e *Engine) View() View {
 		}
 	}
 	for i := range v.Jobs {
+		v.Jobs[i].Follow = nil
+		v.Jobs[i].Contexts = nil
+		v.Jobs[i].Understandings = nil
+		if trigger := v.Jobs[i].Trigger; trigger != nil {
+			// Keep public source references; private understanding identities
+			// and goal-binding metadata are not shared task provenance.
+			trigger.FocusID, trigger.GoalVersion, trigger.FollowGoal = "", 0, false
+		}
+		v.Jobs[i].ToolsetDigest, v.Jobs[i].PreviousThreads = "", nil
+		for k := range v.Jobs[i].Dependencies {
+			d := &v.Jobs[i].Dependencies[k]
+			d.Received = nil
+			d.QuestionID, d.QuestionActionID, d.QuestionTool, d.QuestionSourcePending = "", "", "", false
+			for n := range d.Signals {
+				d.Signals[n].QuestionSource = nil
+			}
+			if d.Error != "" {
+				d.Error = "等待来源需要核对"
+			}
+		}
 		if v.Jobs[i].Error != "" {
 			v.Jobs[i].Error = "原生任务结果需要核对"
 		}
@@ -256,6 +309,12 @@ func (e *Engine) Identity() (id, spaceID, home, cwd string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.record.ID, e.record.SpaceID, e.record.Home, e.record.Cwd
+}
+
+func (e *Engine) MemberIdentity() (spaceID, memberID string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.record.SpaceID, e.record.Owner.ID
 }
 
 func (e *Engine) SetEnabled(enabled bool) error {

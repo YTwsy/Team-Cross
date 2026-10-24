@@ -23,6 +23,31 @@
 本轮不证明 Claude Hook、插件 Hook 的原生自动加载、Desktop/Cloud 宿主或两台 Mac 已验收。插件包导出及命令引号有自动化检查；没有可用 Hook 或 MCP 交互时不会即时投递。当前行为见 [顺流感知契约](../decisions/in-flow-awareness.md)。
 ## 本机数字分身
 
+2026-10-24，分身消息与固定任务结果来源通过全量 Go/vet、shadow/collab/mcp 完整 race、Web 259 项测试和双嵌入构建。专用 Luna 经两套认证 Core 读取合成 v1 结果与原消息，并准确引用到简报；没有用当前 v2 替代旧依据。生成/重启/失败回滚与跨 Core 不可覆盖由回放验证，原生验证范围限于读取和引用，准确原会话顺流回传仍未接通。完整结果、模型纠错及清理见[分身固定结果与准确来源验证](../../tasks/2026-10-24-shadow-activity-implementation.md#分身固定结果与准确来源验证)。
+
+2026-10-24，简报按条目更新、真实作者与状态、历史来源、保存回执与人工并发合并通过全部 Go/vet、shadow/collab/mcp 完整 race、Web 257 项测试及双嵌入构建。专用 Luna 在两套认证 Core 间读取实际测试讨论，合并真实并发更新并回读原命令及旧条目；中文浅色、英文深色与 1440/1024/768 浏览器复核了状态编辑、保留双方独立修改、历史来源及键盘返回，人的 unread=1/readRevision=0 保持。单 Mac 的该场景不等于完整默认 @/任务/顺流闭环。完整结果、首次失败与修复、来源及清理见[简报协作与历史来源验证](../../tasks/2026-10-24-shadow-activity-implementation.md#简报协作与历史来源验证)。
+
+2026-10-24，活跃任务来源接收通过全 Go/vet、shadow/collab 完整 race、Web 250 项测试及两套嵌入构建。八项任务回放和四项 collab 回放覆盖静音后的独立读取、同一 W 接续、固定 snapshot、认证传输、分页、来源公平性与日志缺口持久化。最终专用 Luna 在等待和重启后合并接口 v2，保留 OIDC 与固定客户端 v3，并等待结果送达及所有回合结束。原生正文由回调提供；该阶段未覆盖简报写入，后续证据见上方；完整真实多 Core 模型问答与准确顺流回传仍待完成。完整来源、最终复验及环境边界见[活跃任务来源变化的验证](../../tasks/2026-10-24-shadow-activity-implementation.md#活跃任务来源变化的验证)。
+
+2026-10-24，任务答复回写认识通过全 Go/vet、shadow/collab 完整 race、Web 250 项测试与两套嵌入构建。八项定向回放另覆盖多原问题原子提交及答复分页不提前消费。专用 Luna 在等待和重启后，真实调用 understand 将 v3 答案并入认识、保留 OIDC 事实，再于原 W 核对条件完成；两个 thread/start、两次恢复、七次工具调用。答复来源由夹具提供；独立原始业务变化随后由上方阶段单独验证，完整多 Core 问答顺流仍需继续。见[答复回写认识的验证](../../tasks/2026-10-24-shadow-activity-implementation.md#答复回写认识的验证)。
+
+2026-10-24，多份认识关联任务通过全 Go/vet、shadow/collab 完整 race、Web 250 项测试与两套嵌入构建。专用 Luna 真实核对两份认识、等待、重启后在同一 W 处理一份变化并按原条件完成；两个 thread/start、两次恢复、五次动态工具调用。认识由受控夹具提供；任务答案回写及原始业务变化的后续独立证据见上方。完整来源、日志与边界见[任务关联多份认识的验证](../../tasks/2026-10-24-shadow-activity-implementation.md#任务关联多份认识的验证)。
+
+2026-10-24，本人对已有关注对象的事实同步通过全 Go/vet 与 shadow、collab 完整 race。覆盖日志失败恢复、初始消费、当前偏好、远端身份、固定材料版本、保留边界和内部认识，不增加人的提醒或已读；该阶段没有新增原生模型运行。证据见[本人事实同步验证](../../tasks/2026-10-24-shadow-activity-implementation.md#本人事实同步验证)。
+
+2026-10-24，明确原问题关系及本机提问详情通过全 Go/vet、相关三包完整 race、Web 250 项测试与两套嵌入构建。真实浏览器核对 1440/1024/768 CSS 像素、中英文与深浅主题，准确来源打开及键盘返回保持人的 unread=1、readRevision=2。专用 Luna 实际登记两个原问题关系，模拟回执丢失后重启接续，只发送一次提问；实际业务来源仍由夹具提供。完整记录、源码散列、截图和清理见[原问题关系与提问详情验证](../../tasks/2026-10-24-shadow-activity-implementation.md#原问题关系与提问详情验证)。本人事实同步另有上方独立证据；完整原生多 Core 问答与准确顺流回传仍未完成。
+
+默认分身选择和个人动态中的准确事件处理状态此前已在独立 `codex/shadow-activity` 通过全 Go/vet、相关 race、Web 248 项测试、双嵌入构建及中英文浏览器复核。实际选择直接生效，旧任务保留原分身；处理详情与原问题阅读保持 2 组未读和 readRevision=0。另修正自发分身消息误显示等待接收，详情按需读取且不沿用原通知的来源身份。桌面与实际 684 CSS 像素窄布局均已查看；命令、截图、初次夹具问题和边界见[默认选择与状态验证](../../tasks/2026-10-24-shadow-activity-implementation.md#默认分身与动态处理状态验证)。该阶段没有新增真实模型验证。
+
+前阶段的问题级接回、本人回答读取、显式交回和成员等待页通过范围见[问题交接与等待页验证](../../tasks/2026-10-24-shadow-activity-implementation.md#问题级接回与成员等待页验证)。该阶段曾修复等待详情内层误标已读；其 241 项 Web 测试与浏览器记录保留为当时证据，当前结果以上述新阶段为准。
+
+
+`codex/shadow-activity` 在 Meta `616ff79` 上实施默认接手与任务接续。独立消费者、直接 @/普通关注分流、准确依赖、异步来源读取、真实作者、行动去重及 checkpoint/wait/finish 已通过 Go 回放与相关 race；当次命令、结果及剩余项见[实施记录](../../tasks/2026-10-24-shadow-activity-implementation.md)。2026-10-24 的专用 Codex 0.163.0-alpha.11.2 / gpt-5.6-luna 测试还证明：旧主段交接及旧 W 保留任务后升级，两个新原生会话实际使用新增工具，等待任务核对完成条件后结束，再次重启复用新主段。答复来源由夹具控制，见[结构化原生证据](../../tasks/2026-10-24-shadow-activity-evidence/direct-and-toolsets/native-toolsets-report.json)。
+
+同日首次关注与 shadow_watch 管理已通过完整 Go/vet、相关 race、源记录失败与重复回执恢复测试。专用 Luna 实际调用 start/update/pause/resume/complete，固定基线和暂停后排队更新各形成一轮认识；重启复用原主段，内部观察不进入共享聊天，见[本阶段证据](../../tasks/2026-10-24-shadow-activity-implementation.md#首次关注与目标管理验证)。业务来源由夹具控制，不扩大为两台 Mac 或完整跨 Core 原生产品流程。关联 W 的目标变更交接已取得专用 Luna 真实证据：准确中断旧回合、修改目标、重启恢复原 W、实际 replan 后按新条件 finish；具体范围及最终工程检查见[目标控制验证](../../tasks/2026-10-24-shadow-activity-implementation.md#关注目标关联任务的验证)。当时新增界面、简报写入、准确顺流回传和完整问答闭环尚未完成，后续问题交接与等待页以本页新阶段证据为准，既有验收不能替代未覆盖的新路径。
+
+2026-10-24，实际提问登记与直接回合的后续工作核对已通过全部 Go/vet、相关 race、Core 构建及 Web 238 项回归。Luna 实际调用 ask，在模拟丢失回执后跨重启只读找回原问题，消费真实依赖信号并核对条件完成；只发送一次问题。根提问/回复提问的实际作者、命令身份和准确回复链另由跨 Core HTTP/TLS 测试覆盖，见[提问与接续证据](../../tasks/2026-10-24-shadow-activity-implementation.md#实际提问与接续验证)。该组合尚未验证完整原生多 Core 公开 @ 问答到准确顺流返回；当阶段问题级接回及成员等待界面尚未实现，后续进展见下方。
+
 2026-10-22 的启动模型选择已通过工程回归、Edge 界面、真实 Codex/Luna 和同 Mac 三 Core 验证：先选 low，再把测试 home 默认从 medium 改成 high，S1/S2/W/CM/M 及重启均保留 low。具体请求与原生确认值、故障修正和限制见 [启动配置记录](../../tasks/2026-10-21-local-shadow-design/implementation.md#分身启动模型选择2026-10-22)。模型目录保留第三方配置的结构覆盖不代表第三方模型已调用验收。新包 `0.2.6-dev.shadow-model.20261022` 来源为干净提交 `7752b75`，DMG/App/CLI 和隔离 Homebrew Formula/Cask 全部通过；见 [安装包记录](../../tasks/2026-10-21-local-shadow-design/implementation.md#启动模型选择安装包)。仍为 ad-hoc 签名、未公证的本地产物。
 
 本地安装包 `0.2.6-dev.local-shadow.20261022` 来源为干净合并提交 `8cae276`：DMG/CLI/App 完整性、真实 App 生命周期及隔离 Core 升级通过；附加 Homebrew 配方测试超时，未完成全部安装链。详见[Meta 安装包记录](../../tasks/2026-10-21-local-shadow-design/implementation.md#meta-安装包2026-10-22)。ad-hoc 签名、未公证、未公开发布。

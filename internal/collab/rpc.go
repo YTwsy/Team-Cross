@@ -577,7 +577,7 @@ func (s *Session) contextWithHistory(ctx context.Context, kind, path string, aft
 			}
 			r.Annotations = filtered
 		}
-		if history.Compact {
+		if history.Compact || history.SourceOnly || history.ReplyID != "" {
 			return agentAnnotations(s.spaceID(), r.Annotations, history)
 		}
 		out := map[string]any{"annotations": r.Annotations, "spaceId": s.spaceID()}

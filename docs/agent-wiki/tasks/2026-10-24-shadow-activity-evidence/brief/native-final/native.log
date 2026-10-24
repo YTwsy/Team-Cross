@@ -1,0 +1,5 @@
+=== RUN   TestNativeShadowBrief
+--- PASS: TestNativeShadowBrief (56.29s)
+PASS
+ok  	teamcross/internal/collab	57.665s
+Native acceptance report: /private/tmp/teamcross-native-brief-20261024-63948e03/report.json

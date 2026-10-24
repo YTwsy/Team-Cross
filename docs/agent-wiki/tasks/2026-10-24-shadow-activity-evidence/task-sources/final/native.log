@@ -1,0 +1,8 @@
+=== RUN   TestNativeShadowTaskSources
+    task_sources_native_test.go:99: native worker saved live and fixed source contexts
+    task_sources_native_test.go:130: native worker used new source facts and retained fixed evidence
+    task_sources_native_test.go:136: native fixture delivered its result and settled all started turns
+--- PASS: TestNativeShadowTaskSources (106.51s)
+PASS
+ok  	teamcross/internal/shadow	106.801s
+Native acceptance report: /private/tmp/teamcross-native-task-sources-20261024-7c00d6be/report.json

@@ -1,0 +1,74 @@
+{
+  "passed": true,
+  "snapshotPolled": false,
+  "starts": 2,
+  "resumes": 2,
+  "operations": [
+    "start",
+    "status",
+    "status",
+    "status",
+    "wait",
+    "questions",
+    "checkpoint",
+    "read",
+    "status",
+    "resume",
+    "status",
+    "wait",
+    "status",
+    "understand",
+    "understand",
+    "status",
+    "finish"
+  ],
+  "jobs": [
+    {
+      "state": "completed",
+      "version": 1,
+      "revision": 13,
+      "threadId": "01a16baf-07e3-7a13-9e7c-01d5a2b1d386",
+      "resultEventId": "task-result:7a6de940-863b-4702-bc4e-44e69e904aa3",
+      "deliveredEventId": "task-result:7a6de940-863b-4702-bc4e-44e69e904aa3",
+      "result": "SOURCE_RESUMED：超时可能已经写入，需核对请求结果后再决定是否重试；OIDC 保持不变；固定客户端 v3 验证保留。",
+      "completionChecks": [
+        "已用实际接口 v2 确认超时后请求可能已经写入，并写回 understanding。",
+        "已保留 OIDC 登录事实与固定 validation 客户端 v3 验证。"
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "kind": "job",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "kind": "job",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "kind": "result",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "kind": "main",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "kind": "job",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "kind": "result",
+      "state": "completed",
+      "error": null
+    }
+  ],
+  "understandingCommands": 1,
+  "understoodAnswers": 1
+}

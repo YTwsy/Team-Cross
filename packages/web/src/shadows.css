@@ -167,6 +167,17 @@
   font-size: 12px;
   margin-top: 10px;
 }
+
+.shadow-question-list .question-summary {
+  max-width: 100%;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.question-detail p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .shadow-diagnostics {
   border-top: 1px solid var(--line);
   padding-top: 18px;

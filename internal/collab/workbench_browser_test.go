@@ -96,7 +96,15 @@ func TestWorkbenchBrowserFixture(t *testing.T) {
 	}
 	_, caller, target := spaceChannel(t, b, j.ID)
 	_, _, ownTarget := spaceChannel(t, a, s.record.ID)
-	wb(t, a, s.record.ID, "brief", workbenchInput{Brief: SpaceBrief{Topic: "确认重试、断线与并发场景中的协作行为，再决定是否进入共同执行。", Decisions: []BriefItem{{Text: "只共享已发布的固定材料版本；私人会话保持在各自客户端。", Sources: []LibraryReference{ref}}}, Questions: []BriefItem{{Text: "投递结果不明时，怎样避免启动第二轮输入？", Sources: []LibraryReference{{SpaceID: s.record.ID, Kind: "annotation", AnnotationID: note.ID}}}}}})
+	wb(t, a, s.record.ID, "brief", workbenchInput{Brief: SpaceBrief{Topic: "确认重试、断线与并发场景中的协作行为，再决定是否进入共同执行。", Decisions: []BriefItem{{ID: "publication", Status: "confirmed", Text: "只共享已发布的固定材料版本；私人会话保持在各自客户端。", Sources: []SpaceSourceRef{{SpaceID: ref.SpaceID, MaterialID: ref.MaterialID, Version: ref.Version, AnnotationID: ref.AnnotationID}}}}, Questions: []BriefItem{{Text: "投递结果不明时，怎样避免启动第二轮输入？", Sources: []SpaceSourceRef{{SpaceID: s.record.ID, AnnotationID: note.ID}}}}}})
+	briefShadow := registeredToolShadow(t, b, j.ID)
+	if _, err = b.shadowToolCall(ctx, briefShadow.ID, "update_space_brief", map[string]any{"requestId": uuid.NewString(), "baseRevision": 1, "changes": []BriefChange{
+		briefPut("decisions", "retry-proposal", "建议先核对原请求状态，再决定是否重试；还需补充分支验证。", "proposed", SpaceSourceRef{SpaceID: j.ID, AnnotationID: note.ID}),
+		briefPut("progress", "review-progress", "已核对原简报的固定材料范围，继续整理并发和断线验证。", "in_progress", SpaceSourceRef{SpaceID: j.ID, BriefRevision: 1, BriefItemID: "publication"}),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	briefPatch(t, a, s.record.ID, workbenchInput{BaseRevision: 2, Changes: []BriefChange{briefPut("decisions", "publication", "当前范围已增加并发验证；继续引用原固定材料版本。", "confirmed", SpaceSourceRef{SpaceID: s.record.ID, MaterialID: mid, Version: 1})}})
 	requestID := uuid.NewString()
 	wb(t, a, s.record.ID, "send", workbenchInput{RequestID: requestID, TargetID: target.ID, References: []LibraryReference{ref}, Instruction: "请从并发和断线恢复两个角度检查这份材料，指出还缺少的验证。", Intent: "analyze"})
 	b.pumpWorkbench(ctx)
@@ -115,7 +123,7 @@ func TestWorkbenchBrowserFixture(t *testing.T) {
 	}
 	server := httptest.NewServer(a.Handler(http.FileServer(http.FS(assets))))
 	defer server.Close()
-	if err = writeJSONFile(filepath.Join(dir, "fixture.json"), map[string]string{"url": server.URL + "/#/collaborations/" + s.record.ID, "api": server.URL, "id": s.record.ID, "dataDir": a.Config.DataDir}); err != nil {
+	if err = writeJSONFile(filepath.Join(dir, "fixture.json"), map[string]string{"url": server.URL + "/#/collaborations/" + s.record.ID, "api": server.URL, "id": s.record.ID, "dataDir": a.Config.DataDir, "briefItemId": "publication", "briefRevision": "1"}); err != nil {
 		t.Fatal(err)
 	}
 	t.Log("workbench browser fixture ready", dir)

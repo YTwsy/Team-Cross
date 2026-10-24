@@ -1,0 +1,125 @@
+$ vitest run
+
+ RUN  v3.2.4 /Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/packages/web
+
+ ✓ src/test/publication.test.tsx (11 tests) 2952ms
+   ✓ keeps scope, the active reader tools, export notices and a single next action in the shared controls  1020ms
+   ✓ requires a refreshed confirmation after editing the title and keeps request identity after a lost publish response  459ms
+ ✓ src/test/current-connection.test.tsx (6 tests) 4226ms
+   ✓ reconciles a submitted message against Core and observes removal  4017ms
+ ✓ src/test/annotations.test.tsx (10 tests) 3277ms
+   ✓ 原处批注 > 参与者、共享状态与技术信息各自归位，长讨论不改变信息结构  454ms
+   ✓ 原处批注 > 选中重复片段时保留准确消息与 UTF-16 范围，保存不发送模型输入  359ms
+   ✓ 原处批注 > 连续文件行自动引用，返回旧批注时不高亮已变化的同号行  635ms
+   ✓ 原处批注 > 保存失败保留正文和引用，切换整体意见后可继续原草稿  649ms
+   ✓ 原处批注 > 直接写整体意见无需按钮或弹窗，回复保持原批注数量和位置  451ms
+   ✓ 原处批注 > 回复失败或收起保留草稿，重试沿用 requestId  540ms
+ ✓ src/test/space-workbench.test.tsx (16 tests) 3424ms
+   ✓ drains a paused receiver before exposing Desktop continuation and same-session resume  787ms
+   ✓ merges a concurrent brief without discarding the draft or new peer progress  514ms
+ ✓ src/test/member-activity.test.tsx (7 tests) 4671ms
+   ✓ clears loaded source content when access revalidation fails  4036ms
+ ✓ src/test/context-refresh.test.tsx (11 tests) 2886ms
+   ✓ 协作上下文刷新 > 回到最新补齐当前页，跟随更新；上滚后保留正在阅读的正文  323ms
+   ✓ 协作上下文刷新 > 切换标签和文件时清除前一个资源，不把旧内容当作新结果  326ms
+   ✓ 协作对话目录导航 > 读取未加载的轮次后定位，已加载轮次直接跳转，继续分页和返回最近对话清除定位参数  655ms
+ ✓ src/test/shadows.test.tsx (6 tests) 2703ms
+   ✓ keeps an uncertain message and retries only on click with the same id  856ms
+   ✓ restores an uncertain creation with the same request id and only retries on click  784ms
+   ✓ uses per-model effort capabilities and invalidates the catalog when cwd changes  736ms
+ ✓ src/test/space-reading.test.tsx (5 tests) 2937ms
+   ✓ discloses secondary comment actions and keeps the reply draft when dismissing them  1012ms
+   ✓ retains each material's fixed version and cached reading when navigating and filtering  778ms
+   ✓ folds comments without losing an unsent draft or posting it  508ms
+   ✓ adds fixed references in the reading dock before opening a request, without sending input  399ms
+ ✓ src/test/multiple-executions.test.tsx (5 tests) 3100ms
+   ✓ keeps each session's comment and file draft while the URL selects an exact session  1690ms
+   ✓ a late save stays bound to its original session and leaving clears cached content  646ms
+   ✓ opens the right-hand comments on wide screens and keeps manual choices across sessions and sizes  644ms
+ ✓ src/test/flows.test.tsx (41 tests) 7684ms
+   ✓ 邀请者在个人 Codex 中打开协作 > 同事正在操作时不自动跳转，点击才打开已有 fork  429ms
+   ✓ 产品路径 > 加入后不会显示邀请码期限，离线成员仍保留身份  482ms
+   ✓ 产品路径 > 未使用的过期邀请可重新生成，不结束本地会话  537ms
+   ✓ 产品路径 > codex 创建信任模式重新确认起点并固定授权  590ms
+   ✓ 产品路径 > claude 创建信任模式重新确认起点并固定授权  402ms
+   ✓ 首次使用连续路径 > Tailcat 邀请准备中可显式取消，不切换到局域网  329ms
+   ✓ 首次使用连续路径 > 申请输入不发送模型指令，也不自动交接  336ms
+   ✓ 多人成员与邀请 > 发起者明确交给 C，成员列表保留 B，已有人加入仍可继续邀请  704ms
+ ✓ src/test/space-lifecycle.test.tsx (5 tests) 1932ms
+   ✓ closes an empty read-only space, including sharing=false, and can reopen it  653ms
+   ✓ closes an empty read-only space, including sharing=true, and can reopen it  498ms
+   ✓ lets a space member read a new session and request input without another grant  387ms
+ ✓ src/test/library.test.tsx (21 tests) 8828ms
+   ✓ 个人资源库 > keeps rows and groups in place after visits, selection, favorites and background refreshes  722ms
+   ✓ 个人资源库 > offers one material selection action and selects the version currently being read  1331ms
+   ✓ 个人资源库 > can publish from the overview with retained library selections and a reading entry (execution: false)  725ms
+   ✓ 个人资源库 > can publish from the overview with retained library selections and a reading entry (execution: true)  773ms
+   ✓ 个人资源库 > switches between material and session from the sidebar while retaining each reader  1216ms
+   ✓ 个人资源库 > opens the matching reading tab when locating a material or live context annotation  1330ms
+   ✓ 个人资源库 > separates reading from selection and preserves mixed selections through filters  415ms
+   ✓ 个人资源库 > generates an inline immutable entry while keeping browsing and selection usable  310ms
+ ✓ src/test/reading-scroll.test.tsx (8 tests) 1126ms
+   ✓ 成员滚动折叠 > starts fully expanded, permits a manual expansion during reading, and expands again at the overview  347ms
+   ✓ 成员滚动折叠 > keeps the scroll range stable when folding at the end of a short page  446ms
+ ✓ src/test/reading.test.tsx (18 tests) 2060ms
+   ✓ keeps a paginated code block intact and reopens the same material from its in-page reading cache  511ms
+   ✓ folds consecutive material tools without hiding dialogue or crossing turns, and preserves open state on pagination  409ms
+ ✓ src/test/materials.test.tsx (6 tests) 1432ms
+   ✓ opens only the selected material by default, with navigation on the left and comments folded  575ms
+   ✓ reads inside the selected card with one title and collapse action, and switches cards on demand  455ms
+ ✓ src/test/plugin.test.tsx (15 tests) 1707ms
+   ✓ uses the existing selection entry and sends only its pinned references on an explicit click  317ms
+   ✓ retries only reads during Core replacement and never resends a write  1005ms
+ ✓ src/test/rich-reading.test.tsx (10 tests) 2275ms
+   ✓ rich source-preserving reading > keeps code selection offsets through wrapping and copies table formats  1098ms
+   ✓ searches unloaded batches, reports a final count only at the end, and targets the fixed version  342ms
+   ✓ pauses very large searches without reporting an incomplete count as final  525ms
+stderr | src/test/plugin-update.test.tsx > preserves the editor and allows explicit retry after a failed update
+[Team Cross] Panel update failed {
+  revision: '800d193b47a2b7d8df418e279f4cf24f2e3cead7ee4e621a89c9996d9b7e2cec',
+  stage: 'download',
+  message: 'Core restarting',
+  at: '2026-10-24T03:52:57.035Z'
+}
+
+stderr | src/test/plugin-update.test.tsx > keeps a failed revision blocked after watcher recreation and records the failing stage
+[Team Cross] Panel update failed {
+  revision: '800d193b47a2b7d8df418e279f4cf24f2e3cead7ee4e621a89c9996d9b7e2cec',
+  stage: 'download',
+  message: 'download interrupted',
+  at: '2026-10-24T03:52:57.117Z'
+}
+
+stderr | src/test/plugin-update.test.tsx > clears a stale candidate when the Core returns to the currently mounted version
+[Team Cross] Panel update failed {
+  revision: '800d193b47a2b7d8df418e279f4cf24f2e3cead7ee4e621a89c9996d9b7e2cec',
+  stage: 'download',
+  message: 'temporary version unavailable',
+  at: '2026-10-24T03:52:57.131Z'
+}
+
+ ✓ src/test/plugin-update.test.tsx (15 tests) 1431ms
+   ✓ restores an open note with its unknown request identity and never resends it  337ms
+ ✓ src/test/native-client-settings.test.tsx (7 tests) 1813ms
+   ✓ saving automatic discovery never pins detected Codex, Desktop or Claude paths  756ms
+   ✓ rechecks immediately without saving or overwriting an unsaved manual path  566ms
+   ✓ rejects an empty manual path and does not replay a save after losing its response  310ms
+ ✓ src/test/inflow.test.tsx (6 tests) 991ms
+   ✓ only changes the exact selected execution and waits for explicit opt-in  468ms
+ ✓ src/test/plugin-connection.test.tsx (4 tests) 724ms
+   ✓ connects only on click and separates installed files from a loaded interface  502ms
+ ✓ src/test/agent-pairings.test.tsx (4 tests) 779ms
+   ✓ pairs through a one-time prompt without treating creation as completion  496ms
+ ✓ src/test/question-handling.test.tsx (3 tests) 389ms
+ ✓ src/test/space-events.test.tsx (1 test) 308ms
+   ✓ does not create another credential after a lost response without an explicit check  308ms
+ ✓ src/test/activity-processing.test.tsx (7 tests) 419ms
+ ✓ src/test/i18n.test.tsx (1 test) 174ms
+ ✓ src/test/plugin-runtime.test.ts (5 tests) 93ms
+ ✓ src/test/brief-merge.test.ts (3 tests) 17ms
+ ✓ src/test/shadow-questions.test.tsx (2 tests) 109ms
+
+ Test Files  29 passed (29)
+      Tests  259 passed (259)
+   Start at  11:52:41
+   Duration  17.62s (transform 2.09s, setup 8.25s, collect 15.94s, tests 64.47s, environment 20.77s, prepare 4.03s)

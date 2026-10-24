@@ -1,0 +1,30 @@
+{
+  "a": {
+    "finishExists": true,
+    "dataDirExists": false
+  },
+  "b": {
+    "finishExists": true,
+    "dataDirExists": false
+  },
+  "61376": {
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": ""
+  },
+  "61377": {
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": ""
+  },
+  "63417": {
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": ""
+  },
+  "63418": {
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": ""
+  }
+}

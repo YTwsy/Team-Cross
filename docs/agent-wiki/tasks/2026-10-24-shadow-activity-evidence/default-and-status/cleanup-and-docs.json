@@ -1,0 +1,62 @@
+{
+  "relativeLinksChecked": 414,
+  "missingLinks": [],
+  "unverifiedAnchors": [],
+  "diffCheck": {
+    "exitCode": 0,
+    "output": ""
+  },
+  "sourceChangesSinceFinalChecks": {
+    "go": [],
+    "web": []
+  },
+  "fixtures": [
+    {
+      "fixture": "/private/tmp/teamcross-default-status-browser-20261024-0704",
+      "finishPresent": true,
+      "testDataRootExists": false,
+      "listeners": [
+        {
+          "port": 54332,
+          "exitCode": 1,
+          "output": "",
+          "stderr": ""
+        },
+        {
+          "port": 54333,
+          "exitCode": 1,
+          "output": "",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "fixture": "/private/tmp/teamcross-default-status-browser-20261024-0710",
+      "finishPresent": true,
+      "testDataRootExists": false,
+      "listeners": [
+        {
+          "port": 54844,
+          "exitCode": 1,
+          "output": "",
+          "stderr": ""
+        },
+        {
+          "port": 54845,
+          "exitCode": 1,
+          "output": "",
+          "stderr": ""
+        }
+      ]
+    }
+  ],
+  "browserTabsClosed": [
+    "4",
+    "5"
+  ],
+  "viewportReset": true,
+  "processInspection": {
+    "state": "unavailable in sandbox",
+    "message": "ps permission denied; fixture sessions exited normally, test roots removed and listening ports checked separately"
+  }
+}

@@ -1,0 +1,12 @@
+=== RUN   TestNativeShadowWatch
+    watch_native_test.go:131: WATCH_STARTED
+    watch_native_test.go:136: fixed follow baseline understood privately
+    watch_native_test.go:139: WATCH_UPDATED
+    watch_native_test.go:140: WATCH_PAUSED
+    watch_native_test.go:165: WATCH_RESUMED
+    watch_native_test.go:166: queued update understood after native restart
+    watch_native_test.go:170: WATCH_COMPLETED
+--- PASS: TestNativeShadowWatch (78.98s)
+PASS
+ok  	teamcross/internal/shadow	79.248s
+Native acceptance report: /private/tmp/teamcross-shadow-watch-native-20261024-a/report.json

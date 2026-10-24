@@ -1,0 +1,22 @@
+{
+  "files": [
+    "docs/agent-wiki/sources/decisions/local-shadows.md",
+    "docs/agent-wiki/sources/decisions/space-workbench.md",
+    "docs/agent-wiki/sources/decisions/in-flow-awareness.md",
+    "docs/agent-wiki/sources/decisions/space-events.md",
+    "docs/agent-wiki/sources/decisions/chatgpt-local-plugin.md",
+    "docs/agent-wiki/sources/product-flows.md",
+    "docs/agent-wiki/sources/product-core-and-glossary.md",
+    "docs/agent-wiki/sources/protocol.md",
+    "docs/agent-wiki/sources/validation/test-gates.md",
+    "docs/agent-wiki/sources/validation/evidence-map.md",
+    "docs/agent-wiki/wiki/concepts/collaboration-spaces.md",
+    "docs/agent-wiki/tasks/2026-10-24-shadow-activity-implementation.md"
+  ],
+  "relativeLinks": 582,
+  "inlineCodePaths": 11,
+  "errors": [],
+  "implementationReachableFromIndex": true,
+  "diffCheckExit": 0,
+  "diffCheckOutput": ""
+}

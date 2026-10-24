@@ -1,0 +1,75 @@
+[
+  {
+    "name": "go-test",
+    "command": [
+      "go",
+      "test",
+      "-p",
+      "2",
+      "./...",
+      "-count=1",
+      "-timeout=180s"
+    ],
+    "exitCode": 0,
+    "seconds": 99.957
+  },
+  {
+    "name": "go-vet",
+    "command": [
+      "go",
+      "vet",
+      "./..."
+    ],
+    "exitCode": 0,
+    "seconds": 0.826
+  },
+  {
+    "name": "race",
+    "command": [
+      "go",
+      "test",
+      "-race",
+      "-p",
+      "2",
+      "./internal/shadow",
+      "./internal/collab",
+      "-count=1",
+      "-timeout=240s"
+    ],
+    "exitCode": 0,
+    "seconds": 86.55
+  },
+  {
+    "name": "web-check",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@teamcross/web",
+      "check"
+    ],
+    "exitCode": 0,
+    "seconds": 4.162
+  },
+  {
+    "name": "web-test",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@teamcross/web",
+      "test"
+    ],
+    "exitCode": 0,
+    "seconds": 9.702
+  },
+  {
+    "name": "web-build",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@teamcross/web",
+      "build"
+    ],
+    "exitCode": 0,
+    "seconds": 8.922
+  }
+]
