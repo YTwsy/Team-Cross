@@ -2050,7 +2050,7 @@
   margin: 14px 0 0;
 }
 .participants-compact {
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-radius: 8px;
   box-shadow: none;
 }
@@ -2064,16 +2064,24 @@
   min-width: 0;
   margin: 0;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
+}
+.participants-compact .participant > div {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+.participants-compact .participant span:not(.avatar) {
+  margin-top: 0;
 }
 .participants-compact .aside-participant-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
-  gap: 8px;
+  gap: 4px;
 }
 .participants-compact .avatar {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
   font-size: 11px;
 }
@@ -2082,10 +2090,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 9px 10px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--soft);
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+}
+.participants-compact .participants-invite-note {
+  margin: 4px 0 0 32px;
 }
 .participants-compact .member-actions {
   flex-shrink: 0;
@@ -2097,9 +2107,7 @@
   white-space: nowrap;
 }
 .participants-compact .participants-actions {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
+  margin-top: 8px;
 }
 .execution-menu {
   width: min(330px, calc(100vw - 90px));

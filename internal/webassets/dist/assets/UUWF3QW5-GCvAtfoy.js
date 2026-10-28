@@ -1,0 +1,1 @@
+import{M as u}from"./ERCAWJV4-CwcIjP0L.js";var n=/[\t ]*accDescr(?:[\t ]*:(?:[^\n\r]*?(?=%%)|[^\n\r]*)|\s*({))/y;function c(){let e=!1;return(r,l)=>{n.lastIndex=l;let t=n.exec(r);if(t===null)return-1;let f=n.lastIndex;if(t[1]===void 0)return f;if(e)return-1;let i=r.indexOf("}",f);return e=i===-1,i+1||-1}}function o(e="ACC_DESCR"){return{...u,name:e,scanner:c}}export{o as i};

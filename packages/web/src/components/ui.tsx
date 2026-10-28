@@ -33,6 +33,11 @@ export type IconName =
   | "terminal"
   | "desktop"
   | "copy"
+  | "code"
+  | "diagram"
+  | "expand"
+  | "collapse"
+  | "wrap"
   | "check"
   | "close"
   | "search"
@@ -147,6 +152,18 @@ const paths: Record<IconName, ReactNode> = {
       <path d="M16 8V3H3v13h5" />
     </>
   ),
+  code: <path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-14-2 16" />,
+  diagram: (
+    <>
+      <rect x="9" y="3" width="6" height="5" rx="1" />
+      <rect x="2" y="16" width="6" height="5" rx="1" />
+      <rect x="16" y="16" width="6" height="5" rx="1" />
+      <path d="M12 8v4M5 16v-4h14v4" />
+    </>
+  ),
+  expand: <path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5" />,
+  collapse: <path d="M3 8h5V3m8 0v5h5M8 21v-5H3m13 5v-5h5" />,
+  wrap: <path d="M3 6h18M3 12h14a4 4 0 0 1 0 8h-4m3-3-3 3 3 3M3 18h4" />,
   check: <path d="m5 12 4 4L19 6" />,
   close: <path d="m6 6 12 12M6 18 18 6" />,
   search: (
@@ -271,11 +288,13 @@ export function Copy({
   label = t("复制"),
   className = "",
   ariaLabel,
+  iconOnly = false,
 }: {
   text: string;
   label?: string;
   className?: string;
   ariaLabel?: string;
+  iconOnly?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
@@ -284,12 +303,18 @@ export function Copy({
     const t = setTimeout(() => setCopied(false), 2200);
     return () => clearTimeout(t);
   }, [copied]);
+  const accessibleLabel = copied
+    ? iconOnly
+      ? t("已复制")
+      : undefined
+    : ariaLabel || (iconOnly ? label : undefined);
   return (
     <>
       <button
-        className={`button small ${className}`}
-        aria-label={copied ? undefined : ariaLabel}
-        title={copied ? undefined : ariaLabel}
+        type="button"
+        className={iconOnly ? className : `button small ${className}`}
+        aria-label={accessibleLabel}
+        title={accessibleLabel}
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(text);
@@ -301,7 +326,7 @@ export function Copy({
         }}
       >
         <Icon name={copied ? "check" : "copy"} size={15} />
-        {copied ? t("已复制") : label}
+        {!iconOnly && (copied ? t("已复制") : label)}
       </button>
       {error && (
         <span role="alert" className="muted">

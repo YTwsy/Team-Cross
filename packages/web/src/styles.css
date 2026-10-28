@@ -4015,17 +4015,52 @@ mark[data-annotation-highlight] {
 }
 .reader-code-tools {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 8px;
   border-bottom: 1px solid var(--line);
-  padding: 7px 12px;
+  padding: 5px 10px;
   color: var(--muted);
   font-size: 11px;
   user-select: none;
 }
-.reader-code-tools button {
-  font-size: 11px;
+.reader-code-language {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reader-code-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  margin-left: auto;
+}
+.reader-code-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+.reader-code-actions button:hover:not(:disabled) {
+  background: var(--panel);
+  color: var(--text);
+}
+.reader-code-actions button[aria-pressed="true"] {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+.reader-code-actions button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
 }
 .reader-code pre {
   background: transparent;
@@ -5489,8 +5524,7 @@ details.reader-process-group[open] > summary {
   color: var(--muted);
   font-size: 12px;
 }
-.reader-rich-tools button,
-.reader-find-controls > button {
+.reader-rich-tools button {
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--text);
@@ -5645,68 +5679,6 @@ details.reader-process-group[open] > summary {
   max-height: 100%;
   object-fit: contain;
 }
-.reader-find {
-  margin: 8px 0 14px;
-  position: relative;
-}
-.reader-find > .text-button,
-.reader-find-status > .text-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 4px 0;
-}
-.reader-find .text-button:hover {
-  color: var(--text);
-}
-.reader-find[data-reader-find-active] {
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-}
-.reader-find-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.reader-find-controls > input {
-  flex: 1;
-  min-width: 140px;
-}
-.reader-find-controls label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-  font-size: 12px;
-}
-.reader-find-controls label input {
-  width: auto;
-}
-.reader-find-status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 12px;
-  padding-top: 6px;
-}
-.reader-find-snippet {
-  font-size: 12px;
-  color: var(--muted);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  margin: 6px 0 0;
-  max-height: 6em;
-  overflow: auto;
-}
 .reader-follow-button {
   position: fixed;
   right: 30px;
@@ -5718,9 +5690,6 @@ details.reader-process-group[open] > summary {
 @media (max-width: 768px) {
   .reader-rich-tools {
     gap: 6px;
-  }
-  .reader-find-controls > input {
-    flex-basis: 100%;
   }
   .reader-follow-button {
     right: 16px;

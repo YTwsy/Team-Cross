@@ -93,7 +93,7 @@ ChatGPT 云端事件已实现本地协议和隔离入口，实际宿主接收仍
 
 ## 空间材料与读取
 
-2026-10-23，`codex/reading-experience` 基于 `8bc8397` 的未提交阅读器实现：六项展示、图片随版本保存、全文搜索和当前轮询下的阅读跟随已通过工程、隔离 Core/stdio 与真实浏览器检查；Web 229 项、翻译 1200 条。见[实现与验证记录](../../tasks/finished_archived/2026-10-23-reading-experience/README.md)。原生历史和 iframe 宿主为合成，未重验实际 Desktop、Cloud、Claude 图片格式或跨 Mac；实时同步链路仍另行实施。
+2026-10-23，`codex/reading-experience` 基于 `8bc8397` 的未提交阅读器实现：六项展示、图片随版本保存、全文搜索和当前轮询下的阅读跟随已通过工程、隔离 Core/stdio 与真实浏览器检查；Web 229 项、翻译 1200 条。后续界面已移除正文搜索入口与自定义快捷键，报告中的搜索界面结果仅适用于当时实现；Core 检索接口保留。见[实现与验证记录](../../tasks/finished_archived/2026-10-23-reading-experience/README.md)。原生历史和 iframe 宿主为合成，未重验实际 Desktop、Cloud、Claude 图片格式或跨 Mac；实时同步链路仍另行实施。
 
 范围来源：[协作空间](../decisions/collaboration-spaces.md)、[资源库](../decisions/resource-library.md)、[读取协议](../protocol.md#agent-按需读取视图)。下列合成历史与模拟运行时检查不证明真实 Provider 的全部导出格式。
 
