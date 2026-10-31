@@ -1,5 +1,7 @@
 # 插件更新后的重复刷新与两分钟回退
 
+> 截图仅本地保存，路径相对本文，不随 Git 分发；保存与引用方式见[验收截图约定](../../README.md#验收截图)。
+
 日期：2026-10-23。产品修复：`e99cd6742a59d884057b4e07c4e575114efb6721`，基于安装中的 `73e503c94b9a65addaac39c6d765e6556eb1f0c3`。本机 macOS arm64，ChatGPT `26.1016.61520` / build `21421`。采用独立 `codex/plugin-hot-update-fix` worktree，未混入主检出目录中并发开发的原生会话工作区改动。
 
 ## 复现与根因
@@ -40,7 +42,7 @@
 
 ## 截图证据
 
-- [修复前两分钟回退](before-timeout.png)
-- [旧加载器升级后 132 秒](after-132s.png)
-- [故意启动失败后保留草稿](failure-draft.png)
-- [实际宿主升级后 166 秒](live-after-166s.png)
+- 修复前两分钟回退（`before-timeout.png`）
+- 旧加载器升级后 132 秒（`after-132s.png`）
+- 故意启动失败后保留草稿（`failure-draft.png`）
+- 实际宿主升级后 166 秒（`live-after-166s.png`）

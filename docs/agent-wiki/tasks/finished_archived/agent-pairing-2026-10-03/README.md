@@ -1,5 +1,7 @@
 # 接收会话统一配对：本轮实现与验证
 
+> 截图仅本地保存，路径相对本文，不随 Git 分发；保存与引用方式见[验收截图约定](../../../README.md#验收截图)。
+
 - 日期：2026-10-03，macOS，本机单设备。
 - 基线：`9abee024a415c1ee115224cf1d5776b2cdce165a`，`docs: consolidate wiki sources and make reading task driven`。
 - 开发分支：`codex/session-pairing`；验证对象为该基线加本次提交中的实现，运行验证时包含未提交改动。
@@ -46,10 +48,10 @@ Go 1.27.1；Node 24.18.0。前端 11 个文件、130 项测试通过，778 条�
 
 [浏览器检查](browser-checks.json) 记录窗口、主题、语言和交互。检查了生成配对提示、分钟精度到期时间、等待状态、选择目标、明确分析意图、发送后锁定、提交与完成分开显示、最近请求、忙碌原因、键盘焦点与 Escape 恢复焦点。1024 与 768 宽度无横向溢出；主验证页面 console 为 0 errors / 0 warnings。初始 fixture 关闭时的旧页轮询错误不计为新页面结果。
 
-- [首次配对，浅色](pairing-1440-light.png)
-- [交给 Agent，浅色](send-to-agent-1440-light.png)
-- [768 宽度，深色](send-to-agent-768-dark.png)
-- [768 宽度，英文](send-to-agent-768-en-light.png)
+- 首次配对，浅色（`pairing-1440-light.png`）
+- 交给 Agent，浅色（`send-to-agent-1440-light.png`）
+- 768 宽度，深色（`send-to-agent-768-dark.png`）
+- 768 宽度，英文（`send-to-agent-768-en-light.png`）
 
 ## 清理与后续边界
 

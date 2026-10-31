@@ -1,5 +1,7 @@
 # Meta：完整 WebGUI 作为本机插件界面
 
+> 截图仅本地保存，路径相对本文，不随 Git 分发；保存与引用方式见[验收截图约定](../../../README.md#验收截图)。
+
 日期：2026-10-03。分支：`codex/meta-plugin-webgui`，从本地 `Meta` 的 `fed1e0aaac2851feb1f2ff798dd998cfdac30648` 新建。工程与浏览器检查针对该基点加本提交的改动执行；运行时产物的资源 hash 见 [verification.json](verification.json)。
 
 环境：macOS 14.8.5 / arm64、Go 1.27.1、Node 24.18.0、ChatGPT 内置 `codex-cli 0.159.0-alpha.12.1`。
@@ -29,7 +31,7 @@
 
 ## 保留证据与边界
 
-[插件内的完整资源库](plugin-reading-1440.png)与[普通浏览器中的资源库](browser-webgui-reading-1440.png)共用同一页面；[768 像素深色](plugin-reading-768-dark.png)和[英文设置](plugin-settings-en-1440.png)展示原有响应式和语言功能。详细断言、回执 ID 和资源 hash 见 [verification.json](verification.json)。较大的临时日志与其他截图保留在本工作树的 `output/playwright/`，不作为唯一的长期证据。
+插件内的完整资源库（`plugin-reading-1440.png`）与普通浏览器中的资源库（`browser-webgui-reading-1440.png`）共用同一页面；768 像素深色（`plugin-reading-768-dark.png`）和英文设置（`plugin-settings-en-1440.png`）展示原有响应式和语言功能。详细断言、回执 ID 和资源 hash 见 [verification.json](verification.json)。较大的临时日志与其他截图保留在本工作树的 `output/playwright/`，不作为唯一的长期证据。
 
 未运行新的模型回合、两台 Mac LAN/Tailcat 或云端 ChatGPT 验证。真实桌面 global/thread 入口、页面实际摆放和当前会话消息投递仍待最后一次成品检查；按用户要求没有逐步操作或请求操作 Codex 主窗口。原生 MCP 加载成功与独立浏览器成功不替代这一步。
 
@@ -41,6 +43,6 @@
 
 对合并后的代码重新执行 Go 全量 test/vet、8 包 race、Web check（886 条翻译）、13 文件/144 项交互测试、两种 production build、CLI 构建和 Homebrew 渲染测试，均通过。隔离目录下的安装/升级/卸载、真实 stdio 与原生 app-server 检查通过；桌面兼容搜索参数、固定版本、批注分页、跨 Core 和撤回后的读取拒绝继续通过。未向模型发送输入，也未升级用户正在使用的演示插件。
 
-独立浏览器通过真实插件桥读取工作台和参与会话列表，明确保存一次简报后从 Core 读出版本 1；无业务工具错误，未创建接收会话或启用共同执行。已查看 [1440 浅色简报](meta-plugin-brief-1440-light.png)、[1024 浅色参与会话](meta-plugin-sessions-1024-light.png)、[768 深色请求](meta-plugin-requests-768-dark.png) 截图，三个宽度均无页面水平溢出。宿主消息回执仍由测试页面模拟；这些检查不扩展前述真实桌面消息投递或跨设备验收结论。结构化结果见 [集成验证](meta-integration.json)。
+独立浏览器通过真实插件桥读取工作台和参与会话列表，明确保存一次简报后从 Core 读出版本 1；无业务工具错误，未创建接收会话或启用共同执行。已查看 1440 浅色简报（`meta-plugin-brief-1440-light.png`）、1024 浅色参与会话（`meta-plugin-sessions-1024-light.png`）、768 深色请求（`meta-plugin-requests-768-dark.png`） 截图，三个宽度均无页面水平溢出。宿主消息回执仍由测试页面模拟；这些检查不扩展前述真实桌面消息投递或跨设备验收结论。结构化结果见 [集成验证](meta-integration.json)。
 
 验收后 fixture 完成最终断言并退出，专用浏览器已关闭，宿主、stdio 和原生 app-server 均退出；按本次临时目录核对无剩余测试进程，用户演示 Core 与正在使用的桌面进程保留。

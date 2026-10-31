@@ -1,5 +1,7 @@
 # 空间工作台与可选专用会话：实施与验证
 
+> 截图仅本地保存，路径相对本文，不随 Git 分发；保存与引用方式见[验收截图约定](../../../README.md#验收截图)。
+
 状态：本轮完成，2026-10-03。基线 `Meta` / `fed1e0aaac2851feb1f2ff798dd998cfdac30648`，分支 `codex/space-workbench`。检查在此基线上包含本记录同提交改动的工作树中完成。原 `/Users/wsy/CascadeProjects/Team Cross` 的 `Next` 工作目录及用户文件未参与修改。
 
 长期产品边界见 [空间工作台契约](../../../sources/decisions/space-workbench.md)，字段见 [协议](../../../sources/protocol.md#空间工作台与独立接收会话)，重复运行方法见 [验证门槛](../../../sources/validation/test-gates.md#空间工作台)。本页只记录当次实施与验收。
@@ -46,11 +48,11 @@
 
 | 截图 | 核对内容 |
 | --- | --- |
-| [1440 浅色请求](screenshots/requests-1440-light.png) | 完整工作台、父请求、来源版本、提交与完成分开 |
-| [1024 启动预览](screenshots/assistant-1024-light.png) | 角色可选、带入信息、明确选择和启用 |
-| [768 发送表单](screenshots/send-768-light.png) | 可读材料名/版本、提交后等待读取、固定请求 |
-| [768 深色请求](screenshots/requests-768-dark.png) | 单列布局，无水平溢出 |
-| [1440 英文参与会话](screenshots/sessions-1440-dark-en.png) | Request collaboration、Paused 与禁用状态 |
+| 1440 浅色请求（`screenshots/requests-1440-light.png`） | 完整工作台、父请求、来源版本、提交与完成分开 |
+| 1024 启动预览（`screenshots/assistant-1024-light.png`） | 角色可选、带入信息、明确选择和启用 |
+| 768 发送表单（`screenshots/send-768-light.png`） | 可读材料名/版本、提交后等待读取、固定请求 |
+| 768 深色请求（`screenshots/requests-768-dark.png`） | 单列布局，无水平溢出 |
+| 1440 英文参与会话（`screenshots/sessions-1440-dark-en.png`） | Request collaboration、Paused 与禁用状态 |
 
 1440、1024、768 CSS 像素均实际核对；768 下 `scrollWidth=clientWidth=753`，浏览器垂直滚动条占 15 像素。截图中的模拟完成记录只用于界面检查，真实模型证据是上面的原生报告。
 
