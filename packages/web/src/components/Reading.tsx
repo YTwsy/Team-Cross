@@ -116,12 +116,14 @@ export function SelectionAction({
       className="selection-action"
     >
       <button
-        className="button primary small"
+        type="button"
+        className="reader-icon-button"
+        aria-label={t("批注所选内容")}
+        title={t("批注所选内容")}
         onMouseDown={(e) => e.preventDefault()}
         onClick={onClick}
       >
         <Icon name="comment" size={14} />
-        {t("批注所选内容") + " "}
       </button>
       {children}
     </div>,
@@ -354,7 +356,10 @@ export function ReadingLayout({
             }}
           >
             <button
-              className="text-button"
+              type="button"
+              className="reader-icon-button"
+              aria-label={`${t("目录")} ${outline.length}`}
+              title={`${t("目录")} ${outline.length}`}
               ref={directoryButton}
               aria-expanded={showOutline}
               aria-controls={outlineId}
@@ -367,8 +372,6 @@ export function ReadingLayout({
               }}
             >
               <Icon name="book" size={14} />
-              {" " + t("目录") + " "}
-              {outline.length}
             </button>
             {showOutline && !sideOutline && (
               <div className="reader-outline reader-directory-popover">
@@ -378,7 +381,10 @@ export function ReadingLayout({
           </div>
         )}
         <button
-          className="text-button"
+          type="button"
+          className="reader-icon-button"
+          aria-label={focus ? t("退出专注阅读") : t("专注阅读")}
+          title={focus ? t("退出专注阅读") : t("专注阅读")}
           onClick={() => {
             pendingPosition.current = captureReadingPosition(root.current);
             setLocalFocus(!focus);
@@ -386,7 +392,7 @@ export function ReadingLayout({
           }}
           aria-pressed={focus}
         >
-          {focus ? t("退出专注阅读") : t("专注阅读")}
+          <Icon name={focus ? "collapse" : "expand"} size={15} />
         </button>
       </div>
     </div>
@@ -599,7 +605,10 @@ export function ReaderMessage({
   const expand = onExpand ? (
     <button
       type="button"
-      className={`${tool ? "text-button" : "button small"} reader-expand-item`}
+      className="reader-icon-button reader-expand-item"
+      aria-label={itemExpandLabel(!!expanding, shownLength)}
+      title={itemExpandLabel(!!expanding, shownLength)}
+      aria-busy={!!expanding}
       disabled={expanding}
       onClick={(event) => {
         event.preventDefault();
@@ -608,7 +617,7 @@ export function ReaderMessage({
         onExpand();
       }}
     >
-      {itemExpandLabel(!!expanding, shownLength)}
+      <Icon name={expanding ? "refresh" : "more"} size={15} />
     </button>
   ) : null;
   const base = target.startOffset || 0;
@@ -719,19 +728,25 @@ export function ReaderMessage({
         <div className="reader-message-actions">
           {!tool && (
             <button
-              className="text-button"
+              type="button"
+              className="reader-icon-button"
+              aria-label={raw ? t("阅读排版") : t("显示原文")}
+              title={raw ? t("阅读排版") : t("显示原文")}
               onClick={() => {
                 setRaw(!raw);
                 setSelected(undefined);
               }}
               aria-pressed={raw}
             >
-              {raw ? t("阅读排版") : t("显示原文")}
+              <Icon name={raw ? "book" : "code"} size={15} />
             </button>
           )}
           {!disabled && target.itemId && source.trim() && (
             <button
-              className="message-annotate"
+              type="button"
+              className="message-annotate reader-icon-button"
+              aria-label={actionLabel}
+              title={actionLabel}
               onClick={() => {
                 const quote = Array.from(source).slice(0, 8000).join("");
                 onAnnotate(
@@ -746,7 +761,6 @@ export function ReaderMessage({
               }}
             >
               <Icon name="comment" size={13} />
-              {actionLabel}
             </button>
           )}
           {!tool && expand}

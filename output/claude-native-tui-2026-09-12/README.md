@@ -1,5 +1,7 @@
 # Claude 原生 TUI 验收材料
 
+> 截图仅本地保存，路径相对本文，不随 Git 分发；保存与引用方式见[验收截图约定](../../docs/agent-wiki/README.md#验收截图)。
+
 日期：2026-09-12。分支：`Codex/feature/claude-native-tui`。
 
 [正式验收记录](../../docs/agent-wiki/tasks/finished_archived/claude-native-tui-2026-09-12.md) 描述环境、检查结果与边界；[可重复运行的实测脚本](../../scripts/verify-claude-native.py) 需要新建专用测试目录。
@@ -14,15 +16,15 @@
 
 ## 页面截图
 
-- [首页，1440 浅色](home-1440-light.png)
-- [Claude 来源，1440 浅色](create-claude-1440-light.png)
-- [worktree 预览，1440 浅色](create-worktree-1440-light.png)
-- [详情，1440 浅色](detail-1440-light.png) / [1440 深色](detail-1440-dark.png)
-- [详情，1024 浅色](detail-1024-light.png) / [1024 深色](detail-1024-dark.png)
-- [详情，768 浅色](detail-768-light.png) / [768 深色](detail-768-dark.png)
-- [Claude 原生客户端与启动命令，1440 深色](clients-1440-dark.png)
-- [Claude CLI 设置，1024 深色](settings-1024-dark.png)
-- [加入页面，768 浅色](join-768-light.png)
+- 首页，1440 浅色（`home-1440-light.png`）
+- Claude 来源，1440 浅色（`create-claude-1440-light.png`）
+- worktree 预览，1440 浅色（`create-worktree-1440-light.png`）
+- 详情，1440 浅色（`detail-1440-light.png`） / 1440 深色（`detail-1440-dark.png`）
+- 详情，1024 浅色（`detail-1024-light.png`） / 1024 深色（`detail-1024-dark.png`）
+- 详情，768 浅色（`detail-768-light.png`） / 768 深色（`detail-768-dark.png`）
+- Claude 原生客户端与启动命令，1440 深色（`clients-1440-dark.png`）
+- Claude CLI 设置，1024 深色（`settings-1024-dark.png`）
+- 加入页面，768 浅色（`join-768-light.png`）
 - [浏览器视口与日志检查](browser-layout.json)
 
 截图中的 Codex CLI 为刻意设置的 `/usr/bin/false`，其错误提示验证 Claude 入口不会依赖 Codex 安装。截图以实际测试数据复核，不包含邀请 secret 或 API 凭据。构建后对加入、批注提示和单一 TUI 卡片进行了文案/布局收尾并再次截图；详情的六种视口主题组合用于验证布局边界。浏览器检查不替代原生客户端和真实双 Mac LAN 验收。

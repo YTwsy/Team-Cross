@@ -1,5 +1,4 @@
 import { useReaderFollow } from "../reader-follow";
-import { ReaderFind, type ReaderMatch } from "./ReaderFind";
 import { resourceScope } from "../execution";
 import { t, tr } from "../i18n";
 import { ResourceActions } from "../library";
@@ -97,16 +96,6 @@ export function Context({
   );
   const [selection, setSelection] = useState<AnnotationTarget>();
   const [selectionHint, setSelectionHint] = useState("");
-  const [searchTarget, setSearchTarget] = useState<AnnotationTarget>();
-  const [finding, setFinding] = useState(false);
-  const beforeSearch = useRef<{ data?: History; position?: ReadingPosition }>(
-    {},
-  );
-  useEffect(() => {
-    setSearchTarget(undefined);
-    setFinding(false);
-    beforeSearch.current = {};
-  }, [id]);
   const [activeTarget, setActiveTarget] = useState<AnnotationTarget>();
   const [locationStatus, setLocationStatus] = useState("");
   const [historyItemError, setHistoryItemError] = useState("");
@@ -116,7 +105,7 @@ export function Context({
     panel,
     `${id}:${tab}:${cursor}`,
     tab === "history" && !cursor && !historyTurn,
-    finding || !!activeTarget,
+    !!activeTarget,
   );
   const positions = useRef<Partial<Record<ContextTab, ReadingPosition>>>({});
   const restore = useRef<
@@ -170,14 +159,7 @@ export function Context({
           if (follow.canFollow()) follow.toEnd();
         });
     }
-  }, [
-    latest,
-    contextPath,
-    historySignature,
-    historyView,
-    follow.atEnd,
-    finding,
-  ]);
+  }, [latest, contextPath, historySignature, historyView, follow.atEnd]);
   useEffect(() => {
     if (
       !latest ||
@@ -235,7 +217,6 @@ export function Context({
     contextPath,
     historySignature,
     follow.atEnd,
-    finding,
     cursor,
     historyTurn,
   ]);
@@ -298,65 +279,6 @@ export function Context({
       pendingHistoryTurn.current = "";
     }
   }, [tab, data, context.loading]);
-  async function selectSearch(match: ReaderMatch, signal: AbortSignal) {
-    if (!contextPath) return;
-    const path = contextPath;
-    const query = new URLSearchParams({
-      kind: "history",
-      cursor: match.pageCursor || "",
-      turnId: match.turnId,
-    });
-    const result = await api<History>(
-      `collaborations/${id}/context?${query}`,
-      undefined,
-      signal,
-    );
-    query.set("itemId", match.itemId);
-    query.set("startOffset", String(match.startOffset));
-    const present = result.segments.some(
-      (s) =>
-        s.itemId === match.itemId &&
-        s.turnId === match.turnId &&
-        s.startOffset <= match.startOffset &&
-        s.endOffset >= match.endOffset,
-    );
-    const item = present
-      ? undefined
-      : await api<History>(
-          `collaborations/${id}/context?${query}`,
-          undefined,
-          signal,
-        );
-    if (signal.aborted) return;
-    setHistoryView((current) =>
-      current?.path === path
-        ? {
-            ...current,
-            data: item
-              ? {
-                  ...result,
-                  segments: mergeMaterialSegments(
-                    result.segments.filter(
-                      (s) =>
-                        !(
-                          s.itemId === match.itemId && s.turnId === match.turnId
-                        ),
-                    ),
-                    item.segments,
-                  ),
-                }
-              : result,
-          }
-        : current,
-    );
-    setSearchTarget({ kind: "history", sessionId, ...match });
-    requestAnimationFrame(() => {
-      if (!signal.aborted)
-        panel.current
-          ?.querySelector("[data-annotation-highlight]")
-          ?.scrollIntoView?.({ block: "center" });
-    });
-  }
   function refresh() {
     acceptNextHistory.current = true;
     context.reload();
@@ -687,10 +609,7 @@ export function Context({
           }))}
         >
           <div className="history">
-            <ReaderSequence
-              segments={segments}
-              activeTarget={searchTarget || activeTarget}
-            >
+            <ReaderSequence segments={segments} activeTarget={activeTarget}>
               {(segment, index, all) => (
                 <div
                   key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
@@ -767,7 +686,7 @@ export function Context({
                       endOffset: segment.endOffset,
                       quote: segment.text,
                     }}
-                    activeTarget={searchTarget || activeTarget}
+                    activeTarget={activeTarget}
                     annotations={annotations}
                     onAnnotate={onAnnotate}
                     onDiscuss={onDiscuss}
@@ -992,41 +911,14 @@ export function Context({
             message={context.error || historyItemError}
             retry={context.error ? refresh : undefined}
           />
-          {tab === "history" && online && (
-            <ReaderFind
-              key={`find:${id}`}
-              resource={{ path: `collaborations/${id}/context?kind=history` }}
-              onSelect={selectSearch}
-              onActiveChange={(open) => {
-                setFinding(open);
-                if (open)
-                  beforeSearch.current = {
-                    data: data && "thread" in data ? data : undefined,
-                    position: captureReadingPosition(panel.current),
-                  };
-                else {
-                  setSearchTarget(undefined);
-                  if (beforeSearch.current.data && contextPath) {
-                    setHistoryView({
-                      path: contextPath,
-                      data: beforeSearch.current.data,
-                      signature: beforeSearch.current.data.contentHash || "",
-                    });
-                    if (beforeSearch.current.position)
-                      restore.current = {
-                        tab: "history",
-                        position: beforeSearch.current.position,
-                      };
-                  }
-                }
-              }}
-            />
-          )}
-          {historyPending && !finding && (
+          {historyPending && (
             <div className="reader-update" role="status">
               <span>{t("对话有新内容，当前阅读位置已保留。")}</span>
               <button
-                className="button small"
+                type="button"
+                className="reader-icon-button"
+                aria-label={t("显示新内容")}
+                title={t("显示新内容")}
                 onClick={() => {
                   if (latest && "thread" in latest && contextPath)
                     setHistoryView({
@@ -1036,10 +928,13 @@ export function Context({
                     });
                 }}
               >
-                {t("显示新内容") + " "}
+                <Icon name="refresh" size={15} />
               </button>
               <button
-                className="button small"
+                type="button"
+                className="reader-icon-button"
+                aria-label={t("回到最新")}
+                title={t("回到最新")}
                 onClick={() => {
                   if (latest && "thread" in latest && contextPath)
                     setHistoryView({
@@ -1050,18 +945,20 @@ export function Context({
                   requestAnimationFrame(follow.toEnd);
                 }}
               >
-                {t("回到最新")}
+                <Icon name="latest" size={15} />
               </button>
             </div>
           )}
           {tab === "history" &&
             online &&
-            !finding &&
             !historyPending &&
             !follow.atEnd &&
             data && (
               <button
-                className="reader-follow-button button small"
+                type="button"
+                className="reader-follow-button reader-icon-button"
+                aria-label={t("回到最新")}
+                title={t("回到最新")}
                 onClick={() => {
                   if (cursor || historyTurn) {
                     setHistoryTurn("");
@@ -1071,7 +968,7 @@ export function Context({
                   requestAnimationFrame(follow.toEnd);
                 }}
               >
-                {t("回到最新")}
+                <Icon name="latest" size={15} />
               </button>
             )}
           {!online ? (
@@ -1095,7 +992,10 @@ export function Context({
               <div className="context-pagination">
                 {data.nextCursor && (
                   <button
-                    className="button small"
+                    type="button"
+                    className="reader-icon-button"
+                    aria-label={data.sourcePageComplete ? t("更早对话") : t("继续读取本页")}
+                    title={data.sourcePageComplete ? t("更早对话") : t("继续读取本页")}
                     disabled={context.loading}
                     onClick={() => {
                       setHistoryTurn("");
@@ -1104,9 +1004,7 @@ export function Context({
                       finishedLocation.current = false;
                     }}
                   >
-                    {data.sourcePageComplete
-                      ? t("更早对话")
-                      : t("继续读取本页")}
+                    <Icon name={data.sourcePageComplete ? "back" : "more"} size={15} />
                   </button>
                 )}
                 {data.nextCursor &&
@@ -1118,7 +1016,10 @@ export function Context({
                   )}
                 {cursor && (
                   <button
-                    className="text-link small-text"
+                    type="button"
+                    className="reader-icon-button"
+                    aria-label={t("回到最近对话")}
+                    title={t("回到最近对话")}
                     onClick={() => {
                       setActiveTarget(undefined);
                       setLocationStatus("");
@@ -1127,7 +1028,7 @@ export function Context({
                       setCursor("");
                     }}
                   >
-                    {t("回到最近对话") + " "}
+                    <Icon name="latest" size={15} />
                   </button>
                 )}
               </div>

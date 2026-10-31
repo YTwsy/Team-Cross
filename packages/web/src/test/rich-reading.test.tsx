@@ -1,13 +1,6 @@
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MarkdownText } from "../components/MarkdownText";
-import { ReaderFind } from "../components/ReaderFind";
 import { ReaderImages } from "../components/ReaderMedia";
 import { ReaderMessage } from "../components/Reading";
 import {
@@ -204,64 +197,6 @@ describe("rich source-preserving reading", () => {
   });
 });
 
-it("searches unloaded batches, reports a final count only at the end, and targets the fixed version", async () => {
-  const hit = {
-    turnId: "older",
-    itemId: "answer",
-    startOffset: 3,
-    endOffset: 5,
-    quote: "中文",
-    snippet: "🙂 中文",
-    pageCursor: "older-page",
-  };
-  let finish!: (value: Response) => void;
-  const fetch = vi.fn(async (_url: string, init: RequestInit) => {
-    const body = JSON.parse(String(init.body));
-    expect(body.materialId).toBe("m");
-    expect(body.version).toBe(2);
-    if (!body.search.cursor)
-      return new Response(
-        JSON.stringify({
-          search: { matches: [hit], complete: false, nextCursor: "next" },
-        }),
-      );
-    return new Promise<Response>((resolve) => {
-      finish = resolve;
-    });
-  });
-  vi.stubGlobal("fetch", fetch);
-  const select = vi.fn().mockResolvedValue(undefined);
-  render(
-    <ReaderFind
-      resource={{
-        path: "collaborations/s/read-material",
-        body: { materialId: "m", version: 2 },
-      }}
-      onSelect={select}
-    />,
-  );
-  fireEvent.click(screen.getByRole("button", { name: "搜索正文" }));
-  fireEvent.change(screen.getByRole("searchbox"), {
-    target: { value: "中文" },
-  });
-  await screen.findByText(/已找到 1 处，搜索尚未完成/);
-  expect(screen.queryByText(/共 1 处命中/)).not.toBeInTheDocument();
-  await act(async () =>
-    finish(
-      new Response(
-        JSON.stringify({
-          search: { matches: [], complete: true, nextCursor: "" },
-        }),
-      ),
-    ),
-  );
-  await screen.findByText(/共 1 处命中/);
-  fireEvent.click(screen.getByRole("button", { name: "下一个命中" }));
-  await waitFor(() =>
-    expect(select).toHaveBeenCalledWith(hit, expect.any(AbortSignal)),
-  );
-});
-
 it("assembles authorized image chunks, exposes the whole-image anchor, and rejects changed hashes", async () => {
   const image = {
     id: "i",
@@ -356,46 +291,4 @@ it("maps displayed formula source back to the original UTF-16 selection", () => 
     source.length,
     expect.any(HTMLElement),
   );
-});
-
-it("pauses very large searches without reporting an incomplete count as final", async () => {
-  const hit = {
-    turnId: "t",
-    itemId: "i",
-    startOffset: 0,
-    endOffset: 1,
-    quote: "x",
-    snippet: "x",
-  };
-  const fetch = vi.fn(async (_url: string, init: RequestInit) => {
-    const body = JSON.parse(String(init.body));
-    return new Response(
-      JSON.stringify({
-        search: body.search.cursor
-          ? { matches: [hit], complete: true, nextCursor: "" }
-          : {
-              matches: Array.from({ length: 1024 }, () => hit),
-              complete: false,
-              nextCursor: "more",
-            },
-      }),
-    );
-  });
-  vi.stubGlobal("fetch", fetch);
-  render(
-    <ReaderFind
-      resource={{
-        path: "collaborations/s/read-material",
-        body: { materialId: "m", version: 1 },
-      }}
-      onSelect={vi.fn()}
-    />,
-  );
-  fireEvent.click(screen.getByRole("button", { name: "搜索正文" }));
-  fireEvent.change(screen.getByRole("searchbox"), { target: { value: "x" } });
-  fireEvent.click(
-    await screen.findByRole("button", { name: "继续搜索更多命中" }),
-  );
-  await screen.findByText(/共 1025 处命中/);
-  expect(fetch).toHaveBeenCalledTimes(2);
 });

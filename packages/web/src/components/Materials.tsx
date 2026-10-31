@@ -1,5 +1,4 @@
 import { useReaderFollow } from "../reader-follow";
-import { ReaderFind, type ReaderMatch } from "./ReaderFind";
 import { useRefreshState, useRefreshGuard } from "../refreshState";
 import { formatDate, t, tr } from "../i18n";
 import { ResourceActions, useLibrary } from "../library";
@@ -62,7 +61,7 @@ export function MaterialReader({
   spaceId,
   material,
   reference,
-  target: annotationTarget,
+  target,
   onAnnotate,
   disabled,
   annotations = [],
@@ -91,18 +90,8 @@ export function MaterialReader({
   };
   conversation?: boolean;
 }) {
-  const [searchTarget, setSearchTarget] = useState<AnnotationTarget>();
-  const target = searchTarget || annotationTarget;
-  const beforeSearch = useRef<{
-    page?: MaterialPage;
-    position?: ReadingPosition;
-  }>({});
   const version = reference.version,
     memoryKey = `${material.id}:${version}`;
-  useEffect(() => {
-    setSearchTarget(undefined);
-    beforeSearch.current = {};
-  }, [spaceId, memoryKey]);
   const cached = memory.get(memoryKey);
   const [turn, setTurn] = useState(reference.turnId || cached?.turn || "");
   const [page, setPage] = useState<MaterialPage>();
@@ -266,49 +255,6 @@ export function MaterialReader({
       if (serial === request.current) setItemLoading("");
     }
   }
-  async function selectSearch(match: ReaderMatch, signal: AbortSignal) {
-    const serial = request.current;
-    const path = `collaborations/${spaceId}/read-material`;
-    const body = { materialId: material.id, version, turnId: match.turnId };
-    const result = await api<MaterialPage>(
-      path,
-      { ...body, includeOutline: true },
-      signal,
-    );
-    const present = result.segments.some(
-      (s) =>
-        s.itemId === match.itemId &&
-        s.turnId === match.turnId &&
-        s.startOffset <= match.startOffset &&
-        s.endOffset >= match.endOffset,
-    );
-    const item = present
-      ? undefined
-      : await api<MaterialPage>(
-          path,
-          { ...body, itemId: match.itemId, startOffset: match.startOffset },
-          signal,
-        );
-    if (serial !== request.current || signal.aborted) return;
-    const next = item
-      ? {
-          ...result,
-          segments: mergeMaterialSegments(
-            result.segments.filter(
-              (s) => !(s.itemId === match.itemId && s.turnId === match.turnId),
-            ),
-            item.segments,
-          ),
-        }
-      : result;
-    setPage(next);
-    setSearchTarget({
-      kind: "material",
-      materialId: material.id,
-      version,
-      ...match,
-    });
-  }
   const located =
     !!target &&
     joinMaterialSegments(page?.segments || []).some((segment) => {
@@ -371,7 +317,8 @@ export function MaterialReader({
   const joinedSegments = joinMaterialSegments(page?.segments || []);
   const readingStart = !!v?.readingStartId && !turn && (
     <button
-      className={`text-link ${conversation ? "space-reading-start" : ""}`}
+      type="button"
+      className={`reader-icon-button ${conversation ? "space-reading-start" : ""}`}
       aria-label={t("跳到发布者建议的阅读起点")}
       title={t("跳到发布者建议的阅读起点")}
       onClick={() => {
@@ -379,8 +326,7 @@ export function MaterialReader({
         setTurn(v.readingStartId!);
       }}
     >
-      {conversation && <Icon name="arrow" size={13} />}
-      {conversation ? t("建议阅读起点") : t("跳到发布者建议的阅读起点")}
+      <Icon name="pin" size={15} />
     </button>
   );
   const copyHint = (
@@ -396,7 +342,11 @@ export function MaterialReader({
           <div className="space-material-header">
             <h2>{v?.title}</h2>
             <div className="space-reader-header-actions">
-              <MemberFollow spaceId={spaceId} subject={{kind:"material",id:material.id}} disabled={disabled}/>
+              <MemberFollow
+                spaceId={spaceId}
+                subject={{ kind: "material", id: material.id }}
+                disabled={disabled}
+              />
               <SpaceCommentsButton />
               <details
                 className="space-material-more"
@@ -556,12 +506,13 @@ export function MaterialReader({
               )}
               {navigation && (
                 <button
-                  className="button small material-reading-close"
+                  type="button"
+                  className="reader-icon-button material-reading-close"
                   aria-label={t("收起当前材料")}
                   title={t("收起当前材料")}
                   onClick={navigation.onCollapse}
                 >
-                  {t("收起") + " "}
+                  <Icon name="close" size={15} />
                 </button>
               )}
             </div>
@@ -598,33 +549,6 @@ export function MaterialReader({
         </blockquote>
       )}
       {!conversation && readingStart}
-      <ReaderFind
-        key={`find:${memoryKey}`}
-        resource={{
-          path: `collaborations/${spaceId}/read-material`,
-          body: { materialId: material.id, version },
-        }}
-        onSelect={selectSearch}
-        onActiveChange={(open) => {
-          if (open)
-            beforeSearch.current = {
-              page,
-              position: captureReadingPosition(panel.current),
-            };
-          else {
-            setSearchTarget(undefined);
-            if (beforeSearch.current.page) {
-              setPage(beforeSearch.current.page);
-              memory.set(memoryKey, {
-                turn,
-                page: beforeSearch.current.page,
-                position: beforeSearch.current.position,
-              });
-              restore.current = beforeSearch.current.position;
-            }
-          }
-        }}
-      />
       <ErrorBox message={error} />
       {page && (
         <ReadingLayout
@@ -753,11 +677,14 @@ export function MaterialReader({
       {loading && <Loading text={t("正在读取已公开正文…")} />}
       {page?.nextCursor && (
         <button
-          className="button small"
+          type="button"
+          className="reader-icon-button"
+          aria-label={t("继续读取正文")}
+          title={t("继续读取正文")}
           disabled={loading}
           onClick={() => void more()}
         >
-          {t("继续读取正文") + " "}
+          <Icon name="more" size={15} />
         </button>
       )}
       {page?.nextCursor && !page.pageEndsAtTurnBoundary && (

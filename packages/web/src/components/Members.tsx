@@ -187,12 +187,12 @@ export function Members({
                 )}
               </div>
             ))}
-            {!active.length && (
-              <p className="small-text muted">
-                {t("复制空间邀请链接，同事可使用同一链接分别加入。") + " "}
-              </p>
-            )}
           </div>
+          {!active.length && (
+            <p className="small-text muted participants-invite-note">
+              {t("复制空间邀请链接，同事可使用同一链接分别加入。")}
+            </p>
+          )}
           <div className="participants-actions">
             {execution && owner && c.sharing && !mine && (
               <button

@@ -38,9 +38,9 @@ go build -o bin/teamcross ./cmd/teamcross
 
 ## 现有自动化入口
 
-阅读器展示、图片和搜索变更运行 [Core 阅读回归](../../../../internal/collab/reader_experience_test.go)、[存储校验](../../../../internal/materialstore/store_test.go)、[富文本回归](../../../../packages/web/src/test/rich-reading.test.tsx)、[上下文刷新](../../../../packages/web/src/test/context-refresh.test.tsx) 与 [阅读锚点](../../../../packages/web/src/test/reading-scroll.test.tsx)。核对 UTF-16 源码坐标、图片版本隔离与跨 Core 上传、撤回后的图片/搜索拒绝、未加载正文和工具命中、取消搜索与部分计数、跟随补齐分页及上滚停止。
+阅读器展示、图片和搜索变更运行 [Core 阅读回归](../../../../internal/collab/reader_experience_test.go)、[存储校验](../../../../internal/materialstore/store_test.go)、[富文本回归](../../../../packages/web/src/test/rich-reading.test.tsx)、[上下文刷新](../../../../packages/web/src/test/context-refresh.test.tsx) 与 [阅读锚点](../../../../packages/web/src/test/reading-scroll.test.tsx)。核对 UTF-16 源码坐标、图片版本隔离与跨 Core 上传、撤回后的图片/检索接口拒绝、Core 对未加载正文和工具的检索与部分计数、跟随补齐分页及上滚停止。
 
-真实浏览器使用 `TEAMCROSS_READER_BROWSER_DIR=<全新目录> go test ./internal/collab -run '^TestReaderBrowserFixture$' -v -count=1 -timeout=46m` 启动隔离 Core；按输出目录 `fixture.json` 访问并检查深浅主题、中英文、宽窄窗口、图形/图片展开、批注及搜索定位。`POST /fixture/advance` 只在该测试服务器追加合成历史，`?done=true` 模拟完成；不调用模型，也不代表真实 Provider 输出验收。退出在目录创建 `finish` 文件并关闭本次浏览器及插件 harness。
+真实浏览器使用 `TEAMCROSS_READER_BROWSER_DIR=<全新目录> go test ./internal/collab -run '^TestReaderBrowserFixture$' -v -count=1 -timeout=46m` 启动隔离 Core；按输出目录 `fixture.json` 访问并检查深浅主题、中英文、宽窄窗口、图形/图片展开、批注定位与正文搜索入口移除。`POST /fixture/advance` 只在该测试服务器追加合成历史，`?done=true` 模拟完成；不调用模型，也不代表真实 Provider 输出验收。退出在目录创建 `finish` 文件并关闭本次浏览器及插件 harness。
 
 顺流感知变更运行 [Core 分发回归](../../../../internal/collab/inflow_test.go)、[MCP 输出边界](../../../../internal/mcp/inflow_test.go)、[Hook CLI](../../../../cmd/teamcross/inflow_test.go) 和 [界面交互](../../../../packages/web/src/test/inflow.test.tsx)。核对首次开启基线、准确会话/空间/成员范围、评论回复版本、本人请求结果、定向留言、跨 Core、撤销后拒绝、重启去重、并发租约及失败输出不记已投递。普通讨论和材料评论不能因可读而自动广播。
 
@@ -281,6 +281,8 @@ TEAMCROSS_TEST_TAILCAT=1 \
 ## 界面与测试收尾
 
 页面检查包括首页、创建、详情、加入、设置和关键失败状态；在 1440、1024、768 CSS 像素及深浅主题下检查布局。核对实际视口、长路径、水平溢出、滚动、焦点、键盘和主要动作可达性，并实际查看截图。
+
+截图的保存位置、Git 排除与文档引用按[验收截图约定](../../README.md#验收截图)执行。
 
 完成后关闭本次启动的专用 Desktop/TUI、Core、app-server、浏览器页面及其测试辅助进程。先确认 PID、父子关系或测试数据目录，再退出对应实例；保留用户正在使用的 Codex 和其他浏览器内容，不按程序名批量终止。测试会话、仓库和验收材料按本次约定保留。
 
