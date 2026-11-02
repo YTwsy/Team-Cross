@@ -1,9 +1,6 @@
 package shadow
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -133,6 +130,10 @@ func (s *AttentionStore) continuationLocked(c AttentionContinuation) Continuatio
 }
 
 func (s *AttentionStore) ClaimContinuation(shadowID string) (*ContinuationContext, error) {
+	return s.claimContinuationExcept(shadowID, nil)
+}
+
+func (s *AttentionStore) claimContinuationExcept(shadowID string, excluded map[string]bool) (*ContinuationContext, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.record.Route.Enabled {
@@ -140,7 +141,7 @@ func (s *AttentionStore) ClaimContinuation(shadowID string) (*ContinuationContex
 	}
 	items := []AttentionContinuation{}
 	for _, c := range s.record.Continuations {
-		if c.ShadowID == shadowID && (c.State == "queued" || c.State == "running") {
+		if !excluded[c.ID] && c.ShadowID == shadowID && (c.State == "queued" || c.State == "running") {
 			items = append(items, c)
 		}
 	}
@@ -206,143 +207,7 @@ func (s *AttentionStore) CurrentContinuation(id, shadowID string) (ContinuationC
 	return s.continuationLocked(c), nil
 }
 
-// Finishing a native coordination turn records its result. Business tasks and
-// unresolved dependencies have their own completion state.
+// Older accepted runs use the same message receipt semantics as batched inputs.
 func (s *AttentionStore) FinishContinuation(id, shadowID, runState, output string, actionIDs []string, work ContinuationWork, readSources ...spacecontext.SourceRef) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c, ok := s.record.Continuations[id]
-	if !ok || c.ShadowID != shadowID {
-		return fmt.Errorf("接续结果归属不匹配")
-	}
-	sort.Strings(actionIDs)
-	fingerprint := attentionHash([]any{runState, output, actionIDs})
-	if c.ResultHash != "" {
-		if c.ResultHash != fingerprint {
-			return fmt.Errorf("同一接续轮返回了不同结果")
-		}
-		return nil
-	}
-	next := clone(s.record)
-	c.Result, c.ResultHash, c.ActionIDs, c.UpdatedAt = clip(output, 4000), fingerprint, clone(actionIDs), time.Now()
-	if c.HandlingID == "" && c.GoalVersion != next.Focuses[c.FocusID].GoalVersion || !continuationFollowEligible(next, c) {
-		c.State = "superseded"
-	} else if runState != "completed" {
-		c.State, c.Error = "failed", "接续回合未正常结束；保留已做动作及原生记录"
-	} else {
-		c.State, c.Error = "processed", ""
-	}
-	if c.Mode == "direct" {
-		batch := next.Batches[c.BatchID]
-		// The engine records these references only after a successful bound
-		// read. They are not claims supplied by the completion JSON itself.
-		for _, ref := range readSources {
-			if ref.SpaceID != next.SpaceID {
-				return fmt.Errorf("直接处理的读取证据空间不符")
-			}
-			batch.Focus.Evidence = append(batch.Focus.Evidence, ref)
-		}
-		next.Batches[batch.ID] = batch
-		if c.State == "processed" {
-			var understanding Observation
-			err := json.Unmarshal([]byte(output), &understanding)
-			if err != nil {
-				err = fmt.Errorf("%w: 直接处理结果不是认识记录", errInvalidObservation)
-			} else if understanding.Outcome == "continue" && !work.OpenWork || understanding.Outcome == "needs_owner" && !work.OwnerQuestion {
-				err = fmt.Errorf("%w: 后续工作或本人待答问题尚未实际登记", errInvalidObservation)
-			} else {
-				err = finishObservation(&next, batch.ID, understanding, false)
-			}
-			if err != nil {
-				if !errors.Is(err, errInvalidObservation) {
-					return err
-				}
-				c.State, c.Error = "failed", "直接处理尚未保存有效认识；保留已执行动作，请核对原生结果"
-				resetBatch(&next, batch, "failed", c.Error, time.Time{})
-			} else {
-				c.Analysis = understanding
-			}
-		} else {
-			resetBatch(&next, batch, c.State, c.Error, time.Time{})
-		}
-	}
-	next.Continuations[id] = c
-	f := next.Focuses[c.FocusID]
-	f.JobIDs = appendUniqueLinks(f.JobIDs, work.JobIDs)
-	f.QuestionIDs = appendUniqueLinks(f.QuestionIDs, work.QuestionIDs)
-	for _, action := range actionIDs {
-		found := false
-		for _, known := range f.ActionIDs {
-			found = found || known == action
-		}
-		if !found {
-			f.ActionIDs = append(f.ActionIDs, action)
-		}
-	}
-	next.Focuses[f.ID] = f
-	return s.saveLocked(next)
-}
-
-func (e *Engine) scheduleContinuation(ctx context.Context) (bool, error) {
-	e.mu.Lock()
-	store, id, thread := e.attention, e.record.ID, e.record.Current
-	ready := thread != "" && !e.threadBusyLocked(thread) && e.cfg.CallTool != nil
-	e.mu.Unlock()
-	if store == nil || !ready {
-		return false, nil
-	}
-	packet, err := store.ClaimContinuation(id)
-	if err != nil || packet == nil {
-		return false, err
-	}
-	e.mu.Lock()
-	for _, run := range e.record.Runs {
-		if run.Kind == "continuation" && run.EventID == packet.Continuation.ID {
-			e.mu.Unlock()
-			return false, nil
-		}
-	}
-	e.mu.Unlock()
-	if packet.Continuation.Mode == "direct" {
-		// The main conversation may have registered a wait while this direct
-		// input was queued. Recheck just before starting its native turn.
-		if !e.checkDirectRoute(ctx, store, packet.Continuation.BatchID) {
-			return false, nil
-		}
-		current, err := store.CurrentContinuation(packet.Continuation.ID, id)
-		if err != nil {
-			return false, err
-		}
-		packet = &current
-	}
-	e.mu.Lock()
-	actions := []CollaborationAction{}
-	for _, action := range e.record.Actions {
-		include := action.EventID == packet.Continuation.ID
-		for _, id := range packet.Focus.ActionIDs {
-			include = include || action.ID == id
-		}
-		if include {
-			actions = append(actions, clone(action))
-		}
-	}
-	e.mu.Unlock()
-	prompt := rolePrompt + "\nContinue this actual collaboration event, not an invented human chat message. Read the original discussion and current replies using the supplied exact sources before deciding what is still needed. Take the required factual reply or consultation through collaboration tools; a final text here is only an internal progress record and is not sent to the discussion. Preserve previous action IDs and do not repeat already completed work. If substantial work is needed, use shadow_task and retain the original evidence and goal. Ask the owner for a concrete missing choice through the original discussion, not for routine permission. Do not publish private receipt reasons.\nCurrent bounded work record:\n" + jsonText(packet) + "\nPrior actions for this continuation:\n" + jsonText(actions)
-	if len(packet.MemberChanges) > 0 {
-		prompt += "\nmemberChanges identifies facts already changed or answered by this member. Reconcile the remaining work with these sources; do not repeat the member's completed actions or re-ask answered questions."
-	}
-	var schema any
-	if packet.Continuation.Mode == "direct" {
-		prompt += "\nThis direct mention or reply has not been sent through an observation model. Understand and handle it in this same turn using the provided source bodies and prior understanding. A copied progress update may need no public reply. After acting, return only the structured current understanding: summary, exact evidence references, openQuestions, outcome and nextStep. Use no_action with an empty nextStep when nothing remains; continue/needs_owner describe work actually registered with shadow_task or a concrete question actually asked. Do not leave an unregistered future action in final text. Evidence must use supplied source references or still-valid previous evidence. An unavailable source is a tombstone, never proof of its former content. The final JSON is private and will not be posted to the discussion."
-		schema = observationSchema()
-	}
-	prompt += questionHandlingNote(packet.Handling)
-	if len(prompt) > 192<<10 {
-		return false, fmt.Errorf("动态处理上下文超过预算，原批次已保留")
-	}
-	sourceID := packet.Continuation.ID
-	if len(packet.Continuation.EventIDs) > 0 {
-		sourceID = packet.Continuation.EventIDs[0]
-	}
-	return true, e.submit(ctx, Run{Kind: "continuation", ThreadID: thread, SourceID: sourceID, EventID: packet.Continuation.ID}, prompt, schema)
+	return s.finishMessageInput(id, shadowID, runState, actionIDs, work.JobIDs, work.QuestionIDs)
 }

@@ -32,7 +32,7 @@ func connectQuestionTools(e *Engine) {
 }
 
 func questionCommand() map[string]any {
-	return map[string]any{"operation": "ask", "title": "Resolve compatibility", "prompt": "Confirm the exact supported client version and answer the original question.", "completionCriteria": []string{"Answer the original question with the exact version and source."}, "checkpoint": TaskCheckpoint{Summary: "Missing the supported client version.", NextStep: "Read the exact answer and finish the compatibility recommendation."}, "question": map[string]any{"tool": "reply_to_annotation", "arguments": map[string]any{"annotationId": "discussion", "requestId": uuid.NewString(), "text": "Which client version must remain supported?"}, "condition": "The supported client version is specified."}}
+	return map[string]any{"operation": "ask", "kind": "work", "title": "Resolve compatibility", "prompt": "Confirm the exact supported client version and answer the original question.", "completionCriteria": []string{"Answer the original question with the exact version and source."}, "checkpoint": TaskCheckpoint{Summary: "Missing the supported client version.", NextStep: "Read the exact answer and finish the compatibility recommendation."}, "question": map[string]any{"tool": "reply_to_annotation", "arguments": map[string]any{"annotationId": "discussion", "requestId": uuid.NewString(), "text": "Which client version must remain supported?"}, "condition": "The supported client version is specified."}}
 }
 
 func askCall(run Run, args any) toolCall {
@@ -268,7 +268,7 @@ func TestTaskQuestionSourceBindingRollsBackAndCannotBeForged(t *testing.T) {
 	}
 }
 
-func TestAttentionDirectRequiresRegisteredFutureWork(t *testing.T) {
+func TestAttentionOrdinaryClarificationDoesNotCreateWaitingWork(t *testing.T) {
 	for _, outcome := range []string{"continue", "needs_owner"} {
 		t.Run(outcome, func(t *testing.T) {
 			e, f, _, s, signal := directAttention(t)
@@ -279,8 +279,8 @@ func TestAttentionDirectRequiresRegisteredFutureWork(t *testing.T) {
 			f.complete(run.ThreadID, jsonText(Observation{Summary: "Waiting for a deadline.", Outcome: outcome, NextStep: "Resume after the answer."}), "completed", true)
 			until(t, func() bool { return attentionCommitted(e, run.ID) })
 			r := s.Snapshot()
-			if r.Continuations[run.EventID].State != "failed" || r.Events[signal.ID].State != "queued" || len(r.Continuations[run.EventID].ActionIDs) != 1 {
-				t.Fatal("plain question text fabricated a durable continuation", r)
+			if r.Continuations[run.EventID].State != "processed" || r.Events[signal.ID].State != "processed" || len(r.Continuations[run.EventID].ActionIDs) != 1 || len(e.View().Jobs) != 0 {
+				t.Fatal("ordinary clarification created a waiting task or required final JSON", r)
 			}
 		})
 	}
@@ -361,7 +361,7 @@ func TestAttentionDirectDoesNotInventOwnerWaitFromQuestionToAnotherMember(t *tes
 	f.complete(run.ThreadID, jsonText(Observation{Summary: "Claimed owner is required.", Outcome: "needs_owner", NextStep: "Wait for owner."}), "completed", true)
 	until(t, func() bool { return attentionCommitted(e, run.ID) })
 	r := s.Snapshot()
-	if r.Continuations[run.EventID].State != "failed" || q.Delivery != "saved" || currentJob(t, e, j.ID).State != "waiting" {
+	if r.Continuations[run.EventID].State != "processed" || r.Continuations[run.EventID].Analysis.Outcome == "needs_owner" || q.Delivery != "saved" || currentJob(t, e, j.ID).State != "waiting" {
 		t.Fatal("another recipient became an owner question or task was lost", r.Continuations, q)
 	}
 }
@@ -373,15 +373,16 @@ func TestTaskQuestionCanBeReusedByExactIDWithoutForgedSource(t *testing.T) {
 	send(t, e, "owner", "Two tasks need the same version fact")
 	run := active(t, e, "main")
 	q, _ := questionPair(t, tool(t, e, f, run, "shadow_task", questionCommand()))
-	created := tool(t, e, f, run, "shadow_task", map[string]any{"operation": "start", "title": "Second task", "prompt": "Use the same actual version answer", "kind": "coordination"})
+	created := tool(t, e, f, run, "shadow_task", map[string]any{"operation": "start", "title": "Second task", "prompt": "Use the same actual version answer", "kind": "work"})
 	b, _ := json.Marshal(created)
 	var j Job
 	if err := json.Unmarshal(b, &j); err != nil {
 		t.Fatal(err)
 	}
-	args := taskCommandFor(j, "wait")
+	worker := jobRun(t, e, j.ID)
+	args := taskCommandFor(currentJob(t, e, j.ID), "wait")
 	args["dependencies"] = []TaskDependency{{ID: "shared-version", Kind: "discussion", QuestionID: q.ID, Condition: "Use the confirmed version in this task", Source: spacecontext.SourceRef{SpaceID: "forged-space", AnnotationID: "unrelated"}, QuestionSourcePending: true, QuestionActionID: "forged"}}
-	tool(t, e, f, run, "shadow_task", args)
+	tool(t, e, f, worker, "shadow_task", args)
 	d := currentJob(t, e, j.ID).Dependencies[0]
 	if attentionHash(d.Source) != attentionHash(q.Source) || d.QuestionActionID != q.ActionID || d.QuestionSourcePending {
 		t.Fatal("reuse accepted caller-provided source", d, q)

@@ -15,17 +15,27 @@ import (
 // Pending result bodies outlive the ordinary 256-result browsing history.
 // Delivered IDs are small durable dedupe records; only their recent bodies stay.
 type ShadowReturnInbox struct {
-	ID         string                       `json:"id"`
-	MessageID  string                       `json:"messageId"`
-	MemberID   string                       `json:"memberId"`
-	SessionKey string                       `json:"sessionKey"`
-	Events     map[string]ShadowReturnEvent `json:"events"`
-	Delivered  map[string]time.Time         `json:"delivered"`
+	ID                string                       `json:"id"`
+	MessageID         string                       `json:"messageId"`
+	MemberID          string                       `json:"memberId"`
+	SessionKey        string                       `json:"sessionKey"`
+	Events            map[string]ShadowReturnEvent `json:"events"`
+	Delivered         map[string]time.Time         `json:"delivered"`
+	DeliveredVersions map[string]int               `json:"deliveredVersions,omitempty"`
 }
 
 type ShadowReturnEvent struct {
-	Item   inflow.Item        `json:"item"`
-	Result *shadow.TaskResult `json:"result,omitempty"`
+	Item     inflow.Item            `json:"item"`
+	Result   *shadow.TaskResult     `json:"result,omitempty"`
+	Question *shadow.QuestionReturn `json:"question,omitempty"`
+}
+
+func shadowReturnDelivered(route ShadowReturnInbox, item inflow.Item) bool {
+	if route.DeliveredVersions[item.Key] >= item.Version {
+		return true
+	}
+	_, oldReceipt := route.Delivered[item.Key]
+	return oldReceipt && item.Version == 1
 }
 
 func bindShadowReturnInbox(shared *ShadowShared, in shadowInput, actor shadow.Actor) error {
@@ -153,13 +163,17 @@ func (s *Session) shadowReturnOperationLocked(op string, in shadowInput, actor s
 			delete(s.inFlowLeases, in.Receipt)
 			return map[string]bool{"released": true}, false, nil
 		}
+		if route.DeliveredVersions == nil {
+			route.DeliveredVersions = map[string]int{}
+		}
 		for _, item := range lease.Items {
 			route.Delivered[item.Key] = now
+			route.DeliveredVersions[item.Key] = max(route.DeliveredVersions[item.Key], item.Version)
 		}
 		// Keep every pending body and the newest 256 delivered bodies.
 		delivered := []string{}
-		for id := range route.Events {
-			if _, ok := route.Delivered[id]; ok {
+		for id, event := range route.Events {
+			if shadowReturnDelivered(route, event.Item) {
 				delivered = append(delivered, id)
 			}
 		}
@@ -179,19 +193,24 @@ func (s *Session) shadowReturnOperationLocked(op string, in shadowInput, actor s
 	if s.shadowReturnMutedLocked(route) {
 		return batch, false, nil
 	}
+	changed := s.refreshShadowQuestionReturnsLocked(shared, &route)
+	if changed {
+		shared.Returns[route.ID] = route
+	}
 	for _, lease := range s.inFlowLeases {
 		if lease.Recipient != key {
 			continue
 		}
 		for _, item := range lease.Items {
-			if _, delivered := route.Delivered[item.Key]; !delivered {
-				return batch, false, nil
+			current, exists := route.Events[item.Key]
+			if exists && current.Item.Version == item.Version && !shadowReturnDelivered(route, item) {
+				return batch, changed, nil
 			}
 		}
 	}
 	items := []inflow.Item{}
-	for id, event := range route.Events {
-		if _, delivered := route.Delivered[id]; !delivered {
+	for _, event := range route.Events {
+		if !shadowReturnDelivered(route, event.Item) && shadowQuestionReturnVisible(route, event) {
 			items = append(items, event.Item)
 		}
 	}
@@ -216,5 +235,5 @@ func (s *Session) shadowReturnOperationLocked(op string, in shadowInput, actor s
 		batch.Receipt = uuid.NewString()
 		s.inFlowLeases[batch.Receipt] = inFlowLease{Recipient: key, Expires: now.Add(30 * time.Second), Items: batch.Items}
 	}
-	return batch, false, nil
+	return batch, changed, nil
 }

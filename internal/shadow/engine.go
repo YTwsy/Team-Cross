@@ -46,7 +46,7 @@ func (e *Engine) UpgradeBusy() bool {
 			}
 		}
 		for _, job := range e.record.Jobs {
-			if job.State == "queued" || job.State == "running" || job.State == "stopping" || (job.ResultEventID != "" && job.ResultEventID != job.DeliveredEventID) {
+			if job.State == "queued" || job.State == "running" || job.State == "stopping" {
 				return true
 			}
 		}
@@ -91,6 +91,8 @@ func (e *Engine) loop(ctx context.Context) {
 	defer close(e.done)
 	defer e.dependencyWait.Wait()
 	defer e.attentionWait.Wait()
+	defer e.toolWait.Wait()
+	defer e.reportWait.Wait()
 	defer func() {
 		e.mu.Lock()
 		p := e.runtime
@@ -189,6 +191,7 @@ func (e *Engine) startRuntime(ctx context.Context) error {
 }
 
 func (e *Engine) step(ctx context.Context) error {
+	e.scheduleReportDelivery(ctx)
 	e.refreshQuestionHandling(ctx)
 	if err := e.syncTaskFollows(); err != nil {
 		return err
@@ -240,6 +243,9 @@ func (e *Engine) step(ctx context.Context) error {
 	busy := e.threadBusyLocked(r.Current)
 	e.mu.Unlock()
 	if busy {
+		if sent, err := e.scheduleInputs(ctx); sent || err != nil {
+			return err
+		}
 		return e.scheduleAttention(ctx)
 	}
 	if r.Transition != nil {
@@ -263,29 +269,7 @@ func (e *Engine) step(ctx context.Context) error {
 	if hold {
 		return e.scheduleAttention(ctx)
 	}
-	for _, m := range r.Messages {
-		if m.Role == "user" && m.State == "delivered" {
-			return e.submit(ctx, Run{Kind: "main", ThreadID: r.Current, SourceID: m.ID}, e.messagePrompt(m), nil)
-		}
-	}
-	for _, job := range sortedJobs(r.Jobs) {
-		if job.ResultEventID != "" && job.ResultEventID != job.DeliveredEventID {
-			prompt := rolePrompt + "\nBackground task progress or result. Check the business state and original completion criteria. If needs_followup, arrange the remaining work with the same job using resume/update or finish with an explicit criteria check; do not ask for routine permission to continue. A waiting task remains waiting. Unknown native input must be reconciled before resubmitting. Summarize actual progress with evidence.\n" + jsonText(taskForContext(job))
-			if job.Follow != nil || job.Trigger != nil && job.Trigger.Kind == "activity" {
-				prompt = rolePrompt + "\nContinue the original collaboration question using this exact task result. Read the latest source and inspect completed actions. Send any needed answer through the original discussion or related collaboration tool; final text in this coordination turn is an internal progress record. If the goal still has missing work, continue or record its remaining requirements rather than claiming completion.\nTask, original event and result:\n" + jsonText(taskForContext(job))
-			}
-			return e.submit(ctx, Run{Kind: "result", ThreadID: r.Current, SourceID: job.SourceID, JobID: job.ID, JobVersion: job.Version, EventID: job.ResultEventID}, prompt, nil)
-		}
-	}
-	for _, job := range sortedJobs(r.Jobs) {
-		if job.Kind == "coordination" && job.State == "queued" {
-			e.mu.Lock()
-			prompt := e.workerPromptLocked(job)
-			e.mu.Unlock()
-			return e.submit(ctx, Run{Kind: "job", ThreadID: r.Current, SourceID: job.SourceID, JobID: job.ID, JobVersion: job.Version}, prompt, nil)
-		}
-	}
-	if submitted, err := e.scheduleContinuation(ctx); submitted || err != nil {
+	if sent, err := e.scheduleInputs(ctx); sent || err != nil {
 		return err
 	}
 	return e.scheduleAttention(ctx)
@@ -296,7 +280,7 @@ func (e *Engine) threadBusyLocked(threadID string) bool {
 		return true
 	}
 	for _, r := range e.record.Runs {
-		if r.ThreadID == threadID && activeRun(r) {
+		if r.ThreadID == threadID && (activeRun(r) || uncertainInputs(r)) {
 			return true
 		}
 	}
@@ -454,7 +438,11 @@ func (e *Engine) submit(ctx context.Context, run Run, prompt string, schema any)
 			j.Revision++
 			e.record.Jobs[j.ID] = j
 		}
-		if run.Kind == "main" {
+		if len(run.InputBatches) > 0 {
+			for _, batch := range run.InputBatches {
+				e.setInputMessageStateLocked(batch.Inputs, "submitted", run.ThreadID, "", "")
+			}
+		} else if run.Kind == "main" {
 			for i := range e.record.Messages {
 				if e.record.Messages[i].ID == run.SourceID {
 					e.record.Messages[i].State, e.record.Messages[i].SegmentID = "submitted", run.ThreadID
@@ -484,7 +472,13 @@ func (e *Engine) submit(ctx context.Context, run Run, prompt string, schema any)
 		stored := e.record.Runs[run.ID]
 		if err != nil || response.Turn.ID == "" {
 			stored.State, stored.Error = "unknown", "原生输入结果需核对，不自动重发"
-			if run.Kind == "main" {
+			if len(stored.InputBatches) > 0 {
+				for i := range stored.InputBatches {
+					b := &stored.InputBatches[i]
+					b.State, b.Error = "unknown", stored.Error
+					e.setInputMessageStateLocked(b.Inputs, "unknown", run.ThreadID, "", stored.Error)
+				}
+			} else if run.Kind == "main" {
 				for i := range e.record.Messages {
 					if e.record.Messages[i].ID == run.SourceID {
 						e.record.Messages[i].State, e.record.Messages[i].Error = "unknown", stored.Error
@@ -493,6 +487,11 @@ func (e *Engine) submit(ctx context.Context, run Run, prompt string, schema any)
 			}
 		} else {
 			stored.State, stored.TurnID = "submitted", response.Turn.ID
+			for i := range stored.InputBatches {
+				b := &stored.InputBatches[i]
+				b.State, b.TurnID = "accepted", response.Turn.ID
+				e.setInputMessageStateLocked(b.Inputs, "submitted", run.ThreadID, response.Turn.ID, "")
+			}
 		}
 		e.record.Runs[run.ID] = stored
 		return nil

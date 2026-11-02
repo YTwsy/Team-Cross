@@ -101,7 +101,7 @@ func (e *Engine) reconcileRuns(ctx context.Context) error {
 	p, r := e.runtime, clone(e.record)
 	e.mu.Unlock()
 	for _, run := range r.Runs {
-		if !activeRun(run) {
+		if !activeRun(run) && !uncertainInputs(run) {
 			continue
 		}
 		cursor := ""
@@ -138,10 +138,11 @@ func (e *Engine) reconcileRuns(ctx context.Context) error {
 				e.mu.Lock()
 				err := e.mutateLocked(func() error {
 					current := e.record.Runs[run.ID]
-					if !activeRun(current) {
+					if !activeRun(current) && !uncertainInputs(current) {
 						return nil
 					}
 					current.TurnID, current.State, current.Output, current.Items = turn.ID, "submitted", "", map[string]string{}
+					e.acceptInputHistoryLocked(&current, turn)
 					for _, raw := range turn.Items {
 						if err := e.archiveLocked(run.ThreadID, turn.ID, raw); err != nil {
 							return err
@@ -212,6 +213,10 @@ func (e *Engine) drainEvents(ctx context.Context) {
 		current := event.generation == e.generation
 		e.mu.Unlock()
 		if !current {
+			continue
+		}
+		if event.message.Method == "item/tool/call" && len(event.message.ID) > 0 {
+			e.dispatchTool(ctx, event)
 			continue
 		}
 		if err := e.handleEvent(ctx, event.message); err != nil {
@@ -379,8 +384,10 @@ func (e *Engine) finishRunLocked(id, status, failure string) {
 	}
 	e.lastActivity = time.Now()
 	switch run.Kind {
-	case "main", "result":
-		if run.Kind == "main" {
+	case "main", "continuation", "result":
+		if len(run.InputBatches) > 0 {
+			e.setInputMessageStateLocked(runInputs(run), run.State, run.ThreadID, run.TurnID, run.Error)
+		} else if run.Kind == "main" {
 			for i := range e.record.Messages {
 				if e.record.Messages[i].ID == run.SourceID {
 					e.record.Messages[i].State, e.record.Messages[i].TurnID, e.record.Messages[i].Error = run.State, run.TurnID, run.Error
@@ -389,6 +396,15 @@ func (e *Engine) finishRunLocked(id, status, failure string) {
 		}
 		job := e.record.Jobs[run.JobID]
 		publish := run.Kind == "main" || job.Follow == nil && (job.Trigger == nil || job.Trigger.Kind != "activity") && job.Version == run.JobVersion && job.State != "stopping" && job.State != "cancelled"
+		if len(run.InputBatches) > 0 {
+			inputs := runInputs(run)
+			publish = len(inputs) == 1 && inputs[0].Kind == "main" && !run.ExplicitReply && !uncertainInputs(run)
+			if publish {
+				run.SourceID = inputs[0].SourceID
+			}
+		} else if run.Kind == "continuation" {
+			publish = false
+		}
 		if run.Output != "" && publish {
 			message := Message{ID: "reply-" + run.ID, Actor: Actor{ID: e.record.ID, Name: e.record.Name}, Role: "assistant", Text: run.Output, State: run.State, ReplyTo: run.SourceID, SegmentID: run.ThreadID, TurnID: run.TurnID, CreatedAt: time.Now()}
 			if run.Kind == "result" {

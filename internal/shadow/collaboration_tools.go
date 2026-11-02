@@ -28,6 +28,7 @@ type CollaborationAction struct {
 	UpdatedAt       time.Time                `json:"updatedAt"`
 	SubmittedAt     *time.Time               `json:"submittedAt,omitempty"`
 	ResponseSources []spacecontext.SourceRef `json:"responseSources,omitempty"`
+	AutomaticReport bool                     `json:"automaticReport,omitempty"`
 }
 
 func (e *Engine) collaborationTool(name string) (bool, bool) {
@@ -63,6 +64,17 @@ func (e *Engine) callCollaborationTool(ctx context.Context, call toolCall) (any,
 		e.mu.Unlock()
 		return nil, fmt.Errorf("协作工具调用不属于当前活动轮次")
 	}
+	if len(run.InputBatches) > 0 {
+		selected, err := selectInput(run, inputID(call.Arguments))
+		if err != nil && (write || inputID(call.Arguments) != "") {
+			e.mu.Unlock()
+			return nil, err
+		}
+		if err == nil {
+			run = selected
+		}
+	}
+	delete(args, "inputId") // Local attribution is not a field in the remote tool protocol.
 	if write && run.Kind != "main" && run.Kind != "result" && run.Kind != "job" && run.Kind != "continuation" {
 		e.mu.Unlock()
 		return nil, fmt.Errorf("观察或维护回合只准备上下文，实际协作由接续任务执行")
@@ -149,6 +161,9 @@ func (e *Engine) callCollaborationTool(ctx context.Context, call toolCall) (any,
 	}
 	if write {
 		sources := e.responseSourcesLocked(call.Tool, args, run)
+		if a := e.record.Actions[actionID]; a.SubmittedAt != nil {
+			sources = clone(a.ResponseSources)
+		}
 		if q, ok := e.record.Questions[e.record.Actions[actionID].QuestionID]; ok && q.RelationsRecorded {
 			// The question's relationship was saved with its send intent. A
 			// retry in another turn must not rebind it to that turn's sources.

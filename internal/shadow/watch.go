@@ -234,7 +234,11 @@ func (e *Engine) watchOriginLocked(call toolCall) (string, error) {
 		if !activeRun(run) || call.CallID == "" || run.ThreadID != call.ThreadID || run.TurnID != "" && run.TurnID != call.TurnID {
 			continue
 		}
-		origin, err := e.taskOriginLocked(run)
+		selected, err := selectInput(run, inputID(call.Arguments))
+		if err != nil {
+			return "", err
+		}
+		origin, err := e.taskOriginLocked(selected)
 		if err != nil {
 			return "", err
 		}

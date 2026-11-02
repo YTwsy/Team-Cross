@@ -33,6 +33,7 @@ type TaskDependency struct {
 	State                 string                 `json:"state"` // waiting, satisfied
 	Signals               []DependencySignal     `json:"signals,omitempty"`
 	Received              map[string]bool        `json:"received,omitempty"`
+	AnswerReceived        bool                   `json:"answerReceived,omitempty"`
 	Resolution            string                 `json:"resolution,omitempty"`
 	EvidenceIDs           []string               `json:"evidenceIds,omitempty"`
 	Error                 string                 `json:"error,omitempty"`
@@ -127,6 +128,22 @@ func taskToolProperties() map[string]any {
 		"resolutions": map[string]any{"type": "array", "maxItems": 8, "items": resolution},
 		"outcome":     map[string]any{"type": "string", "enum": []string{"completed", "needs_input", "needs_followup", "failed"}}, "result": str, "criteriaChecks": stringsArray,
 	}
+}
+
+// Keep the default model contract focused on explicit Work. Advanced fact
+// maintenance has its own store and is not a prerequisite or a common action.
+func publicTaskProperties() map[string]any {
+	all := taskToolProperties()
+	keep := []string{"operation", "id", "baseVersion", "title", "prompt", "completionCriteria", "checkpoint", "dependencies", "resolutions", "criteriaChecks", "result", "source", "requestId", "handler", "followId", "retainDependencyIds"}
+	out := map[string]any{}
+	for _, key := range keep {
+		out[key] = all[key]
+	}
+	out["operation"] = map[string]any{"type": "string", "enum": []string{"start", "report", "status", "update", "cancel", "resume", "handling", "handoff", "replan"}}
+	out["baseRevision"] = map[string]any{"type": "integer", "minimum": 0, "description": "Only for explicit handling/replan concurrency. W report binds its current revision automatically."}
+	out["state"] = map[string]any{"type": "string", "enum": []string{"continue", "wait", "complete", "fail"}, "description": "Required for report."}
+	out["publishedActionId"] = map[string]any{"type": "string", "description": "For report only: saved discussion reply action from this Work/version covering the original question; reuse it instead of sending the answer again."}
+	return out
 }
 
 func validateCheckpoint(cp *TaskCheckpoint, spaceID string) error {
@@ -236,17 +253,11 @@ func (e *Engine) taskLifecycleLocked(run Run, in taskLifecycleInput) (Job, error
 	if err := validateCheckpoint(in.Checkpoint, e.record.SpaceID); err != nil {
 		return Job{}, err
 	}
-	if (in.Operation == "wait" || in.Operation == "finish" && (in.Outcome == "completed" || in.Outcome == "needs_input")) && len(e.taskUnderstandingTargetsLocked(job)) > 0 {
-		return Job{}, fmt.Errorf("答复尚未写回相关认识，请读取任务 understandings 并调用 understand 后继续或等待")
-	}
 	if in.Operation == "replan" {
 		return e.replanTaskLocked(run, job, in)
 	}
 	if job.Follow != nil && job.Follow.NeedsReplan {
 		return Job{}, fmt.Errorf("关注目标已变化，请先保存 replan 和当前完成条件")
-	}
-	if _, changed := e.refreshedTaskContextsLocked(job); changed {
-		return Job{}, fmt.Errorf("关联认识已更新，任务同步后请读取当前版本再核对")
 	}
 	if err := e.reviewTaskContextsLocked(&job, in); err != nil {
 		return Job{}, err
@@ -317,6 +328,7 @@ func (e *Engine) taskLifecycleLocked(run Run, in taskLifecycleInput) (Job, error
 			supplied.Cursor, supplied.State, supplied.Resolution, supplied.Error = "", "waiting", "", ""
 			supplied.Signals, supplied.EvidenceIDs = nil, nil
 			supplied.Received = nil
+			supplied.AnswerReceived = false
 			job.Dependencies = append(job.Dependencies, supplied)
 			ids[supplied.ID], identities[dependencyIdentity(supplied)] = true, true
 		}
@@ -336,9 +348,6 @@ func (e *Engine) taskLifecycleLocked(run Run, in taskLifecycleInput) (Job, error
 	case "checkpoint":
 		// Progress does not change the business outcome or native run ownership.
 	case "wait":
-		if pendingTaskContexts(job) {
-			return Job{}, fmt.Errorf("请先核对关联认识的变化，再保存等待")
-		}
 		if waiting == 0 && len(job.Contexts) == 0 || strings.TrimSpace(in.Checkpoint.NextStep) == "" {
 			return Job{}, fmt.Errorf("等待需要未满足的依赖或关联认识，以及恢复后的下一步")
 		}
@@ -349,9 +358,6 @@ func (e *Engine) taskLifecycleLocked(run Run, in taskLifecycleInput) (Job, error
 		}
 		switch in.Outcome {
 		case "completed":
-			if pendingTaskContexts(job) {
-				return Job{}, fmt.Errorf("关联认识尚未核对，不能按旧依据完成任务")
-			}
 			if waiting != 0 || len(in.Checkpoint.OpenQuestions) != 0 {
 				return Job{}, fmt.Errorf("仍有未满足的依赖或未决问题，任务尚未完成")
 			}
@@ -366,9 +372,6 @@ func (e *Engine) taskLifecycleLocked(run Run, in taskLifecycleInput) (Job, error
 			job.CompletionChecks = clone(in.CriteriaChecks)
 			job.State = "completed"
 		case "needs_input":
-			if pendingTaskContexts(job) {
-				return Job{}, fmt.Errorf("请先核对关联认识的变化，再等待输入")
-			}
 			if waiting == 0 && len(job.Contexts) == 0 {
 				return Job{}, fmt.Errorf("需要输入时应登记准确等待项或关联认识")
 			}

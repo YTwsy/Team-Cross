@@ -1,7 +1,7 @@
 # 分身消息注入与后台工作收敛方案
 
 - 日期：2026-10-28（Asia/Shanghai）
-- 状态：设计留档与比较，尚未实施。用户授权本次保存和提交文档；产品代码保持原状。
+- 状态：本页保留 2026-10-28 的设计比较。2026-11-02 用户已授权实施；当前结果与范围见[实施记录](2026-11-02-shadow-message-input-implementation.md)。
 - 代码现场：`codex/shadow-activity`，基于 `71f9394`，包含本次工作前已经存在的未提交修改。现行实现与验收范围仍以[分身契约](../sources/decisions/local-shadows.md)和[证据入口](../sources/validation/evidence-map.md)为准。
 - 阅读入口：[HTML 流程与三方对比](2026-10-28-shadow-message-input-design.html)、[可编辑 HTML 源](2026-10-28-shadow-message-input-design-source.html)、[10 月 25 日评估与重设计基线](2026-10-25-shadow-activity-evaluation-and-redesign.md)。
 

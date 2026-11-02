@@ -18,6 +18,92 @@ n = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(n)
 
 
+INPUT_MCP = r'''
+import json, pathlib, sys, time
+repo = pathlib.Path(__file__).parent / "repo"
+for line in sys.stdin:
+    q = json.loads(line)
+    if "id" not in q: continue
+    method = q.get("method")
+    if method == "initialize":
+        out = {"protocolVersion": q["params"]["protocolVersion"], "capabilities": {"tools": {}}, "serverInfo": {"name": "input-fixture", "version": "1"}}
+    elif method == "tools/list":
+        out = {"tools": [{"name": "fixture_hold_"+phase, "description": "Read-only isolated fixture gate. Wait for the "+phase+" gate, then return evidence. No shell needed.", "annotations": {"readOnlyHint": True}, "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False}} for phase in ("input", "work")]}
+    elif method == "tools/call" and q["params"]["name"] in ("fixture_hold_input", "fixture_hold_work"):
+        phase = q["params"]["name"].removeprefix("fixture_hold_")
+        (repo / (phase+"-entered")).write_text("entered")
+        deadline = time.monotonic()+180
+        while not (repo / (phase+"-release")).exists() and time.monotonic()<deadline: time.sleep(.1)
+        body = "CORE_WORK_EVIDENCE_782" if (repo / (phase+"-release")).exists() else "FIXTURE_TIMEOUT"
+        out = {"content": [{"type": "text", "text": body}]}
+    else:
+        print(json.dumps({"jsonrpc": "2.0", "id": q["id"], "error": {"code": -32601, "message": "Unknown fixture request"}}), flush=True)
+        continue
+    print(json.dumps({"jsonrpc": "2.0", "id": q["id"], "result": out}), flush=True)
+'''
+
+
+def message_input_scenarios(root, a, b, c, spaces, sid, view, report):
+    from concurrent.futures import ThreadPoolExecutor
+    def send(core, space, text):
+        mid = str(uuid.uuid4())
+        core.api('collaborations/'+space+'/shadows/send', {'shadowId': sid, 'message': {'id': mid, 'text': text}})
+        return mid
+    def reply(mid, marker):
+        def seen():
+            current = view(c, spaces[2])['shadows'][0]
+            if current.get('error'): raise RuntimeError(current['error'])
+            return current if any(m.get('replyTo')==mid and marker in m['text'] for m in current['messages'] if m['role']=='assistant') else None
+        return n.wait_until(seen, 180)
+    author_a = view(a, spaces[0])['selfId']
+    author_b = view(b, spaces[1])['selfId']
+    mid_a = send(a, spaces[0], '隔离验证：先调用 fixture_hold_input 等待测试门控；返回后用 shadow_remember 明确记住我的个人饮品偏好为 tea，scope=member；用 shadow_reply 对本条回复 CORE_A_291。不使用 shell、不创建任务。')
+    n.wait_until(lambda:(root/'repo/input-entered').exists(), 180)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        pending_b = pool.submit(send, b, spaces[1], '请明确记住我的个人饮品偏好为 coffee，scope=member。用 shadow_reply 回复本条 CORE_B_364。不要改变其他人的偏好，不创建任务。')
+        pending_c = pool.submit(send, c, spaces[2], '运行中的独立短问：3+4 是多少？用 shadow_reply 对我这条回复 CORE_C_725 和答案，不改变任何记忆。')
+        mid_b, mid_c = pending_b.result(), pending_c.result()
+    ledger = b.data/'shadows'/sid/'shadow.json'
+    def accepted():
+        record = json.loads(ledger.read_text())
+        for run in record['runs'].values():
+            batches = run.get('inputBatches', [])
+            ids = {i['sourceId'] for batch in batches if batch['state']=='accepted' for i in batch['inputs']}
+            if {mid_a, mid_b, mid_c} <= ids and any(x['method']=='turn/steer' and x['state']=='accepted' for x in batches): return run
+        return None
+    accepted_run = n.wait_until(accepted, 40)
+    (root/'repo/input-release').write_text('release')
+    for mid, marker in ((mid_a,'CORE_A_291'),(mid_b,'CORE_B_364'),(mid_c,'CORE_C_725')): v=reply(mid,marker)
+    assert any(m['subjectId']==author_a and 'tea' in m['text'].lower() for m in v['memories'])
+    assert any(m['subjectId']==author_b and 'coffee' in m['text'].lower() for m in v['memories'])
+    for m in v['messages']:
+        if m['role']!='assistant': continue
+        for mid, marker in ((mid_a,'CORE_A_291'),(mid_b,'CORE_B_364'),(mid_c,'CORE_C_725')):
+            if marker in m['text']: assert m['replyTo']==mid
+    assert not v['jobs']
+    n.wait_until(lambda:not view(c,spaces[2])['shadows'][0]['busy'],40)
+    work_request=send(a,spaces[0], '创建且只创建一个独立 Work：先用 report continue 发布 CORE_WORK_PROGRESS_649；再调用 fixture_hold_work 读取证据；最后用 report complete 提交包含原样 CORE_WORK_EVIDENCE_782 的结果和 criteriaChecks。主会话不要调用慢工具，派发后用 shadow_reply 回复本条 CORE_WORK_ACK_860 并结束，不等待 Work。不使用 shell。')
+    reply(work_request,'CORE_WORK_ACK_860')
+    n.wait_until(lambda:(root/'repo/work-entered').exists(),180)
+    reply(work_request,'CORE_WORK_PROGRESS_649')
+    quick=send(c,spaces[2], 'Work 还在执行时的独立短问：8+9 是多少？用 shadow_reply 对本条回复 CORE_QUICK_483 和答案，不等 Work，也不创建任务。')
+    v=reply(quick,'CORE_QUICK_483')
+    assert len(v['jobs'])==1 and v['jobs'][0]['state']=='running' and v['jobs'][0]['sourceId']==work_request
+    (root/'repo/work-release').write_text('release')
+    v=reply(work_request,'CORE_WORK_EVIDENCE_782')
+    n.wait_until(lambda:view(c,spaces[2])['shadows'][0]['jobs'][0]['state']=='completed',40)
+    def settled():
+        record=json.loads(ledger.read_text())
+        return record if all(r['state'] not in ('prepared','submitted','unknown') for r in record['runs'].values()) else None
+    record=n.wait_until(settled,60)
+    assert not any(r['kind']=='result' for r in record['runs'].values())
+    for core,space in zip((a,b,c),spaces):
+        n.wait_until(lambda: any(m.get('replyTo')==work_request and 'CORE_WORK_EVIDENCE_782' in m['text'] for m in view(core,space)['shadows'][0]['messages']),20)
+    report.update(multiMemberNativeSteer=True, exactAuthorsAndReplyTargets=True, chatRepliedBeforeWorkGateRelease=True, directProgressAndCompletion=True, noMainResultRewrite=True)
+    report['inputTurn']={'threadId':accepted_run['threadId'],'turnId':accepted_run['turnId'],'acceptedBatchCount':len(accepted_run['inputBatches'])}
+    n.emit('message_inputs_and_work_chat_verified')
+
+
 class ShadowCore(n.Core):
     def __init__(self, label, env, binary):
         self.label=label; self.data=n.ROOT/label
@@ -43,6 +129,11 @@ def run(args):
     home = root/'codex-home'
     (home/'auth.json').symlink_to(args.codex_auth.resolve())
     (home/'config.toml').write_text('model = "gpt-5.6-luna"\nmodel_reasoning_effort = "medium"\napproval_policy = "on-request"\nsandbox_mode = "workspace-write"\n')
+    if args.message_inputs:
+        import sys
+        (root/'input-mcp.py').write_text(INPUT_MCP)
+        with (home/'config.toml').open('a') as config:
+            config.write('[mcp_servers.input_fixture]\ncommand = '+json.dumps(sys.executable)+'\nargs = ['+json.dumps(str(root/'input-mcp.py'))+']\ntool_timeout_sec = 240\n')
     env = {k:v for k,v in os.environ.items() if not k.startswith(('CODEX_', 'CLAUDE_', 'ANTHROPIC_')) and k!='CLAUDECODE'}
     env['CODEX_HOME'] = str(home)
     n.ROOT, n.BINARY, n.CLI, n.TOKEN = root, str(args.teamcross_bin.resolve()), '/usr/bin/false', ''
@@ -87,6 +178,8 @@ def run(args):
         report['allMembersShareAuthoredHistory']=True
         report['durableReceiptAndSameIdDeduplication']=True
         n.emit('shared_native_conversation_verified')
+        if args.message_inputs:
+            message_input_scenarios(root,a,b,c,(s['id'],jb,jc),sid,view,report)
         # No cloud queue: an offline attempt remains failed after reconnect
         # until the sender explicitly retries the same id.
         (home/'config.toml').write_text((home/'config.toml').read_text().replace('model_reasoning_effort = "medium"','model_reasoning_effort = "high"'))
@@ -143,4 +236,5 @@ if __name__=='__main__':
     p.add_argument('--codex-bin',required=True,type=pathlib.Path)
     p.add_argument('--codex-auth',required=True,type=pathlib.Path)
     p.add_argument('--keep-browser',action='store_true')
+    p.add_argument('--message-inputs',action='store_true',help='Also verify real three-member steer attribution and foreground chat during a gated Work')
     run(p.parse_args())

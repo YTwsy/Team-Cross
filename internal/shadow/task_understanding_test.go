@@ -98,10 +98,6 @@ func TestTaskUnderstandingRoutedAnswerUpdatesFactsAndLinkedWork(t *testing.T) {
 		t.Fatal("receipt prematurely claimed understanding", batch, err)
 	}
 	job := currentJob(t, e, run.JobID)
-	wait := taskCommandFor(job, "wait")
-	if err := taskToolError(e, run, wait); err == nil || !strings.Contains(err.Error(), "understand") {
-		t.Fatal("waiting discarded an unreconciled answer", err)
-	}
 	update := answerUnderstanding(t, e, run, "Retained interface semantics; client v3 confirmed")
 	if err = taskToolError(e, run, update); err != nil {
 		t.Fatal(err)
@@ -272,6 +268,12 @@ func TestTaskUnderstandingLateObservationPreservesNewFactsAndActions(t *testing.
 				err = store.FinishBatch(batch.ID, old)
 			}
 			state := store.Snapshot()
+			if direct {
+				if err != nil || state.Focuses[focus.ID].Summary != "NEW_FACTS_v3" || state.Batches[batch.ID].State != "completed" || len(state.Continuations[batch.ID].ActionIDs) != 1 {
+					t.Fatal("direct completion overwrote facts or lost actual action", err, state)
+				}
+				return
+			}
 			if err != nil || state.Focuses[focus.ID].Summary != "NEW_FACTS_v3" || state.Batches[batch.ID].State != "superseded" || !state.Events[older.ID].ObserveOnly {
 				t.Fatal("late observation overwrote new facts", err, state)
 			}
@@ -383,7 +385,7 @@ func TestTaskUnderstandingOnlyConsumesExplicitAnswerPage(t *testing.T) {
 	if len(pending) != 1 || pending[0].AnswerCount != 1 || len(store.Snapshot().UnderstoodAnswers) != 16 {
 		t.Fatal("truncated answer page silently consumed unreviewed facts", pending)
 	}
-	if taskToolError(e, run, taskCommandFor(currentJob(t, e, run.JobID), "wait")) == nil {
-		t.Fatal("remaining answer was discarded")
+	if err := taskToolError(e, run, taskCommandFor(currentJob(t, e, run.JobID), "wait")); err != nil || len(store.Snapshot().UnderstoodAnswers) != 16 {
+		t.Fatal("wait must not require or fabricate remaining summary receipts", err)
 	}
 }

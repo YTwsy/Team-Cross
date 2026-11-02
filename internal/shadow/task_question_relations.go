@@ -37,6 +37,12 @@ func (e *Engine) prepareQuestionRelations(ctx context.Context, call toolCall, qu
 		e.mu.Unlock()
 		return nil, fmt.Errorf("提问不属于当前活动轮次")
 	}
+	selected, err := selectInput(run, inputID(call.Arguments))
+	if err != nil {
+		e.mu.Unlock()
+		return nil, err
+	}
+	run = selected
 	if old, ok := e.record.Questions[attentionHash([]any{e.record.ID, requestID})]; ok {
 		// The normal ask fingerprint check still runs. Do not reread changed or
 		// withdrawn sources just to return a previously saved question receipt.
@@ -144,7 +150,7 @@ func (e *Engine) questionLinksLocked() map[string][]QuestionTaskLink {
 			for _, signal := range d.Signals {
 				unavailable = unavailable || signal.State == "unavailable"
 			}
-			byQuestion[d.QuestionID] = append(byQuestion[d.QuestionID], QuestionTaskLink{ID: job.ID, Title: clip(job.Title, 240), Version: job.Version, State: job.State, DependencyID: d.ID, Condition: clip(d.Condition, 500), DependencyState: d.State, NextStep: next, Active: taskAcceptsAnswers(job), AnswerReceived: len(d.Signals) > 0 && !unavailable, Unavailable: unavailable})
+			byQuestion[d.QuestionID] = append(byQuestion[d.QuestionID], QuestionTaskLink{ID: job.ID, Title: clip(job.Title, 240), Version: job.Version, State: job.State, DependencyID: d.ID, Condition: clip(d.Condition, 500), DependencyState: d.State, NextStep: next, Active: taskAcceptsAnswers(job), AnswerReceived: dependencyAnswerReceived(d) && !unavailable, Unavailable: unavailable})
 		}
 	}
 	for id, links := range byQuestion {

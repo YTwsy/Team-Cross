@@ -123,6 +123,11 @@ func (e *Engine) callTaskAsk(ctx context.Context, call toolCall) (any, error) {
 		e.mu.Unlock()
 		return nil, fmt.Errorf("提问不属于当前活动轮次")
 	}
+	run, err = selectInput(run, inputID(call.Arguments))
+	if err != nil {
+		e.mu.Unlock()
+		return nil, err
+	}
 	if old, exists := e.record.Questions[questionID]; exists {
 		if old.Fingerprint != fingerprint {
 			e.mu.Unlock()
@@ -201,12 +206,9 @@ func (e *Engine) callTaskAsk(ctx context.Context, call toolCall) (any, error) {
 				return nil, fmt.Errorf("未结束任务已达上限")
 			}
 			kind := in.Kind
-			if kind == "" {
-				kind = "coordination"
-			}
-			if kind != "coordination" && kind != "work" {
+			if kind != "work" {
 				e.mu.Unlock()
-				return nil, fmt.Errorf("任务类型无效")
+				return nil, fmt.Errorf("普通补问直接回复，不创建协调任务；请先 start 明确的 Work")
 			}
 			follow, err := e.newTaskFollowLocked(run, origin, in.FollowID)
 			if err != nil {
@@ -244,9 +246,7 @@ func (e *Engine) callTaskAsk(ctx context.Context, call toolCall) (any, error) {
 		err = e.commitQuestionSendLocked(action.ResponseSources, func() error {
 			return e.mutateLocked(func() error {
 				e.record.Questions[q.ID], e.record.Jobs[job.ID], e.record.Actions[action.ID] = q, job, action
-				current := e.record.Runs[run.ID]
-				current.TaskIDs = appendUniqueLinks(current.TaskIDs, []string{job.ID})
-				e.record.Runs[run.ID] = current
+				e.trackInputTaskLocked(run, job.ID)
 				return nil
 			})
 		})
@@ -256,7 +256,11 @@ func (e *Engine) callTaskAsk(ctx context.Context, call toolCall) (any, error) {
 		}
 	}
 	e.mu.Unlock()
-	args, _ := json.Marshal(in.Question.Arguments)
+	arguments := clone(in.Question.Arguments)
+	if id := inputID(call.Arguments); id != "" {
+		arguments["inputId"] = id
+	}
+	args, _ := json.Marshal(arguments)
 	result, sendErr := e.callCollaborationTool(ctx, toolCall{ThreadID: call.ThreadID, TurnID: call.TurnID, CallID: call.CallID, Tool: in.Question.Tool, Arguments: args})
 	e.mu.Lock()
 	defer e.mu.Unlock()

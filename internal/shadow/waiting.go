@@ -90,7 +90,7 @@ func (e *Engine) WaitingItems() []WaitingItem {
 					}
 				}
 			}
-			if len(d.Signals) > 0 {
+			if len(d.Signals) > 0 || dependencyAnswerReceived(d) {
 				item.State, item.Direction = "answer_received", "processing"
 				for _, signal := range d.Signals {
 					if signal.State == "unavailable" {

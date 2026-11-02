@@ -72,11 +72,9 @@ func (e *Engine) captureTaskResultsLocked() {
 			r.Text, r.CompletionChecks = job.Result, clone(job.CompletionChecks)
 		}
 		r.Checkpoint = clone(job.Checkpoint)
+		r.MessageID = e.taskMessageIDLocked(job)
 		if job.Trigger != nil {
-			r.MessageID = job.Trigger.MessageID
 			r.Sources = clone(job.Trigger.Sources)
-		} else if e.hasMessageLocked(job.SourceID) {
-			r.MessageID = job.SourceID
 		}
 		e.record.TaskResults[r.ID] = r
 		outbox[r.ID] = r

@@ -76,11 +76,6 @@ func TestTaskSourceChangesResumeSameWorkerWithoutFollowAfterRestart(t *testing.T
 	if resumed.ThreadID != worker.ThreadID || j.Version != 1 || j.Follow != nil || len(j.Contexts[0].Source.Signals) != 1 {
 		t.Fatal("source change did not resume original independent work", j)
 	}
-	finish := taskCommandFor(j, "finish")
-	finish["outcome"], finish["result"], finish["criteriaChecks"] = "completed", "Done", []string{"Checked"}
-	if err = taskToolError(e2, resumed, finish); err == nil || !strings.Contains(err.Error(), "understand") {
-		t.Fatal("raw input was silently discarded", err)
-	}
 	e2.mu.Lock()
 	targets := e2.taskUnderstandingTargetsLocked(e2.record.Jobs[j.ID])
 	e2.mu.Unlock()
@@ -99,7 +94,7 @@ func TestTaskSourceChangesResumeSameWorkerWithoutFollowAfterRestart(t *testing.T
 	if j.Contexts[0].Current.Summary != "VERSION_TWO" || len(j.Contexts[0].Source.Signals) != 0 || j.Contexts[0].Reviewed.Summary != "VERSION_ONE" {
 		t.Fatal("facts and prior task checkpoint were not preserved", j)
 	}
-	finish = taskCommandFor(j, "finish")
+	finish := taskCommandFor(j, "finish")
 	finish["contextReviews"] = reviewTaskContexts(j)
 	finish["outcome"], finish["result"], finish["criteriaChecks"] = "completed", "Migrated with v2", []string{"Read v2 and checked compatibility"}
 	if err = taskToolError(e2, resumed, finish); err != nil {

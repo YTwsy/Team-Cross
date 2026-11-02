@@ -227,6 +227,13 @@ func (e *Engine) questionOriginsLocked(run Run) []spacecontext.SourceRef {
 		origins = job.Trigger.Sources
 	}
 	if run.Kind == "continuation" && e.attention != nil {
+		for _, input := range runInputs(run) {
+			for _, origin := range input.Origins {
+				if input.EventID == run.EventID && origin.SourceID == run.SourceID {
+					return uniqueQuestionSources([]spacecontext.SourceRef{origin.Source})
+				}
+			}
+		}
 		if packet, err := e.attention.CurrentContinuation(run.EventID, e.record.ID); err == nil {
 			origins = packet.Sources
 			if packet.Continuation.HandlingID != "" {

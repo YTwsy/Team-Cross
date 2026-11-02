@@ -26,6 +26,7 @@ func receiveDependencySignals(d *TaskDependency, signals []DependencySignal) (bo
 	// Upgrade records which predate the durable receipt index.
 	for _, signal := range d.Signals {
 		d.Received[signal.ID] = true
+		d.AnswerReceived = d.AnswerReceived || signal.State == "answered"
 	}
 	for _, id := range d.EvidenceIDs {
 		d.Received[id] = true
@@ -40,9 +41,29 @@ func receiveDependencySignals(d *TaskDependency, signals []DependencySignal) (bo
 		}
 		d.Received[signal.ID] = true
 		d.Signals = append(d.Signals, clone(signal))
+		d.AnswerReceived = d.AnswerReceived || signal.State == "answered"
 		added = true
 	}
 	return added, nil
+}
+
+// A partial answer remains observed after its transient signal is reviewed.
+// This does not satisfy the dependency or complete the task.
+func dependencyAnswerReceived(d TaskDependency) bool {
+	if d.AnswerReceived {
+		return true
+	}
+	for _, signal := range d.Signals {
+		if signal.State == "answered" {
+			return true
+		}
+	}
+	for id := range d.Received {
+		if strings.HasPrefix(id, "reply:") {
+			return true
+		}
+	}
+	return false
 }
 
 func activityDependencyID(signal spacecontext.Signal) string {

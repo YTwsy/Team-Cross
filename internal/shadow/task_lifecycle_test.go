@@ -252,15 +252,15 @@ func TestTaskDependencyFailureDoesNotConsumeCursorOrDisableChat(t *testing.T) {
 	}
 }
 
-func TestTaskCoordinationUsesCurrentMainAndChildDoesNotFinishParent(t *testing.T) {
+func TestTaskDependenciesDoNotFinishAnotherIndependentWork(t *testing.T) {
 	e, f, _ := setup(t)
 	e.Start()
 	send(t, e, "owner", "Coordinate the work")
 	main := active(t, e, "main")
-	created := cloneMap(tool(t, e, f, main, "shadow_task", map[string]any{"operation": "start", "kind": "coordination", "title": "Coordinate", "prompt": "Coordinate two independent facts."}))
+	created := cloneMap(tool(t, e, f, main, "shadow_task", map[string]any{"operation": "start", "kind": "work", "title": "Coordinate", "prompt": "Coordinate two independent facts."}))
 	f.complete(main.ThreadID, "Coordinating.", "completed", true)
 	run := active(t, e, "job")
-	if run.ThreadID != main.ThreadID || run.JobID != created["id"] {
+	if run.ThreadID == main.ThreadID || run.JobID != created["id"] {
 		t.Fatal(run)
 	}
 	child := cloneMap(tool(t, e, f, run, "shadow_task", map[string]any{"operation": "start", "title": "One fact", "prompt": "Verify one fact."}))
@@ -295,12 +295,8 @@ func TestTaskCoordinationUsesCurrentMainAndChildDoesNotFinishParent(t *testing.T
 	args["criteriaChecks"] = []string{"The evidence establishes the fact."}
 	tool(t, e, f, childRun, "shadow_task", args)
 	f.complete(childRun.ThreadID, "Done", "completed", true)
-	// The result notification may occupy the main thread; complete it before
-	// checking the parent's next working turn.
-	result := active(t, e, "result")
-	f.complete(result.ThreadID, "Child fact available; parent still has work.", "completed", true)
 	next := nextJobRun(t, e, run)
-	if next.ThreadID != main.ThreadID || currentJob(t, e, run.JobID).State != "running" {
+	if next.ThreadID != run.ThreadID || currentJob(t, e, run.JobID).State != "running" {
 		t.Fatal("child prematurely completed parent", currentJob(t, e, run.JobID))
 	}
 }

@@ -176,12 +176,15 @@ func writeAtomic(path string, value any) error {
 func (e *Engine) saveLocked() error {
 	previousResults := e.record.TaskResults
 	previousOutbox, previousCaptured := e.record.TaskResultOutbox, e.record.TaskResultCaptured
+	previousQuestions, previousQuestionOutbox := e.record.QuestionReturns, e.record.QuestionReturnOutbox
 	e.captureTaskResultsLocked()
+	e.captureQuestionReturnsLocked()
 	e.record.Revision++
 	e.record.UpdatedAt = time.Now()
 	if err := writeAtomic(filepath.Join(e.cfg.Directory, "shadow.json"), e.record); err != nil {
 		e.record.TaskResults = previousResults
 		e.record.TaskResultOutbox, e.record.TaskResultCaptured = previousOutbox, previousCaptured
+		e.record.QuestionReturns, e.record.QuestionReturnOutbox = previousQuestions, previousQuestionOutbox
 		return err
 	}
 	return nil

@@ -14,12 +14,25 @@ import (
 func (e *Engine) nativeTools() ([]any, string, error) {
 	tools := dynamicTools()
 	for _, tool := range e.cfg.CollaborationTools {
-		tools = append(tools, map[string]any{"type": "function", "name": tool["name"], "description": tool["description"], "inputSchema": tool["inputSchema"]})
+		tools = append(tools, map[string]any{"type": "function", "name": tool["name"], "description": tool["description"], "inputSchema": clone(tool["inputSchema"])})
+	}
+	for _, value := range tools {
+		tool := value.(map[string]any)
+		schema, ok := tool["inputSchema"].(map[string]any)
+		if !ok {
+			continue
+		}
+		properties, ok := schema["properties"].(map[string]any)
+		if !ok {
+			properties = map[string]any{}
+			schema["properties"] = properties
+		}
+		properties["inputId"] = map[string]any{"type": "string", "description": "Exact id of the originating input in this native turn. Required for source-bound actions when several inputs are present; never guess another author's input."}
 	}
 	sort.Slice(tools, func(i, j int) bool {
 		return fmt.Sprint(tools[i].(map[string]any)["name"]) < fmt.Sprint(tools[j].(map[string]any)["name"])
 	})
-	data, err := json.Marshal(map[string]any{"tools": tools, "role": rolePrompt, "taskRoleRevision": 1})
+	data, err := json.Marshal(map[string]any{"tools": tools, "role": rolePrompt, "taskRoleRevision": 2})
 	if err != nil {
 		return nil, "", fmt.Errorf("分身工具注册无效: %w", err)
 	}
@@ -44,9 +57,7 @@ func (e *Engine) beginToolsetUpgrade() (bool, error) {
 	for _, message := range e.record.Messages {
 		pending = pending || message.Role == "user" && message.State == "delivered"
 	}
-	for _, job := range e.record.Jobs {
-		pending = pending || job.Kind == "coordination" && job.State == "queued" || job.ResultEventID != "" && job.ResultEventID != job.DeliveredEventID
-	}
+
 	if !pending && e.attention != nil {
 		pending = e.attention.HasContinuation(e.record.ID)
 	}

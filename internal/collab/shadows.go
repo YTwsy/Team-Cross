@@ -22,11 +22,12 @@ import (
 // The space host stores only explicitly shared content and short delivery
 // attempts. A message is delivered only after the executing member persists it.
 type ShadowShared struct {
-	View         shadow.View                  `json:"view"`
-	LastSeen     time.Time                    `json:"-"`
-	Deliveries   map[string]ShadowDelivery    `json:"deliveries"`
-	Returns      map[string]ShadowReturnInbox `json:"returns,omitempty"`
-	ResultHashes map[string]string            `json:"resultHashes,omitempty"`
+	View         shadow.View                      `json:"view"`
+	LastSeen     time.Time                        `json:"-"`
+	Deliveries   map[string]ShadowDelivery        `json:"deliveries"`
+	Returns      map[string]ShadowReturnInbox     `json:"returns,omitempty"`
+	ResultHashes map[string]string                `json:"resultHashes,omitempty"`
+	Questions    map[string]shadow.QuestionReturn `json:"questions,omitempty"`
 }
 
 type ShadowDelivery struct {
@@ -37,20 +38,21 @@ type ShadowDelivery struct {
 }
 
 type shadowInput struct {
-	Settings         shadow.ModelSettings `json:"settings"`
-	ID               string               `json:"shadowId"`
-	Name             string               `json:"name,omitempty"`
-	RequestID        string               `json:"requestId,omitempty"`
-	MessageID        string               `json:"messageId,omitempty"`
-	ResultID         string               `json:"resultId,omitempty"`
-	Cwd              string               `json:"cwd,omitempty"`
-	Message          shadow.Message       `json:"message"`
-	Snapshot         *shadow.View         `json:"snapshot,omitempty"`
-	Results          []shadow.TaskResult  `json:"results,omitempty"`
-	ReturnRouteID    string               `json:"returnRouteId,omitempty"`
-	ReturnSessionKey string               `json:"returnSessionKey,omitempty"`
-	Receipt          string               `json:"receipt,omitempty"`
-	Offset           int                  `json:"offset,omitempty"`
+	Settings         shadow.ModelSettings    `json:"settings"`
+	ID               string                  `json:"shadowId"`
+	Name             string                  `json:"name,omitempty"`
+	RequestID        string                  `json:"requestId,omitempty"`
+	MessageID        string                  `json:"messageId,omitempty"`
+	ResultID         string                  `json:"resultId,omitempty"`
+	Cwd              string                  `json:"cwd,omitempty"`
+	Message          shadow.Message          `json:"message"`
+	Snapshot         *shadow.View            `json:"snapshot,omitempty"`
+	Results          []shadow.TaskResult     `json:"results,omitempty"`
+	Questions        []shadow.QuestionReturn `json:"questions,omitempty"`
+	ReturnRouteID    string                  `json:"returnRouteId,omitempty"`
+	ReturnSessionKey string                  `json:"returnSessionKey,omitempty"`
+	Receipt          string                  `json:"receipt,omitempty"`
+	Offset           int                     `json:"offset,omitempty"`
 }
 
 type shadowSpaceView struct {
@@ -280,6 +282,11 @@ func (s *Session) shadowOperation(ctx context.Context, op string, in shadowInput
 		if captureShadowReturns(&shared, in.Results) {
 			changed = true
 		}
+		questionChanged, questionErr := s.captureShadowQuestionReturnsLocked(&shared, in.Questions)
+		if questionErr != nil {
+			return nil, questionErr
+		}
+		changed = changed || questionChanged
 		if shared.ResultHashes == nil {
 			shared.ResultHashes = map[string]string{}
 		}
@@ -513,7 +520,8 @@ func (a *App) pumpShadows(ctx context.Context) {
 		}
 		syncCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 		results := e.ResultExport()
-		out, err := a.shadowCall(syncCtx, spaceID, "sync", shadowInput{ID: id, Snapshot: &v, Results: results})
+		questions := e.QuestionReturnExport()
+		out, err := a.shadowCall(syncCtx, spaceID, "sync", shadowInput{ID: id, Snapshot: &v, Results: results, Questions: questions})
 		cancel()
 		if err != nil {
 			continue
@@ -522,6 +530,9 @@ func (a *App) pumpShadows(ctx context.Context) {
 			continue
 		}
 		if err = e.ConfirmReplyExport(replies); err != nil {
+			continue
+		}
+		if err = e.ConfirmQuestionReturnExport(questions); err != nil {
 			continue
 		}
 		for _, message := range workbenchDecode[[]shadow.Message](out) {

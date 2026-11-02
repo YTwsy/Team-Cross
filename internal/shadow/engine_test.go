@@ -62,7 +62,7 @@ func TestMemoryCorrectionsForgetAndStaleConsolidation(t *testing.T) {
 	f.complete(run.ThreadID, "forgotten", "completed", true)
 	until(t, func() bool { return !e.View().Busy })
 	msg := send(t, e, "B", "next message")
-	if prompt := e.messagePrompt(msg); !strings.Contains(prompt, `"state":"forgotten"`) {
+	if prompt := e.inputPrompt([]Input{{ID: inputFor(msg), Kind: "main", SourceID: msg.ID, Message: &msg}}, true); !strings.Contains(prompt, `"state":"forgotten"`) {
 		t.Fatal("no invalidation in next prompt", prompt)
 	}
 }
@@ -122,15 +122,17 @@ func TestReceiveDoesNotAcknowledgeFailedPersistence(t *testing.T) {
 }
 
 type fakeNative struct {
-	mu            sync.Mutex
-	alive         bool
-	handler       func(nativecodex.Message)
-	threads       map[string][]nativeTurn
-	calls         []fakeCall
-	replies       map[string]any
-	loseTurnReply bool
-	holdInterrupt bool
-	wrongSettings bool
+	mu                        sync.Mutex
+	alive                     bool
+	handler                   func(nativecodex.Message)
+	threads                   map[string][]nativeTurn
+	calls                     []fakeCall
+	replies                   map[string]any
+	loseTurnReply             bool
+	loseSteerReply            bool
+	unknownSteerWithoutAccept bool
+	holdInterrupt             bool
+	wrongSettings             bool
 }
 
 func newFake() *fakeNative {
@@ -211,6 +213,32 @@ func (f *fakeNative) Call(_ context.Context, method string, params, out any) err
 			turns[i], turns[j] = turns[j], turns[i]
 		}
 		result = map[string]any{"data": turns}
+	case "turn/steer":
+		if f.unknownSteerWithoutAccept {
+			f.unknownSteerWithoutAccept = false
+			f.mu.Unlock()
+			return fmt.Errorf("transport disconnected before receipt")
+		}
+		turns := f.threads[id]
+		if len(turns) == 0 || turns[len(turns)-1].Status != "inProgress" {
+			f.mu.Unlock()
+			return &nativecodex.RPCError{Method: method, Code: -32600, Message: "no active turn"}
+		}
+		turn := &turns[len(turns)-1]
+		if p["expectedTurnId"] != turn.ID {
+			f.mu.Unlock()
+			return &nativecodex.RPCError{Method: method, Code: -32600, Message: "expected turn id does not match active turn"}
+		}
+		text := p["input"].([]any)[0].(map[string]any)["text"].(string)
+		item, _ := json.Marshal(map[string]any{"id": uuid.NewString(), "type": "userMessage", "content": []any{map[string]any{"type": "text", "text": text}}})
+		turn.Items = append(turn.Items, item)
+		f.threads[id] = turns
+		result = map[string]any{"turnId": turn.ID}
+		if f.loseSteerReply {
+			f.loseSteerReply = false
+			f.mu.Unlock()
+			return fmt.Errorf("lost steer acknowledgement")
+		}
 	case "turn/interrupt":
 		hold := f.holdInterrupt
 		f.mu.Unlock()
@@ -407,16 +435,12 @@ func TestSharedConversationMemoryAndBackgroundTaskSurviveRollover(t *testing.T) 
 	if !strings.Contains(bootstrap, "Do not modify files") || !strings.Contains(bootstrap, "Chinese") || !strings.Contains(bootstrap, worker.JobID) {
 		t.Fatal("handoff lost constraints/memory/job", bootstrap)
 	}
+	tool(t, e, f, worker, "shadow_task", map[string]any{"operation": "report", "state": "complete", "result": "Recovery result with evidence.", "criteriaChecks": []string{"Verified cancellation preserves the epoch."}})
 	f.complete(worker.ThreadID, "Recovery evidence: cancellation must preserve the epoch.", "completed", true)
-	result := active(t, e, "result")
-	if result.ThreadID != s2 {
-		t.Fatal("result sent to obsolete main session")
+	until(t, func() bool { return currentRun(e, worker.ID).State == "completed" })
+	if replies := e.ReplyExport(); len(replies) == 0 || replies[len(replies)-1].ReplyTo != m.ID || e.View().Current != s2 {
+		t.Fatal("direct report lost its original request after rollover", replies)
 	}
-	f.complete(s2, "Recovery result with evidence.", "completed", true)
-	until(t, func() bool {
-		j := e.View().Jobs[0]
-		return j.ResultEventID != "" && j.ResultEventID == j.DeliveredEventID
-	})
 	// A repeated terminal event may be delivered after a transport reconnect.
 	f.mu.Lock()
 	done := clone(f.threads[worker.ThreadID][0])
@@ -431,8 +455,8 @@ func TestSharedConversationMemoryAndBackgroundTaskSurviveRollover(t *testing.T) 
 		}
 	}
 	e.mu.Unlock()
-	if count != 1 {
-		t.Fatal("duplicate completion dispatched another result", count)
+	if count != 0 {
+		t.Fatal("completion dispatched a foreground result rewrite", count)
 	}
 }
 

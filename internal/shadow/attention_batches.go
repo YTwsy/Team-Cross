@@ -73,10 +73,15 @@ func (s *AttentionStore) ClaimBatch(shadowID string, now time.Time, mergeDelay, 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	activeFocus := map[string]bool{}
+	activeDirect := map[string]bool{}
 	for _, batch := range s.record.Batches {
 		if batch.State == "preparing" || batch.State == "running" || batch.State == "continuing" {
 			if batch.State == "continuing" {
-				activeFocus[batch.Focus.ID] = true
+				if batch.Mode == "direct" && batch.ShadowID == shadowID {
+					activeDirect[batch.Focus.ID] = true
+				} else {
+					activeFocus[batch.Focus.ID] = true
+				}
 				continue
 			}
 			if batch.ShadowID == shadowID {
@@ -92,7 +97,7 @@ func (s *AttentionStore) ClaimBatch(shadowID string, now time.Time, mergeDelay, 
 	for _, event := range s.record.Events {
 		focus := s.record.Focuses[event.FocusID]
 		retryReady := focus.Error == "" || (!focus.RetryAfter.IsZero() && !focus.RetryAfter.After(now))
-		if event.State == "queued" && attentionEligible(s.record, event.Signal) && !activeFocus[event.FocusID] && focus.State != "paused" && retryReady {
+		if event.State == "queued" && attentionEligible(s.record, event.Signal) && !activeFocus[event.FocusID] && (!activeDirect[event.FocusID] || signalDirect(event.Signal) && !event.ObserveOnly) && focus.State != "paused" && retryReady {
 			groups[event.FocusID] = append(groups[event.FocusID], event)
 		}
 	}

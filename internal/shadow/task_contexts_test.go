@@ -61,11 +61,6 @@ func TestTaskContextsChangedFactsResumeSameWorkerAfterRestart(t *testing.T) {
 	if len(j.Contexts) != 2 || j.Follow != nil || !pendingTaskContexts(j) || len(e.View().Jobs[0].Contexts) != 0 {
 		t.Fatal("facts changed task ownership or leaked into shared view", j, e.View())
 	}
-	finish := taskCommandFor(j, "finish")
-	finish["outcome"], finish["result"], finish["criteriaChecks"] = "completed", "Done", []string{"Checked"}
-	if taskToolError(e, worker, finish) == nil {
-		t.Fatal("unreviewed baseline completed the task")
-	}
 	input := taskCommandFor(j, "wait")
 	input["contextReviews"] = reviewTaskContexts(j)
 	input["dependencies"] = []TaskDependency{{ID: "version", Kind: "discussion", Condition: "The client version is provided", Source: spacecontext.SourceRef{AnnotationID: "client-question"}}}
@@ -101,7 +96,7 @@ func TestTaskContextsChangedFactsResumeSameWorkerAfterRestart(t *testing.T) {
 	turns := native.threads[next.ThreadID]
 	prompt := itemText(turns[len(turns)-1].Items[0])
 	native.mu.Unlock()
-	for _, text := range []string{"NEW_INTERFACE_FACTS", "OLD_INTERFACE_FACTS", "contextReviews"} {
+	for _, text := range []string{"NEW_INTERFACE_FACTS", "OLD_INTERFACE_FACTS"} {
 		if !strings.Contains(prompt, text) {
 			t.Fatal("missing changed context", text, prompt)
 		}
@@ -197,8 +192,8 @@ func TestTaskContextsLateChangeCannotBeIgnoredByWaitOrCompletion(t *testing.T) {
 		t.Fatal("late knowledge update remained asleep", j)
 	}
 	input = taskCommandFor(j, "wait")
-	if taskToolError(e, next, input) == nil {
-		t.Fatal("wait silently discarded newly arrived context")
+	if err := taskToolError(e, next, input); err != nil || !pendingTaskContexts(currentJob(t, e, j.ID)) {
+		t.Fatal("waiting must retain facts without requiring summary maintenance", err)
 	}
 }
 

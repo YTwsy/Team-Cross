@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"teamcross/internal/spacecontext"
 )
 
 // Origin is the actual member message or event. Never manufacture a C1 user
@@ -19,6 +21,16 @@ func (e *Engine) taskOriginLocked(run Run) (*TaskTrigger, error) {
 			packet, err := e.attention.CurrentContinuation(run.EventID, e.record.ID)
 			if err != nil {
 				return nil, err
+			}
+			if packet.Continuation.Mode == "direct" && packet.Continuation.HandlingID == "" {
+				for _, input := range runInputs(run) {
+					for _, origin := range input.Origins {
+						if input.EventID == run.EventID && origin.SourceID == run.SourceID {
+							packet.Sources = []spacecontext.SourceRef{origin.Source}
+							packet.Continuation.EventIDs = []string{origin.SourceID}
+						}
+					}
+				}
 			}
 			return &TaskTrigger{Kind: "activity", SourceID: run.SourceID, ContinuationID: run.EventID, FocusID: packet.Focus.ID, GoalVersion: packet.Focus.GoalVersion, FollowGoal: packet.Continuation.Mode != "direct" && packet.Focus.State == "active", EventIDs: packet.Continuation.EventIDs, Sources: packet.Sources}, nil
 		}

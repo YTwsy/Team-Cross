@@ -223,7 +223,7 @@ func (e *Engine) finishTaskRunLocked(run Run, status string) {
 			}
 		}
 	}
-	if job.State != "queued" && job.State != "waiting" && job.State != "paused" && !(job.State == "cancelled" && job.Follow != nil && job.Follow.State == "completed") {
+	if job.ResultEventID == "" && job.State != "queued" && job.State != "waiting" && job.State != "paused" && !(job.State == "cancelled" && job.Follow != nil && job.Follow.State == "completed") {
 		job.ResultEventID = "task-result:" + run.ID
 	}
 	job.Revision++

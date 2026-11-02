@@ -26,12 +26,15 @@ func observationSchema() any {
 }
 
 func (e *Engine) flushAttentionResults() error {
+	if err := e.flushInputContinuations(); err != nil {
+		return err
+	}
 	e.mu.Lock()
 	store := e.attention
 	runs := []Run{}
 	if store != nil {
 		for _, run := range e.record.Runs {
-			if (run.Kind == "attention" || run.Kind == "continuation") && !run.AttentionCommitted && (run.State == "completed" || run.State == "failed") {
+			if len(run.InputBatches) == 0 && (run.Kind == "attention" || run.Kind == "continuation") && !run.AttentionCommitted && (run.State == "completed" || run.State == "failed") {
 				runs = append(runs, clone(run))
 			}
 		}

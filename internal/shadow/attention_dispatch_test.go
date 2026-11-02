@@ -2,6 +2,7 @@ package shadow
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -57,7 +58,7 @@ func TestAttentionDirectMentionActsAndUnderstandsInOneTurn(t *testing.T) {
 	}
 }
 
-func TestAttentionDirectInvalidUnderstandingRetainsActionsAndInput(t *testing.T) {
+func TestAttentionDirectReplyDoesNotRequireUnderstandingJSON(t *testing.T) {
 	e, f, _, s, signal := directAttention(t)
 	acceptAttentionSignals(t, s, signal)
 	e.Start()
@@ -68,8 +69,8 @@ func TestAttentionDirectInvalidUnderstandingRetainsActionsAndInput(t *testing.T)
 	until(t, func() bool { return attentionCommitted(e, run.ID) })
 	r := s.Snapshot()
 	c, focus := r.Continuations[run.EventID], r.Focuses[r.Events[signal.ID].FocusID]
-	if c.State != "failed" || len(c.ActionIDs) != 1 || focus.ProcessedSeq != 0 || focus.Error == "" || r.Events[signal.ID].State != "queued" {
-		t.Fatal("invalid completion lost its action or claimed understanding", c, focus)
+	if c.State != "processed" || len(c.ActionIDs) != 1 || focus.ProcessedSeq != signal.Seq || focus.Error != "" || focus.Summary != "" || r.Events[signal.ID].State != "processed" {
+		t.Fatal("ordinary reply depended on summary JSON or fabricated facts", c, focus)
 	}
 	if batch, err := s.ClaimBatch(e.View().ID, time.Now().Add(time.Hour), 0, 0); err != nil || batch != nil {
 		t.Fatal("failed direct action was automatically repeated", batch, err)
@@ -241,6 +242,9 @@ func TestAttentionQueuedDirectAnswerRechecksNewWaitBeforeNativeTurn(t *testing.T
 	send(t, e, "owner", "Coordinate this question")
 	main := active(t, e, "main")
 	worker := startWorkingTask(t, e, f, main)
+	e.mu.Lock()
+	e.approvals["hold-input"] = Approval{Params: json.RawMessage(`{"threadId":"` + main.ThreadID + `"}`)}
+	e.mu.Unlock()
 	signal.Source.ReplyID = "answer"
 	acceptAttentionSignals(t, s, signal)
 	until(t, func() bool { return len(s.Snapshot().Continuations) == 1 })
@@ -249,7 +253,10 @@ func TestAttentionQueuedDirectAnswerRechecksNewWaitBeforeNativeTurn(t *testing.T
 	d.Condition = "The compatible version is stated."
 	args["dependencies"] = []TaskDependency{d}
 	tool(t, e, f, worker, "shadow_task", args)
-	// The answer is already queued, but the worker has not ended its turn.
+	e.mu.Lock()
+	delete(e.approvals, "hold-input")
+	e.mu.Unlock()
+	// Queued but not yet accepted inputs must recheck exact Work ownership.
 	f.complete(main.ThreadID, "The question is being followed up.", "completed", true)
 	until(t, func() bool { return s.Snapshot().Events[signal.ID].State == "task" })
 	f.complete(worker.ThreadID, "Waiting on the exact answer.", "completed", true)
@@ -371,7 +378,7 @@ func TestAttentionRouteFailureStaysLocalAndDoesNotSpin(t *testing.T) {
 	}
 }
 
-func TestAttentionDirectEvidenceIncludesActualToolReadsOnly(t *testing.T) {
+func TestAttentionDirectFinalCannotPromoteUnverifiedEvidence(t *testing.T) {
 	for _, read := range []bool{true, false} {
 		t.Run(fmt.Sprintf("read-%t", read), func(t *testing.T) {
 			e, f, _, s, signal := directAttention(t)
@@ -385,8 +392,12 @@ func TestAttentionDirectEvidenceIncludesActualToolReadsOnly(t *testing.T) {
 			f.complete(run.ThreadID, jsonText(Observation{Summary: "The compatibility evidence establishes support.", Evidence: []spacecontext.SourceRef{ref}, Outcome: "no_action"}), "completed", true)
 			until(t, func() bool { return attentionCommitted(e, run.ID) })
 			got := s.Snapshot().Continuations[run.EventID]
-			if (got.State == "processed") != read {
-				t.Fatal("evidence did not track actual successful reads", got)
+			if got.State != "processed" || len(got.Analysis.Evidence) != 0 {
+				t.Fatal("ordinary processing inferred facts from final text", got)
+			}
+			actual := currentRun(e, run.ID).ReadSources
+			if (len(actual) == 1) != read {
+				t.Fatal("read receipt did not track actual successful tool use", actual)
 			}
 		})
 	}
