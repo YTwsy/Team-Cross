@@ -1,5 +1,7 @@
 # 顺流感知第一版实现
 
+> 截图仅本地保存，路径相对本文，不随 Git 分发；保存与引用方式见[验收截图约定](../README.md#验收截图)。
+
 分支：`codex/in-flow-awareness`。从 `codex/meta-to-main-20261021` 的 `4d33a78d1efc85f80d821f0508b01830024f8e46` 创建独立 worktree，原目录的本地影子任务不包含在本次改动中。此记录只描述本分支第一版实现及被测范围。
 
 ## 已确认范围
@@ -60,8 +62,8 @@ Web 19 个文件、184 项测试、1067 条翻译完整性检查通过；两套�
 
 使用 `TestWorkbenchBrowserFixture` 的真实 Core / HTTP / production 资源，原生运行时与数据为合成 fixture。在 1265×712 下核对个人开关与他人只读、保存定向留言、待投递说明和中英主题显示；不能宣称未检查的其他宽度已通过。浏览器页已关闭，fixture 通过指定 finish 文件退出。
 
-- [中文浅色的待投递留言](2026-10-21-in-flow-evidence/note-pending.png)
-- [英文深色与用户内容不翻译](2026-10-21-in-flow-evidence/note-english-dark.png)
+- 中文浅色的待投递留言（`2026-10-21-in-flow-evidence/note-pending.png`）
+- 英文深色与用户内容不翻译（`2026-10-21-in-flow-evidence/note-english-dark.png`）
 
 发送未知结果、同 ID 查询/明确重试和校验失败保留草稿由 6 项新增界面交互测试覆盖。
 
@@ -71,7 +73,7 @@ Web 19 个文件、184 项测试、1067 条翻译完整性检查通过；两套�
 
 macOS 本机、Node 24.18.0：Go 全量 test/vet、`internal/collab` 与 `internal/mcp` race 通过；Web 20 个测试文件、189 项测试、1071 条翻译检查及两套嵌入构建通过。新回归覆盖重新打开、接收检查、送出后核对、解除关联、空间切换和缺少身份。
 
-`TestCurrentConnectionBrowserFixture` 使用真实 Core/持久化和 production 面板，宿主桥与原生身份为合成夹具。浏览器在 1253×705 的中文浅色画面确认已关联名称及接收检查入口，解除关联后恢复连接入口；[截图](2026-10-21-in-flow-evidence/connection-linked.png)。首轮夹具转发遗漏 loopback Host 头，修正后通过；测试页面与两轮夹具均已关闭。没有新增真实 Codex 面板身份传递、Cloud 或两台 Mac 验收。
+`TestCurrentConnectionBrowserFixture` 使用真实 Core/持久化和 production 面板，宿主桥与原生身份为合成夹具。浏览器在 1253×705 的中文浅色画面确认已关联名称及接收检查入口，解除关联后恢复连接入口；截图（`2026-10-21-in-flow-evidence/connection-linked.png`）。首轮夹具转发遗漏 loopback Host 头，修正后通过；测试页面与两轮夹具均已关闭。没有新增真实 Codex 面板身份传递、Cloud 或两台 Mac 验收。
 
 资源 URI 随 HTML 内容摘要变化，遵循官方缓存键规则。已打开面板仍由宿主刷新/重新打开，不宣称已实现自动热更新或全量草稿恢复。原有路由及 widget 状态恢复保持不变。
 
@@ -91,10 +93,10 @@ Go `test ./...`、`vet ./...` 及 `internal/collab`、`internal/mcp`、`internal
 
 真实浏览器使用 `TestPluginUpdateBrowserFixture` 的 production 面板和真实 Core，宿主桥、原生身份及版本切换为合成。iframe CSP 使用 `connect-src 'none'` 和内联脚本/样式，确认执行代码版本从 0 自动变为 1；有评论草稿时停在旧版，点击后变为 2 并恢复原文；留言弹窗内也可点击刷新且保留正文。故障版本在启动时抛出异常，立即回退到 2 并保留草稿，显示明确重试，不自动循环。以上流程业务写入计数均为零。
 
-- [有草稿时提示](2026-10-21-in-flow-evidence/plugin-update-draft-prompt.png)
-- [刷新后恢复评论](2026-10-21-in-flow-evidence/plugin-update-draft-restored.png)
-- [留言弹窗内的刷新入口](2026-10-21-in-flow-evidence/plugin-update-modal-prompt.png)
-- [启动失败回退与草稿保留](2026-10-21-in-flow-evidence/plugin-update-rollback.png)
+- 有草稿时提示（`2026-10-21-in-flow-evidence/plugin-update-draft-prompt.png`）
+- 刷新后恢复评论（`2026-10-21-in-flow-evidence/plugin-update-draft-restored.png`）
+- 留言弹窗内的刷新入口（`2026-10-21-in-flow-evidence/plugin-update-modal-prompt.png`）
+- 启动失败回退与草稿保留（`2026-10-21-in-flow-evidence/plugin-update-rollback.png`）
 
 首轮夹具的合成 turnId 不一致，修正后继续；浏览器检查又发现弹窗之外的按钮不可点击和启动异常需等待超时，分别改为弹窗内提示及立即捕获启动错误，再完成最终复核。所有测试页已关闭，夹具按精确 finish 文件退出；原始日志留在 `/private/tmp/teamcross-refresh-*.log`。本轮未操作用户已安装 App/插件，也未新增真实 Codex 宿主、模型回合、Cloud 或两台 Mac 验收。
 

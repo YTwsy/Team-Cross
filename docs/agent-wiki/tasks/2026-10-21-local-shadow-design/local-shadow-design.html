@@ -3,209 +3,447 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>本机数字分身：一个窗口，自然聊下去</title>
+<meta name="description" content="按当前源码解释 Team Cross 数字分身的 Session 调度、上下文、记忆生成与存储，并与 DS-Bot 对比。">
+<title>数字分身如何连续工作 · Team Cross 与 DS-Bot</title>
 <style>
-:root{color-scheme:light;--ink:#172b3b;--muted:#566775;--blue:#165fba;--pale:#edf4ff;--line:#d8e2eb;--soft:#f4f6f8;--sage:#edf7f1;--warm:#fff5e2}
-*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--ink);background:#fff;font:16px/1.8 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}main{width:1120px;margin:0 auto;padding:48px 28px 72px}h1{font-size:34px;line-height:1.35;letter-spacing:-.6px;margin:12px 0 18px}h2{font-size:24px;line-height:1.5;margin:0 0 16px}h3{font-size:19px;margin:25px 0 12px}p{margin:12px 0}strong{font-weight:600}a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}code{font:14px ui-monospace,SFMono-Regular,monospace;background:var(--soft);padding:2px 5px;border-radius:4px}.eyebrow{font-size:13px;font-weight:600;color:var(--blue);letter-spacing:.08em}.lead{font-size:20px;line-height:1.7}.small{color:var(--muted);font-size:14px}.key{padding:18px 22px;background:var(--pale);border-left:4px solid var(--blue);margin:24px 0}.note{padding:15px 20px;background:var(--warm);border-left:3px solid #cf9938;margin:20px 0}nav{display:flex;gap:22px;padding:10px 0 22px;border-bottom:1px solid var(--line);margin-bottom:36px;font-size:15px}section{margin:0 0 50px;scroll-margin-top:24px}table{width:100%;border-collapse:collapse;margin:18px 0}th,td{text-align:left;vertical-align:top;padding:13px 14px;border-bottom:1px solid var(--line)}th{background:var(--soft);font-size:14px;color:var(--muted);font-weight:600}.roles th:first-child{width:158px}.roles th:nth-child(2){width:162px}.two{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:22px 0}.panel{border:1px solid var(--line);border-radius:10px;padding:20px 22px}.panel h3{margin:0 0 14px}.panel.blue{background:#f9fbff;border-color:#b4ccec}.panel.green{background:var(--sage);border-color:#bedbc9}.stack{padding:0;margin:0;list-style:none}.stack li{padding:11px 0;border-bottom:1px solid var(--line)}.stack li:last-child{border-bottom:0}.stack strong,.stack span{display:block}.stack span{font-size:14px;color:var(--muted)}.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin:22px 0}.flow>div{background:var(--pale);padding:15px;border-radius:8px;position:relative}.flow>div:not(:last-child):after{content:'→';position:absolute;right:-16px;top:23px;color:var(--blue)}.flow b,.flow span{display:block}.flow span{font-size:14px;color:var(--muted)}.line{display:flex;gap:18px;align-items:stretch;margin:20px 0}.part{flex:1;border:1px solid #aec8e8;border-radius:10px;background:var(--pale);padding:18px 20px}.part strong,.part span{display:block}.part span{color:var(--muted);font-size:14px}.part.current{background:var(--sage);border-color:#b6d2c3}.arrow{align-self:center;font-size:24px;color:var(--blue)}.conversation{background:var(--soft);padding:14px 18px;font-weight:600;border-radius:8px}.dialogue{table-layout:fixed}.dialogue th:first-child{width:52%}.bubble{padding:12px 16px;background:var(--pale);border-radius:11px;margin:0 0 8px}.reply{padding:2px 16px;color:var(--muted);font-size:15px}.trace{font-size:15px}.trace b{color:var(--blue)}.event{background:var(--sage)}details{margin:18px 0;padding:16px 20px;background:var(--soft);border-radius:8px}summary{font-weight:600;cursor:pointer}ul,ol{padding-left:24px}.source{border-top:1px solid var(--line);padding-top:22px;font-size:14px;color:var(--muted)}@media print{main{width:auto;padding:8px}nav{display:none}a{color:inherit}tr{break-inside:avoid}}
+:root{color-scheme:light;--ink:#172b3b;--muted:#526675;--blue:#175da8;--pale:#edf4fc;--line:#d9e2e9;--soft:#f4f6f8;--green:#26714f;--sage:#edf7f1;--warm:#fff5e2;--amber:#88601d;--paper:#fff}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.8 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}main{max-width:1180px;margin:auto;padding:46px 32px 72px}h1{font-size:36px;line-height:1.35;letter-spacing:-.6px;margin:12px 0 20px}h2{font-size:25px;line-height:1.45;margin:0 0 18px}h3{font-size:18px;line-height:1.5;margin:24px 0 12px}p{margin:12px 0}strong{font-weight:650}a{color:var(--blue);text-underline-offset:3px}a:hover{text-decoration-thickness:2px}code{font:13px/1.6 ui-monospace,SFMono-Regular,monospace;background:var(--soft);padding:2px 5px;border-radius:4px;overflow-wrap:anywhere}pre{font:13px/1.85 ui-monospace,SFMono-Regular,monospace;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}button{font:inherit;cursor:pointer}button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid var(--blue);outline-offset:4px}button:hover{border-color:var(--blue)}[hidden]{display:none!important}.eyebrow{font-size:13px;font-weight:650;letter-spacing:.07em;color:var(--blue)}.lead{font-size:20px;max-width:880px}.small,.source-note{font-size:14px;color:var(--muted)}.key,.note{padding:17px 21px;border-left:4px solid var(--blue);background:var(--pale);margin:22px 0}.note{border-color:#bd8d37;background:var(--warm)}.meta{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0}.tag{font-size:12px;padding:4px 9px;background:var(--soft);border-radius:5px}.tag.current{background:var(--sage);color:var(--green)}nav{display:flex;flex-wrap:wrap;gap:10px 23px;margin:26px 0 40px;padding:17px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:14px}nav a{text-decoration:none}section{margin:0 0 56px;scroll-margin-top:24px}.section-number{color:var(--blue);font-size:13px;letter-spacing:.06em;display:block;margin-bottom:8px}.two{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:20px 0}.panel{border:1px solid var(--line);border-radius:10px;padding:21px 23px;min-width:0}.panel h3{margin:0 0 12px}.panel.blue{background:#f8fbff;border-color:#bbd0e8}.panel.green{background:var(--sage);border-color:#bfd8c9}.panel p:last-child{margin-bottom:0}.stack{list-style:none;padding:0;margin:0}.stack li{padding:11px 0;border-bottom:1px solid var(--line)}.stack li:last-child{border:0}.stack strong,.stack span{display:block}.stack span{font-size:14px;color:var(--muted)}.table-wrap{overflow-x:auto;margin:20px 0;border:1px solid var(--line);border-radius:9px}table{width:100%;border-collapse:collapse;text-align:left;font-size:15px}th,td{vertical-align:top;padding:14px 17px;border-bottom:1px solid var(--line)}th{font-weight:650;background:var(--soft);font-size:13px;color:var(--muted)}tr:last-child td{border-bottom:0}.roles th:first-child{width:16%}.roles th:nth-child(2){width:23%}.compare{table-layout:fixed;min-width:680px}.compare th:first-child{width:16%}.compare th:nth-child(2){width:42%}.compare td:first-child{font-weight:650}.compare small{display:block;color:var(--muted);margin-top:7px;line-height:1.7}.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin:22px 0}.flow>div{background:var(--pale);border-radius:8px;padding:16px;position:relative}.flow>div:not(:last-child):after{content:'→';position:absolute;right:-16px;top:18px;color:var(--blue)}.flow b,.flow span{display:block}.flow span{font-size:14px;color:var(--muted)}.control-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.control-row button{border:1px solid var(--line);background:var(--paper);border-radius:7px;padding:9px 14px;color:var(--ink);min-height:44px;font-size:14px}.control-row button[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:#fff}.demo{border:1px solid var(--line);border-radius:12px;padding:24px;background:#fafcfe}.demo .control-row{margin-top:0}.demo-label{font-size:13px;color:var(--muted);margin:0 0 12px}.conversation{padding:13px 17px;background:var(--pale);border-radius:7px;font-weight:650}.lanes{display:grid;grid-template-columns:125px 1fr;gap:12px;margin:18px 0}.lane-name{font-size:14px;color:var(--muted);align-self:center}.lane{padding:13px 17px;border:1px solid var(--line);background:var(--paper);border-radius:7px;min-width:0}.lane strong{display:block}.lane span{display:block;color:var(--muted);font-size:14px}.lane.live{background:var(--sage);border-color:#bfd8c9}.lane.wait{background:var(--warm);border-color:#e3cc9e}.demo-detail{margin:0;border-top:1px solid var(--line);padding-top:15px;min-height:58px}.context-view{padding:23px;background:var(--soft);border-radius:10px}.context-view h3{margin-top:0}.context-view ol{margin:0;padding-left:23px}.context-view li{padding:5px 0}.context-view .note{margin-bottom:0;background:var(--paper)}.budget{display:flex;border-radius:7px;overflow:hidden;height:38px;margin:20px 0 7px;font-size:13px;line-height:38px}.budget span{text-align:center;white-space:nowrap}.budget .room{width:70%;background:var(--pale)}.budget .check{width:17.5%;background:#dcecdf}.budget .reserve{width:12.5%;background:#f6e7c6}.budget-labels{display:flex;justify-content:space-between;gap:16px;font-size:13px;color:var(--muted)}.memory-record{display:grid;grid-template-columns:110px 1fr;gap:9px 14px;margin:17px 0}.memory-record dt{color:var(--muted);font-size:14px}.memory-record dd{margin:0;overflow-wrap:anywhere}.badge{font-size:13px;padding:3px 9px;background:var(--pale);border-radius:5px}.memory-result{padding:14px 18px;background:var(--sage);border-radius:7px}.storage .panel{background:var(--soft)}.source-note{margin:14px 0}.source-note a{white-space:normal}.boundaries li{margin:10px 0}details{padding:16px 20px;background:var(--soft);border-radius:8px;margin:18px 0}summary{cursor:pointer;font-weight:650}footer{border-top:1px solid var(--line);padding-top:26px;font-size:14px;color:var(--muted)}footer ol{padding-left:23px}footer li{margin:9px 0}.back-top{display:inline-block;margin-top:16px}.js-hint{font-size:13px;color:var(--muted)}
+.context-layers{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:23px 0}.context-layer{border:1px solid var(--line);border-top:3px solid var(--blue);border-radius:8px;padding:16px}.context-layer b{display:block;font-size:16px;margin-bottom:8px}.context-layer p{font-size:14px;color:var(--muted);margin:0}.context-layer .layer-no{font:12px ui-monospace,SFMono-Regular,monospace;color:var(--blue);display:block;margin-bottom:9px}.context-columns{display:grid;grid-template-columns:1.2fr 1fr;gap:18px;margin:16px 0}.context-block{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:19px;min-width:0}.context-block h4{font-size:15px;margin:0 0 12px;color:var(--blue)}.context-block p{font-size:15px}.context-block p:first-of-type{margin-top:0}.context-block p:last-child{margin-bottom:0}.context-view .context-meta{font-size:13px;color:var(--muted);margin:0 0 10px}.context-view details{background:var(--paper);border:1px solid var(--line);margin-bottom:0}.context-view details p{font-size:14px}.payload{background:#f5f8fb;border:1px solid var(--line);border-radius:7px;padding:17px;margin:14px 0}.context-fields{min-width:650px}.context-fields th:first-child{width:24%}.context-fields th:nth-child(2){width:42%}.context-fields td:first-child{font-weight:650}.context-view .source-note{margin:16px 0 0}.context-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:14px;background:var(--pale);border-radius:9px}.context-controls button{min-width:0;width:100%;padding:10px 8px}.context-note{font-size:14px;color:var(--muted)}.context-index{font-size:14px;display:flex;gap:9px 20px;flex-wrap:wrap;margin:18px 0}
+@media(max-width:800px){main{padding:28px 20px 52px}h1{font-size:29px}h2{font-size:23px}.two{grid-template-columns:1fr;gap:16px}.flow{grid-template-columns:1fr 1fr}.flow>div:nth-child(2):after{display:none}.roles{min-width:580px}.budget{font-size:11px}.demo{padding:18px}.compare{font-size:14px}.context-layers{grid-template-columns:1fr 1fr}.context-columns{grid-template-columns:1fr}.context-view{padding:19px}.context-controls button{flex-basis:125px}}
+@media(max-width:480px){main{padding:22px 16px 42px}.lead{font-size:18px}.flow{grid-template-columns:1fr}.flow>div:not(:last-child):after{content:'↓';right:50%;top:auto;bottom:-21px}.flow>div:nth-child(2):after{display:block}.lanes{grid-template-columns:1fr;gap:6px}.lane-name{margin-top:8px}.control-row button{flex:1 1 auto}.panel{padding:18px}.memory-record{grid-template-columns:80px 1fr}.budget .reserve{font-size:0}.budget-labels{font-size:12px}.key,.note{padding:15px 16px}nav{gap:11px 18px}}
+@media(max-width:480px){.context-controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{main{max-width:none;padding:0}nav,.control-row,.js-hint,.back-top{display:none}.two{grid-template-columns:1fr 1fr}section{margin-bottom:30px}.demo,.panel,tr{break-inside:avoid}.table-wrap{overflow:visible}.compare,.context-fields{min-width:0;font-size:12px}a{color:inherit}.context-view[hidden]{display:block!important;margin-top:16px}.context-layers{grid-template-columns:1fr 1fr}.context-columns{grid-template-columns:1fr}.context-index{display:none}}
 </style>
 </head>
-<body><main>
+<body><main id="top">
 <header>
-<div class="eyebrow">TEAM CROSS · 本机数字分身设计 · 2026-10-21 修订</div>
-<h1>一个窗口，自然聊下去</h1>
-<p class="lead">聊恢复逻辑，顺便问发布，再回到刚才的问题。<br><strong>用户只管说；分身维护话题、未完成事项和记忆，后台按需要更换 Session。</strong></p>
-<p class="small">这是拟议方案和说明性示例，不是已实现的产品，也不是实际模型运行记录。首版沿用本机完整有效配置，以调查与分析为默认工作方式；你的个人工作会话 P0 保持独立。</p>
-<div class="key"><strong>本版替代上一版“每个问题绑定一个 Session”的设计。</strong><br>一条空间共享对话 C1 可以跨越多段 S1 → S2 → S3；每一段都能包含多个话题。换话题通常继续当前 Session，接近上下文预算时才评估压缩或换段。</div>
-<p><strong>本轮确认：</strong>全协作空间共享对话，先跑通 Codex；沿用完整本机配置和原生压缩，保留上下文管家；长调查交给后台 Agent；消息显示送达，失败后手动重发，不增加云端信箱。</p>
-<nav aria-label="设计目录"><a href="#timeline">连续交流</a><a href="#roles">职责</a><a href="#workers">后台任务</a><a href="#routing">话题</a><a href="#walkthrough">换段</a><a href="#memory">记忆</a><a href="#harness">Harness</a><a href="#eval">Eval</a><a href="#tradeoff">DS Bot 对比</a><a href="#choices">取舍</a></nav>
+<div class="eyebrow">TEAM CROSS · 当前实现解读 · 2026-10-22</div>
+<h1>分身一直在聊，<br>背后哪些东西会留下？</h1>
+<p class="lead">一条共享对话保存身份与记录；当前 Session 负责思考；独立工作 Session 做长任务；长期记忆另行保存。<strong>换 Session 不等于换分身，存过的内容也不等于每轮都会发给模型。</strong></p>
+<div class="meta"><span class="tag current">Team Cross · Meta · f7282b9</span><span class="tag">DS-Bot · ae63b45 · v0.2.0</span><span class="tag">源码核对；交互为机制示意</span></div>
+<p class="small">本页已从早期方案更新为当前实现说明。Team Cross 以本仓库代码与<a href="../../sources/decisions/local-shadows.md">分身契约</a>为准；DS-Bot 按此次读取的 main 固定提交比较。没有连接你的真实分身、读取私人聊天或运行新的模型测试。</p>
+<div class="key"><strong>除压缩以外，最值得知道的差异有三项：</strong><br>共享对象不同：多人共享分身 vs 用户组织多个 Bot；记忆生效不同：待确认候选 vs 默认自动保存；故障恢复不同：未知结果先核对 vs 有界自动接续。</div>
+<nav aria-label="阅读目录"><a href="#timeline">Session 怎么调度</a><a href="#context">模型看见什么</a><a href="#walkthrough">什么时候换段</a><a href="#memory">记忆怎么生成</a><a href="#storage">实际存在哪里</a><a href="#tradeoff">DS-Bot 对比</a><a href="#boundaries">当前边界</a><a href="#sources">源码依据</a></nav>
 </header>
 
 <section id="timeline">
-<h2>同一个聊天窗口里，连续发生这些事</h2>
-<p class="small">左栏是用户的交流体验；右栏只用于解释后台，不会要求用户操作或选择。</p>
-<table class="dialogue"><thead><tr><th>始终在和同一个分身聊天</th><th>后台怎么接住这句话</th></tr></thead><tbody>
-<tr><td><div class="bubble">检查一下，把 epoch 校验提前会不会影响断线恢复？</div><div class="reply">分身读取获准代码，说明已核实的路径和还需确认的部分。</div></td><td class="trace"><b>首次启动 S1。</b><br>保存话题 T1「恢复逻辑」，记录原始要求和未核实项。T1 是数据记录。</td></tr>
-<tr><td><div class="bubble">那审批还没结束时呢？</div><div class="reply">分身沿着上一轮继续检查审批路径。</div></td><td class="trace"><b>仍然是 S1。</b><br>主模型结合最近对话理解省略的指代，补充 T1 的调查条件，无需独立路由分类请求。</td></tr>
-<tr><td><div class="bubble">先看另一个：发布流程应该怎么安排？</div><div class="reply">分身开始讨论发布流程；之前没核实完的事项仍保留。</div></td><td class="trace"><b>仍然是 S1。</b><br>新增 T2「发布流程」，焦点转向 T2。T1 暂放一旁，不被标记为完成或删除。</td></tr>
-<tr><td><div class="bubble">发布先这样。回到刚才那个，取消审批会怎样？</div><div class="reply">分身接回恢复逻辑；需要时回读前面查到的代码和原话。</div></td><td class="trace"><b>仍然是 S1。</b><br>焦点回到 T1；T2 保留已答内容。旧材料不足时检索原始记录，不能仅凭摘要编造细节。</td></tr>
-<tr><td><div class="bubble">还有，记住：我的发布说明默认用中文。</div><div class="reply">分身确认已保存偏好，适用范围随记忆一起记录。</div></td><td class="trace"><b>仍然是 S1。</b><br>这是明确的记忆写入意图。Core 校验并落盘成功后才说“已记住”，不为这句话新建 Session。</td></tr>
-<tr class="event"><td><div class="reply"><strong>此时上一轮已结束，用户不需要做任何操作。</strong><br>聊天记录仍然连续；下一条消息也发在这里。</div></td><td class="trace"><b>接近上下文预算 → CM1 判断 → S1 交接给 S2。</b><br>携带 T1 / T2 的状态、未决事项、关键原话和证据入口。只有这个时点更换主 Session。</td></tr>
-<tr><td><div class="bubble">刚才的恢复方案遇到网络抖动呢？另外给发布计划补一份回滚检查表。</div><div class="reply">分身分别回答两部分，并使用已保存的中文偏好。</div></td><td class="trace"><b>由 S2 接住整句话。</b><br>一条消息可以关联 T1 和 T2。主模型按两项要求组织回答，不必先硬分成“新问题 / 追问”。</td></tr>
-</tbody></table>
-<div class="conversation">C1 始终连续：恢复 → 审批 → 发布 → 回到恢复 → 记住偏好 → 同时继续两件事</div>
-<div class="line"><div class="part"><strong>S1 · 第一段原生会话</strong><span>容纳 T1、T2、用户纠正与记忆请求<br>话题切换时沿用 S1</span></div><div class="arrow">→</div><div class="part current"><strong>S2 · 接续原生会话</strong><span>接手仍有效的 T1、T2 和近期原话<br>可以继续旧话题，也可以出现新话题</span></div></div>
+<span class="section-number">01 / SESSION 调度</span>
+<h2>一条 C1，当前一个主 Session，另有独立工作会话</h2>
+<p>每个分身属于一个空间，运行在创建它的成员 Mac 上，并有自己的 Codex app-server。空间里的成员消息先持久化，再按顺序进入当前主 Session。<strong>追问、换话题和换发言者，都不会自动创建另一条主 Session。</strong></p>
+<div class="demo" id="session-demo">
+<p class="demo-label">同一段交流的六个时刻 · 点击查看后台状态（示意，不是实时运行）</p>
+<div class="control-row" role="group" aria-label="选择会话调度时刻">
+<button type="button" data-stage="0" aria-pressed="true">1 首次提问</button><button type="button" data-stage="1" aria-pressed="false">2 派发长任务</button><button type="button" data-stage="2" aria-pressed="false">3 穿插追问</button><button type="button" data-stage="3" aria-pressed="false">4 换成 S2</button><button type="button" data-stage="4" aria-pressed="false">5 后台完成</button><button type="button" data-stage="5" aria-pressed="false">6 重启核对</button>
+</div>
+<div class="conversation">C1 · 整个空间持续共享的聊天与记录</div>
+<div aria-live="polite" aria-atomic="true">
+<div class="lanes">
+<div class="lane-name">成员输入</div><div class="lane" id="lane-input"><strong>B：请解释恢复流程</strong><span>原文、消息 ID 和经过核验的作者先写入本机存储，随后才能确认送达。</span></div>
+<div class="lane-name">当前主会话</div><div class="lane live" id="lane-main"><strong>S1 · 首条消息才创建</strong><span>处理问题、调用工具、给出回答；完成这一轮后才处理下一条成员消息。</span></div>
+<div class="lane-name">后台工作</div><div class="lane" id="lane-worker"><strong>尚无 W / J</strong><span>普通短问题不需要创建工作会话。</span></div>
+<div class="lane-name">Core 持久状态</div><div class="lane" id="lane-state"><strong>current = S1</strong><span>消息、段指针、运行账本和真实投递状态独立于模型上下文保存。</span></div>
+</div>
+<p class="demo-detail" id="session-detail">“已送达”表示运行分身的 Core 已经落盘；还不表示模型读过或完成。示例中的 T / J 记录只有模型实际调用对应工具后才会存在。</p>
+</div>
+</div>
+<h3 id="roles">这些字母分别代表什么</h3>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Session 对象职责，窄屏可横向滚动"><table class="roles"><thead><tr><th>对象</th><th>是否原生会话</th><th>当前职责</th></tr></thead><tbody>
+<tr><td><strong>C1 / shadowId</strong></td><td>持久对话记录</td><td>共享聊天、作者、记忆、任务、段列表和当前指针。跨 S1 → S2 保留。</td></tr>
+<tr><td><strong>S1、S2</strong></td><td>独立 Codex thread</td><td>前后两段主会话；同一时刻只向当前段串行投入普通成员消息。</td></tr>
+<tr><td><strong>W1、W2</strong></td><td>独立 Codex thread</td><td>由 <code>shadow_task</code> 派发的后台工作。默认每个分身最多并发 2 个；不依赖父 S1 存活。</td></tr>
+<tr><td><strong>J / T</strong></td><td>数据记录</td><td>J 保存任务版本、W ID 和结果；T 保存话题目标、约束与来源。T 不负责选择 Session。</td></tr>
+<tr><td><strong>CM / M</strong></td><td>按次创建的短 thread</td><td>CM 建议压缩或换段；M 提出记忆候选。结束后取消订阅，原生历史仍保留。</td></tr>
+</tbody></table></div>
+<h3>前台与后台怎么争用时间</h3>
+<p>Core 每 250 ms 或收到事件时推进状态：先处理原生事件并调度后台任务，再检查主轮与审批；主会话空闲后，优先完成换段与必要维护，再处理排队成员消息，最后汇总尚未投递的任务结果。<strong>成员消息优先于后台结果通知，主轮忙时新消息排队。</strong>这里没有用 <code>turn/steer</code> 把普通新消息插入正在生成的主轮。</p>
+<p>任务改版会递增 J 的版本，先请求停止旧轮，确认结束后在同一 W 接续；取消同样区分 <code>stopping</code> 与 <code>cancelled</code>。W 的结果先落盘为唯一事件，再交给当时的主段汇总；旧版本结果不能成为新要求的完成答复。</p>
+<div class="note"><strong>独立上下文不等于独立文件现场。</strong>W 使用同一分身的工作目录和原生配置，当前不会为每个任务建立 worktree。后台默认调查只读是提示词约定，实际工具权限仍来自本机 Codex。</div>
+<p class="source-note">依据：<a href="../../../../internal/shadow/engine.go">engine.go · step / createThread</a>、<a href="../../../../internal/shadow/tools.go">tools.go · scheduleJobs</a>、<a href="../../../../internal/shadow/native.go">native.go · finishRunLocked</a>。</p>
 </section>
 
-<section id="roles">
-<h2>谁是 Session，谁只是记录？</h2>
-<p><strong>同一空间与同一分身共用 C1。</strong>B 提问、C 补充时，双方与其他空间成员都能阅读这条对话，输入由 Core 排序后进入当前主 Session。消息保留实际作者，个人偏好不会自动成为团队规则；不同空间分别维护上下文。</p>
-<table class="roles"><thead><tr><th>对象</th><th>是不是模型会话</th><th>职责与创建时机</th></tr></thead><tbody>
-<tr><td>分身身份 B</td><td>不是</td><td>稳定的名字、能力、资料范围和记忆归属。用户始终和它交流。</td></tr>
-<tr><td>空间共享对话 C1</td><td>不是原生 Session</td><td>同一空间与同一分身的长期消息流，空间成员可阅读和参与；保存作者、顺序与当前主 Session，不按成员拆成私人上下文。</td></tr>
-<tr><td><strong>主 Session S1 / S2</strong></td><td><strong>是</strong></td><td>理解用户、快速回答、派发调查、汇总结果和更新对话状态。首条消息启动 S1，换段时创建 S2。同一 C1 只有一个主 Session 接用户新输入，但不必等待所有后台任务完成才进入下一轮。</td></tr>
-<tr><td><strong>工作上下文 W1 / W2</strong></td><td>子 Agent 独立上下文，或独立原生 Session</td><td>收到明确的长任务时创建，承担调查并保存工具过程；不是第二个用户聊天窗口。后台运行，按任务完成或取消；不与话题一一对应。</td></tr>
-<tr><td>任务 J1 / J2</td><td>不是</td><td>Core 保存的任务记录，关联 C1、原始消息、任务版本、W1、真实状态与结果。即使 S1 换成 S2，J1 仍存在。</td></tr>
-<tr><td>话题 T1 / T2</td><td>不是</td><td>记录目标、状态、未决项、证据和原话锚点。允许一条消息关联多个话题，也允许暂时无法归类。</td></tr>
-<tr><td><strong>上下文管家 CM</strong></td><td>一次独立、输入受限的模型调用</td><td>接近预算时建议原生压缩或换段，由 Core 校验并协调执行；不接用户问题、不替换原生摘要算法。原生接口若要求 Session，就按次创建短期 CM1、CM2，结束后释放运行资源。</td></tr>
-<tr><td><strong>记忆整理 M</strong></td><td>一次独立、输入受限的模型调用</td><td>空闲时读取新增记录和相关旧记忆，提出新增、修改或删除候选。原生接口若要求 Session，就按批创建 M1、M2；没有常驻的记忆聊天。</td></tr>
-<tr><td>Core / 存储</td><td>不是</td><td>消息落盘、自有资源的范围校验、任务与结果事件、回执、真实工具状态、会话生命周期、记忆版本和检索。沿用原生权限，不把继承的全部工具包装成强制只读。</td></tr>
-<tr><td>个人会话 P0</td><td>是，已有会话</td><td>继续你自己的工作。分身不自动读取它的完整私人历史，也不把外部消息插入其中。</td></tr>
-</tbody></table>
-<p><strong>普通的一来一回通常只使用当前 S1。</strong>CM 在预算触发时调用；M 按新增内容批量整理。“输入很短”不意味着必须指定另一个小模型，也不固定产品的模型选择。</p>
-<p class="small">首版即区分前台对话与后台长任务。主会话一轮生成时仍可能短暂忙碌；新消息按原生能力补充、中断或短暂排队，但不因 W1 还在调查而一直等到它完成。</p>
-</section>
+<section id="context">
+<span class="section-number">02 / 每个 SESSION 内部有什么</span>
+<h2>先拆成四层，再看每一种轮次的输入清单</h2>
+<p>一个 Session 对应一个原生 <code>thread</code>，里面可以有多轮 <code>turn</code>。S1 的普通回答、交接笔记和后台结果汇总是<strong>同一个 thread 内不同用途的轮次</strong>；W、CM、M 则有自己的 thread。Core 给它们的材料不同，模型最终能用的内容还取决于 Codex 原生上下文管理。</p>
+<div class="context-layers" aria-label="一次模型调用的四类上下文来源">
+<div class="context-layer"><span class="layer-no">01 · 原生环境</span><b>配置与原生指令</b><p>Codex 按自身规则加载项目说明、已启用的个人记忆与工具能力。Core 传入 home / cwd，附加 5 个 shadow 工具；配置文件本身不等于整份提示词。</p></div>
+<div class="context-layer"><span class="layer-no">02 · 此 thread 的历史</span><b>之前在这里发生的事</b><p>本会话先前的输入、回答、工具交互，以及原生压缩后留下的内容。新建 thread 没有其他 thread 的整段历史；磁盘历史也不等于全部常驻窗口。</p></div>
+<div class="context-layer"><span class="layer-no">03 · 本轮 Core 输入</span><b>按用途组装的文本</b><p>角色约定、成员消息、状态快照、任务、交接笔记或记忆变化。这一层可从 Team Cross 源码逐项核对，下面展开的就是它。</p></div>
+<div class="context-layer"><span class="layer-no">04 · 本轮工具返回</span><b>实际查询后补进的内容</b><p>文件内容、命令结果、历史摘录和最新记忆，只有实际读取后才作为工具结果进入调用链。有工具定义、有路径或有来源 ID，都不等于已读正文。</p></div>
+</div>
+<p class="context-note">本页核对的是 Core 装配规则，没有抓取你真实 Session 的模型请求。原生系统指令的完整文本、压缩摘要的具体内容、模型内部推理与每次实际 token 占用，不能从这份 Core 源码还原。原生个人记忆和 P0 私人会话的边界见<a href="#harness">下文说明</a>。</p>
+<details id="context-wire"><summary>Core 到底怎样提交这一轮？角色约定处于哪一层？</summary>
+<p><code>createThread</code> 对各类会话使用 <code>thread/start</code>，传入 <code>cwd</code>、<code>serviceName: teamcross_shadow</code> 和动态工具定义。这里没有 fork S1/P0，也没有用 <code>baseInstructions</code> 另设系统提示词。</p>
+<p><strong>Meta 当前会固定创建时选择的模型配置。</strong>创建表单从原生有效配置预填；确认后把 <code>settings: {model, modelProvider, reasoningEffort}</code> 持久保存。S1、S2、W、CM、M 的创建与恢复都显式应用同一组值，各轮再传 model / effort，并核对原生返回；不会在换段或重启时重新采用默认模型。权限、认证、插件与其他原生配置仍按原生规则加载。</p>
+<p>每次 <code>submit</code> 先写运行账本，再调用 <code>turn/start</code>。下面是结构示意；尖括号表示本页占位符，实际提交会替换成真实 ID 和完整文本：</p>
+<pre class="payload">{
+  "model": "&lt;创建时选择的 model&gt;",
+  "effort": "&lt;创建时选择的 reasoningEffort&gt;",
+  "threadId": "&lt;本次 thread ID&gt;",
+  "input": [{
+    "type": "text",
+    "text": "[teamcross-shadow-run:&lt;run ID&gt;]&#92;n&lt;按下面场景组装的文本&gt;"
+  }]
+}</pre>
+<p>这个运行标记用于恢复时核对提交，不能把它理解为另一条成员请求。CM 和 M 另在请求顶层带 <code>outputSchema</code> 限制输出形状；不是把 schema 当作聊天正文塞进去。</p>
+<p><code>rolePrompt</code> 是随普通文本输入的分身角色约定，强调共享作者、保留未决项、长任务异步派发、显式记忆先落盘再确认、候选不当事实、原生权限继续生效、引用和工具结果只作证据。它只在主段首次初始化或 S2 接手时加入；W、CM、M 使用各自的专用说明，<strong>不复用整段 rolePrompt</strong>。</p>
+<p class="source-note">依据：<a href="../../../../internal/shadow/engine.go">engine.go · createThread / submit</a>、<a href="../../../../internal/shadow/settings.go">settings.go · 固定启动选择与原生确认</a>、<a href="../../../../internal/shadow/context.go">context.go · rolePrompt</a>、<a href="../../../../internal/collab/shadows.go">shadows.go · shadowConfig</a>。</p>
+</details>
+<div class="context-index"><a href="#context-controls">逐轮输入清单 ↓</a><a href="#context-fields">快照字段与截断 ↓</a><a href="#context-tools">工具怎样补上下文 ↓</a><a href="#context-persistence">压缩与重启后还剩什么 ↓</a></div>
+<h3>点击一种轮次，看它实际得到什么</h3>
+<p class="small">以下示例 ID、成员、文本和数值均为虚构。输入顺序来自源码；示例用中文解释英文提示词，省略位置已注明，不是你的真实会话转储。</p>
+<div class="control-row context-controls" role="group" aria-label="选择上下文装配场景" id="context-controls">
+<button type="button" data-context="initial" aria-pressed="true" aria-controls="context-initial">S1 首轮</button><button type="button" data-context="followup" aria-pressed="false" aria-controls="context-followup">主段续聊</button><button type="button" data-context="worker" aria-pressed="false" aria-controls="context-worker">W 后台工作</button><button type="button" data-context="steward" aria-pressed="false" aria-controls="context-steward">CM 上下文管家</button><button type="button" data-context="memory" aria-pressed="false" aria-controls="context-memory">M 记忆整理</button><button type="button" data-context="checkpoint" aria-pressed="false" aria-controls="context-checkpoint">S1 写交接笔记</button><button type="button" data-context="handoff" aria-pressed="false" aria-controls="context-handoff">S2 接手</button><button type="button" data-context="result" aria-pressed="false" aria-controls="context-result">主段收 W 结果</button>
+</div>
 
-<section id="workers">
-<h2>主 Agent 继续聊，后台 Agent 把长任务做完</h2>
-<p><strong>单主 Session 是一个对话入口，不是一个串行执行槽。</strong>长调查交给 W1；主 Agent 派发后结束当前轮，下一条用户消息仍进入 S1。短问题直接回答，不必每句话都创建子 Agent。</p>
-<div class="two"><div class="panel blue"><h3>前台：S1 → S2</h3><ul class="stack"><li><strong>理解、回应与协调</strong><span>回答短问题，说明真实进度，接收新的要求或取消请求。</span></li><li><strong>上下文保持简洁</strong><span>近期对话、话题与约束、J1 的版本和进度、必要结果摘要。</span></li><li><strong>统一向用户答复</strong><span>核对后台结果是否仍符合当前要求，必要时回读证据。</span></li></ul></div><div class="panel green"><h3>后台：W1 / W2</h3><ul class="stack"><li><strong>只承担明确的一项工作</strong><span>获得目标、相关原话、约束、代码版本与证据入口；工具配置依原生规则继承。</span></li><li><strong>保留自己的探索上下文</strong><span>长日志与大量代码阅读留在工作上下文中，不持续灌入主会话。</span></li><li><strong>完成后保存结果并发事件</strong><span>带任务 ID、版本、结果状态和来源；由 Core 投递给 C1 当时的主 Session。</span></li></ul></div></div>
-<table class="dialogue"><thead><tr><th>用户仍在同一个窗口交流</th><th>后台发生什么</th></tr></thead><tbody>
-<tr><td>“深入查一下 epoch 和取消审批的恢复路径。”</td><td>S1 创建 J1，交给 W1。派发成功后说明正在调查，结束当前轮，不同步等待全部结果。</td></tr>
-<tr><td>“调查时顺便解释一下发布回滚需要哪些步骤。”</td><td>S1 正常回答另一问题；W1 继续调查。必要时另一项长工作另建 W2。</td></tr>
-<tr><td>“刚才的调查先只看取消审批，其他分支不用了。”</td><td>J1 更新为 v2；向可接收补充的 W1 传达变化。旧 v1 结果晚到时只作参考，不冒充 v2 的完成答复。</td></tr>
-<tr class="event"><td>主会话接近预算，用户继续自然交流。</td><td>S1 → S2 交接话题与 J1 索引。J1 属于 C1，后台结果按 C1 找当前主会话；不把运行中的原生子 Agent 假装搬到 S2。</td></tr>
-<tr><td>“刚才查得怎么样了？”</td><td>已完成就由当前主 Agent 整理有证据的答复；未完成就给真实进度。重复完成事件不重复发送。</td></tr>
-</tbody></table>
-<p>任务记录至少保存原始消息、任务版本、工作上下文 ID、状态与结果水位。“请求停止”与“确实停止”分开记录；不清楚运行状态时先核对，不自动重跑。主会话换段时携带任务索引，工作上下文自己的预算与检查点独立管理。</p>
-<details><summary>原生子 Agent 与独立工作 Session 怎样选择？</summary><p>优先使用可观测、可恢复的原生后台子 Agent，验证它能否跨主轮结束继续工作，以及主会话换段后如何保留执行端和接收结果。若原生生命周期不满足，就从任务创建时使用同一 Harness 的独立工作 Session，由 Core 管理；不要求用户选择。</p><p>存在 spawn 工具不等于前台一定可响应：主 Agent 若同步等结果，仍会阻塞。实现必须把派发、下一轮输入和结果事件分开调度。前台优先，限制后台并发；共享速率限制、当前一轮生成与原生权限等待仍可能带来延迟，不能承诺零等待。</p><p>工作 Agent 沿用原生继承规则；原生角色自身的模型、工具和权限限制仍有效，Team Cross 不额外裁剪，也不绕过这些限制。这里只讨论拟议架构，不表示两个 Harness 的接入路径已经完成验收。</p></details>
-</section>
+<div class="context-view" id="context-initial" role="region" aria-labelledby="context-initial-title">
+<p class="context-meta">新建 S1 · Run.kind = main · 处理第一条成员消息</p>
+<h3 id="context-initial-title">S1 首轮：建立角色，放入状态，再交付本次原话</h3>
+<div class="context-columns"><div class="context-block"><h4>本次新增，按这个顺序</h4><ol><li><strong>分身角色约定</strong>：上面的 <code>rolePrompt</code>。</li><li><strong>Initial context</strong>：<code>contextLocked(true)</code>，含有效记忆、话题、任务、最近 12 条消息及查询工具名。</li><li><strong>记忆变化</strong>：若有高于本段水位的非候选条目，按 revision 升序追加，可能与初始有效记忆重叠。</li><li><strong>当前成员原话</strong>：仅封装这条消息的 <code>id / actor / text</code>，正文在这一步不做 1,800 字符截断。</li></ol></div><div class="context-block"><h4>原先有什么 / 完成后去哪</h4><p>有继承的原生环境；没有 S1 的旧聊天，也没有自动导入 P0。文件需由模型实际读取。</p><p>助手输出、工具调用和结果留在 S1 原生历史；Core 收集非 commentary 的助手输出，追加为 C1 共享回答。工具日志不会逐条变成共享聊天消息。</p><p><strong>初始快照是记录末尾。</strong>它可能已经含本条原话，甚至含已落盘、仍在排队的后续消息；模型仍应以最后的“当前成员消息”为本轮请求。</p></div></div>
+<details><summary>展开本轮文本骨架</summary><pre class="payload">[teamcross-shadow-run:run-demo-1]
+&lt;rolePrompt 的完整文本&gt;
 
-<section id="routing">
-<h2>主 Session 在理解这句话时维护话题</h2>
-<p>每条消息都先进入 <strong>C1 当前的主 Session</strong>。不需要先猜出属于 T1 还是 T2，才能知道该发给谁。话题识别服务于找资料、保留待办和组织回答；识别错了可以修正，不会导致消息被送到一个完全不同的聊天现场。</p>
-<div class="flow"><div><b>① 原文先落盘</b><span>分配消息 ID，保留顺序与实际投递状态。</span></div><div><b>② 当前 Session 理解</b><span>结合近期对话、当前焦点和未决事项解读输入。</span></div><div><b>③ 必要时回查</b><span>从话题索引和历史原文找到“刚才那个”的依据。</span></div><div><b>④ 回答并更新状态</b><span>新增、恢复或合并话题；记录实际答了什么。</span></div></div>
-<div class="two"><div class="panel"><h3>主模型可参考的线索</h3><ul class="stack"><li><strong>指代与显式语义</strong><span>“那……呢”“回到刚才”“顺便问”“先放一放”“不是那个”。</span></li><li><strong>目标与对象</strong><span>继续核实相同结论、修改同一产物，或者提出另一目标。</span></li><li><strong>最近焦点和未决项</strong><span>最近讨论什么、哪些要求未处理；时间近只作为辅助线索。</span></li></ul></div><div class="panel blue"><h3>后台可以同时保存</h3><ul class="stack"><li><strong>焦点：T2 发布流程</strong><span>本轮正在回答；包含材料版本与证据入口。</span></li><li><strong>T1 恢复逻辑：暂放，尚有未决项</strong><span>原始问题、未查完的取消审批路径及消息锚点。</span></li><li><strong>约束：只分析，不修改</strong><span>用户明确约束的原文独立保留，不因换话题失效。</span></li></ul></div></div>
-<p>主模型在同一轮的受控状态写入动作中提出话题变更，不必每句话先启动分类模型。Core 保存原始输入与状态版本，保留未被覆盖的要求；语义完成状态需要回答或证据锚点，工具成功与投递成功以真实事件为准。</p>
-<div class="note"><strong>自然交流仍可能需要内容澄清。</strong>“那个审批”可能指两件事时先检索；仍不清楚时自然问“你指恢复时的审批，还是发布审批？”用户不需要选择“新问题 / 追问”。可逆的小范围分析可以说明理解后继续；不能凭猜测扩大访问或执行范围。</div>
-<p>用户说“不是，我指发布那个”时，修正焦点和话题关联，保留纠正记录，不因此丢弃整个 Session；错误答案已经给出就明确更正。转聊 B 不自动取消未完成的 A；“先放一放”“不用继续”等表达才改变对应状态。</p>
-<h3 id="delivery">送达和手动重发</h3>
-<p>分身所在 Mac 的 Core 持久接收后才显示<strong>“已送达”</strong>，不代表模型已经回答。发送失败保留内容并显示<strong>“重发”</strong>按钮；不增加云端信箱、定时重试或联网后自动发送。</p>
-<p>重发复用原消息 ID 与内容，接收端返回已有接收状态，不重复启动模型或后台任务。回执丢失也按同一 ID 核对；若原生投递结果不明，先查状态，不直接再执行。用户编辑内容后发送属于新消息。</p>
+Initial context (service data):
+&lt;完整状态快照；字段在下方逐项解释&gt;
+
+Memory changes since this segment last saw them ...:
+&lt;仅在有变化时插入 Memory 数组&gt;
+
+Current member message; preserve its text and authorship:
+{"id":"msg-B1","actor":{"id":"B","name":"成员 B"},
+ "text":"只解释恢复流程，不修改文件。"}</pre><p>“首次”判断还会检查本段是否已有成功完成的 main / bootstrap 轮；没有记忆时也不会因此每轮重复初始化。失败重试等边界下仍以该判断为准。</p></details>
+<p class="source-note">依据：<a href="../../../../internal/shadow/context.go">messagePrompt / contextLocked</a>、<a href="../../../../internal/shadow/native.go">finishRunLocked</a>。</p>
+</div>
+
+<div class="context-view" id="context-followup" role="region" aria-labelledby="context-followup-title" hidden>
+<p class="context-meta">继续当前 S1 或 S2 · Run.kind = main · 每条成员消息一轮</p>
+<h3 id="context-followup-title">主段续聊：沿用本段历史，只补记忆变化与新原话</h3>
+<div class="context-columns"><div class="context-block"><h4>本次新增，按这个顺序</h4><ol><li><strong>记忆变化（有则追加）</strong>：筛选 <code>state != candidate</code> 且 <code>revision &gt; segment.memoryRevision</code> 的当前条目，按 revision 升序发送。</li><li><strong>当前成员原话</strong>：<code>id / actor / text</code>。作者 B 换成 C，仍然是当前同一个主 thread。</li></ol><p>这里不重新发送 rolePrompt、完整任务表、完整话题表或最近 12 条消息。<strong>记忆变化也不是完整修改日志</strong>：同一 ID 只保存并发送当前最新版本。</p></div><div class="context-block"><h4>原先有什么 / 什么不会自动更新</h4><p>原生窗口里已有本段此前的交流、工具结果或压缩后保留内容。早先读过的任务状态只是当时的值，不会随 Core 数据变化自动刷新。</p><p>需要新状态时调用 <code>shadow_recall</code> / <code>shadow_task status</code>；需要旧证据时调用 <code>shadow_history</code>。</p><p>forgotten 变化提示停止使用旧值，但不会删除窗口里早先出现的原话或工具返回。</p></div></div>
+<details><summary>展开一次“纠正后继续问”的输入</summary><pre class="payload">[teamcross-shadow-run:run-demo-2]
+Memory changes since this segment last saw them (forgotten means stop using the old value):
+[{"id":"mem-B1","text":"发布说明默认中英双语",
+  "scope":"member","subjectId":"B","sourceIds":["msg-B2"],
+  "revision":7,"state":"active","updatedAt":"2026-10-22T09:00:00+08:00"}]
+
+Current member message; preserve its text and authorship:
+{"id":"msg-C1","actor":{"id":"C","name":"成员 C"},
+ "text":"刚才提到的取消审批，是在哪一步核对的？"}</pre><p>主模型同时知道“B 的偏好更新了”与“当前是 C 在提问”，不能把 B 的偏好变成 C 的个人偏好。没有变化时，整段 Memory changes 都不出现。</p><p>水位是 Core 的账本值：main / result 结束时记录该轮提交时的 revision；S2 确认接手、提交 current 切换时，以当时的全局 revision 设置新段水位。它不是模型逐条确认读懂的回执。</p></details>
+<p class="source-note">依据：<a href="../../../../internal/shadow/context.go">messagePrompt</a>、<a href="../../../../internal/shadow/native.go">finishRunLocked · main / result</a>。</p>
+</div>
+
+<div class="context-view" id="context-worker" role="region" aria-labelledby="context-worker-title" hidden>
+<p class="context-meta">首次新建 W；改版 / 接续沿用同一 W · Run.kind = job</p>
+<h3 id="context-worker-title">W：拿任务包开工，独立积累自己的执行历史</h3>
+<div class="context-columns"><div class="context-block"><h4>本次新增，按这个顺序</h4><ol><li><strong>工作者专用约定</strong>：按实际授权调查或修改；默认只读，沿用已有证据，避免重复副作用；最终给证据与不确定项。</li><li><strong>Original member request</strong>：<code>J.sourceId</code> 对应的完整 Message，含作者、正文、状态、时间及已有轮次字段。</li><li><strong>Task and version</strong>：完整 Job，包含 prompt、sourceId、version、状态、已有 result 和事件字段（有值时）。这里不按 1,200 / 1,600 字符截断。</li><li><strong>Relevant conversation state</strong>：<code>contextLocked(false)</code>，有有效记忆、话题和任务投影，<strong>没有 recentMessages</strong>。</li></ol></div><div class="context-block"><h4>原先有什么 / 完成后去哪</h4><p>首次 W 没有 S1 全历史；更新或接续同一任务时，它保留自己的原生执行历史。每次重新派发还会再附上这份任务包和当时的状态投影。</p><p>任务更新后，<code>sourceId</code> 会指向那次修改要求的成员消息。原来的全部约束需靠任务 prompt、W 自己的历史、话题记录或按需回读保留。</p><p>W 的最终输出先成为 <code>J.result</code>；完整工具过程留在 W / 归档里。S1 → S2 不会把 W 换成另一条 thread，也不会把主段的新对话实时推给 W。</p></div></div>
+<details><summary>展开任务包里最关键的具体内容</summary><pre class="payload">Original member request:
+&lt;msg-B3 的完整 Message：B 请调查恢复路径，明确不修改文件&gt;
+
+Task and version:
+{
+  "id":"job-1","title":"核对取消审批后的恢复路径",
+  "prompt":"检查 native.go 的恢复与核对分支；只读。保留 msg-B1 的不修改文件约束。给函数位置、已确认行为及未验证项。",
+  "sourceId":"msg-B3","version":1,"runningVersion":0,
+  "state":"queued",
+  "createdAt":"2026-10-22T09:02:00+08:00",
+  "updatedAt":"2026-10-22T09:02:00+08:00"
+}
+
+Relevant conversation state:
+&lt;contextLocked(false) 的完整 JSON，不含最近消息&gt;</pre><p>此例模拟第一次提交前的 Job，所以可能仍是 queued、尚无 threadId。<code>msg-B1</code> 和 <code>native.go</code> 都只是线索；W 要取得它们的正文仍需查询或读文件。派发 prompt 上限为 24 KiB，主模型应把关键约束直接写清。</p></details>
+<p class="source-note">依据：<a href="../../../../internal/shadow/context.go">workerPromptLocked</a>、<a href="../../../../internal/shadow/tools.go">shadow_task / scheduleJobs</a>。</p>
+</div>
+
+<div class="context-view" id="context-steward" role="region" aria-labelledby="context-steward-title" hidden>
+<p class="context-meta">每次新建 CM 短 thread · Run.kind = steward · 结构化输出</p>
+<h3 id="context-steward-title">CM：只拿这次检查材料，判断 compact 还是 switch</h3>
+<div class="context-columns"><div class="context-block"><h4>本次新增，按这个顺序</h4><ol><li><strong>管家专用约定</strong>：只给 JSON，不使用工具、不执行用户任务；比较要求、已答内容、未决项和任务状态；换话题本身不构成换段理由。</li><li><strong>当前 Segment JSON</strong>：包括 ID、段号、记忆水位、inputTokens、usageValid、contextWindow、compactions 和 lastCheckTokens 等。</li><li><strong>状态投影</strong>：<code>contextLocked(true)</code>，包含最近 12 条消息、有效记忆、未结束话题和任务摘要。</li></ol><p>输出 schema 只接受 <code>action: compact | switch</code> 与 <code>reason</code>。</p></div><div class="context-block"><h4>原先有什么 / 判断依据的边界</h4><p>没有上一次 CM 的聊天，也没有自动复制 S1 的完整原生历史或原生压缩摘要。它能比较的“原始要求”，实际只来自本次给到的近期消息及结构化状态。</p><p><strong>较早的要求若既不在近期消息里，又没记入话题 / 任务等状态，就可能不在 CM 的检查材料中。</strong>提示词要求全面判断，并不等于输入已覆盖全部历史。</p><p>Core 核对段 ID、压缩代次和消息数量后采用建议；不是 CM 自己压缩或迁移。结果不作为共享答复发布。</p></div></div>
+<details><summary>展开 Segment 字段与 CM 输出示例</summary><pre class="payload">&lt;管家说明&gt;
+{
+  "id":"S1","number":1,"createdAt":"2026-10-22T08:00:00+08:00",
+  "memoryRevision":7,"inputTokens":141000,"usageValid":true,
+  "contextWindow":200000,"compactions":1,"lastCheckTokens":0
+}
+&lt;contextLocked(true) 的完整 JSON&gt;
+
+期望输出示例：
+{"action":"compact","reason":"相关任务仍未完成，先保留当前段并进行原生压缩。"}</pre><p>以上数字仅用于读懂字段，不是当前真实用量。<code>inputTokens</code> 这个字段实际记录原生最近一次上报的输入 + 输出用量。CM 的本轮 JSON 输入没有直接附带原生压缩摘要正文。</p></details>
+<p class="source-note">依据：<a href="../../../../internal/shadow/context.go">maintenance / finishStewardLocked</a>、<a href="../../../../internal/shadow/types.go">Segment</a>。</p>
+</div>
+
+<div class="context-view" id="context-memory" role="region" aria-labelledby="context-memory-title" hidden>
+<p class="context-meta">每次新建 M 短 thread · Run.kind = memory · 结构化输出</p>
+<h3 id="context-memory-title">M：读一批新消息和近期记忆，提出可确认的候选</h3>
+<div class="context-columns"><div class="context-block"><h4>本次新增，按这个顺序</h4><ol><li><strong>整理专用约定</strong>：最多 6 个耐久记忆候选；不用工具；临时任务不当长期记忆；不复活已忘掉或被纠正的内容；引用本批次精确消息 ID。</li><li><strong>batch</strong>：从 <code>memoryWatermark</code> 后开始取最早的未处理消息，至多 20 条，每条正文裁到 2,400 字符；成员消息和共享助手答复都可能出现。</li><li><strong>existing</strong>：按 revision 从新到旧取最多 30 条 Memory，<strong>包含 active / candidate / forgotten</strong>，不是主段用的仅有效记忆快照。</li></ol><p>它不调用 <code>contextLocked</code>；没有默认附上完整任务表、话题表、W 的工具日志或 S1 原生长历史。</p></div><div class="context-block"><h4>原先有什么 / 完成后去哪</h4><p>每次都是新 M，没有上一批 M 的对话历史。默认空闲 45 秒且至少新增 4 条 Record.Messages 后才开始；这不是“4 个用户问题”。</p><p>Core 验证候选结构、批内来源、成员归属，以及运行期间记忆 revision 是否改变。通过后才存为 candidate 并推进水位。</p><p>候选可在共享视图 / recall 中读到；不会自动进入主段的有效记忆快照。<strong>M 输出成功不等于主段下一轮就把它当作已确认事实。</strong></p></div></div>
+<details><summary>展开 M 的输入形状与输出形状</summary><pre class="payload">&lt;记忆整理说明&gt;
+{
+  "batch": [&lt;完整 Message 对象，最多 20 条；这里只省略正文示例&gt;],
+  "existing": [&lt;完整 Memory 对象，最多 30 条，包含各状态&gt;]
+}
+
+候选输出示例：
+{"candidates":[{
+  "text":"成员 B 偏好简短的说明",
+  "scope":"member",
+  "sourceIds":["msg-B4","msg-B5"]
+}]}</pre><p>模型只输出 text / scope / sourceIds；<code>subjectId、id、revision、state、updatedAt</code> 由 Core 核对后赋值。member 来源必须都是该成员的 user 消息；space 候选的来源也必须位于本批次。</p><p>这里有两种单位：批次原文按 2,400 个 Unicode 字符截断；候选正文落盘校验为不超过 2,400 <strong>字节</strong>。existing 没有套用 8,000 字符合计预算。</p></details>
+<p class="source-note">依据：<a href="../../../../internal/shadow/context.go">maintenance / finishMemoryLocked</a>。</p>
+</div>
+
+<div class="context-view" id="context-checkpoint" role="region" aria-labelledby="context-checkpoint-title" hidden>
+<p class="context-meta">沿用旧 S1 · Run.kind = handoff · 内部轮次</p>
+<h3 id="context-checkpoint-title">S1 写交接：利用自己已有的历史，整理一份接手笔记</h3>
+<div class="context-columns"><div class="context-block"><h4>本次新增，按这个顺序</h4><ol><li><strong>交接专用约定</strong>：不使用工具、不改文件、不回答新问题；保留未决要求、精确限制与纠正、已验证结论和证据锚点、暂放话题、后台任务 ID / 版本 / 状态；区分事实和猜测。</li><li><strong>Core's durable state</strong>：当时的 <code>contextLocked(true)</code>，补上最新持久状态与近期消息。</li></ol><p>只要求返回 checkpoint 文本；没有强制固定章节或 JSON schema。笔记内容由主模型根据现有上下文生成。</p></div><div class="context-block"><h4>原先有什么 / 完成后去哪</h4><p>S1 已拥有自己的原生上下文，包括此前普通交流、读取过的文件 / 工具结果，以及压缩后保留内容。较早细节若已不在窗口里，不会因为“写交接”自动重新完整加载。</p><p>输出进入 <code>transition.checkpoint</code>，接手提交后也留在旧 Segment；它不是一条 C1 共享助手答复。</p><p>Core 保存笔记全文；送给 S2 时只取前 12,000 字符。写笔记和 S2 接手各自重新取一次状态快照，两次内容可能不同。</p></div></div>
+<details><summary>一份合适的交接笔记应携带哪些具体线索？</summary><pre class="payload">示意内容；不是代码强制的固定格式：
+- 未决要求：B 要解释取消审批后的恢复路径；来源 msg-B3。
+- 约束：只读、不修改文件；原始来源 msg-B1，后续未撤销。
+- 已核对：恢复用准确 thread ID；证据为已读的函数与 item 锚点。
+- 尚不确定：实际断线时序还没有真实模型回放证据。
+- 后台任务：job-1 v1 正在 W1 执行；不要重复派发。
+- 暂放话题：C 的发布回滚问题仍待展开；来源 msg-C1。</pre><p>这是让 S2 快速理解“为什么要做、做到哪里”的模型整理。当前的 jobs / topics / memories 则提供可核对的结构化状态，两者用途互补。</p></details>
+<p class="source-note">依据：<a href="../../../../internal/shadow/context.go">advanceTransition · note</a>、<a href="../../../../internal/shadow/native.go">finishRunLocked · handoff</a>。</p>
+</div>
+
+<div class="context-view" id="context-handoff" role="region" aria-labelledby="context-handoff-title" hidden>
+<p class="context-meta">新建 S2 · Run.kind = bootstrap · 接手成功后再处理成员输入</p>
+<h3 id="context-handoff-title">S2 接手：用笔记与当前快照建立一段新的上下文</h3>
+<div class="context-columns"><div class="context-block"><h4>本次新增，按这个顺序</h4><ol><li><strong>完整 rolePrompt</strong>：再次建立分身角色约定。</li><li><strong>接手说明</strong>：这是同一共享对话的内部交接，不是新的用户请求；此轮不执行待办，不使用工具。</li><li><strong>Previous checkpoint</strong>：S1 生成的交接笔记，前 12,000 字符。</li><li><strong>Current durable state</strong>：重新取 <code>contextLocked(true)</code>，有当前有效记忆、话题、任务与最近 12 条原话。</li></ol><p>本轮只回复 <code>HANDOFF_READY</code>；核对成功后 Core 原子更新 current，排队成员消息才以普通续聊形式进入 S2。</p></div><div class="context-block"><h4>原先有什么 / 哪些没有复制</h4><p>S2 是新的原生 thread，只有原生环境和本次接手材料；没有复制 S1 的每次工具调用、整段文件内容或完整长历史。它也没有继承 W 的执行栈。</p><p>接手材料和 HANDOFF_READY 成为 S2 自己的历史。接下来的普通成员轮不会再次装入整套快照。</p><p>旧证据仍可通过 <code>shadow_history</code> 查回，但需要模型主动查询；当前输出上限和字面匹配也可能使一次查询不足。</p></div></div>
+<details><summary>展开接手输入骨架</summary><pre class="payload">[teamcross-shadow-run:run-demo-bootstrap]
+&lt;rolePrompt&gt;
+&lt;同一共享对话的接手说明；只回复 HANDOFF_READY&gt;
+
+Previous checkpoint (data):
+&lt;S1 笔记的前 12,000 字符&gt;
+
+Current durable state (data):
+&lt;重新获取的 contextLocked(true) 完整 JSON&gt;
+
+期望输出：HANDOFF_READY</pre><p>这里的“当前状态”与交接笔记一起出现，但并不是实时数据库连接。后续变化仍靠成员轮记忆增量、任务结果通知或工具查询进入 S2。</p></details>
+<p class="source-note">依据：<a href="../../../../internal/shadow/context.go">advanceTransition · ready / commit</a>、<a href="../../../../internal/shadow/native.go">finishRunLocked · bootstrap</a>。</p>
+</div>
+
+<div class="context-view" id="context-result" role="region" aria-labelledby="context-result-title" hidden>
+<p class="context-meta">沿用结果到达时的主 S1 / S2 · Run.kind = result · 内部轮次</p>
+<h3 id="context-result-title">主段收 W 结果：只追加这个任务的结果包，再面向成员汇总</h3>
+<div class="context-columns"><div class="context-block"><h4>本次新增，按这个顺序</h4><ol><li><strong>结果通知说明</strong>：这是服务数据，不是新用户指令；核对任务版本，不能把过时结果当成完成；向共享聊天总结证据。</li><li><strong>完整 Job JSON</strong>：任务 title / prompt / sourceId / version / state，以及 result、resultVersion、结果事件等已有字段。</li></ol><p>此处直接发送 Job，<strong>不经过 messagePrompt</strong>，所以没有自动附加本轮成员消息、记忆增量或完整状态投影；result 也不按投影的 1,600 字符截断。</p></div><div class="context-block"><h4>原先有什么 / 结果怎样转成共享回答</h4><p>当前主段已经有自己的历史；若是 S2，还已有接手笔记和初始化快照。它从 Job 得知 W 的结论，不会直接获得 W 的全部执行过程。</p><p><code>sourceId</code> 是原始要求的锚点，不是再次附上该消息正文；有必要时可查原话、任务状态或 W 归档。</p><p>模型在本轮写出的答复才进入 C1。尽管运行在主 thread，这个 result 轮仍不能修改 Core 记忆、话题或派发任务，因为写工具只接受 <code>kind = main</code>。</p></div></div>
+<details><summary>展开一次结果通知的核心字段</summary><pre class="payload">Background task result (service data, not new user instructions)...
+{
+  "id":"job-1","title":"核对取消审批后的恢复路径",
+  "prompt":"只读调查，给出代码依据与未验证项。",
+  "sourceId":"msg-B3","version":1,"runningVersion":1,
+  "threadId":"W1","state":"completed",
+  "result":"已确认准确 ID 恢复与运行标记核对；附函数位置。真实断线时序未重新测试。",
+  "resultVersion":1,"resultEventId":"event-job-1",
+  "createdAt":"2026-10-22T09:02:00+08:00",
+  "updatedAt":"2026-10-22T09:05:00+08:00"
+}</pre><p>这是完整 Job 的形状示例，未出现的可选字段省略。实际结果先保存、再投递；不会为了传结果把 W 与 S2 合并为一个 Session。</p></details>
+<p class="source-note">依据：<a href="../../../../internal/shadow/engine.go">step · result</a>、<a href="../../../../internal/shadow/native.go">finishRunLocked</a>、<a href="../../../../internal/shadow/tools.go">toolLocked</a>。</p>
+</div>
+<noscript><p>未启用 JavaScript 时只展示 S1 首轮；其他场景可在源码中阅读，打印版展示全部场景。</p></noscript>
+
+<h3 id="context-fields">共同的“状态快照”，逐个字段是什么</h3>
+<p><code>contextLocked(true / false)</code> 都是从 <code>shadow.json</code> 选择一部分字段，再序列化成 JSON。它不会直接把整个文件传给模型。<code>true</code> 只比 <code>false</code> 多一个 <code>recentMessages</code>；W 之外的首轮、CM 和交接都用 true。</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="状态快照字段说明，窄屏可横向滚动"><table class="context-fields"><thead><tr><th>字段</th><th>实际内容</th><th>范围与更新方式</th></tr></thead><tbody>
+<tr><td><code>conversationId / spaceId</code></td><td>当前分身对话和所属空间的 ID。</td><td>用于指明数据归属；不包含整个空间的材料、其他分身聊天或成员档案正文。</td></tr>
+<tr><td><code>memories / memoryRevision</code></td><td>当前有效记忆对象，以及全局记忆版本号。条目含 id、text、scope、sourceIds、revision、state、updatedAt；member 条目另有 subjectId。</td><td>只取 active，按 revision 从新到旧；正文合计最多 8,000 字符，遇到下一项放不下即停止。8,000 不包含 JSON 元数据，版本号也可能大于实际装入条目的版本。</td></tr>
+<tr><td><code>topics / totalTopics</code></td><td>话题的 id、goal、state、constraints、sourceIds；总数含已结束项。</td><td>最多 30 个 state != completed 的话题，按 ID 排序，不按语义相关度排序。只有主模型实际调用 shadow_topics 才会有记录。</td></tr>
+<tr><td><code>jobs / totalJobs</code></td><td>任务对象，含目标、来源、版本、W ID、状态、结果与事件字段；总数含投影中未展示的任务。</td><td>全部非终态任务 + 最多 8 个终态任务；终态按<strong>创建时间</strong>选最新 8 个，不是按完成时间。每项 prompt 取 1,200 字符，result 取 1,600；其他字段仍在。</td></tr>
+<tr><td><code>recentMessages</code><br>仅 true</td><td>完整 Message 的字段：id、actor、role、text、state、replyTo、segmentId、turnId、error、时间；可选字段有值才出现。</td><td>Record.Messages 最后 12 条，每条 text 取 1,800 字符；成员与共享助手消息混合，不过滤 delivered / submitted / failed 等状态。不是最近 12 个用户问题，也不是原生最近 12 个工具 item。</td></tr>
+<tr><td><code>historyTool / memoryTool</code></td><td>字符串 <code>shadow_history / shadow_recall</code>。</td><td>告诉模型如何补查；工具名不会自动展开历史或记忆全文。</td></tr>
+</tbody></table></div>
+<details><summary>展开一个具体快照，以及它没有包含的字段</summary>
+<pre class="payload">{
+  "conversationId":"C1","spaceId":"space-demo",
+  "memoryRevision":7,
+  "memories":[{
+    "id":"mem-B1","text":"发布说明默认中英双语",
+    "scope":"member","subjectId":"B","sourceIds":["msg-B2"],
+    "revision":7,"state":"active","updatedAt":"2026-10-22T09:00:00+08:00"
+  }],
+  "topics":[{
+    "id":"topic-recovery","goal":"解释取消审批后的恢复路径",
+    "state":"active","constraints":["只读，不修改文件"],
+    "sourceIds":["msg-B1","msg-B3"]
+  }],
+  "jobs":[],"totalJobs":0,"totalTopics":1,
+  "historyTool":"shadow_history","memoryTool":"shadow_recall",
+  "recentMessages":[{
+    "id":"msg-B3","actor":{"id":"B","name":"成员 B"},
+    "role":"user","text":"继续查一下取消审批后的恢复路径。",
+    "state":"delivered","createdAt":"2026-10-22T09:02:00+08:00"
+  }]
+}</pre>
+<p>示例是任务尚未创建时的状态。快照里没有完整 <code>runs / toolResults / segments / transition</code> 账本，没有配置文件内容、全部历史文件或共享空间材料。CM 另附一个当前 Segment；S2 另附交接笔记，不能把这两份特殊输入误认为所有快照共有。</p>
+<p>快照在组装时取值，提交前后状态可能继续推进。正文截断按 Unicode rune 计，并在截断时补省略号；JSON 元数据、工具结果、完整任务包及记忆增量另算。<strong>这些局部限额不构成一次模型调用的总 token 上限。</strong></p>
+</details>
+
+<h3 id="context-tools">模型“知道可以查”与“已经看过”之间，还有一次工具调用</h3>
+<div class="two"><div class="panel blue"><h3>查询工具返回什么</h3><ul class="stack"><li><strong>shadow_recall</strong><span>按 query 对记忆正文作不区分大小写的子串匹配，最新最多 50 条，含候选与 forgotten；还返回完整任务列表、话题与当前 revision。按非空文字搜索时，正文已清空的 tombstone 可能匹配不到。</span></li><li><strong>shadow_task · status</strong><span>返回当前全部 Job；不套用状态投影中的 1,200 / 1,600 字符截断。</span></li><li><strong>shadow_history</strong><span>搜索本分身共享消息与各 thread 的原生 item 归档，含旧段和 W。按文本子串或消息 / item ID 匹配，最新 20 项，每项最多 8,000 字符；没有自动的整段前后文扩展。</span></li></ul></div><div class="panel"><h3>哪些轮次能调用</h3><p>所有新建 thread 都注册相同的 5 个 shadow 工具。Core 对活动轮次开放以上读查询；只有 <code>kind = main</code> 的成员输入轮，才可修改记忆、话题或任务，并进一步核对来源、作者与版本。</p><p>因此，<strong>“在主 Session 中”不等于“本轮有写 Core 状态的权限”</strong>：result / handoff / bootstrap 也会被写工具拒绝。W 同样不能用 shadow_task 再派发 J。</p><p>CM、M、交接和接手提示词要求不使用工具；这不是撤销它们的全部原生工具。实际原生能力仍按本机配置与审批规则生效。</p></div></div>
+<p>Core 以 <code>contentItems: [{type: inputText, text: JSON结果}]</code> 回传动态工具结果，由 Codex 继续工具循环。结果进入<strong>调用它的那个 thread</strong>；不会向其他 thread 实时广播。另一个 Session 需自己查、等下次快照，或通过专门的结果通知得到它。</p>
+<p class="source-note">依据：<a href="../../../../internal/shadow/tools.go">dynamicTools / handleTool / toolLocked / historyLocked</a>。当前工具结果的限额与快照不同，不能据“快照有界”推导“全部工具输出都很短”。</p>
+
+<h3 id="context-persistence">原生压缩、换段与重启，对上下文分别做什么</h3>
+<div class="two"><div class="panel"><h3>原生压缩：仍是同一个 S1</h3><p>Core 调 <code>thread/compact/start</code>，没有附上自己的摘要提示词；具体压缩内容与保留规则由 Codex 处理。Core 不会在压缩后自动把完整 rolePrompt / 状态快照重发一遍。</p><p>对比换段：S2 的 Core 输入明确包含“角色 + S1 笔记 + 当前投影”，而压缩后的具体窗口不能用这个配方代替说明。</p></div><div class="panel"><h3>重启恢复：恢复原 ID，不另做一份摘要</h3><p>Core 调 <code>thread/resume</code> 恢复准确的主段、需要恢复的 W / 活动轮次，显式传入并核对创建时固定的模型设置；由原生恢复该 thread 的上下文，再核对 turn ID 或运行标记。</p><p>它不会把整个 shadow.json 重新灌进一个新 thread，也不把“重连”当成“重放用户问题”。磁盘上的共享记录、原生归档和模型当前窗口始终是不同层。</p></div></div>
+<div class="key"><strong>用一条约束检验这个设计：</strong>B 说“只解释，不修改文件”。S1 先从原话知道它；W 需要从来源消息、任务 prompt 或查询中得到它；CM 只能看到本次检查材料里保留下来的部分；S2 依赖交接笔记、话题 / 任务状态、近期原话或主动回读。M 应把它视为临时任务约束，而非自动提升成 B 永久不允许修改文件的个人记忆。</div>
+<p class="source-note">依据：<a href="../../../../internal/shadow/context.go">context.go · compact / advanceTransition</a>、<a href="../../../../internal/shadow/native.go">native.go · restore / reconcileRuns</a>。以上说明输入机制，不承诺模型一定完整保留、正确理解或主动检索每一条约束。</p>
 </section>
 
 <section id="walkthrough">
-<h2>上下文里放什么，什么时候真正换 Session？</h2>
-<div class="two"><div class="panel blue"><h3>S1 每轮可使用的内容</h3><ol class="stack"><li><strong>稳定前缀</strong><span>分身身份、工具契约、原生有效权限、当前段冻结的少量记忆与索引。</span></li><li><strong>原生会话历史</strong><span>近期消息、短工具结果、当前交接或压缩摘要，由原生运行时组织。</span></li><li><strong>当前对话与任务状态</strong><span>焦点、活跃话题、未决事项、纠正，以及 J1 / J2 的版本、状态和结果入口。</span></li><li><strong>本轮按需取回的材料</strong><span>相关记忆、工作 Agent 结论、旧段消息和证据片段；先选范围再取原文。</span></li><li><strong>本轮用户新消息</strong><span>一条消息可以同时推进多件事，原文不能只剩主题标签。</span></li></ol></div><div class="panel"><h3>保存在主上下文之外的内容</h3><ul class="stack"><li><strong>各段原始记录与工作上下文</strong><span>W1 的长日志、代码阅读和工具事件保存在自己的记录中，带可回读锚点。</span></li><li><strong>全部话题和任务记录</strong><span>当前只带必要状态；后台工作不因主会话换段消失。</span></li><li><strong>完整记忆库和变更记录</strong><span>偏好、适用范围、来源、版本、纠正和失效状态。</span></li><li><strong>大型资料与日志</strong><span>不整份常驻；优先截取相关范围，必要时回到原文。</span></li></ul><p class="small">记录存得很多，不代表每次都发给模型。追加一句“请忽略旧内容”也不等于已经释放旧上下文。</p></div></div>
-
-<h3 id="rules">换段由预算与工作边界共同决定</h3>
-<table><thead><tr><th>发生什么</th><th>主 Session 怎么处理</th><th>管家是否介入</th></tr></thead><tbody>
-<tr><td>普通追问、自然换话题、返回旧话题</td><td>上下文有余量时继续 S1，更新话题记录</td><td>不用每轮调用</td></tr>
-<tr><td>达到预判线，当前工作仍需紧密衔接</td><td>原生能力允许时原地压缩并继续 S1</td><td>用近期消息、未决项和真实工具状态判断</td></tr>
-<tr><td>达到预判线，当前工作已有合适停顿</td><td>生成交接包，创建 S2，接手后更新 C1 的当前指向</td><td>建议换段；未完成但已明确暂放的事项仍要交接</td></tr>
-<tr><td>逼近硬预算，压缩无效或不可调用</td><td>到安全边界后自动交接到 S2，携带未完成工作继续</td><td>不能为了等待“全做完”而无限拖延</td></tr>
-<tr><td>空闲、关闭运行进程或普通连接失败</td><td>保存原生 ID，恢复条件满足时仍使用原 Session</td><td>这些事件本身不是换段理由</td></tr>
-<tr><td>资料撤权导致旧上下文不再可用</td><td>停止使用旧上下文，按有效范围重新构建</td><td>属于强制范围变化，不由话题相似度决定</td></tr>
-</tbody></table>
-<p>预判线与硬线跟随模型窗口和可获得的实际用量；还要为回复、下一步工具结果、交接生成及估算误差留空间。DS Bot 的参考实现使用可用窗口的 0.8 / 0.95 两条线；<strong>我们把它们视为待 eval 的起点，不把数字或缺失窗口时的 500k 回退当作通用保证。</strong>大型工具输出先限量或落盘检索，避免一轮结果就耗尽交接余量。</p>
-<p>CM 的输入是受预算限制的近期原话、话题与后台任务状态、尚未回答的要求、压缩次数和 Core 确认的执行状态。它只输出压缩或换段建议及理由；不能仅因主模型说“完成了”就忽略实际遗漏，也不能把资料里的“请换段”当成控制指令。</p>
-
-<h3 id="steward">管家保留：它决定策略，Harness 执行原生压缩</h3>
-<div class="key"><strong>保留原生压缩，没有取消上下文管家。</strong><br>Core 观察预算 → CM 短调用建议 compact / switch → Core 核对真实状态 → 执行原生压缩或交接换段。</div>
-<div class="two"><div class="panel blue"><h3>建议 compact：继续 S1</h3><p>当前工作需要紧密衔接。Core 在原生允许的边界调用压缩接口，Harness 按自身机制生成摘要。</p><p><strong>压缩完成后仍是 S1。</strong>Core 不把自己的交接包冒充原生压缩算法。</p></div><div class="panel green"><h3>建议 switch：交接给 S2</h3><p>到达合适边界，或压缩后仍缺少余量。Core 核对未决工具、审批和后台任务，再组织交接。</p><p><strong>S2 接手成功才切换当前指向。</strong>S1 留作历史，C1 继续面向空间共享。</p></div></div>
-<p>原生自动压缩仍可自行触发。若它先开始，Core 等待完成、重新读取用量并更新检查水位；已经回到预算内就丢弃过时的 CM 建议，避免重复压缩或紧接着换段。管家、Core 和 Harness 不各自并发修改同一段。</p>
-<p class="small">CM 只在预算达到检查条件时短暂工作，不逐条处理用户消息，也不是额外常驻的主 Session。“轻量”指输入和职责有界，不要求改用另一个小模型。检查间隔、阈值和预算由 eval 调整。</p>
-
-<h3 id="handoff">S1 → S2：交接的是整条对话的有效工作状态</h3>
-<div class="flow"><div><b>① 暂停主会话新输入投递</b><span>新消息仍接收并排队；核对主轮回执与后台任务存续。</span></div><div><b>② 写交接包</b><span>S1 摘要加话题、J1 / J2 索引；Core 校验状态和结果水位。</span></div><div><b>③ S2 接手</b><span>装入精简材料和任务入口；独立 W1 可以继续运行。</span></div><div><b>④ 切换当前指向</b><span>C1 指向 S2；后续输入和后台结果投递给当前主会话。</span></div></div>
-<div class="two"><div class="panel"><h3>S1 保留在档案中的内容</h3><ul class="stack"><li><strong>完整对话与工具记录</strong><span>含被压缩掉的原文，后续仍可检索。</span></li><li><strong>探索过程和大块输出</strong><span>避免反复携带已经无关的查找记录。</span></li><li><strong>状态版本与交接边界</strong><span>明确交接覆盖到哪条消息，哪些输入尚未处理。</span></li></ul></div><div class="panel green"><h3>S2 开始时实际拿到的内容</h3><ul class="stack"><li><strong>当前有效身份、权限、工具与记忆快照</strong><span>缓存可用时稳定前缀；不搬入已经撤权的内容。</span></li><li><strong>所有未完成要求与用户关键约束</strong><span>T1 暂放的事项、T2 待补的内容都保留原话锚点。</span></li><li><strong>有效结论与当前焦点</strong><span>附来源和版本；未验证的仍明确标注。</span></li><li><strong>最近原话和历史检索入口</strong><span>让“刚才那个”仍有落点；更早细节按锚点回读。</span></li></ul></div></div>
-<p>一个主 Session 内可以有多个话题；同一个话题也可以跨越多段。压缩仍是 S1，真正换段才变成 S2。后台任务属于 C1，其原生执行端的存续和结果回传要单独验证；不会因为新建 S2 就假定它自动迁移。新话题数量不是创建 Session 的计数器。</p>
-<details><summary>原生能力边界与交接失败怎么处理</summary><p>DS Bot 能接管 DSH 的压缩过程。我们首版保留 Codex 原生自动压缩及摘要机制，由 CM 建议、Core 协调；不直接替换摘要或改写原生历史。落地前核对用量、显式压缩、恢复与日志读取，后续 Claude 单独适配。本次没有确认仓库已接入这些新能力。</p><p>主轮尚有未结束的同步工具、待处理审批或投递结果不明时，先完成、核对或明确中止相关操作，不能靠新 Session 重发。独立后台工作可以继续，但要保留执行端、权限等待和结果回传的准确归属；原生子 Agent 若绑定 S1，需验证父会话存续或改用独立工作 Session，不能直接销毁父执行端。CM 失败时，有余量就继续并稍后重试；余量不足时用落盘状态构造保底交接，包含未答要求、任务索引、近期原文、真实状态和来源入口。无法保证继续时明确暂停。</p><p>原生上下文已经溢出时，不再强行要求旧会话生成长摘要；使用最近有效检查点和之后的原始增量恢复。S2 接手失败则不提前切换指向。交接期间按消息及结果事件 ID 去重，恢复后先核对，不自动重复投递。</p></details>
+<span class="section-number">03 / 上下文维护与换段</span>
+<h2>CM 提建议，Core 选执行边界，Codex 做原生压缩</h2>
+<p>Core 用原生报告的最近一轮 <code>inputTokens + outputTokens</code> 和上下文窗口估算压力。默认保留窗口的 1/8，CM 检查线是剩余部分的 80%，所以约等于<strong>完整窗口的 70%</strong>；到 87.5% 会暂缓投入新消息。它不是累计账单 token。</p>
+<div class="budget" aria-label="默认预算比例示意：70% 开始考虑 CM 检查，87.5% 暂缓新输入，保留 12.5% 余量"><span class="room">正常续聊 · 0–70%</span><span class="check">检查区间</span><span class="reserve">预留</span></div>
+<div class="budget-labels"><span>70%：还需满足间隔与增长条件</span><span>87.5%：暂缓新输入</span><span>100%：窗口上限</span></div>
+<p class="small">这是默认参数示意，不是当前模型实际读数。检查至少间隔 15 秒，并以增长水位抑制重复判断；原生不报告窗口时不会猜一个值，继续依赖原生压缩。</p>
+<div class="two"><div class="panel blue"><h3>compact · 仍然用 S1</h3><p>在主轮与审批结束的边界调用 <code>thread/compact/start</code>，摘要由 Codex 原生生成。原生也可自行压缩；完成后递增压缩代次、清空旧用量，等新报告。</p></div><div class="panel green"><h3>switch · 交接到 S2</h3><p>先让 S1 写交接笔记，再创建 S2 接手。收到准确的 <code>HANDOFF_READY</code> 才原子更新 current；随后取消 S1 订阅，不删除原生历史。</p></div></div>
+<div class="flow"><div><b>① 暂停主段投递</b><span>新消息继续落盘并排队，独立 W 继续工作。</span></div><div><b>② S1 写交接</b><span>原生历史 + 当前持久状态，记录未完成项与来源。</span></div><div><b>③ S2 确认接手</b><span>笔记 + 最新状态，先完成内部接手轮。</span></div><div><b>④ 更新段指针</b><span>用户输入与任务结果交给当前 S2。</span></div></div>
+<p>CM 自身看到的是近期消息、未决话题、任务状态和段用量，不是 S1 的整份 transcript。段 ID、压缩代次或消息数变化后，旧建议作废；维护轮默认 90 秒超时，晚到建议忽略。逼近预留区时，CM 失败或输出无效会回退到原生压缩。</p>
+<details><summary>与早期设计不同：目前没有“任何情况下都自动救成新段”</summary><p>交接笔记失败会保留原段并记录错误；S2 接手失败会暂停。源码里没有旧页面所设想的通用“上下文已经溢出后，用外部检查点无模型重建 S2”兜底。DS-Bot 则有硬线/溢出时携带旧笔记和原话的 fallback 路径。两者的恢复可用性不能只按“都能换段”判断。</p></details>
+<p class="source-note">依据：<a href="../../../../internal/shadow/context.go">context.go · maintenance / advanceTransition</a>、<a href="../../../../internal/shadow/native.go">native.go · tokenUsage / contextCompaction / finishRunLocked</a>。</p>
 </section>
 
 <section id="memory">
-<h2>把“正在聊什么”与“以后也该记住什么”分开管理</h2>
-<table><thead><tr><th>内容</th><th>放在哪里</th><th>何时更新，如何再使用</th></tr></thead><tbody>
-<tr><td>“恢复逻辑还缺取消审批路径”</td><td>对话状态 / 话题记录</td><td>主 Session 随工作推进更新；换话题不丢失，换段时带走未决项。</td></tr>
-<tr><td>“当时看了哪段代码，结论是什么”</td><td>原始记录 + 阶段摘要</td><td>带消息和证据锚点保存；回到旧话题时检索并核对适用版本。</td></tr>
-<tr><td>“我的发布说明默认中文”</td><td>有范围的长期偏好</td><td>明确“记住”后受控写入，成功后确认；下一轮通过增量或 recall 可见。</td></tr>
-<tr><td>“某个代码版本的恢复路径有某行为”</td><td>有证据的知识条目</td><td>记忆整理提出候选，保存来源版本；代码变化后重新核实。</td></tr>
-<tr><td>模型推断的个人偏好 / 团队决定</td><td>候选记录 / 待确认材料</td><td>不能自动升格为本人确认或团队共识；普通对话也不能扩展授权范围。</td></tr>
-</tbody></table>
-<h3>两条写入路径，共用一个版本化存储</h3>
-<div class="two"><div class="panel blue"><h3>明确请求：当前 Session 立即处理</h3><p>“记住……”“以后改成……”“忘掉……”由当前 S1 / S2 理解，并调用受控记忆写入。Core 核对作用范围、来源、版本和操作结果。</p><p class="small">不能先说“已保存”再等后台有空；写入失败就说明失败。用户更新偏好时保留新旧关系，检索优先当前有效条目。</p></div><div class="panel"><h3>隐含经验：空闲后由 M 批量整理</h3><p>M 读取上次水位之后的新增对话、证据及相关旧条目，提出保留、修改或删除建议。Core 验证后串行写入，成功才推进处理水位。</p><p class="small">新消息到达时优先主对话，整理可延后。重复整理按来源 ID 去重；冲突重读版本，不用模型摘要覆盖用户明确纠正。</p></div></div>
-<div class="key"><strong>稳定前缀 + 最新增量 + 按需 recall。</strong><br>段开始时冻结少量记忆与索引，尽量保留缓存收益；段内新增或纠正的记忆通过下一轮增量或读取工具可见。不能等换段后才生效，也不需要每轮重写整份系统提示词。</div>
-<p>通过 Core 查到记忆后，核对所属对话或空间、来源权限、代码版本及失效状态。Core 管理的私人对话、空间与团队材料各有范围，不因 Bot 身份相同就自动合并。全量继承的原生自动记忆、hooks 和 MCP 按本机原有方式运行，这套范围检查不等于将它们全部隔离；也不把 P0 的完整 transcript 自动当作分身启动上下文。</p>
-<p>每条偏好还要记录是谁表达、适用于谁、哪些对话可以使用。同事在自己的私聊里说“以后默认中文”，不能直接改写分身所有者的全局偏好；个人聊天中的推测也不能成为其他参与者可见的团队决定。</p>
-<p>“忘掉”或资料撤权不仅影响未来检索，还要使派生摘要与已加载上下文失效；必要时自动重建新段。停止使用某条记忆与删除原始聊天记录是不同操作，需要分别说明保留范围；已经发送给接收者的答案不能靠重建 Session 撤回。普通代码版本变化则标记相应事实待核实，保留讨论历史，不因版本号变化就一律另起聊天。</p>
+<span class="section-number">04 / 记忆的生成与生效</span>
+<h2>明确要求直接保存；后台整理只提候选</h2>
+<div class="two"><div class="panel blue"><h3>路径 A · 成员明确说“记住 / 改成 / 忘掉”</h3><ol><li>当前主模型识别请求，调用 <code>shadow_remember</code>。</li><li>Core 校验活动主轮、来源作者、范围和基准 revision。</li><li>成功落盘后推进版本，模型才能确认保存。</li><li>后续成员轮通过变化增量看到新版本；新段读取当前有效值。</li></ol><p class="small">“是不是明确记忆请求”主要依赖主模型遵守提示词；Core 强制校验的是来源、归属和版本，并没有用关键词解析器证明这层语义。</p></div><div class="panel"><h3>路径 B · 空闲整理 M</h3><ol><li>默认闲置至少 45 秒，且水位后有至少 4 条新消息。</li><li>每批最多 20 条，每条截至 2,400 字符；附最多 30 条已有记忆。</li><li>新建短 thread，最多提出 6 个带来源的候选。</li><li>结果格式、来源有效，且记忆版本未变化，才保存候选并推进水位。</li></ol><p class="small">4 条按成员与分身消息合计，不是 4 次用户提问。候选可在共享界面与 recall 中看到，但不会自动注入有效记忆快照；需要用户在对话里确认。</p></div></div>
+<div class="demo" id="memory-demo">
+<p class="demo-label">记忆如何生效与失效 · 下列按钮是独立示例状态，不会写入真实记忆</p>
+<div class="control-row" role="group" aria-label="选择记忆状态">
+<button type="button" data-memory="save" aria-pressed="true">明确保存</button><button type="button" data-memory="correct" aria-pressed="false">本人纠正</button><button type="button" data-memory="forget" aria-pressed="false">本人忘掉</button><button type="button" data-memory="candidate" aria-pressed="false">后台候选</button><button type="button" data-memory="confirm" aria-pressed="false">确认候选</button>
+</div>
+<div aria-live="polite" aria-atomic="true"><p id="memory-speech"><strong>B：</strong>“记住，我的发布说明默认中文。”</p><dl class="memory-record"><dt>条目正文</dt><dd id="memory-value">发布说明默认中文</dd><dt>状态</dt><dd><span class="badge" id="memory-state">active · revision 1</span></dd><dt>归属与来源</dt><dd id="memory-owner">scope = member，subjectId = B，来源 = B 的当前消息</dd><dt>存储操作</dt><dd id="memory-write">upsert 新条目；Core 写入 shadow.json</dd></dl><div class="memory-result" id="memory-effect">后续成员轮带入这条变化；适用对象是 B，不能当作 C 的偏好。</div></div>
+</div>
+<h3>范围、可见性和“忘掉”必须分开理解</h3>
+<ul class="boundaries"><li><strong>member 表示归属，不表示私密。</strong>其他成员不能改写 B 的个人记忆；共享 View 和 recall 仍会返回这些条目，空间成员可读。</li><li><strong>space 仍保存在当前 shadowId 下。</strong>它是这条分身对话中的共享知识，不会自动成为同一空间所有分身共用的数据库；也没有跨空间的统一个人画像。</li><li><strong>纠正靠 ID + baseRevision。</strong>Core 拒绝过期版本或错误作者；后台 M 遇到版本变化整批不提交，避免覆盖新的明确更正。</li><li><strong>忘掉设置 forgotten 并清空当前 text。</strong>它保留 tombstone、原始聊天、旧运行记录和原生历史；下一轮提示停止使用旧值。当前没有强制重建 Session 或抹除已进入模型上下文的内容。</li></ul>
+<p class="source-note">依据：<a href="../../../../internal/shadow/tools.go">tools.go · shadow_remember / shadow_recall</a>、<a href="../../../../internal/shadow/context.go">context.go · finishMemoryLocked</a>、<a href="../../../../internal/shadow/store.go">store.go · View</a>。</p>
 </section>
 
-<section id="harness">
-<h2>创建时选择本机 Harness，此后由它承载这份分身</h2>
-<p>用户可以指定本机 Codex 或 Claude Code 的可执行入口及可用配置。<strong>本轮范围固定为创建时选择，不支持聊到一半更换 Harness。</strong>S1 → S2 仍然是同一个 Harness 内的上下文换段；关闭后恢复也沿用保存的 Harness 与准确的原生会话 ID。</p>
-<div class="two"><div class="panel blue"><h3>Core 保存可持续的对话状态</h3><ul class="stack"><li><strong>C1 的消息和当前指向</strong><span>保存选定 Harness、主 Session ID、任务 J1 / J2、回执与交接边界。</span></li><li><strong>话题、记忆、原文与来源范围</strong><span>自有记录独立落盘，原生压缩后仍可检索；工作 Agent 结果带任务版本。</span></li><li><strong>有效配置的引用与指纹</strong><span>观察原生实际加载结果，不另建空配置或裁剪工具；凭据不写进记录和提示词。</span></li></ul></div><div class="panel"><h3>Harness 负责原生运行过程</h3><ul class="stack"><li><strong>模型调用、历史和工具循环</strong><span>沿用本机模型路由、认证、hooks、插件、skills、MCP、原生记忆与权限。</span></li><li><strong>压缩、恢复、后台工作与事件</strong><span>按本机实际版本和配置验证，不把不同运行时的接口当作完全等价。</span></li><li><strong>主 Agent、工作 Agent、CM 与 M</strong><span>都经选定 Harness 执行，按原生规则继承模型及角色配置；Core 不另选服务或 Token Plan。</span></li></ul></div></div>
-<h3>Harness、模型路由、Token Plan 是三层</h3>
-<table><thead><tr><th>层次</th><th>解决什么问题</th><th>分身如何使用</th></tr></thead><tbody>
-<tr><td>Harness</td><td>会话、工具循环、子 Agent、上下文管理与恢复</td><td>用户选择本机 Codex 或 Claude Code，创建后固定</td></tr>
-<tr><td>模型路由</td><td>实际调用的模型、服务端点、认证和兼容协议</td><td>沿用本机已有可用配置，包括自定义 Provider 或网关；不要求改成官方直连</td></tr>
-<tr><td>Token Plan / 计费</td><td>实际账户的额度、请求限制与计费方式</td><td>继续由原有服务负责，不作为分身的产品分支；后台请求仍计入原有用量</td></tr>
-</tbody></table>
-<p>Codex 官方提供自定义模型 Provider；Claude Code 官方提供网关接入，但不承诺通过网关运行非 Claude 模型。“第三方提供 Claude 服务”和“兼容接口运行其他模型”需要区分。分身接受用户本机已可用的配置，再验证所需的工具、上下文与后台能力；不把任意第三方模型说成官方支持或完全等价。</p>
-<table><thead><tr><th>接入方向</th><th>可复用的思路</th><th>需要单独解决的边界</th></tr></thead><tbody>
-<tr><td>Codex · 先跑通</td><td>以 app-server 作为候选程序接口，管理准确的 thread ID、输入和事件</td><td>保留原生压缩，对本机版本核对用量、恢复、工具权限和中断能力；先完成整条分身流程验收</td></tr>
-<tr><td>Claude Code · 后续适配</td><td>选择保留既有配置与路由的本机程序接口，按指定 Session ID 接续</td><td>不阻塞 Codex 首轮验收。当前实验性原生 TUI 控制 API 有边界，后台事件与恢复单独核对；不为 SDK 或 bare 模式静默改变用户环境</td></tr>
-</tbody></table>
-<div class="note"><strong>同样的聊天承诺，不保证同样的底层能力。</strong>统一“能自然续聊、记忆有来源、状态可核对”；显式压缩、中断、审批和事件详细程度按实际能力提供。未通过最低恢复与权限检查的组合先不开放，不能静默降成一个行为不同的分身。</div>
-<div class="key"><strong>首版确定全量继承本机有效配置。</strong><br>按原生优先级加载 hooks、插件、skills、MCP、模型路由、认证、自动记忆、权限与子 Agent 设置，不额外建一套删减配置。启动、换段与恢复报告实际加载结果；配置变更后重新检查，不把旧快照当作当前环境。</div>
-<p>默认仍帮助用户调查和分析，具体操作遵循用户指令及原生权限；这不等于强制只读沙箱，也不承诺隔离所有个人资源。继承配置不等于导入 P0 的全部历史，更不自动授权代替本人对外承诺。工作 Agent 沿用原生对子 Agent 的继承和限制，Core 只为其管理的记录校验范围。</p>
-<p class="small">这是一项拟议接入设计，不表示 Team Cross 已提供分身功能或两个 Harness 已完成同等验收。Harness 也不等于模型：使用远端模型服务时，被选入请求的对话和资料仍会发送给该服务；本机运行不等于本机推理。</p>
-</section>
-
-<section id="eval">
-<h2>Eval 验证自然交流能否接得住，而非只考话题分类</h2>
-<p>先做一批可重放的脱敏或合成对话。建议首批 <strong>30 条、6 类各 5 条</strong>，覆盖下面场景；这是起步规模，不是充分验收。先冻结其中 10 条作留出检查，其余用于调参；强制换段的测试必须保持故事内容和预期要求一致。</p>
-<table><thead><tr><th>回放场景</th><th>检查的实际结果</th></tr></thead><tbody>
-<tr><td>A → B → 回到 A</td><td>能找回 A 的未决项，不要求用户选择新问题或追问。</td></tr>
-<tr><td>省略指代、同名对象、一句话推进 A 和 B</td><td>指代有依据；多项要求不丢；真正有歧义时只问内容问题。</td></tr>
-<tr><td>工作中途压缩 / 安全点换段 / 连续多次换段</td><td>目标、用户纠正、关键数值、证据和未完成事项仍正确；不能只验证摘要看起来流畅。</td></tr>
-<tr><td>记忆新增、纠正、忘掉与来源版本变化</td><td>下一轮能用新记忆，旧版本不冒充当前事实，失效内容不继续进入上下文。</td></tr>
-<tr><td>后台任务运行时来消息、改要求、取消、换段和故障</td><td>主 Agent 能继续回应；旧版本结果不冒充新要求；重复结果不重复发送，未知状态不自动重跑。</td></tr>
-<tr><td>Core 记忆跨范围检索、资料伪指令、记忆污染</td><td>自有检索不越权、不把资料当控制信号、不把推测写成事实；不以此宣称继承工具已全部隔离。</td></tr>
-</tbody></table>
-<p><strong>比较三种配置：</strong>仅使用原生长会话与压缩；按预算直接换段并交接；预算 + CM 判断 + 话题状态 + 记忆增量。相同输入和模型配置下，记录任务完成、未决项保留、证据正确、自然澄清次数，以及额外模型调用、token 和首响应 / 总耗时。</p>
-<p>真实投递、工具状态、消息去重和来源范围用可判定断言检查；回答质量用有依据的评分和人工抽查。边界案例重复运行观察波动。串权、重放和无依据报完成作为独立失败项，不能被更低成本抵消。实际模型验证遵守项目验证契约；本次没有运行模型 eval。</p>
-<p>支持多个 Harness 后，按 Harness 版本、模型配置、有效工具与权限分别记录结果。公共对话场景可以复用，原生压缩、恢复和中断需要各自的接入检查；一个组合通过，不能推广为另一个组合通过。小规模样本用于筛选方向，长时间运行中的记忆积累、文件变化和连续换段还需独立回放。</p>
-<p><strong>单独验证“后台忙，前台仍能聊”。</strong>让 W1 持续运行，在此期间发送另一问题、修改任务、请求取消，并让主会话换段。分别记录接收回执、主 Agent 的实质回应与后台完成时间；快速显示“收到”不算通过。记录并发和限流、任务版本与结果事件，覆盖 W1 在交接期间完成及重复通知的情况。</p>
-<p>全量继承后，有效配置也是实验条件。保存不含凭据的模型路由、hooks、插件、skills、MCP、权限与原生角色指纹；在实际配置上检查，不用一份人为删减的环境代表用户现场。</p>
-<p><strong>先以 Codex 验证本轮新增边界：</strong>空间内多人接续同一个 C1 且保留作者和偏好归属；原生自动压缩先完成时不执行过时的 CM 建议；回执丢失后手动重发同一消息只投递一次。Claude 后续独立验收。</p>
-<details><summary>怎么用“爬山法”迭代这套设计</summary><p>把当前配置作为基线，每次只改一个因素，例如预判线、保留原话的预算、管家提示词或检索条数。在调参集重复对比；只有质量不退步、硬性检查通过且目标成本改善时才保留。然后用未参与调参的样本检查泛化，失败样本进入独立回归集。</p><p>这里的“爬山”是局部改进流程，不保证全局最优，也不是让线上 Bot 自行改规则。DS Bot 的公开 steward-eval 脚本是人工编写场景、指定 compact / switch / either 的预期并重复调用真实模型；脚本本身没有自动搜索参数的爬山循环。我们借它的边界样例方法，再扩展到整段对话、记忆和运行时故障。</p></details>
+<section id="storage">
+<span class="section-number">05 / 存储与检索</span>
+<h2>Team Cross 保存结构化状态；DS-Bot 把长期记忆放进 Markdown</h2>
+<div class="two storage"><div class="panel"><h3>Team Cross · 运行分身的成员 Mac</h3><pre>&lt;Core dataDir&gt;/
+└── shadows/&lt;shadowId&gt;/
+    ├── shadow.json
+    │   ├── settings（创建时固定的模型 / Provider / 推理强度）
+    │   ├── messages / current / segments
+    │   ├── memories / memoryRevision
+    │   ├── memoryWatermark / topics / jobs
+    │   └── runs / toolResults / transition
+    ├── history/&lt;threadId&gt;.jsonl
+    │   └── 原生 item 事件归档
+    └── native.log
+        └── app-server 运行日志</pre><p class="small">默认 dataDir 为 <code>~/Library/Application Support/Team Cross Next</code>，可由启动配置改写。状态采用临时文件、fsync、rename 与目录同步整体替换；文件 0600，目录 0700。</p></div><div class="panel"><h3>DS-Bot · 插件 home 下</h3><pre>&lt;DS-Bot home&gt;/memory/
+├── bots/&lt;botId&gt;/MEMORY.md + 主题.md
+├── groups/&lt;roomId&gt;/MEMORY.md + 主题.md
+├── team/MEMORY.md + 主题.md
+├── journal.jsonl       # 每次改动前后值
+├── snapshots/&lt;sessionId&gt;.md
+├── reviewed.json       # 自动审阅水位
+├── summaries/          # 记忆面板摘要
+└── archive/            # 删除 Bot / 群的记忆归档</pre><p class="small">Markdown 每条通常一项事实，附日期与来源；单条 300 字符，主文件 4,000，主题文件 16,000，每范围最多 40 个主题。写入串行化，更新文件并追加 journal。</p></div></div>
+<p>空间主机另保存 Team Cross 的共享视图；原生配置路径、审批请求、运行与工具账本留在执行成员 Core。Codex 自己也保存原生 thread 历史；<strong>Core 的 history JSONL 是它归档收到的原生 item，不应宣称是整个原生数据库的完整镜像。</strong></p>
+<div class="two"><div class="panel"><h3>Team Cross 的检索</h3><p><code>shadow_recall</code> 按记忆文本子串匹配，最多返回 50 条记忆，另返回任务与话题；<code>shadow_history</code> 扫描共享消息和本分身原生归档，按文本子串或锚点匹配，返回最新 20 条，每条最多 8,000 字符。</p><p class="small">没有 embedding、向量数据库或语义召回。状态 JSON 随记录增长，history 查询逐文件扫描；原型目前没有自动保留期或垃圾回收流程。</p></div><div class="panel"><h3>DS-Bot 的检索</h3><p><code>recall</code> 可读整个主题，或对最多 6 个关键词做匹配：优先全部命中，否则按命中数返回，最多 30 条；<code>read_own_chat</code> 提供跨分段搜索和锚点前后文读取。</p><p class="small">这条记忆路径也不是向量检索。DS-Bot 的“topic”是记忆文件分类；Team Cross 的 T 是进行中话题状态，两者不是同一种对象。</p></div></div>
+<div class="note" id="harness"><strong>还有另一套独立的“原生个人记忆”。</strong>Team Cross 使用本机有效 Codex home，原生配置中启用的记忆按原生规则加载；它不把自己的 memories 写入原生 MEMORY.md，也不把 P0 私人会话自动 fork 进来。因此“不导入私人会话”不等于“完全隔离个人记忆与工具”。这也适用于新建的 W、CM、M；提示词要求 CM/M 不用工具，并不意味着另外创建了一个裁剪权限的模型环境。</div>
+<p class="source-note">依据：<a href="../../../../internal/collab/app.go">app.go · DefaultDataDir</a>、<a href="../../../../internal/collab/shadows.go">shadows.go · shadowConfig</a>、<a href="../../../../internal/shadow/store.go">store.go · writeAtomic</a>、<a href="../../../../internal/shadow/native.go">native.go · archiveLocked</a>、<a href="https://github.com/Fei2411/DeepSeek-Bot/blob/ae63b45c0d0e75b5f59fc3042b5043761ee41391/ds-bot/src/host/memory.js" target="_blank" rel="noopener noreferrer">DS-Bot memory.js</a>。</p>
 </section>
 
 <section id="tradeoff">
-<h2>与 DS Bot 的对应关系，以及我们额外付出的成本</h2>
-<table><thead><tr><th>设计点</th><th>DS Bot 固定版本中的做法</th><th>本机数字分身的选择</th></tr></thead><tbody>
-<tr><td>聊天与 Session</td><td>长期 Bot 身份，连续聊天由多段 Session 接续</td><td>直接采用；用户不选择新问题 / 追问，话题与 Session 分离</td></tr>
-<tr><td>上下文管家</td><td>超过预算后，独立短请求判断 compact / switch</td><td>采用，并加入外部未决事项与真实工具状态，减少“最近几句像结束了”的误判</td></tr>
-<tr><td>原文与交接</td><td>检查点、近期原话、旧段归档与锚点检索</td><td>采用；交接覆盖多个话题，额外校验未处理输入与来源版本</td></tr>
-<tr><td>记忆</td><td>显式记忆工具 + 空闲整理；段内冻结记忆，recall 读取最新</td><td>采用，并让新纠正通过下一轮增量及时可见；按对话 / 空间划分范围</td></tr>
-<tr><td>运行时控制</td><td>能接管 DSH 自动压缩流程</td><td>首版保留 Codex 原生压缩；CM 建议压缩或换段，Core 协调，不替换原生摘要算法</td></tr>
-<tr><td>长调查与前台响应</td><td>此处引用的上下文管家方案不单独证明其他 Harness 的前台调度能力</td><td>主 Agent 加后台工作 Agent，任务状态跨主会话换段保留；需单独验证结果回传与配置继承</td></tr>
-<tr><td>故障兜底</td><td>设计中管家失败走换段，溢出时可不写交接笔记</td><td>保留可恢复的外部状态与增量，校验未决操作后再接续；实现与状态维护成本更高</td></tr>
-</tbody></table>
-<p>同一 Session 容纳多个话题，比按问题隔离更自然，也会多带一些暂时无关的内容。代价由状态记录、预算管理和检索承担；CM 与 M 也增加模型调用。是否值得，用连续交流质量、上下文遗失率和总成本一起评估。</p>
+<span class="section-number">06 / 除压缩以外的实现差异</span>
+<h2>不要把“都能长期聊天”理解成相同的调度和记忆系统</h2>
+<div class="two"><div class="panel blue"><h3>Team Cross 的结构</h3><pre>真实成员 B / C / D
+        ↓ 共享同一条 C1
+     当前 S1 → S2
+        ├── J1 → 独立 W1
+        └── J2 → 独立 W2
+
+记忆归属：成员 / 当前分身中的空间知识</pre></div><div class="panel"><h3>DS-Bot 的结构</h3><pre>用户 → Main Bot / 专家 Bot 的各自聊天
+              ↕ Bot 间消息
+       群聊 G：各 Bot 在 G 中有独立 Session
+              ↕ 有序发言与异步工作
+
+记忆归属：Bot / 群 / 整个 Bot 团队</pre></div></div>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Team Cross 与 DS-Bot 对比，窄屏可横向滚动"><table class="compare"><thead><tr><th>比较点</th><th>Team Cross 当前实现</th><th>DS-Bot 当前固定版本</th></tr></thead><tbody>
+<tr><td>会话与作者</td><td>一个分身一条空间共享 C1，核验真实成员身份；不按成员拆主会话。<small>关注多人共同输入时的归属与接续。</small></td><td>Bot 有自己的长期聊天，在每个群另有独立 Session；Main Bot 与专家 Bot 分工。群按发言次序、管理员模式或 @ 选择参与者。<small><a href="https://github.com/Fei2411/DeepSeek-Bot/blob/ae63b45c0d0e75b5f59fc3042b5043761ee41391/ds-bot/src/host/groups.js" target="_blank" rel="noopener noreferrer">groups.js</a> 的“成员”主要指 Bot，不能直接等同真人协作权限。</small></td></tr>
+<tr><td>长任务与插话</td><td>J 关联独立 W；默认并发 2 个。主轮串行，新消息排队；修改任务先停旧版本，再在 W 接续。<small>W 是任务执行者，没有另一个面向用户的长期 Bot 身份。</small></td><td><code>message_bot</code> 把工作交给长期 Bot，默认可在其下一步 steer，<code>when: queue</code> 等下一轮；结果按 exchange / work 关系回传。群内长工作可继续，发言轮次先往下走。<small><a href="https://github.com/Fei2411/DeepSeek-Bot/blob/ae63b45c0d0e75b5f59fc3042b5043761ee41391/ds-bot/src/host/delivery.js" target="_blank" rel="noopener noreferrer">delivery.js</a> / <a href="https://github.com/Fei2411/DeepSeek-Bot/blob/ae63b45c0d0e75b5f59fc3042b5043761ee41391/ds-bot/src/host/tools.js" target="_blank" rel="noopener noreferrer">tools.js</a></small></td></tr>
+<tr><td>自动记忆</td><td>默认 45 秒空闲 + 4 条新增消息；M 每批至多 6 个<strong>候选</strong>，确认后才有效。<small>更容易控制错误记忆，但用户要承担确认成本。</small></td><td>默认在 idle 后延迟 2 秒审阅；串行自动新增、编辑、移除有效条目，每次至多 8 项。<code>memoryReview</code> 可关闭。<small>更主动积累，质量依赖审阅模型、来源规则与后续纠正。<a href="https://github.com/Fei2411/DeepSeek-Bot/blob/ae63b45c0d0e75b5f59fc3042b5043761ee41391/ds-bot/src/host/memory.js#L1177" target="_blank" rel="noopener noreferrer">memory.js · review</a></small></td></tr>
+<tr><td>记忆权限</td><td><code>member / space</code> 都位于一个 shadow.json；member 强制核对来源成员，仍对空间可读。<small>没有自动跨分身汇集个人画像。</small></td><td><code>own / group / team</code>；普通 Bot 读写自身，群成员在本群读写群记忆；Main Bot 可管理其他 Bot 记忆，Main Bot / 群管理员可写 team。<small>是 Bot 角色授权，非同一套真人成员 ACL。群自动审阅只写本群。</small></td></tr>
+<tr><td>纠正后的可见性</td><td>段内按 revision 追加非候选变化，下一次普通成员输入可见；新段装入当前有效记忆。<small>无需等到换段才通知主模型纠正。</small></td><td>每个 Session 首次渲染冻结记忆前缀并保存 snapshot；新记忆通过 recall 读取，换段或 checkpoint 后刷新快照。<small>更强调前缀字节稳定；自动审阅更新不等于立刻改写当前前缀。</small></td></tr>
+<tr><td>存储与冲突</td><td>结构化 JSON 的 ID、revision、来源、状态；更改已有条目必须带正确 baseRevision；M 开始后版本变动则丢弃结果。<small>持久状态便于统一核对，但整个记录会反复序列化。</small></td><td>Markdown + 主题文件 + before/after journal；串行写入，重读并匹配原条目文本进行替换或删除。<small>便于文件阅读和面板管理，采用不同于逐条 revision 的冲突处理。</small></td></tr>
+<tr><td>检索粒度</td><td>字面子串、消息/原生 item 锚点；无向量检索。话题是运行状态。</td><td>关键词组合匹配、整主题、原话锚点及前后文；无证据表明这条记忆路径使用向量检索。主题是文件分类。<small>DS-Bot 原话回读接口更细；两者都可能因字面匹配漏掉同义表达。</small></td></tr>
+<tr><td>重启与送达</td><td>准确 thread ID + turn ID / 运行标记核对。unknown 不自动再启动输入；送达失败由成员手动重发同 ID。<small>避免重复副作用，代价是部分故障需要人工介入。</small></td><td><code>inflight.json</code> 记录未结束轮次和待处理消息；重启后自动接续一次，并核对 inbox / exchange 后补投仍符合条件的丢失消息。<small>队列默认保留判断为 24 小时，反复被打断的已恢复轮不无限重跑；提示模型先检查已做的事。<a href="https://github.com/Fei2411/DeepSeek-Bot/blob/ae63b45c0d0e75b5f59fc3042b5043761ee41391/ds-bot/src/host/resume.js" target="_blank" rel="noopener noreferrer">resume.js</a></small></td></tr>
+<tr><td>维护调用</td><td>CM/M 经同一 app-server 创建真实短 thread，与主段和 W 使用同一组创建时固定的模型 / Provider / 推理强度；没有单独的小模型、低推理设置或输出 token 上限参数。<small>输入较短不等于实际调用很便宜。</small></td><td>steward / memory review 直接走 DSH 的 <code>llm.stream</code>；显式设置输出预算与推理强度。记忆调用失败时，存在回退到 profile 默认模型的路径。<small>此路径不需要另建完整会话。<a href="https://github.com/Fei2411/DeepSeek-Bot/blob/ae63b45c0d0e75b5f59fc3042b5043761ee41391/ds-bot/src/host/parts.js#L531" target="_blank" rel="noopener noreferrer">parts.js · askSteward</a> / memory.js · botShot</small></td></tr>
+<tr><td>定时任务</td><td>当前 shadow 调度器处理收到的消息、后台任务与维护；没有独立的 cron / reminder 产品接口。<small>继承的外部工具能力不等同 Core 自带调度。</small></td><td>接入可选 DSH schedule 服务，可创建到期输入；换段时把 schedule 迁到新 Session，群提醒也有路由。<small><a href="https://github.com/Fei2411/DeepSeek-Bot/blob/ae63b45c0d0e75b5f59fc3042b5043761ee41391/ds-bot/src/host/schedules.js" target="_blank" rel="noopener noreferrer">schedules.js</a>；依赖 Automation tasks 服务启用。</small></td></tr>
+<tr><td>忘掉与敏感信息</td><td>忘掉是 tombstone；原话与原生历史继续保留。shadow_remember 当前没有专门的密钥模式检测器。<small>别把“记忆已停用”当作彻底擦除。</small></td><td>forget 从当前 Markdown 移除条目，journal 仍保留旧值；记忆写入另有密钥、密码及证件等模式检查和 secret redaction。<small>规则过滤不能证明绝对不会保存敏感信息；冻结快照与历史也不是同步擦除。</small></td></tr>
+</tbody></table></div>
+<p>压缩上的已知差异仍成立：Team Cross 保留 Codex 原生机制；DS-Bot 接管其 Bot Session 的 DSH 压缩入口，用自己的 checkpoint / handoff 逻辑。更深的差异在于：<strong>Team Cross 把成员归属、任务版本与执行回执放在 Core 状态机里；DS-Bot 围绕长期 Bot 团队、群聊消息和自动记忆组织运行。</strong></p>
 </section>
 
-<section id="choices">
-<h2>这些取舍会直接影响使用体验</h2>
-<p>空间共享、Codex 先行、保留原生压缩与 CM、失败后手动重发已经确认；其余为建议和重新评估条件。优先验证一条空间共享对话能长期接续，再根据实际成本决定增加多少自动化。</p>
-<table><thead><tr><th>取舍</th><th>具体代价</th><th>首版建议</th></tr></thead><tbody>
-<tr><td><strong>自然连续 ↔ 话题互相干扰</strong></td><td>聊完发布再回到恢复时，模型可能误用上一话题的条件；话题表不能保证完全消除串题</td><td>区分全局偏好和本次任务约束；关键限制保留原文与作用范围。错了可纠正，真正歧义再自然澄清</td></tr>
-<tr><td><strong>前台响应 ↔ 后台协调成本</strong></td><td>长任务不必阻塞主会话，但会出现结果晚到、要求变化、取消和换段后的归属问题</td><td>首版即采用主 Agent 加后台工作 Agent；任务版本、结果去重与前台优先调度一起实现</td></tr>
-<tr><td><strong>无感换段 ↔ 信息损失与调用成本</strong></td><td>摘要有损；找回细节要额外检索。CM、M 和交接都会增加延迟与 token</td><td>关键原话、未决项和原始记录锚点独立保存；CM 按预算触发，M 空闲批量运行并设预算上限。记录交接耗时和遗失率</td></tr>
-<tr><td><strong>越来越懂用户 ↔ 错误记忆累积</strong></td><td>一次临时要求可能被错误当成永久偏好；同事意见可能冒充所有者或团队决定</td><td>明确记忆优先，推断保持候选；保存表达者、适用对象、来源、范围与版本。回答建议不能代替本人承诺</td></tr>
-<tr><td><strong>全量继承 ↔ 配置差异与复现成本</strong></td><td>分身行为随本机路由、hooks、插件、MCP 和权限变化；提示词的角色分工不构成强制隔离</td><td>首版全量继承已确定，不额外裁剪；记录有效配置指纹，在实际配置上分别验证，差异如实报告</td></tr>
-<tr><td><strong>本机现场 ↔ 随时在线</strong></td><td>Mac 休眠或断网时无法继续读本机资料；选远端模型时仍存在向该模型传送输入的过程</td><td>接收端落盘后显示已送达，失败显示重发按钮；同 ID 去重，不自动重发，不增加云端信箱</td></tr>
-<tr><td><strong>读取最新代码 ↔ 同一答案的版本一致</strong></td><td>用户在分身调查中修改文件，前后两次读取可能来自不同现场</td><td>记录提交、dirty 状态及关键文件指纹；发生变化时重读或标明结论范围。精确回放需要快照，另付存储与维护成本</td></tr>
-<tr><td><strong>长期可追溯 ↔ 存储与删除语义</strong></td><td>完整历史、工具输出与派生摘要持续增长；停用记忆不等于删除原文或已发出的答复</td><td>普通输出按保留策略处理，关键证据明确保留；区分停用记忆、删除记录和撤销来源，联动索引与派生内容</td></tr>
-<tr><td><strong>调参迭代快 ↔ 评估结论可靠</strong></td><td>小样本容易过拟合；每增加一种 Harness / 模型 / 工具配置就增加验收组合</td><td>固定公共回放集、保留留出样本、记录版本；分别检查原生接入与长期记忆。首批 30 条不宣称充分验收</td></tr>
-</tbody></table>
-<div class="key"><strong>首版方向：</strong>先跑通 Codex，沿用现有模型路由与完整配置；同一空间与分身共用 C1 和当前主 Agent，长调查交给后台 Agent；保留原生压缩，CM 判断压缩或换段；记忆更新及时生效，发送失败可手动重发。验证重点是多人接续、异步结果、任务版本、换段与重发去重。</div>
+<section id="boundaries">
+<span class="section-number">07 / 如何理解“已经实现”</span>
+<h2>机制已经接通，长期记忆质量仍需要持续验证</h2>
+<div class="two"><div class="panel green"><h3>已有记录证明的范围</h3><p>2026-10-21 的<a href="implementation.md">实现记录</a>记录了 Codex CLI <code>0.163.0-alpha.11</code> / <code>gpt-5.6-luna</code> 的专用会话验证：W 运行时前台能回答、原生压缩、S2 接手、同一 W 晚到结果、记忆纠正/忘掉、准确 thread 恢复与 M 水位。</p><p>另有单 Mac 三 Core / TLS 共享作者、送达、同 ID 重发与 MCP 读取验证。该记录对应当时的实现，不是此次重新运行的测试。</p></div><div class="panel"><h3>尚不能从这些结果推出</h3><p>默认 CM 阈值已最优、长期对话不会漏项、记忆候选总是准确、全插件/第三方模型组合可用、两台 Mac 网络可靠性，以及 Claude 分身已接入。</p><p>当前分身创建入口固定 Codex；CM/M 也可能有原生配置开销。DS-Bot 此次只做源码对照，没有运行模型或对两者做同负载的速度、成本、质量基准。</p></div></div>
+<h3>真正影响下一步工程判断的四件事</h3>
+<ul class="boundaries"><li><strong>自动记忆要不要直接生效。</strong>这是“尽量少确认”和“减少错误记忆累积”的产品选择，不是把 45 秒改成 2 秒就能解决。</li><li><strong>哪些记忆应跨分身复用。</strong>现有 space / member 范围没有形成全局人类画像；引入共享库前要定义归属、可见性与纠正权。</li><li><strong>故障时更偏向继续还是等待核对。</strong>必须一起考虑文件写入、工具副作用和重复通知，不能只比较恢复速度。</li><li><strong>规模增长后的状态与检索。</strong>Team Cross 的整份 JSON 重写、逐文件扫描、原生与 Core 两份历史，以及持续增加的短 CM/M thread 都有成本；目前没有长期容量与质量基线。</li></ul>
+<details id="eval"><summary>后续怎么验证，才不会把架构图当成效果证明</summary><p>固定相同的脱敏对话、模型与配置，回放 A → B → A、成员偏好冲突、纠正/忘掉、长 W 期间换段、回执丢失与重启。先检查错误归属、重复执行与错误送达，再比较未决项保留、召回正确率、延迟与 token。每次只调整一个阈值或提示词，使用未参与调参的保留样本。</p><p>现有真实测试降低过 CM 触发线，并在 CM 选择 compact 后显式要求换段，以覆盖两条路径。因此它证明接口与状态链接通，不能证明默认策略在长期真实对话中总能选对时机。完整复验要求见<a href="../../sources/validation/test-gates.md#本机数字分身">验证契约</a>。</p></details>
 </section>
 
-<footer class="source">
-<p><strong>来源与边界。</strong>2026-10-21 核对 DS Bot 仓库 main 指向 <code>e13bc3419d2695a509520d850a07e63f05c34e07</code>，以下引用固定于该版本。话题记录、最新记忆增量、权限分区与交接校验是本方案的设计选择，不冒充 DS Bot 已有行为。</p>
-<ul><li><a href="https://github.com/Fei2411/DeepSeek-Bot/blob/e13bc3419d2695a509520d850a07e63f05c34e07/docs/plans/2026-10-09-context-and-memory.md" target="_blank" rel="noopener noreferrer">DS Bot：上下文、分段与记忆设计</a></li><li><a href="https://github.com/Fei2411/DeepSeek-Bot/blob/e13bc3419d2695a509520d850a07e63f05c34e07/ds-bot/src/host/steward.js" target="_blank" rel="noopener noreferrer">DS Bot：管家与检查点实现</a></li><li><a href="https://github.com/Fei2411/DeepSeek-Bot/blob/e13bc3419d2695a509520d850a07e63f05c34e07/ds-bot/dev/steward-eval.mjs" target="_blank" rel="noopener noreferrer">DS Bot：管家判断的模型评估脚本</a></li></ul>
-<p>Harness 接口参考：<a href="https://developers.openai.com/codex/app-server/" target="_blank" rel="noopener noreferrer">Codex app-server</a>、<a href="https://code.claude.com/docs/en/headless" target="_blank" rel="noopener noreferrer">Claude Code 程序化 CLI</a>、<a href="https://code.claude.com/docs/en/agent-sdk/overview" target="_blank" rel="noopener noreferrer">Claude Agent SDK</a>。官方接口能力与 Team Cross 当前接入范围需分别判断，具体本机版本仍需验证。</p>
-<p>本轮修订依据：<a href="https://learn.chatgpt.com/docs/config-file/config-advanced#custom-model-providers" target="_blank" rel="noopener noreferrer">OpenAI 官方文档：自定义 Provider</a>、<a href="https://code.claude.com/docs/en/llm-gateway" target="_blank" rel="noopener noreferrer">Claude 网关与支持边界</a>、<a href="https://learn.chatgpt.com/docs/agent-configuration/subagents" target="_blank" rel="noopener noreferrer">Codex 子 Agent</a>、<a href="https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background" target="_blank" rel="noopener noreferrer">Claude 前台与后台子 Agent</a>。</p>
-<p>本页仅完善方案与演示；未修改 Team Cross 产品代码，未调用真实模型、启动分身或发布网站。</p>
+<footer id="sources">
+<h2>源码依据与阅读边界</h2>
+<p>核对日期：2026-10-22（Asia/Shanghai）。Team Cross 源码基线 <code>f7282b9bb5b86f1a4a4971c15da0b67051e96dea</code>；DS-Bot 此次读取的 main 为 <code>ae63b45c0d0e75b5f59fc3042b5043761ee41391</code>（v0.2.0）。外部源码链接固定到此提交；仓库本地链接始终指向当前文件。</p>
+<ol>
+<li>Team Cross：<a href="../../sources/decisions/local-shadows.md">当前领域契约</a>、<a href="../../../../internal/shadow/engine.go">调度与 thread 创建</a>、<a href="../../../../internal/shadow/context.go">上下文与 M/CM</a>、<a href="../../../../internal/shadow/tools.go">记忆/任务/历史工具</a>、<a href="../../../../internal/shadow/store.go">持久化</a>、<a href="../../../../internal/shadow/native.go">原生事件与恢复</a>、<a href="../../../../internal/shadow/types.go">数据字段</a>。</li>
+<li>DS-Bot：<a href="https://github.com/Fei2411/DeepSeek-Bot/blob/ae63b45c0d0e75b5f59fc3042b5043761ee41391/ds-bot/src/host/prompt.js" target="_blank" rel="noopener noreferrer">Bot 身份与分工</a>、<a href="https://github.com/Fei2411/DeepSeek-Bot/blob/ae63b45c0d0e75b5f59fc3042b5043761ee41391/ds-bot/src/host/parts.js" target="_blank" rel="noopener noreferrer">分段与接手</a>、<a href="https://github.com/Fei2411/DeepSeek-Bot/blob/ae63b45c0d0e75b5f59fc3042b5043761ee41391/ds-bot/src/host/steward.js" target="_blank" rel="noopener noreferrer">steward</a>、<a href="https://github.com/Fei2411/DeepSeek-Bot/blob/ae63b45c0d0e75b5f59fc3042b5043761ee41391/ds-bot/src/host/memory.js" target="_blank" rel="noopener noreferrer">记忆与自动审阅</a>、<a href="https://github.com/Fei2411/DeepSeek-Bot/blob/ae63b45c0d0e75b5f59fc3042b5043761ee41391/ds-bot/src/host/resume.js" target="_blank" rel="noopener noreferrer">重启接续</a>。</li>
+<li>已有证据：<a href="implementation.md">实现与验证记录</a>、<a href="evidence/native.json">原生接续结果</a>、<a href="evidence/core-flow.json">空间流程结果</a>、<a href="../../sources/validation/evidence-map.md#本机数字分身">证据入口与限制</a>。历史设计讨论保留在<a href="README.md">任务记录</a>中，不作为当前能力表。</li>
+</ol>
+<p>本次只更新说明页。上面的状态切换是本地展示，不调用 Team Cross、Codex 或外部模型；没有变更分身调度、配置、记忆数据或产品代码，也没有发布网站。</p>
+<a class="back-top" href="#top">↑ 返回顶部</a>
 </footer>
-</main></body></html>
+</main>
+<script>
+(() => {
+  'use strict';
+  const stages = [
+    {input:['B：请解释恢复流程','原文、消息 ID 和经过核验的作者先写入本机存储，随后才能确认送达。'],main:['S1 · 首条消息才创建','处理问题、调用工具、给出回答；完成这一轮后才处理下一条成员消息。'],worker:['尚无 W / J','普通短问题不需要创建工作会话。'],state:['current = S1','消息、段指针、运行账本和真实投递状态独立于模型上下文保存。'],mainClass:'live',workerClass:'',detail:'“已送达”表示运行分身的 Core 已经落盘；还不表示模型读过或完成。示例中的 T / J 记录只有模型实际调用对应工具后才会存在。'},
+    {input:['B：深入查一下取消审批的恢复路径','S1 调用 shadow_task，来源锚定这条真实成员消息。'],main:['S1 · 派发后结束当前轮','不同步等待 W1 的完整结果，下一条成员消息可以继续进来。'],worker:['J1 v1 → W1 · 执行中','Core 先保存任务，再新建独立原生 thread；默认后台并发上限为 2。'],state:['current = S1；J1 属于 C1','J1 保存来源、版本、W1 ID 与真实状态。'],mainClass:'live',workerClass:'live',detail:'W1 从一开始就是独立工作会话。它不是绑定 S1 的原生子 Agent，主段换代不需要搬迁它。'},
+    {input:['C：顺便讲一下发布回滚','保留作者 C；若 S1 还忙，就落盘排队。'],main:['S1 · 回答另一问题','话题 T2 可由主模型记录；不新建“发布专用 Session”。'],worker:['W1 · 继续调查恢复路径','后台任务尚未结束，也不阻止 S1 的下一轮回答。'],state:['current = S1；J1 v1 仍运行','话题记录不会自动取消任务；更改 J 需要 shadow_task。'],mainClass:'live',workerClass:'live',detail:'前台仍然每次只跑一轮。原生审批、模型限流和工具耗时可能造成等待，不能由“有后台 W”推出零延迟。'},
+    {input:['新的成员消息仍可落盘','交接期间暂缓向主会话投递，消息保留在队列里。'],main:['S1 写笔记 → S2 回复 HANDOFF_READY','确认接手后，Core 才把 current 改成 S2。'],worker:['W1 · ID 和 J1 版本都不变','独立后台工作不因主段换代重启。'],state:['current：S1 → S2，原子更新','记忆、未决话题、任务索引和近期原文进入接手上下文。'],mainClass:'wait',workerClass:'live',detail:'这里只演示 CM 建议 switch 的路径。若选择 compact，则由 Codex 原生压缩，current 仍然是 S1。'},
+    {input:['排队成员消息先处理','成员消息队列清空后，主段再接任务结果通知。'],main:['S2 · 汇总 J1 的有效结果','模型生成共享答复，不把 W 的全部工具日志灌入 C1。'],worker:['W1 · 完成，保存唯一结果事件','结果带 J1 的任务版本；旧版本或取消后晚到输出不作为有效完成。'],state:['J1 resultEventId → deliveredEventId','完成与结果通知是两个状态；同一事件不重复提交通知轮。'],mainClass:'live',workerClass:'',detail:'结果通知轮失败也会记录已经消费该事件，当前没有自动重复通知。需要时从持久任务状态核对。'},
+    {input:['重启前某条输入回执不明','保留原消息 ID 和运行标记，不把它变成一条新输入。'],main:['恢复准确 S2 · 核对原生历史','用 turn ID 或 teamcross-shadow-run 标记匹配已提交轮次。'],worker:['已有 W1 按准确 ID 核对','不自动重做可能已经完成的文件修改或外部操作。'],state:['查不到结果 → unknown','若连 thread 创建 ID 都没拿到，则暂停并保留现场，不猜最近会话。'],mainClass:'wait',workerClass:'',detail:'恢复连接不等于重放请求。未确认送达的成员消息可手动重发同 ID；已接收而原生结果未知的轮次仍要核对。'}
+  ];
+  const sessionDemo = document.getElementById('session-demo');
+  sessionDemo.querySelectorAll('[data-stage]').forEach(button => button.addEventListener('click', () => {
+    const state = stages[Number(button.dataset.stage)];
+    sessionDemo.querySelectorAll('[data-stage]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    ['input','main','worker','state'].forEach(key => {
+      const lane = document.getElementById('lane-' + key);
+      lane.querySelector('strong').textContent = state[key][0];
+      lane.querySelector('span').textContent = state[key][1];
+      lane.className = 'lane' + (state[key + 'Class'] ? ' ' + state[key + 'Class'] : '');
+    });
+    document.getElementById('session-detail').textContent = state.detail;
+  }));
+  const contextButtons = document.querySelectorAll('[data-context]');
+  contextButtons.forEach(button => button.addEventListener('click', () => {
+    contextButtons.forEach(item => {
+      const selected = item === button;
+      item.setAttribute('aria-pressed', String(selected));
+      document.getElementById('context-' + item.dataset.context).hidden = !selected;
+    });
+  }));
+  const memories = {
+    save:{speech:'B：“记住，我的发布说明默认中文。”',value:'发布说明默认中文',state:'active · revision 1',owner:'scope = member，subjectId = B，来源 = B 的当前消息',write:'upsert 新条目；Core 写入 shadow.json',effect:'后续成员轮带入这条变化；适用对象是 B，不能当作 C 的偏好。'},
+    correct:{speech:'B：“把刚才的偏好改成中英双语。”',value:'发布说明默认中英双语',state:'active · revision 2',owner:'仍归 B；来源改为这次明确纠正的消息',write:'同一条目 ID + baseRevision 1；版本匹配才覆盖当前值',effect:'下一次普通成员输入带入 revision 2。若 C 试图改 B 的成员记忆，Core 会拒绝；过时 M 结果也不会覆盖此次更正。'},
+    forget:{speech:'B：“忘掉发布说明的语言偏好。”',value:'空字符串；当前值已清除',state:'forgotten · revision 3',owner:'保留成员 B 的归属，来源为此次忘掉请求',write:'同一条目 ID + baseRevision 2；保留 tombstone',effect:'后续成员轮收到停用变化，新段有效快照不再装入它。聊天原文、旧运行记录与原生历史仍在，没有同步擦除旧上下文。'},
+    candidate:{speech:'普通交流里，B 多次偏好简短的说明。',value:'候选：B 偏好简短说明',state:'candidate · 示例 revision 4',owner:'M 引用批次中的 B 消息；Core 核对来源并确定 subjectId',write:'满足闲置与批次条件，版本仍有效才存候选并推进水位',effect:'共享界面和 recall 可读，但它不是有效事实，不自动放进有效记忆快照。用户没有确认时保持候选。'},
+    confirm:{speech:'B：“确认这条候选，以后说明默认简短。”',value:'说明默认简短',state:'active · 示例 revision 5',owner:'仍归 B；来源为本次明确确认的消息',write:'主轮以候选的 ID + baseRevision 调用 upsert，改为 active',effect:'落盘成功后才能答“记住了”；后续成员轮可收到有效变化。这里是通过对话确认，并非已有独立的确认按钮。'}
+  };
+  const memoryDemo = document.getElementById('memory-demo');
+  memoryDemo.querySelectorAll('[data-memory]').forEach(button => button.addEventListener('click', () => {
+    const state = memories[button.dataset.memory];
+    memoryDemo.querySelectorAll('[data-memory]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    ['speech','value','state','owner','write','effect'].forEach(key => { document.getElementById('memory-' + key).textContent = state[key]; });
+  }));
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,7 @@
 # 驻留 MCP 与新版界面的升级衔接
 
+> 截图仅本地保存，路径相对本文，不随 Git 分发；保存与引用方式见[验收截图约定](../../README.md#验收截图)。
+
 2026-10-23 至 2026-10-24。来源为 `c7612dbb46bb0557ab178ca277cfd36e53d9cec1` 上 `codex/plugin-bridge-compatibility` 的本次改动，独立工作树；主工作区另有未提交的阅读界面工作，不进入本次范围。
 
 ## 问题与修复
@@ -34,7 +36,7 @@
 
 热更新阶段存在两次旧界面自动已读请求，均被旧 MCP 拒绝；重载后有一次正常的已读同步。它们与草稿提交分开记录，不能将整个场景描述成“零写入”。冷启动拦截场景则确实只有 bootstrap 探测。
 
-截图：[原始错误](evidence/reproduced.png)、[跨超时后的草稿](evidence/preserved-draft.png)、[空间概览的恢复说明](evidence/overview-guidance.png)、[新 MCP 动态恢复](evidence/recovered.png)、[中文窄屏](evidence/cold-zh-360.png)、[英文深色](evidence/cold-en-dark-768.png)。中文热更新路径复核后仅补充首次加载的主题处理，并以真实旧进程复验英文深色；最终工程门槛针对包含该补充的构建执行。
+截图：原始错误（`evidence/reproduced.png`）、跨超时后的草稿（`evidence/preserved-draft.png`）、空间概览的恢复说明（`evidence/overview-guidance.png`）、新 MCP 动态恢复（`evidence/recovered.png`）、中文窄屏（`evidence/cold-zh-360.png`）、英文深色（`evidence/cold-en-dark-768.png`）。中文热更新路径复核后仅补充首次加载的主题处理，并以真实旧进程复验英文深色；最终工程门槛针对包含该补充的构建执行。
 
 ## 交付与边界
 

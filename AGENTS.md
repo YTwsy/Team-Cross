@@ -28,6 +28,8 @@
 
 按 [验证契约](docs/agent-wiki/sources/validation/test-gates.md) 选择检查。产品代码的工程门槛包括 Go test/vet、相关 race test 和 Web check/test/build；修改前端后更新两套嵌入资源。界面是主要改动时进行真实浏览器与截图复核；以服务、协议或生命周期为主且仅附带小型状态文案调整时，用相关交互测试覆盖即可，默认不做浏览器与截图复核。
 
+验收截图仅保留本地，不提交 Git；保存位置与文档引用遵守[验收截图约定](docs/agent-wiki/README.md#验收截图)。
+
 仅修改文档时检查相对链接、代码路径、旧引用、索引可达性和 `git diff --check`，无需重新启动模型或测试客户端。`sources/validation/` 维护验证要求与[证据入口](docs/agent-wiki/sources/validation/evidence-map.md)；完整执行结果按 [任务记录规则](docs/agent-wiki/README.md#任务记录) 留存，不将旧验收结果自动推广到后续版本。回答支持范围或是否已验收时，核对具体路径的契约、实现及执行记录，分别报告原生能力、接入范围和被测环境；未收录证据不等于不支持。
 
 验证后关闭本次启动的测试客户端、Core、app-server、浏览器页面及其测试辅助进程；先核对 PID、父子关系或测试目录，不按程序名批量终止用户的 Codex 或浏览器。

@@ -1,5 +1,7 @@
 # 成员动态实现与验证
 
+> 截图仅本地保存，路径相对本文，不随 Git 分发；保存与引用方式见[验收截图约定](../README.md#验收截图)。
+
 日期：2026-10-23，Asia/Shanghai。实现阶段基线为 `codex/reading-experience` / `8bc8397702bdc7ef6911678a2c6b9e726ad173dc` 加本任务工作树；仓库已有阅读体验、嵌入资源和分身设计改动，保留其内容。本记录不把基线提交或其他在途任务宣称为本次全部实现。下列检查记录于提交和安装包构建前。
 
 用户确认依据：[完整设计](2026-10-23-member-activity-design.md)。空间内动态已按修正放进**空间概览页面正文**，没有新增空间侧栏入口；后续补充的视觉约束已落实为复用现有留白、分隔线、字体、头像、按钮与主题变量。
@@ -38,12 +40,12 @@ Go 使用 `GOCACHE=/private/tmp/teamcross-member-activity-gocache`，避免写�
 
 已检查：
 
-- 1440 宽中文浅色：概览正文摘要、全量展开、原有侧栏结构；[最终概览](2026-10-23-member-activity-evidence/overview-1440-light.png)。
-- 843 宽中文浅色：展开筛选正常换行，沿用原有折叠侧栏；[展开状态](2026-10-23-member-activity-evidence/overview-843-expanded.png)。
-- 1024 宽：关注管理列表；[截图](2026-10-23-member-activity-evidence/follow-manager-1024.png)。
-- 768 宽：关注菜单完整可见、静音保存、解除后恢复原关注；[最终菜单](2026-10-23-member-activity-evidence/follow-menu-768.png)。英文深色全局列表、角标、筛选、来源用户文字不翻译；[截图](2026-10-23-member-activity-evidence/global-768-english-dark.png)。
-- 在回复框输入 `@周`，候选中选择周悦，Enter 接受候选后保存测试回复；回执显示准确父回复的可点击短引文。[候选与父项](2026-10-23-member-activity-evidence/mention-reply-1440-light.png)。
-- 动态弹窗读取实际讨论，打开原文保留 spaceId/annotationId/replyId 并展开评论。[原文位置](2026-10-23-member-activity-evidence/source-reply-1440.png)。
+- 1440 宽中文浅色：概览正文摘要、全量展开、原有侧栏结构；最终概览（`2026-10-23-member-activity-evidence/overview-1440-light.png`）。
+- 843 宽中文浅色：展开筛选正常换行，沿用原有折叠侧栏；展开状态（`2026-10-23-member-activity-evidence/overview-843-expanded.png`）。
+- 1024 宽：关注管理列表；截图（`2026-10-23-member-activity-evidence/follow-manager-1024.png`）。
+- 768 宽：关注菜单完整可见、静音保存、解除后恢复原关注；最终菜单（`2026-10-23-member-activity-evidence/follow-menu-768.png`）。英文深色全局列表、角标、筛选、来源用户文字不翻译；截图（`2026-10-23-member-activity-evidence/global-768-english-dark.png`）。
+- 在回复框输入 `@周`，候选中选择周悦，Enter 接受候选后保存测试回复；回执显示准确父回复的可点击短引文。候选与父项（`2026-10-23-member-activity-evidence/mention-reply-1440-light.png`）。
+- 动态弹窗读取实际讨论，打开原文保留 spaceId/annotationId/replyId 并展开评论。原文位置（`2026-10-23-member-activity-evidence/source-reply-1440.png`）。
 - 同一成员的全局、概览在两个页面同时打开：全局全部已读后，全局立即更新，概览按轮询同步，后台列表读取本身不清空提醒。其他成员隔离由三 Core 确定性测试证明。
 
 最终概览页面没有浏览器控制台 error。截图为合成测试内容；不包含真实协作讨论。

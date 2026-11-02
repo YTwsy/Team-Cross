@@ -1,5 +1,7 @@
 # 六项阅读体验实现与验证
 
+> 截图仅本地保存，路径相对本文，不随 Git 分发；保存与引用方式见[验收截图约定](../../../README.md#验收截图)。
+
 2026-10-23，分支 `codex/reading-experience`，基于 `Meta` 的 `8bc8397`，本报告覆盖该分支中本次未提交的阅读器、Core 接口及嵌入资源差异。保留工作区原有的分身、顺流、成员活动设计文档，不纳入本次范围。
 
 ## 已实现范围
@@ -48,7 +50,7 @@
 
 收尾通过 fixture 的 `finish` 协议和 harness/Playwright 自身退出入口关闭本次 Core、stdio、浏览器页面及辅助进程，精确进程检查未发现残留。本次未创建真实模型客户端；本地缓存、测试日志及截图保留供复核。
 
-保留代表截图：[图形深色英文](diagram-dark-en.png)、[图片查看器](image-gallery.png)、[未加载历史页搜索](older-page-search.png)。其他过程截图在本地 `output/playwright/reading-experience/`，不作为长期证据入口。
+保留代表截图：图形深色英文（`diagram-dark-en.png`）、图片查看器（`image-gallery.png`）、未加载历史页搜索（`older-page-search.png`）。其他过程截图在本地 `output/playwright/reading-experience/`，不作为长期证据入口。
 
 ## 结论边界
 

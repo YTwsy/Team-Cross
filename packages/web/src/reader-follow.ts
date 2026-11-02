@@ -33,8 +33,7 @@ export function useReaderFollow(
       !!document.querySelector("dialog[open]") ||
       !!document.activeElement?.matches(
         "input, textarea, [contenteditable=true]",
-      ) ||
-      !!root.current?.querySelector("[data-reader-find-active=true]")
+      )
     );
   }
   function canFollow() {

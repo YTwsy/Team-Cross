@@ -4,7 +4,7 @@ import katex from "katex";
 import type { Element, RootContent } from "hast";
 import type { Mounted } from "pele/lazy";
 import { t } from "../i18n";
-import { Copy, Modal } from "./ui";
+import { Copy, Icon, Modal } from "./ui";
 import { MediaZoom } from "./ReaderMedia";
 
 export function nodeText(node: RootContent): string {
@@ -160,53 +160,74 @@ export function ReaderCode({
       ref={root}
       className={`reader-code${wrap ? " reader-code-wrap" : ""}${expanded || active ? " reader-code-expanded" : ""}`}
     >
-      <div className="reader-code-tools reader-rich-tools">
-        <span>{language || t("代码")}</span>
-        {(mermaid || math) && (
-          <button
-            type="button"
-            onClick={() => setRaw(!raw)}
-            disabled={streaming}
-            aria-pressed={raw}
-          >
-            {raw ? t("显示图形") : t("显示源码")}
-          </button>
-        )}
-        {graphical && mermaid && (
-          <button type="button" onClick={() => setDialog(true)}>
-            {t("展开图形")}
-          </button>
-        )}
-        {!graphical && (
-          <button
-            type="button"
-            aria-pressed={wrap}
-            onClick={() => setWrap(!wrap)}
-          >
-            {t("自动换行")}
-          </button>
-        )}
-        {!graphical && long && (
-          <button
-            type="button"
-            aria-expanded={expanded}
-            onClick={() => setExpanded(!expanded)}
-          >
-            {expanded ? t("收起代码") : t("展开代码")}
-          </button>
-        )}
-        {onAnnotate &&
-          sourceStart !== undefined &&
-          sourceEnd !== undefined &&
-          sourceEnd - sourceStart <= 8000 && (
+      <div className="reader-code-tools">
+        <span className="reader-code-language">{language || t("代码")}</span>
+        <div className="reader-code-actions">
+          {(mermaid || math) && (
             <button
               type="button"
-              onClick={() => onAnnotate(sourceStart, sourceEnd, root.current!)}
+              onClick={() => setRaw(!raw)}
+              disabled={streaming}
+              aria-pressed={raw}
+              aria-label={raw ? t("显示图形") : t("显示源码")}
+              title={raw ? t("显示图形") : t("显示源码")}
             >
-              {t("批注此块")}
+              <Icon name={raw ? "diagram" : "code"} size={15} />
             </button>
           )}
-        <Copy label={t("复制代码")} text={original.replace(/\n$/, "")} />
+          {graphical && mermaid && (
+            <button
+              type="button"
+              onClick={() => setDialog(true)}
+              aria-label={t("展开图形")}
+              title={t("展开图形")}
+            >
+              <Icon name="expand" size={15} />
+            </button>
+          )}
+          {!graphical && (
+            <button
+              type="button"
+              aria-pressed={wrap}
+              onClick={() => setWrap(!wrap)}
+              aria-label={t("自动换行")}
+              title={t("自动换行")}
+            >
+              <Icon name="wrap" size={15} />
+            </button>
+          )}
+          {!graphical && long && (
+            <button
+              type="button"
+              aria-expanded={expanded}
+              onClick={() => setExpanded(!expanded)}
+              aria-label={expanded ? t("收起代码") : t("展开代码")}
+              title={expanded ? t("收起代码") : t("展开代码")}
+            >
+              <Icon name={expanded ? "collapse" : "expand"} size={15} />
+            </button>
+          )}
+          {onAnnotate &&
+            sourceStart !== undefined &&
+            sourceEnd !== undefined &&
+            sourceEnd - sourceStart <= 8000 && (
+              <button
+                type="button"
+                onClick={() =>
+                  onAnnotate(sourceStart, sourceEnd, root.current!)
+                }
+                aria-label={t("批注此块")}
+                title={t("批注此块")}
+              >
+                <Icon name="comment" size={15} />
+              </button>
+            )}
+          <Copy
+            label={t("复制代码")}
+            text={original.replace(/\n$/, "")}
+            iconOnly
+          />
+        </div>
       </div>
       {error && (
         <div className="reader-render-error" role="status">
@@ -278,13 +299,16 @@ export function ReaderTable({
       <div className="reader-rich-tools">
         <button
           type="button"
+          className="reader-icon-button"
           aria-pressed={wrap}
+          aria-label={t("自动换行")}
+          title={t("自动换行")}
           onClick={() => setWrap(!wrap)}
         >
-          {t("自动换行")}
+          <Icon name="wrap" size={15} />
         </button>
-        <Copy label={t("复制 Markdown")} text={markdown} />
-        <Copy label={t("复制 CSV")} text={csv} />
+        <Copy label={t("复制 Markdown")} text={markdown} iconOnly icon="code" />
+        <Copy label={t("复制 CSV")} text={csv} iconOnly icon="table" />
       </div>
       <div
         className="reader-table"

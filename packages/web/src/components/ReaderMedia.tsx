@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, errorText } from "../api";
 import { t, tr } from "../i18n";
-import { ErrorBox, Modal } from "./ui";
+import { ErrorBox, Icon, Modal } from "./ui";
 
 export type ReaderImage = {
   quote?: string;
@@ -49,17 +49,31 @@ export function MediaZoom({ children }: { children: ReactNode }) {
       <div className="reader-rich-tools">
         <button
           type="button"
+          className="reader-icon-button"
           onClick={() => zoom(1 / 1.25)}
           aria-label={t("缩小")}
+          title={t("缩小")}
         >
-          −
+          <Icon name="zoom-out" size={15} />
         </button>
         <output>{Math.round(view.scale * 100)}%</output>
-        <button type="button" onClick={() => zoom(1.25)} aria-label={t("放大")}>
-          +
+        <button
+          type="button"
+          className="reader-icon-button"
+          onClick={() => zoom(1.25)}
+          aria-label={t("放大")}
+          title={t("放大")}
+        >
+          <Icon name="zoom-in" size={15} />
         </button>
-        <button type="button" onClick={() => setView({ scale: 1, x: 0, y: 0 })}>
-          {t("重置视图")}
+        <button
+          type="button"
+          className="reader-icon-button"
+          aria-label={t("重置视图")}
+          title={t("重置视图")}
+          onClick={() => setView({ scale: 1, x: 0, y: 0 })}
+        >
+          <Icon name="refresh" size={15} />
         </button>
         <span className="muted">{t("滚轮缩放，拖动平移")}</span>
       </div>
@@ -259,8 +273,14 @@ export function ReaderImages({
           <figcaption>
             <span>{image.name}</span>
             {onAnnotate && (
-              <button className="text-button" onClick={() => onAnnotate(image)}>
-                {t("批注图片")}
+              <button
+                type="button"
+                className="reader-icon-button"
+                aria-label={t("批注图片")}
+                title={t("批注图片")}
+                onClick={() => onAnnotate(image)}
+              >
+                <Icon name="comment" size={15} />
               </button>
             )}
           </figcaption>
@@ -270,19 +290,27 @@ export function ReaderImages({
         <Modal title={current.name} wide onClose={() => setActive(undefined)}>
           <div className="reader-rich-tools">
             <button
+              type="button"
+              className="reader-icon-button"
+              aria-label={t("上一张")}
+              title={t("上一张")}
               disabled={active === 0}
               onClick={() => setActive(active! - 1)}
             >
-              {t("上一张")}
+              <Icon name="back" size={15} />
             </button>
             <span>
               {active! + 1} / {images.length}
             </span>
             <button
+              type="button"
+              className="reader-icon-button"
+              aria-label={t("下一张")}
+              title={t("下一张")}
               disabled={active === images.length - 1}
               onClick={() => setActive(active! + 1)}
             >
-              {t("下一张")}
+              <Icon name="arrow" size={15} />
             </button>
           </div>
           <MediaZoom key={current.id}>

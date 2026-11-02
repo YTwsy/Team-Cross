@@ -18,6 +18,17 @@
 .playwright-cli/
 __pycache__/
 docs/agent-wiki/.llmwiki/
+# Acceptance screenshots stay local, including archived task evidence.
+/docs/agent-wiki/tasks/**/*.[pP][nN][gG]
+/docs/agent-wiki/tasks/**/*.[jJ][pP][gG]
+/docs/agent-wiki/tasks/**/*.[jJ][pP][eE][gG]
+/docs/agent-wiki/tasks/**/*.[wW][eE][bB][pP]
+/docs/agent-wiki/tasks/**/*.[gG][iI][fF]
+/docs/agent-wiki/tasks/**/*.[aA][vV][iI][fF]
+/docs/agent-wiki/tasks/**/*.[hH][eE][iI][cC]
+/docs/agent-wiki/tasks/**/*.[bB][mM][pP]
+/docs/agent-wiki/tasks/**/*.[tT][iI][fF]
+/docs/agent-wiki/tasks/**/*.[tT][iI][fF][fF]
 bin/
 coverage/
 dist/
