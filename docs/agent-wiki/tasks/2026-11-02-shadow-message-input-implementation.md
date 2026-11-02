@@ -3,7 +3,7 @@
 - 日期：2026-11-02；分支：`codex/shadow-activity`。
 - 被测状态：`40b606a67f5d650456cf9b6c82750a1cc5866017` 基线，加工作树已有修改和本轮未提交实现；不是干净基线的验收结果。
 - 用户授权：按[消息流收敛方案](2026-10-28-shadow-message-input-design.md)实施，优先跑通多人连续输入不串来源、Work 执行时主会话可聊天，再推进普通补问和 Work 回报。
-- 本轮结果：两个优先场景已接通，普通消息退出任务建模，Work 日常接口已收敛到 start/report；完成工程及真实 Luna 验证。实现已在 `bd6f7fb` 保存；后续 Meta 合并和安装另留验收记录。
+- 本轮结果：两个优先场景已接通，普通消息退出任务建模，Work 日常接口已收敛到 start/report；完成工程及真实 Luna 验证。实现已在 `bd6f7fb` 保存；后续 Meta 合并和安装见[独立验收记录](2026-11-02-shadow-meta-install.md)。
 - 当前契约：[本机数字分身](../sources/decisions/local-shadows.md)、[协议](../sources/protocol.md#本机数字分身)；长期证据保存于[精简验收 JSON](2026-11-02-shadow-message-input-evidence.json)，包含源码及原始报告散列、断言结果和单次时延样本。
 
 ## 实际实现

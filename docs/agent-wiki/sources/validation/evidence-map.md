@@ -25,6 +25,8 @@
 本轮不证明 Claude Hook、插件 Hook 的原生自动加载、Desktop/Cloud 宿主或两台 Mac 已验收。插件包导出及命令引号有自动化检查；没有可用 Hook 或 MCP 交互时不会即时投递。当前行为见 [顺流感知契约](../decisions/in-flow-awareness.md)。
 ## 本机数字分身
 
+2026-11-02，消息流实现 `bd6f7fb` 合入本地 Meta `956a13d` 后，干净合并提交 `2f23715` 再次通过全部 Go/vet、九包 race、Web 257 项测试与两套嵌入构建；阅读器与分身入口完成中英文/深浅及 1440/1024/768 CSS 像素浏览器复核。最终 App 内 CLI 的三 Core Luna 场景也通过，包含连续输入、W 期间聊天、直接回报与重启恢复。开发包 `0.2.6-dev.shadow-activity.20261102` / build 210 已通过 DMG、App 和生命周期验证并安装；App/CLI/运行 Core 来源一致。仍为同 Mac、ad-hoc/未公证，不扩展为默认 @ 到个人会话的完整真实模型验收。见[合并与本机安装记录](../../tasks/2026-11-02-shadow-meta-install.md)。
+
 2026-11-02，`codex/shadow-activity` 的 `40b606a` 基线加本轮未提交工作区通过消息流与 Work 回报收敛验收。全量 Go/vet、shadow/collab/mcp/nativecodex 完整 race、Web 259 项测试、1381 条翻译检查及两套嵌入构建通过。专用 Luna 在隔离原生会话中验证 A/B 合批、C 忙时追加、准确个人记忆与回复、W 慢工具期间 S 回答，以及 start/report 阶段和完成回报；另以同 Mac 三个真实 Core、TLS 成员凭据复验连续输入、三方可见回报、离线手动重发、准确 thread 和记忆恢复。同讨论多作者、D1/C1 混合路由、丢失回执与发送失败由回放覆盖。新的完成流程不再以认识核对为前置条件，以下旧阶段的理解门槛只作当时证据。未做双 Mac、浏览器或完整默认 @ → Work → 个人会话的真实模型闭环。命令、源码散列、结果与清理见[本轮实施记录](../../tasks/2026-11-02-shadow-message-input-implementation.md)和[精简验收证据](../../tasks/2026-11-02-shadow-message-input-evidence.json)。
 
 2026-10-24，分身委托返回通过全量 Go/vet、shadow/collab/mcp 完整 race、Web 259 项测试与构建。标准主机环境下，实际 Luna 创建并完成后台任务，固定结果经两套认证 Core 与真实 Hook HTTP 入口送回准确发起路线；主机与分身两级 outbox、无配对委托、静音、失败回滚、重启去重及历史窗口过期由回放覆盖。首次受限沙箱测试因嵌套 sandbox-exec 失败而超时，记录保留。发起会话为测试 transcript，不宣称接收模型已理解或双 Mac 验收；待答问题返回仍在后续范围。见[分身委托返回原会话](../../tasks/2026-10-24-shadow-activity-implementation.md#分身委托返回原会话)。
