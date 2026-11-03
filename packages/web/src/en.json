@@ -1716,5 +1716,14 @@
   "文件中保留的内容": "Contents retained in files",
   "文件 · 跨会话保留": "Files · retained across sessions",
   "聊天原文、任务状态与结果、共享记忆、换段交接笔记。会话按需读取，不会把所有文件一直塞进上下文。": "Original messages, task states and results, shared memories, and handoff notes. Sessions read these as needed, rather than keeping every file in context.",
-  "分身离线，以下为最后同步的会话与任务记录。": "The shadow is offline. These are the last synced session and task records."
+  "分身离线，以下为最后同步的会话与任务记录。": "The shadow is offline. These are the last synced session and task records.",
+  "任务中的提问": "Task questions",
+  "分身在任务中登记的提问，以及各任务等待什么、收到答复后继续做什么。": "Questions registered by the shadow during tasks, what each task is waiting for, and what happens after a reply.",
+  "提问范围": "Question filter",
+  "全部记录": "All records",
+  "未结束任务": "Unfinished tasks",
+  "仅筛选显示的记录，不会启动、暂停或恢复任务。": "This only filters the list. It does not start, pause or resume tasks.",
+  "还没有任务提问记录": "No task questions recorded yet",
+  "未结束任务暂无提问": "No questions for unfinished tasks",
+  "提问与关联任务": "Question and linked tasks"
 }

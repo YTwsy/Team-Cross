@@ -44,6 +44,23 @@ func seedHandlingBrowser(t *testing.T, a *App, spaceID, annotationID string) str
 	if err = json.Unmarshal(b, &receipt); err != nil || receipt.Reply.ID == "" {
 		t.Fatal(out, err)
 	}
+	var historical shadow.TaskQuestion
+	if os.Getenv("TEAMCROSS_QUESTIONS_BROWSER") == "1" {
+		oldAction := uuid.NewString()
+		text := "之前的文档更新是否完成？"
+		out, err := a.shadowToolCall(context.Background(), v.ID, "reply_to_annotation", map[string]any{"annotationId": annotationID, "requestId": oldAction, "text": text})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var saved struct {
+			Reply AnnotationReply `json:"reply"`
+		}
+		raw, _ := json.Marshal(out)
+		if err = json.Unmarshal(raw, &saved); err != nil || saved.Reply.ID == "" {
+			t.Fatal(out, err)
+		}
+		historical = shadow.TaskQuestion{ID: "browser-closed-question", ActionID: oldAction, Text: text, Delivery: "saved", Source: spacecontext.SourceRef{SpaceID: spaceID, AnnotationID: annotationID, ReplyID: saved.Reply.ID}, CreatedAt: time.Now().Add(-time.Hour), UpdatedAt: time.Now().Add(-time.Hour)}
+	}
 	store, err := a.memberAttention(spaceID, v.Owner.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -74,6 +91,10 @@ func seedHandlingBrowser(t *testing.T, a *App, spaceID, annotationID string) str
 		q.RelationsRecorded = true
 	}
 	record.Questions[q.ID] = q
+	if historical.ID != "" {
+		record.Questions[historical.ID] = historical
+		record.Jobs["browser-closed-task"] = shadow.Job{ID: "browser-closed-task", Title: "先前的文档更新", Kind: "coordination", State: "completed", Version: 1, Revision: 1, Dependencies: []shadow.TaskDependency{{ID: "old-answer", Kind: "discussion", QuestionID: historical.ID, Source: historical.Source, State: "satisfied", Condition: "确认文档更新已完成"}}, UpdatedAt: time.Now().Add(-time.Hour)}
+	}
 	for i, title := range []string{"更新发布兼容性说明", "补齐最低版本验证清单"} {
 		id := uuid.NewString()
 		record.Jobs[id] = shadow.Job{ID: id, Title: title, Version: 1, Revision: 1, State: "waiting", Kind: "coordination", Trigger: &shadow.TaskTrigger{Kind: "activity", EventIDs: []string{origin.ID}, Sources: []spacecontext.SourceRef{origin.Source}}, Dependencies: []shadow.TaskDependency{{ID: "version", Kind: "discussion", QuestionID: q.ID, Source: ref, State: "waiting", Condition: []string{"最低版本确认后更新说明", "最低版本确认后确定验证范围"}[i]}}, UpdatedAt: time.Now()}

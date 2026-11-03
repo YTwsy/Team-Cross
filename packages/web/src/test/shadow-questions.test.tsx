@@ -146,3 +146,92 @@ it("rebuilds an invalidated page and never labels an unsent parent as the sent q
   ).not.toBeInTheDocument();
   expect(reads.some((url) => url.includes("activity/read"))).toBe(false);
 });
+
+it("filters active tasks or history with reads only and resets pagination when switching", async () => {
+  const reads: string[] = [];
+  const writes: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      reads.push(String(url));
+      if (init?.method && init.method !== "GET") writes.push(String(url));
+      const history = String(url).includes("history=true");
+      const next = String(url).includes("cursor=next");
+      return {
+        ok: true,
+        json: async () => ({
+          items: history
+            ? [
+                {
+                  ...question,
+                  id: "old",
+                  text: "已经结束任务的提问",
+                  activeTasks: 0,
+                  state: "closed",
+                },
+              ]
+            : next
+              ? [{ ...question, text: "未结束任务的第二页提问" }]
+              : [question],
+          total: history ? 1 : 2,
+          revision: history ? "all" : "active",
+          nextCursor: !history && !next ? "next" : undefined,
+        }),
+      };
+    }),
+  );
+  render(<ShadowQuestions spaceId="space" shadowId="own-shadow" />);
+  expect(
+    screen.getByRole("region", { name: "任务中的提问" }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "未结束任务" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  fireEvent.click(await screen.findByRole("button", { name: "下一页提问" }));
+  expect(
+    await screen.findByRole("button", { name: "未结束任务的第二页提问" }),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "全部记录" }));
+  expect(
+    await screen.findByRole("button", { name: "已经结束任务的提问" }),
+  ).toBeInTheDocument();
+  expect(screen.getByText("关联任务已结束")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "全部记录" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(reads.at(-1)).toMatch(/history=true&cursor=$/);
+  fireEvent.click(screen.getByRole("button", { name: "未结束任务" }));
+  expect(
+    await screen.findByRole("button", { name: question.text }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "已经结束任务的提问" }),
+  ).not.toBeInTheDocument();
+  expect(reads.at(-1)).toMatch(/history=false&cursor=$/);
+  expect(writes).toEqual([]);
+});
+
+it("explains an empty task-question list for each filter without creating work", async () => {
+  const methods: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url: string, init?: RequestInit) => {
+      methods.push(init?.method || "GET");
+      return {
+        ok: true,
+        json: async () => ({ items: [], total: 0, revision: "empty" }),
+      };
+    }),
+  );
+  render(<ShadowQuestions spaceId="space" shadowId="own-shadow" />);
+  expect(await screen.findByText("未结束任务暂无提问")).toBeInTheDocument();
+  expect(
+    screen.getByText("仅筛选显示的记录，不会启动、暂停或恢复任务。"),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "全部记录" }));
+  expect(await screen.findByText("还没有任务提问记录")).toBeInTheDocument();
+  expect(methods.every((method) => method === "GET")).toBe(true);
+});

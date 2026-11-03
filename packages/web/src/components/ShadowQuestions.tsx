@@ -29,23 +29,41 @@ export function ShadowQuestions({
   );
   const page = data.error ? undefined : data.data;
   return (
-    <section className="shadow-question-list" aria-label={t("提问与接续")}>
-      <h3>{t("提问与接续")}</h3>
-      <label className="small-text">
-        <input
-          type="checkbox"
-          checked={history}
-          onChange={(e) => {
-            setHistory(e.target.checked);
-            setCursor("");
-          }}
-        />
-        {t("包含已结束任务")}
-      </label>
+    <section className="shadow-question-list" aria-label={t("任务中的提问")}>
+      <h3>{t("任务中的提问")}</h3>
+      <p className="shadow-question-description">
+        {t(
+          "分身在任务中登记的提问，以及各任务等待什么、收到答复后继续做什么。",
+        )}
+      </p>
+      <div
+        className="shadow-question-filters"
+        role="group"
+        aria-label={t("提问范围")}
+      >
+        {[false, true].map((includeHistory) => (
+          <button
+            key={String(includeHistory)}
+            type="button"
+            aria-pressed={history === includeHistory}
+            onClick={() => {
+              setHistory(includeHistory);
+              setCursor("");
+            }}
+          >
+            {includeHistory ? t("全部记录") : t("未结束任务")}
+          </button>
+        ))}
+      </div>
+      <p className="shadow-question-filter-note">
+        {t("仅筛选显示的记录，不会启动、暂停或恢复任务。")}
+      </p>
       <ErrorBox message={data.error} />
       {data.loading && !page && <Loading />}
       {page && !page.items.length && (
-        <p className="muted">{t("暂无相关提问")}</p>
+        <p className="shadow-question-empty" role="status">
+          {history ? t("还没有任务提问记录") : t("未结束任务暂无提问")}
+        </p>
       )}
       {page?.items.map((q) => (
         <div className="shadow-fact" key={q.id}>
@@ -109,7 +127,7 @@ function QuestionDetails({
   );
   const detail = data.error ? undefined : data.data;
   return (
-    <Modal title={t("提问与接续")} onClose={onClose} wide>
+    <Modal title={t("提问与关联任务")} onClose={onClose} wide>
       <ErrorBox message={data.error} />
       {data.loading && !detail && <Loading />}
       {detail && (
