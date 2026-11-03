@@ -1,4 +1,11 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { SpaceShadows } from "../components/SpaceShadows";
@@ -141,7 +148,13 @@ it("keeps an uncertain message and retries only on click with the same id", asyn
 
 it("shows task and member memory state without requiring a topic choice", async () => {
   shadow.jobs = [
-    { id: "job", title: "后台核对", state: "running", version: 2 },
+    {
+      id: "job",
+      title: "后台核对",
+      state: "running",
+      version: 2,
+      threadId: "w1",
+    },
   ];
   shadow.memories = [
     {
@@ -156,7 +169,11 @@ it("shows task and member memory state without requiring a topic choice", async 
   ];
   const user = userEvent.setup();
   render(<SpaceShadows spaceId="space" disabled={false} />);
-  await user.click(await screen.findByRole("button", { name: "记忆与任务" }));
+  await user.click(await screen.findByRole("button", { name: "会话与任务" }));
+  const dialog = screen.getByRole("dialog", { name: "会话、任务与记忆" });
+  expect(within(dialog).getByText("S1")).toBeVisible();
+  expect(within(dialog).getByText("W1")).toBeVisible();
+  expect(within(dialog).getByText("空闲 · 可继续聊天")).toBeVisible();
   expect(await screen.findByText("后台核对")).toBeInTheDocument();
   expect(screen.getByText(/我的偏好/)).toBeInTheDocument();
   expect(screen.getByText("简短回答")).toBeInTheDocument();
@@ -167,6 +184,120 @@ it("shows task and member memory state without requiring a topic choice", async 
     screen.queryByRole("button", { name: "追问" }),
   ).not.toBeInTheDocument();
   await waitFor(() => expect(sent).toHaveLength(0));
+  fireEvent(dialog, new Event("cancel", { cancelable: true }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "会话与任务" })).toHaveFocus(),
+  );
+  expect(screen.getByLabelText("给分身发消息")).toBeEnabled();
+});
+
+it("distinguishes current S from history and work that has not created a session", async () => {
+  shadow.current = "s2";
+  shadow.segments = [
+    {
+      id: "s1",
+      number: 1,
+      inputTokens: 95000,
+      contextWindow: 100000,
+      compactions: 2,
+      closedAt: "2026-11-03T09:00:00Z",
+    },
+    {
+      id: "s2",
+      number: 2,
+      inputTokens: 4000,
+      usageValid: true,
+      contextWindow: 100000,
+      compactions: 0,
+    },
+  ];
+  shadow.jobs = [
+    {
+      id: "pending",
+      title: "等待执行位置",
+      state: "queued",
+      version: 1,
+      createdAt: "2026-11-03T09:01:00Z",
+    },
+    {
+      id: "work",
+      title: "独立核对",
+      state: "waiting",
+      version: 2,
+      threadId: "native-work",
+      createdAt: "2026-11-03T09:00:00Z",
+    },
+    {
+      id: "coordination",
+      title: "旧协作事项",
+      kind: "coordination",
+      state: "waiting",
+      version: 1,
+      threadId: "old-decision",
+    },
+  ];
+  const user = userEvent.setup();
+  render(<SpaceShadows spaceId="space" disabled={false} />);
+  await user.click(await screen.findByRole("button", { name: "会话与任务" }));
+  expect(screen.getByText("S2")).toBeVisible();
+  expect(screen.getByText("S1")).not.toBeVisible();
+  expect(
+    screen.getByRole("progressbar", { name: "主会话上下文用量" }),
+  ).toHaveAttribute("value", "4000");
+  expect(
+    screen.getByRole("article", { name: "W1 · 独立核对" }),
+  ).toHaveTextContent("等待新信息");
+  expect(
+    screen.getByRole("article", { name: "待建会话 · 等待执行位置" }),
+  ).toHaveTextContent("尚未创建工作会话");
+  expect(screen.queryByText("W2")).not.toBeInTheDocument();
+  expect(screen.queryByText("W3")).not.toBeInTheDocument();
+  await user.click(screen.getByText(/以前的主会话段/));
+  expect(screen.getByText("S1")).toBeVisible();
+  expect(screen.getByText("已交接")).toBeVisible();
+  expect(paths.some((p) => p.includes("/shadows/shadow/local"))).toBe(false);
+  expect(sent).toHaveLength(0);
+});
+
+it("does not invent sessions or measured usage before native creation and reporting", async () => {
+  shadow.current = "";
+  shadow.segments = [];
+  const user = userEvent.setup();
+  render(<SpaceShadows spaceId="space" disabled={false} />);
+  await user.click(await screen.findByRole("button", { name: "会话与任务" }));
+  expect(screen.getByText("尚未创建主会话")).toBeVisible();
+  expect(screen.getByText("尚未创建工作会话")).toBeVisible();
+  expect(screen.queryByText("S1")).not.toBeInTheDocument();
+  expect(screen.queryByText("W1")).not.toBeInTheDocument();
+  expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  expect(created).toHaveLength(0);
+  expect(sent).toHaveLength(0);
+});
+
+it("keeps the last main session visible without presenting stale usage as a measurement", async () => {
+  shadow.online = false;
+  shadow.busy = true;
+  shadow.jobs = [
+    {
+      id: "work",
+      title: "原生结束但未完成",
+      state: "needs_followup",
+      version: 1,
+      threadId: "w1",
+      result: "还需核对最后一项",
+    },
+  ];
+  const user = userEvent.setup();
+  render(<SpaceShadows spaceId="space" disabled={false} />);
+  await user.click(await screen.findByRole("button", { name: "会话与任务" }));
+  expect(screen.getByText("离线 · 最后记录")).toBeVisible();
+  expect(screen.getByText("等待原生端报告当前上下文用量。")).toBeVisible();
+  expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("article", { name: "W1 · 原生结束但未完成" }),
+  ).toHaveTextContent("需要继续处理");
+  expect(screen.queryByText("已完成")).not.toBeInTheDocument();
 });
 
 it("restores an unconfirmed send as a manual retry without sending on mount", async () => {

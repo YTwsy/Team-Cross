@@ -49,6 +49,8 @@ export type Shadow = {
         usageValid?: boolean;
         contextWindow: number;
         compactions: number;
+        createdAt?: string;
+        closedAt?: string;
       }[]
     | null;
   memories:
@@ -68,6 +70,11 @@ export type Shadow = {
         title: string;
         state: string;
         version: number;
+        kind?: string;
+        threadId?: string;
+        createdAt?: string;
+        completionCriteria?: string[];
+        checkpoint?: { summary?: string; nextStep?: string };
         result?: string;
         error?: string;
       }[]

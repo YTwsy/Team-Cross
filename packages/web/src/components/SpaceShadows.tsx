@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { api, errorText, useResource } from "../api";
-import { jobLabel } from "../attention";
 import { formatDate, serviceText, t } from "../i18n";
 import { localStorage } from "../storage";
 import {
@@ -20,6 +19,7 @@ import { ErrorBox, Icon, Loading, Modal } from "./ui";
 import { MarkdownText } from "./MarkdownText";
 import { DefaultShadow } from "./DefaultShadow";
 import { ShadowQuestions } from "./ShadowQuestions";
+import { ShadowSessions } from "./ShadowSessions";
 import "../shadows.css";
 
 export function SpaceShadows({
@@ -506,7 +506,6 @@ function ShadowChat({
       setBusy(false);
     }
   }
-  const segment = view.segments?.find((s) => s.id === view.current);
   return (
     <div className="shadow-chat-layout">
       <div className="shadow-chat panel">
@@ -526,8 +525,9 @@ function ShadowChat({
             className="button small"
             onClick={() => setDetails(!details)}
             aria-expanded={details}
+            aria-haspopup="dialog"
           >
-            {t("记忆与任务")}
+            {t("会话与任务")}
           </button>
         </div>
         <p className="shadow-shared-note">
@@ -673,113 +673,99 @@ function ShadowChat({
         </form>
       </div>
       {details && (
-        <aside className="shadow-details panel">
-          {own && local.data && (
-            <ShadowQuestions
-              key={view.id}
-              spaceId={spaceId}
-              shadowId={view.id}
-            />
-          )}
-          <h3>{t("后台任务")}</h3>
-          {!view.jobs?.length && <p className="muted">{t("还没有后台任务")}</p>}
-          {view.jobs?.map((j) => (
-            <div className="shadow-fact" key={j.id}>
-              <strong>{j.title}</strong>
-              <span>
-                {jobLabel(j.state)} · v{j.version}
-              </span>
-              {j.result && (
-                <details>
-                  <summary>{t("查看结果")}</summary>
-                  <MarkdownText source={j.result} />
-                </details>
+        <Modal
+          title={t("会话、任务与记忆")}
+          wide
+          onClose={() => setDetails(false)}
+        >
+          <div className="shadow-details">
+            <p className="shadow-details-name">
+              {view.name} · {view.owner.name}
+            </p>
+            <ErrorBox message={data.error} />
+            <ShadowSessions view={view} />
+            {own && local.data && (
+              <ShadowQuestions
+                key={view.id}
+                spaceId={spaceId}
+                shadowId={view.id}
+              />
+            )}
+            <h3>{t("共享记忆")}</h3>
+            <p className="muted">
+              {t(
+                "个人偏好按成员归属保存。候选记忆尚未确认，忘掉的信息不再作为有效记忆使用。",
               )}
-              {j.error && <ErrorBox message={serviceText(j.error)} />}
-            </div>
-          ))}
-          <h3>{t("共享记忆")}</h3>
-          <p className="muted">
-            {t(
-              "个人偏好按成员归属保存。候选记忆尚未确认，忘掉的信息不再作为有效记忆使用。",
+            </p>
+            {!view.memories?.length && (
+              <p className="muted">{t("还没有记忆")}</p>
             )}
-          </p>
-          {!view.memories?.length && <p className="muted">{t("还没有记忆")}</p>}
-          {view.memories?.map((m) => (
-            <div className="shadow-fact" key={m.id}>
-              <p>{m.state === "forgotten" ? t("已忘掉") : m.text}</p>
-              <span>
-                {m.scope === "space"
-                  ? t("空间")
-                  : m.subjectId === selfId
-                    ? t("我的偏好")
-                    : t("成员偏好")}{" "}
-                ·{" "}
-                {m.state === "candidate"
-                  ? t("待确认")
-                  : m.state === "forgotten"
-                    ? t("已失效")
-                    : t("有效")}{" "}
-                · v{m.revision}
-              </span>
-            </div>
-          ))}
-          <details className="shadow-diagnostics">
-            <summary>{t("运行与上下文")}</summary>
-            {view.settings && (
-              <p>
-                {t("启动配置")} · {view.settings.modelProvider} /{" "}
-                {view.settings.model} / {view.settings.reasoningEffort}
-              </p>
-            )}
-            <p>
-              {t("运行时确认")} · Codex ·{" "}
-              {view.model || t("等待原生会话确认模型")}
-            </p>
-            <p>
-              {view.modelProvider} {view.reasoningEffort}
-            </p>
-            <p>
-              {segment
-                ? `S${segment.number} · ${segment.compactions} ${t("次原生压缩")}`
-                : t("首条消息会创建主会话")}
-            </p>
-            <p>
-              {segment?.contextWindow && segment.usageValid
-                ? `${segment.inputTokens.toLocaleString()} / ${segment.contextWindow.toLocaleString()} tokens`
-                : segment?.contextWindow
-                  ? t("等待原生端报告当前上下文用量。")
-                  : t("原生端尚未报告上下文窗口，继续使用原生压缩。")}
-            </p>
-            {own && (
-              <>
-                <p className="shadow-path">{local.data?.cwd}</p>
-                {local.data?.diagnosticError && (
-                  <pre className="shadow-path">
-                    {local.data.diagnosticError}
-                  </pre>
-                )}
-                <p className="muted">
-                  {t("暂停接收后，已开始的工作继续完成。")}
+            {view.memories?.map((m) => (
+              <div className="shadow-fact" key={m.id}>
+                <p>{m.state === "forgotten" ? t("已忘掉") : m.text}</p>
+                <span>
+                  {m.scope === "space"
+                    ? t("空间")
+                    : m.subjectId === selfId
+                      ? t("我的偏好")
+                      : t("成员偏好")}{" "}
+                  ·{" "}
+                  {m.state === "candidate"
+                    ? t("待确认")
+                    : m.state === "forgotten"
+                      ? t("已失效")
+                      : t("有效")}{" "}
+                  · v{m.revision}
+                </span>
+              </div>
+            ))}
+            <details className="shadow-diagnostics">
+              <summary>{t("运行与上下文")}</summary>
+              {view.settings && (
+                <p>
+                  {t("启动配置")} · {view.settings.modelProvider} /{" "}
+                  {view.settings.model} / {view.settings.reasoningEffort}
                 </p>
-                <button
-                  className="button small"
-                  disabled={busy || disabled}
-                  onClick={() => void action(view.enabled ? "pause" : "resume")}
-                >
-                  {view.enabled ? t("暂停接收") : t("恢复接收")}
-                </button>
-                <button
-                  className="button small"
-                  disabled={busy || disabled || !view.current}
-                  onClick={() => void action("reconcile")}
-                >
-                  {t("核对原生状态")}
-                </button>
-              </>
-            )}
-          </details>
-        </aside>
+              )}
+              <p>
+                {t("运行时确认")} · Codex ·{" "}
+                {view.model || t("等待原生会话确认模型")}
+              </p>
+              <p>
+                {view.modelProvider} {view.reasoningEffort}
+              </p>
+              {own && (
+                <>
+                  <p className="shadow-path">{local.data?.cwd}</p>
+                  {local.data?.diagnosticError && (
+                    <pre className="shadow-path">
+                      {local.data.diagnosticError}
+                    </pre>
+                  )}
+                  <p className="muted">
+                    {t("暂停接收后，已开始的工作继续完成。")}
+                  </p>
+                  <button
+                    className="button small"
+                    disabled={busy || disabled}
+                    onClick={() =>
+                      void action(view.enabled ? "pause" : "resume")
+                    }
+                  >
+                    {view.enabled ? t("暂停接收") : t("恢复接收")}
+                  </button>
+                  <button
+                    className="button small"
+                    disabled={busy || disabled || !view.current}
+                    onClick={() => void action("reconcile")}
+                  >
+                    {t("核对原生状态")}
+                  </button>
+                </>
+              )}
+            </details>
+          </div>
+        </Modal>
       )}
       {own && !!local.data?.approvals.length && (
         <section className="shadow-approvals panel">
