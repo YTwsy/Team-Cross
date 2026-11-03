@@ -1,3 +1,5 @@
+import { useRefreshState, useRefreshGuard } from "../refreshState";
+import { referenceAddress } from "../execution";
 import { currentConversation } from "../currentConversation";
 import { formatDate, t, tr } from "../i18n";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -19,6 +21,7 @@ import {
 } from "../types";
 import { Annotations, Discussion, type AnnotationRequest } from "./Annotations";
 import { Context } from "./Context";
+import { MemberFollow } from "./MemberFollow";
 import { SendToAgent } from "./AgentPairings";
 import { MaterialReader, type ReadingMemory } from "./Materials";
 import {
@@ -55,6 +58,7 @@ export function Library({
   quickActions?: ReactNode;
   initialKey?: string;
 }) {
+  const refreshKey = "Library:v1:" + location.hash;
   const views = [
     ["recent", t("最近使用"), "refresh"],
     ["participated", t("我参与的"), "people"],
@@ -62,10 +66,13 @@ export function Library({
     ["favorites", t("已收藏"), "star"],
   ] as const;
   const lib = useLibrary()!;
-  const [view, setView] = useState("recent"),
-    [kind, setKind] = useState("all"),
-    [search, setSearch] = useState("");
-  const [active, setActive] = useState(initialKey),
+  const [view, setView] = useRefreshState(refreshKey + ":view", "recent"),
+    [kind, setKind] = useRefreshState(refreshKey + ":kind", "all"),
+    [search, setSearch] = useRefreshState(refreshKey + ":search", "");
+  const [active, setActive] = useRefreshState(
+      refreshKey + ":active",
+      initialKey,
+    ),
     [collapsed, setCollapsed] = useState(new Set<string>());
   const searchInput = useRef<HTMLInputElement>(null);
   const memories = useRef(new Map<string, Map<string, ReadingMemory>>());
@@ -134,6 +141,7 @@ export function Library({
     if (r.availability === "available")
       void lib.change({ action: "visit", reference: r.reference });
   }
+  useRefreshGuard(refreshKey, false);
   return (
     <section
       hidden={hidden}
@@ -445,7 +453,7 @@ function LibraryReader({
   const lib = useLibrary()!;
   const c = useResource<Collaboration>(
     r.availability === "available"
-      ? `collaborations/${r.reference.spaceId}`
+      ? `collaborations/${referenceAddress(r.reference)}`
       : null,
     5000,
   );
@@ -516,7 +524,7 @@ function LibraryReader({
       <div className="library-reader-links">
         <a
           className="text-link"
-          href={`#/collaborations/${r.reference.spaceId}`}
+          href={`#/collaborations/${referenceAddress(r.reference)}`}
         >
           {t("打开所在空间") + " "}
           <Icon name="arrow" size={14} />
@@ -526,6 +534,7 @@ function LibraryReader({
           disabled={!accessible}
           favorite
         />
+        {r.reference.kind === "material" && r.reference.materialId && <MemberFollow spaceId={r.reference.spaceId} subject={{kind:"material",id:r.reference.materialId}} disabled={!accessible}/>}
       </div>
       {!accessible ? (
         <div className="notice">
@@ -549,7 +558,7 @@ function LibraryReader({
             !error && <Loading text={t("正在读取批注及回复…")} />}
           {space && discussion && (
             <Discussion
-              id={space.id}
+              id={referenceAddress(r.reference)}
               annotation={discussion}
               disabled={discussionDisabled}
               onSaved={reload}
@@ -567,7 +576,7 @@ function LibraryReader({
             ) : material ? (
               <MaterialReader
                 key={`${reading.materialId}:${reading.version}:${reading.turnId || ""}:${location?.serial || 0}`}
-                spaceId={space.id}
+                spaceId={r.reference.spaceId}
                 material={material}
                 reference={reading}
                 memory={memory}
@@ -592,7 +601,7 @@ function LibraryReader({
             (r.reference.kind === "context" ||
               (location?.target && location.target.kind !== "material")) && (
               <Context
-                id={space.id}
+                id={referenceAddress(r.reference)}
                 sessionId={space.sessionId}
                 sequence={space.sequence}
                 online={space.online}
@@ -614,7 +623,7 @@ function LibraryReader({
           {space && (request || r.reference.kind !== "annotation") && (
             <div className="library-discussions">
               <Annotations
-                id={space.id}
+                id={referenceAddress(r.reference)}
                 annotations={
                   space.annotations?.filter((a) =>
                     reading
@@ -639,11 +648,21 @@ function LibraryReader({
 }
 
 export function SelectionTray({ quick = false }: { quick?: boolean }) {
+  const refreshKey = "SelectionTray:v1:" + location.hash;
   const lib = useLibrary()!;
-  const [expanded, setExpanded] = useState(false),
-    [mode, setMode] = useState<"read" | "send">();
-  const [snapshot, setSnapshot] = useState<LibraryResource[]>([]);
-  const [entrySerial, setEntrySerial] = useState(0);
+  const [expanded, setExpanded] = useRefreshState(
+      refreshKey + ":expanded",
+      false,
+    ),
+    [mode, setMode] = useRefreshState<"read" | "send">(refreshKey + ":mode");
+  const [snapshot, setSnapshot] = useRefreshState<LibraryResource[]>(
+    refreshKey + ":snapshot",
+    [],
+  );
+  const [entrySerial, setEntrySerial] = useRefreshState(
+    refreshKey + ":entrySerial",
+    0,
+  );
   const tray = useRef<HTMLElement>(null);
   const items = (lib.data?.selection || [])
     .map((key) => lib.data!.resources.find((r) => r.key === key))
@@ -680,6 +699,7 @@ export function SelectionTray({ quick = false }: { quick?: boolean }) {
       document.body.style.removeProperty("--selection-tray-height");
     };
   }, [hasTray]);
+  useRefreshGuard(refreshKey, false);
   if (!items.length && !mode) return null;
   return (
     <>
@@ -689,57 +709,59 @@ export function SelectionTray({ quick = false }: { quick?: boolean }) {
           className={`selection-tray ${quick ? "selection-tray-quick" : ""}`}
           aria-label={t("当前选择清单")}
         >
-          {expanded && !!items.length && (
-            <div className="selection-items">
-              <div className="panel-heading">
-                <strong>{t("当前选择")}</strong>
-                <button
-                  className="text-link"
-                  disabled={lib.working}
-                  onClick={() => void lib.change({ action: "clear" })}
-                >
-                  {t("清空选择") + " "}
-                </button>
-              </div>
-              {items.map((r) => (
-                <div className="selection-item" key={r.key}>
-                  <Icon name={kindIcons[r.reference.kind]} size={16} />
-                  <div>
-                    <strong>{r.title}</strong>
-                    <small>
-                      {r.spaceTitle} ·{" "}
-                      {r.reference.version
-                        ? tr`版本 ${r.reference.version}`
-                        : kindName(r.reference.kind)}
-                      {availabilityLabel(r) && ` · ${availabilityLabel(r)}`}
-                    </small>
-                  </div>
+          <div className="selection-tray-content">
+            {expanded && !!items.length && (
+              <div className="selection-items">
+                <div className="panel-heading">
+                  <strong>{t("当前选择")}</strong>
                   <button
-                    className="icon-button"
-                    aria-label={tr`移除 ${r.title}`}
+                    className="text-link"
                     disabled={lib.working}
-                    onClick={() =>
-                      void lib.change({
-                        action: "select",
-                        key: r.key,
-                        enabled: false,
-                      })
-                    }
+                    onClick={() => void lib.change({ action: "clear" })}
                   >
-                    <Icon name="close" size={14} />
+                    {t("清空选择") + " "}
                   </button>
                 </div>
-              ))}
-            </div>
-          )}
-          {mode === "read" && (
-            <SelectionEntry
-              key={entrySerial}
-              resources={snapshot}
-              changed={selectionChanged}
-              onClose={() => setMode(undefined)}
-            />
-          )}
+                {items.map((r) => (
+                  <div className="selection-item" key={r.key}>
+                    <Icon name={kindIcons[r.reference.kind]} size={16} />
+                    <div>
+                      <strong>{r.title}</strong>
+                      <small>
+                        {r.spaceTitle} ·{" "}
+                        {r.reference.version
+                          ? tr`版本 ${r.reference.version}`
+                          : kindName(r.reference.kind)}
+                        {availabilityLabel(r) && ` · ${availabilityLabel(r)}`}
+                      </small>
+                    </div>
+                    <button
+                      className="icon-button"
+                      aria-label={tr`移除 ${r.title}`}
+                      disabled={lib.working}
+                      onClick={() =>
+                        void lib.change({
+                          action: "select",
+                          key: r.key,
+                          enabled: false,
+                        })
+                      }
+                    >
+                      <Icon name="close" size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {mode === "read" && (
+              <SelectionEntry
+                key={entrySerial}
+                resources={snapshot}
+                changed={selectionChanged}
+                onClose={() => setMode(undefined)}
+              />
+            )}
+          </div>
           <div className="selection-tray-bar">
             <button
               className="selection-count"

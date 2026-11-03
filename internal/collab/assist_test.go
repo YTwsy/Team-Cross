@@ -61,23 +61,23 @@ func TestAuxiliaryMCPKeepsCodexControlsAndOwnership(t *testing.T) {
 	ctx := context.Background()
 	id := s.record.ID
 	for _, tool := range []string{"list_collaborations", "get_collaboration"} {
-		if _, err := b.Invoke(ctx, tool, map[string]any{"id": id}); err != nil {
+		if _, err := b.Invoke(ctx, tool, map[string]any{"id": s.spaceID(), "executionId": id}); err != nil {
 			t.Fatal(tool, err)
 		}
 	}
-	start := map[string]any{"id": id, "mode": "start", "requestId": "mcp-start", "text": "selected input"}
+	start := map[string]any{"id": s.spaceID(), "executionId": id, "mode": "start", "requestId": "mcp-start", "text": "selected input"}
 	if _, err := b.Invoke(ctx, "send_input", start); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.Invoke(ctx, "send_input", map[string]any{"id": id, "mode": "steer", "requestId": "mcp-steer", "turnId": "active-turn", "text": "selected followup"}); err != nil {
+	if _, err := b.Invoke(ctx, "send_input", map[string]any{"id": s.spaceID(), "executionId": id, "mode": "steer", "requestId": "mcp-steer", "turnId": "active-turn", "text": "selected followup"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.Invoke(ctx, "interrupt_turn", map[string]any{"id": id, "requestId": "mcp-interrupt", "turnId": "active-turn"}); err != nil {
+	if _, err := b.Invoke(ctx, "interrupt_turn", map[string]any{"id": s.spaceID(), "executionId": id, "requestId": "mcp-interrupt", "turnId": "active-turn"}); err != nil {
 		t.Fatal(err)
 	}
 	s.onMessage(nativecodex.Message{Method: "turn/completed"})
 	s.onMessage(nativecodex.Message{ID: json.RawMessage(`12`), Method: "item/commandExecution/requestApproval", Params: json.RawMessage(`{}`)})
-	response := map[string]any{"id": id, "requestId": 12, "result": map[string]any{"decision": "decline"}}
+	response := map[string]any{"id": s.spaceID(), "executionId": id, "requestId": 12, "result": map[string]any{"decision": "decline"}}
 	if _, err := b.Invoke(ctx, "respond_to_request", response); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestAuxiliaryMCPKeepsCodexControlsAndOwnership(t *testing.T) {
 	if _, err := b.Invoke(ctx, "send_input", start); err == nil {
 		t.Fatal("auxiliary client bypassed input ownership")
 	}
-	if _, err := b.Invoke(ctx, "read_context", map[string]any{"id": id, "kind": "annotations"}); err != nil {
+	if _, err := b.Invoke(ctx, "read_context", map[string]any{"id": s.spaceID(), "executionId": id, "kind": "annotations"}); err != nil {
 		t.Fatal("read blocked by ownership", err)
 	}
 }

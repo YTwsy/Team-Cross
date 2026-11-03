@@ -13,6 +13,7 @@ import type { AnnotationTarget } from "./types";
 import { Icon } from "./components/ui";
 
 export type LibraryReference = {
+  executionId?: string;
   spaceId: string;
   kind: "material" | "annotation" | "context";
   materialId?: string;
@@ -99,6 +100,7 @@ const targetKey = (target?: AnnotationTarget) =>
     : "";
 export const sameReference = (a: LibraryReference, b: LibraryReference) =>
   a.spaceId === b.spaceId &&
+  a.executionId === b.executionId &&
   a.kind === b.kind &&
   a.materialId === b.materialId &&
   a.version === b.version &&
@@ -179,6 +181,7 @@ export function ResourceActions({
     () => setFailure(""),
     [
       reference.spaceId,
+      reference.executionId,
       reference.materialId,
       reference.version,
       reference.annotationId,

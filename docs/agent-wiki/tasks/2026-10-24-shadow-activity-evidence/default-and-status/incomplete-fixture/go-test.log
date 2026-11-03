@@ -1,0 +1,26 @@
+ok  	teamcross/cmd/teamcross	0.381s
+?   	teamcross/internal/buildinfo	[no test files]
+ok  	teamcross/internal/cliinstall	1.802s
+--- FAIL: TestActivityProcessingStaysLocalAndDoesNotConsumeHumanRead (0.37s)
+    shadow_activity_status_test.go:99: 分身运行记录不存在或 Core 已关闭
+FAIL
+FAIL	teamcross/internal/collab	57.422s
+?   	teamcross/internal/inflow	[no test files]
+ok  	teamcross/internal/materialstore	0.358s
+ok  	teamcross/internal/mcp	0.610s
+ok  	teamcross/internal/mcpassets	0.295s
+ok  	teamcross/internal/mcpevents	0.512s
+ok  	teamcross/internal/nativeclaude	4.847s
+ok  	teamcross/internal/nativecodex	0.932s
+ok  	teamcross/internal/pluginpack	5.335s
+?   	teamcross/internal/problem	[no test files]
+?   	teamcross/internal/readview	[no test files]
+?   	teamcross/internal/runtimeconfig	[no test files]
+ok  	teamcross/internal/service	2.971s
+ok  	teamcross/internal/shadow	65.174s
+ok  	teamcross/internal/sharing	0.658s
+?   	teamcross/internal/spacecontext	[no test files]
+ok  	teamcross/internal/uilanguage	0.286s
+?   	teamcross/internal/webassets	[no test files]
+ok  	teamcross/internal/workspace	0.493s
+FAIL

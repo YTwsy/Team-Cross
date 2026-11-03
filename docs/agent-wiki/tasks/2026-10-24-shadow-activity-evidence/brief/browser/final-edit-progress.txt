@@ -1,0 +1,9 @@
+### Ran Playwright code
+```js
+await page.getByLabel('条目状态进行中已完成受阻').selectOption('completed');
+```
+### Page
+- Page URL: http://127.0.0.1:61281/#/collaborations/29cb8e1b-9446-4017-b667-c05f2a961fb8
+- Page Title: Team Cross
+### Snapshot
+- [Snapshot](.playwright-cli/page-2026-10-24T03-12-19-865Z.yml)

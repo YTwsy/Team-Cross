@@ -1,0 +1,14 @@
+{
+  "version": "0.2.6-dev.priority-upgrade.20261022.2",
+  "commit": "0d75cf9d999c124e51220801813400d9f66d886c",
+  "buildNumber": "181",
+  "dirty": false,
+  "architecture": "arm64",
+  "minimumMacOS": "14.0",
+  "developerIDSigned": false,
+  "notarized": false,
+  "artifacts": {
+    "teamcross-0.2.6-dev.priority-upgrade.20261022.2-darwin-arm64.tar.gz": "0e359e02049a470cbc081a89885503fed48b1087ac0165e0925b8c076cc4e7f0",
+    "Team-Cross-0.2.6-dev.priority-upgrade.20261022.2-arm64.dmg": "50f612b733d54040f6cdc89a0ac1f77debcdf0cbd64e09eb83e195c01f9f8f5a"
+  }
+}

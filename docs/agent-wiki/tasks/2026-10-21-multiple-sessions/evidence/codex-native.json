@@ -1,0 +1,22 @@
+{
+  "provider": "codex",
+  "model": "gpt-5.6-luna",
+  "scope": "one Mac, three Cores, two sessions, loopback TLS membership",
+  "nativeVersion": "codex-cli 0.163.0-alpha.10.2",
+  "sourceId": "01a15b3d-6048-7430-8f68-89016672e001",
+  "shareRequestId": "c344cc3c-94e4-48ad-9af0-4b721285ad3c",
+  "currentTurnIncluded": true,
+  "spaceId": "3b3f3950-81e2-5892-bd5a-5503a9dcad09",
+  "executionId": "c344cc3c-94e4-48ad-9af0-4b721285ad3c",
+  "sessionId": "01a15b3d-9f9f-79a1-9f4a-da6ac40adf54",
+  "secondExecutionId": "1d92a839-65ab-473d-b51f-a623d8547aa7",
+  "secondSessionId": "01a15b3d-b57b-7842-b53f-f422cb19eadb",
+  "explicitPerSessionGrants": true,
+  "independentConcurrentExecutionAndDedupe": true,
+  "cliJoinNoBrowser": true,
+  "mcpAnnotationsAndReply": true,
+  "inputRelay": true,
+  "directTUI": true,
+  "endOnePreservesSpaceAndSibling": true,
+  "sameForkResume": true
+}

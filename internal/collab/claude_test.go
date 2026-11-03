@@ -135,7 +135,7 @@ esac
 	if session.record.ProviderHome != home || session.record.SessionID != newID || session.record.NativeJobID != jobID {
 		t.Fatal("collaboration did not retain personal Claude identity", session.record)
 	}
-	runtimeDir := filepath.Join(dataDir, "collaborations", in.RequestID, "claude-runtime")
+	runtimeDir := filepath.Join(session.runtimeDirectory(), "claude-runtime")
 	if _, err = os.Stat(filepath.Join(runtimeDir, "settings.json")); err != nil {
 		t.Fatal("missing scoped runtime settings", err)
 	}
@@ -254,14 +254,15 @@ func TestClaudeTLSHandoffFencesStaleInputAndKeepsWorker(t *testing.T) {
 	if e := s.Action(ctx, "share"); e != nil {
 		t.Fatal(e)
 	}
-	j, e := b.Join(ctx, s.share.Token())
+	j, e := b.Join(ctx, s.sharedRuntime().Token())
 	if e != nil {
 		t.Fatal(e)
 	}
+
 	if e = s.Action(ctx, "handoff"); e != nil {
 		t.Fatal(e)
 	}
-	remote, e := b.dialClaude(ctx, j.ID)
+	remote, e := b.dialClaude(ctx, executionAddress(j.ID, s.record.ID))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -308,7 +309,7 @@ func TestClaudeTLSHandoffFencesStaleInputAndKeepsWorker(t *testing.T) {
 	if e = s.Action(ctx, "end"); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = b.dialClaude(ctx, j.ID); e == nil {
+	if _, e = b.dialClaude(ctx, executionAddress(j.ID, s.record.ID)); e == nil {
 		t.Fatal("ended member reattached")
 	}
 	s.mu.Lock()

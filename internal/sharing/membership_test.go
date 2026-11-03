@@ -47,11 +47,6 @@ func TestConcurrentJoinResetAndCloseLinkPreserveMembers(t *testing.T) {
 	if len(r.Members()) != 3 {
 		t.Fatal("retries duplicated or concurrent joins collapsed members")
 	}
-	for _, m := range r.Members() {
-		if m.ExecutionAccess {
-			t.Fatal("read-only link granted execution")
-		}
-	}
 	reset, err := r.ResetInvitation("reset")
 	if err != nil || reset.ID == link.ID || reset.Token == link.Token {
 		t.Fatal("reset failed", err)
@@ -77,57 +72,76 @@ func TestConcurrentJoinResetAndCloseLinkPreserveMembers(t *testing.T) {
 	}
 }
 
-func TestExecutionGrantRevocationCancelsOnlyExecution(t *testing.T) {
+func TestMembershipRevocationCancelsExecutionRequests(t *testing.T) {
 	r := &Runtime{Invitation: Invitation{Secret: NewCredential(), ReadOnly: true}}
 	defer r.Close()
 	credential := NewCredential()
 	started, stopped := make(chan struct{}), make(chan struct{})
-	captured := make(chan context.Context, 1)
+	var old context.Context
 	h := r.authorize(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.URL.Path == "/execution" {
-			ctx, cancel, allowed := ExecutionContext(req.Context(), r)
-			defer cancel()
-			if !allowed {
-				t.Error("grant not applied")
-				return
-			}
-			captured <- ctx
-			close(started)
-			<-ctx.Done()
-			if ExecutionAuthorized(ctx, r) {
-				t.Error("revoked execution still authorized")
-			}
-			close(stopped)
+		ctx, cancel, allowed := ExecutionContext(req.Context(), r, "first")
+		defer cancel()
+		if !allowed {
+			t.Error("space member could not read execution")
+			return
 		}
+		old = context.WithoutCancel(ctx)
+		close(started)
+		<-ctx.Done()
+		close(stopped)
 	}))
 	membershipRequest(h, "POST", "/v2/join", r.Invitation.Secret, map[string]string{"credential": credential})
 	id := r.Members()[0].ID
-	if !r.SetExecutionAccess(id, true) {
-		t.Fatal("grant failed")
-	}
 	go membershipRequest(h, "GET", "/execution", credential, nil)
 	<-started
-	r.SetExecutionAccess(id, false)
+	r.RevokeMember(id)
 	select {
 	case <-stopped:
 	case <-time.After(time.Second):
-		t.Fatal("native request survived revocation")
+		t.Fatal("native request survived membership removal")
 	}
-	if !r.HasMember(id) || r.HasExecutionAccess(id) {
-		t.Fatal("grant and membership conflated")
+	if r.HasMember(id) || ExecutionAuthorized(old, r, "first") {
+		t.Fatal("removed member retained reading")
 	}
-	if w := membershipRequest(h, "GET", "/v2/status", credential, nil); w.Code != 200 {
-		t.Fatal("space access lost")
+	if w := membershipRequest(h, "GET", "/v2/status", credential, nil); w.Code != 410 {
+		t.Fatal("removed credential survived")
 	}
-	r.SetExecutionAccess(id, true)
-	old := context.WithoutCancel(<-captured)
-	if ExecutionAuthorized(old, r) {
-		t.Fatal("regrant revived the old request grant")
+	membershipRequest(h, "POST", "/v2/join", r.Invitation.Secret, map[string]string{"credential": NewCredential()})
+	if ExecutionAuthorized(old, r, "first") {
+		t.Fatal("a new membership revived the old request")
 	}
-	fresh, cancel, allowed := ExecutionContext(old, r)
-	defer cancel()
-	if !allowed || !ExecutionAuthorized(fresh, r) {
-		t.Fatal("new request did not receive the current grant")
+}
+
+func TestSpaceMemberReadsEveryExecutionButRequestsKeepTheirTarget(t *testing.T) {
+	r := &Runtime{Invitation: Invitation{Secret: NewCredential()}}
+	defer r.Close()
+	credential := NewCredential()
+	var auth context.Context
+	h := r.authorize(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) { auth = context.WithoutCancel(req.Context()) }))
+	membershipRequest(h, "POST", "/v2/join", r.Invitation.Secret, map[string]string{"credential": credential})
+	membershipRequest(h, "GET", "/v2/status", credential, nil)
+	one, cancelOne, ok := ExecutionContext(auth, r, "one")
+	defer cancelOne()
+	if !ok || !ExecutionAuthorized(one, r, "one") {
+		t.Fatal("first execution not readable")
+	}
+	two, cancelTwo, ok := ExecutionContext(auth, r, "created-later")
+	defer cancelTwo()
+	if !ok || !ExecutionAuthorized(two, r, "created-later") {
+		t.Fatal("new execution not readable")
+	}
+	if _, cancel, allowed := ExecutionContext(one, r, "created-later"); allowed {
+		cancel()
+		t.Fatal("rebound an in-flight request to a sibling")
+	} else {
+		cancel()
+	}
+	if ExecutionAuthorized(one, r, "created-later") {
+		t.Fatal("wrong request target accepted")
+	}
+	r.RevokeMember(r.Members()[0].ID)
+	if ExecutionAuthorized(one, r, "one") || ExecutionAuthorized(two, r, "created-later") {
+		t.Fatal("removal must end all session reads")
 	}
 }
 

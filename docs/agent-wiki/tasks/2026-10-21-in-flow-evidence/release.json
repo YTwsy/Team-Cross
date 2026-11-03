@@ -1,0 +1,14 @@
+{
+  "version": "0.2.6-dev.inflow.20261022",
+  "commit": "cf8fc4956c9b4952b341b5ba3ec2341715b5b4da",
+  "buildNumber": "172",
+  "dirty": false,
+  "architecture": "arm64",
+  "minimumMacOS": "14.0",
+  "developerIDSigned": false,
+  "notarized": false,
+  "artifacts": {
+    "teamcross-0.2.6-dev.inflow.20261022-darwin-arm64.tar.gz": "afc273b69231c3d16671cf8704b1bab8e2d6b9febff42da4bc3874ac9c371091",
+    "Team-Cross-0.2.6-dev.inflow.20261022-arm64.dmg": "63c8222137c1b177d0f60ece9138607c59fae2e6a0adb6879cf75dbc4eb39cb8"
+  }
+}

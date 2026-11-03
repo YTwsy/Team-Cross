@@ -1,0 +1,60 @@
+{
+  "baseCommit": "f49b2a1547490e4ef90eb41b08f695aef2737158",
+  "branch": "Meta",
+  "uncommittedChanges": true,
+  "date": "2026-10-21",
+  "environment": "macOS 14.8.5 (23J423), arm64, one Mac",
+  "checks": {
+    "goTest": "passed",
+    "goVet": "passed",
+    "goRace": "passed: collab, mcp, mcpevents, sharing, nativecodex, nativeclaude, service, cliinstall, pluginpack",
+    "webCheck": "passed, 1056 UI messages",
+    "webTests": "177 passed in 18 files",
+    "webBuild": "passed, both webassets and mcpassets",
+    "swift": "typecheck and optimized arm64 build passed",
+    "tailcat": "sharing and collaboration opt-in tests passed on one Mac, fake provider",
+    "pythonScripts": "five migrated scripts parse; only verify-agent-cli ran real Codex and attempted Claude",
+    "links": "570 changed Markdown links checked",
+    "diffCheck": "passed",
+    "codexNative": "passed on final binary: three Cores, two sessions, gpt-5.6-luna"
+  },
+  "browser": {
+    "fixture": "TestMultipleExecutionsBrowserFixture",
+    "productionAssets": true,
+    "syntheticHistory": true,
+    "members": 3,
+    "sessions": 2,
+    "viewports": [
+      1440,
+      1024,
+      768
+    ],
+    "languages": [
+      "zh-CN",
+      "en"
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "checks": [
+      "independent comment and file drafts",
+      "space brief draft retained",
+      "material navigation",
+      "B/C opposite session access",
+      "restricted title and content",
+      "collapsed session accessible names",
+      "overview counts visible",
+      "no horizontal page overflow",
+      "selected history excerpt keeps exact executionId (interaction test)"
+    ]
+  },
+  "notReverified": [
+    "dedicated Desktop full matrix",
+    "two physical Macs",
+    "cross-NAT and forced DERP",
+    "Claude native multi-session execution (local proxy refused connection)"
+  ],
+  "testedBinarySha256": "98d5590b792a4add39792c08af7cc4af7e055baae9c009468920729079e40dd2",
+  "cleanup": "all agent-created fixture tabs closed; fixture loops finished; native PTY and three Cores exited"
+}

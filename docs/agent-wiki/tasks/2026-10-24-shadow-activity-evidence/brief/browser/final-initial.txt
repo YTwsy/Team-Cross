@@ -1,0 +1,182 @@
+### Page
+- Page URL: http://127.0.0.1:61281/#/collaborations/29cb8e1b-9446-4017-b667-c05f2a961fb8
+- Page Title: Team Cross
+### Snapshot
+```yaml
+- generic [ref=e3]:
+  - link "跳到主要内容" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - main [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - link "返回协作空间" [ref=e8] [cursor=pointer]:
+          - /url: "#/"
+        - generic [ref=e12]:
+          - heading "接口超时调查 · 协作空间" [level=1] [ref=e13]
+          - generic [ref=e14]: 材料、讨论与协作会话
+        - group [ref=e15]:
+          - generic "查看共享状态详情" [ref=e16] [cursor=pointer]: 共享中
+        - button "空间成员" [ref=e19] [cursor=pointer]:
+          - generic [aria-hidden] [ref=e20]: 工
+          - generic [aria-hidden] [ref=e21]: 同
+        - button "邀请成员" [ref=e22] [cursor=pointer]
+      - generic [ref=e26]:
+        - complementary "空间功能与材料" [ref=e27]:
+          - generic [ref=e28]:
+            - link "Team Cross 首页" [ref=e29] [cursor=pointer]:
+              - /url: "#/"
+              - generic [ref=e36]: Team Cross
+            - button "收起空间侧栏" [expanded] [ref=e37] [cursor=pointer]
+          - generic [ref=e41]:
+            - button "发布会话材料" [ref=e43] [cursor=pointer]:
+              - generic [ref=e46]: 发布材料
+            - tablist "空间工作台" [ref=e47]:
+              - tab "空间概览" [ref=e48] [cursor=pointer]
+              - tab "本机数字分身" [ref=e55] [cursor=pointer]
+              - tab "协作请求" [ref=e59] [cursor=pointer]:
+                - generic [ref=e245]: "2"
+              - tab "空间简报" [ref=e63] [cursor=pointer]
+              - tab "参与会话" [ref=e67] [cursor=pointer]
+            - navigation "协作会话" [ref=e73]:
+              - generic [ref=e74]:
+                - strong [ref=e75]: 协作会话
+                - generic [ref=e76]: "0"
+              - paragraph [ref=e77]: 还没有协作会话
+              - button "新增协作会话" [ref=e78] [cursor=pointer]
+            - generic [ref=e82]:
+              - generic [ref=e83]:
+                - generic [ref=e84]: 已发布材料
+                - button "搜索材料" [ref=e85] [cursor=pointer]
+              - group "筛选材料" [ref=e89]:
+                - button "全部材料" [pressed] [ref=e90] [cursor=pointer]
+                - button "最近发布" [ref=e93] [cursor=pointer]
+                - button "有评论" [ref=e97] [cursor=pointer]
+                - button "我发布的" [ref=e100] [cursor=pointer]
+                - button "已收藏" [ref=e104] [cursor=pointer]
+              - generic [ref=e107]:
+                - generic [ref=e110]: 接口超时调查 · 协作空间
+                - generic [ref=e111]: "2"
+              - navigation "材料切换" [ref=e112]:
+                - button "阅读 并发与断线复核" [ref=e113] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=e114]: 发
+                  - generic [ref=e115]:
+                    - strong [ref=e116]: 并发与断线复核
+                    - generic [ref=e117]:
+                      - text: 发起者 · Codex
+                      - generic [ref=e118]: · v1
+                - button "阅读 连接池等待与重试策略 · 复核版" [ref=e119] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=e120]: 发
+                  - generic [ref=e121]:
+                    - strong [ref=e122]: 连接池等待与重试策略 · 复核版
+                    - generic [ref=e123]:
+                      - text: 发起者 · Codex
+                      - generic [ref=e124]: · v2
+          - generic [ref=e125]:
+            - link "资源库" [ref=e126] [cursor=pointer]:
+              - /url: "#/library"
+            - link "设置与连接" [ref=e130] [cursor=pointer]:
+              - /url: "#/settings"
+            - button "专用会话 · 未启用" [ref=e246] [cursor=pointer]
+            - generic [ref=e142]: 分享与审阅
+        - tabpanel "阅读与讨论" [ref=e146]:
+          - region "已发布会话材料" [ref=e149]:
+            - generic [ref=e150]:
+              - generic [ref=e151]:
+                - generic [ref=e152]:
+                  - heading "并发与断线复核" [level=2] [ref=e153]
+                  - generic [ref=e154]:
+                    - generic [ref=e155]:
+                      - button "已关注" [ref=e247] [cursor=pointer]
+                      - group [ref=e159]:
+                        - generic "关注设置" [ref=e160] [cursor=pointer]
+                    - button "收起评论 1" [expanded] [ref=e163] [cursor=pointer]:
+                      - text: 收起评论
+                      - generic [ref=e166]: "1"
+                    - group [ref=e167]:
+                      - generic "材料操作" [ref=e168] [cursor=pointer]
+                - generic [ref=e173]:
+                  - generic [aria-hidden] [ref=e174]: 发
+                  - group [ref=e175]:
+                    - generic "发起者 · Codex · 1 轮对话" [ref=e176] [cursor=pointer]
+                  - combobox "查看固定版本" [ref=e177]:
+                    - option "v1 · 最新" [selected]
+              - button "搜索正文" [ref=e179] [cursor=pointer]
+              - generic [ref=e251]:
+                - generic [ref=e253]:
+                  - generic [ref=e254]:
+                    - generic [ref=e255]:
+                      - generic [aria-hidden] [ref=e256]: 发
+                      - strong [ref=e257]: 发起者
+                    - generic [ref=e258]:
+                      - button "显示原文" [ref=e259] [cursor=pointer]
+                      - button "引用这段文字" [ref=e260] [cursor=pointer]
+                  - paragraph [ref=e265]: 请复核这次调查的处理范围。核对已确认的结论，以及高并发、断线恢复场景中仍需补充的验证，把结论和待确认项分开记录。
+                - generic [ref=e267]:
+                  - generic [ref=e268]:
+                    - strong [ref=e274]: 发起者的 Codex
+                    - generic [ref=e275]:
+                      - button "显示原文" [ref=e276] [cursor=pointer]
+                      - button "引用这段文字" [ref=e277] [cursor=pointer]
+                  - generic [ref=e281]:
+                    - heading "并发与断线复核" [level=2] [ref=e282]
+                    - paragraph [ref=e283]: 对照当前处理路径，需要补充三组验证：
+                    - list [ref=e284]:
+                      - listitem [ref=e285]: 同一请求并发提交，只接收一次输入。
+                      - listitem [ref=e286]: 请求送达后断线，查询原请求的状态。
+                      - listitem [ref=e287]: 新绑定生效后，隔离旧绑定晚到的结果。
+                    - paragraph [ref=e288]: 这些建议等待空间成员确认，尚未成为发布结论。
+              - paragraph [ref=e289]: 已发布的对话节选 · 固定版本 v1
+              - region "基于材料发起请求" [ref=e293]:
+                - generic [ref=e294]:
+                  - generic [ref=e295]: 协作请求
+                  - generic [ref=e298]: 发送给关联会话
+                - textbox "基于材料的处理要求" [ref=e299]:
+                  - /placeholder: 基于这份材料，希望协作者处理什么？
+                - generic [ref=e300]:
+                  - generic [ref=e301]:
+                    - button "添加引用" [ref=e303] [cursor=pointer]
+                    - generic [ref=e307]:
+                      - generic "并发与断线复核 · v1" [ref=e310]
+                      - button "移除引用：并发与断线复核 · v1" [ref=e311] [cursor=pointer]
+                  - button "发起请求" [ref=e314] [cursor=pointer]
+          - complementary "空间评论" [ref=e185]:
+            - generic [ref=e186]:
+              - strong [ref=e187]: 评论
+              - button "收起评论" [ref=e188] [cursor=pointer]
+            - region "协作批注" [ref=e192]:
+              - generic [ref=e193]:
+                - heading "批注 1" [level=2] [ref=e194]:
+                  - text: 批注
+                  - generic [ref=e195]: "1"
+                - paragraph [ref=e196]: 选中文字可在原文旁讨论，也可以在这里写整体意见。
+              - form "添加批注" [ref=e197]:
+                - generic [ref=e198]: 整体意见
+                - generic [ref=e200]: 你的意见
+                - textbox "你的意见" [ref=e202]:
+                  - /placeholder: 留下对这次协作的意见…
+                - button "引用材料" [ref=e204] [cursor=pointer]
+                - generic [ref=e207]:
+                  - generic [ref=e208]: ⌘ / Ctrl + Enter 保存
+                  - button "保存批注" [disabled] [ref=e209]
+              - article "批注：这组验证是否覆盖重试和断线恢复？" [ref=e211]:
+                - generic [ref=e212]:
+                  - generic [ref=e213]: 发
+                  - strong [ref=e214]: 发起者
+                  - time [ref=e215]: 刚刚
+                - generic [ref=e216]:
+                  - generic [ref=e217]: 整体意见
+                  - paragraph [ref=e218]: 这组验证是否覆盖重试和断线恢复？
+                - button "连接池等待与重试策略 · v1 · 有新版本" [ref=e220] [cursor=pointer]:
+                  - generic [ref=e223]:
+                    - generic [ref=e224]: 连接池等待与重试策略
+                    - generic [ref=e225]: v1 · 有新版本
+                - generic [ref=e226]:
+                  - generic [ref=e227]:
+                    - button "已关注" [ref=e317] [cursor=pointer]
+                    - group [ref=e231]:
+                      - generic "关注设置" [ref=e232] [cursor=pointer]
+                  - button "回复" [ref=e235] [cursor=pointer]
+                  - group [ref=e238]:
+                    - generic "更多批注操作" [ref=e239] [cursor=pointer]
+              - paragraph [ref=e244]: 在个人或共享客户端里告诉 Agent“读取 Team Cross 批注”，即可查看意见与回复。保存不会自动开始执行。
+```

@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-24T04:25:10.410828+08:00",
+  "checks": [
+    {
+      "name": "full-go",
+      "command": "GOCACHE=/private/tmp/teamcross-shadow-activity-gocache go test ./... -count=1 -timeout=180s",
+      "exitCode": 0,
+      "log": "go-test.log"
+    },
+    {
+      "name": "race",
+      "command": "GOCACHE=/private/tmp/teamcross-shadow-activity-gocache go test -race ./internal/shadow ./internal/collab -run 'Test(Watch|Attention|FollowInitialization|ActivityConsumer|ShadowWatch|Collaboration|MemberActivityOutbox)' -count=1 -timeout=180s",
+      "exitCode": 0,
+      "log": "race.log"
+    },
+    {
+      "name": "vet",
+      "command": "GOCACHE=/private/tmp/teamcross-shadow-activity-gocache go vet ./...",
+      "exitCode": 0,
+      "log": "go-vet.log"
+    },
+    {
+      "name": "native-watch",
+      "command": "GOCACHE=/private/tmp/teamcross-shadow-activity-gocache python3 scripts/verify-shadow-native.py --watch --fixture-dir /private/tmp/teamcross-shadow-watch-native-20261024-a --codex-bin /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex --codex-auth <personal-auth-symlink-only>",
+      "exitCode": 0,
+      "log": "native-watch.log",
+      "report": "native-watch-report.json"
+    }
+  ],
+  "previousFailure": "pre-fix-full-check.log",
+  "scope": "Single Mac; native gpt-5.6-luna with controlled business sources; separate real HTTP/TLS collab tests. No new UI or complete cross-Core native product-loop acceptance.",
+  "nativeCLI": "0.163.0-alpha.11.2",
+  "cleanup": {
+    "goSessions": "all completed",
+    "nativeFixture": "Engine.Close; no process command or lsof handle matching the exact fixture directory",
+    "browser": "none started"
+  },
+  "documentChecks": "document-checks.json"
+}

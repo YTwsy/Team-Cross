@@ -1,0 +1,11 @@
+{
+  "provider": "claude",
+  "model": "gpt-5.6-luna",
+  "scope": "one Mac, three Cores, two sessions, loopback TLS membership",
+  "nativeVersion": "2.1.270 (Claude Code)",
+  "error": "RuntimeError: Personal client failed: [claude-code:unrecognized_model] {\"model\":\"gpt-5.6-luna\",\"query_source\":\"sdk\"}\n",
+  "generationRequests": 1,
+  "modelsObserved": [
+    "gpt-5.6-luna"
+  ]
+}

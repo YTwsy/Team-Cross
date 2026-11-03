@@ -1,0 +1,121 @@
+### Page
+- Page URL: http://127.0.0.1:61281/#/collaborations/29cb8e1b-9446-4017-b667-c05f2a961fb8
+- Page Title: Team Cross
+### Snapshot
+```yaml
+- generic [ref=e3]:
+  - link "Skip to main content" [ref=e686] [cursor=pointer]:
+    - /url: "#main-content"
+  - main [ref=e5]:
+    - generic [ref=e732]:
+      - generic [ref=e733]:
+        - link "Return to collaboration space" [ref=e734] [cursor=pointer]:
+          - /url: "#/"
+        - heading "接口超时调查 · 协作空间" [level=1] [ref=e739]
+        - group [ref=e740]:
+          - generic "View sharing status details" [ref=e741] [cursor=pointer]: Sharing
+        - button "Space members" [ref=e744] [cursor=pointer]:
+          - generic [aria-hidden] [ref=e745]: 工
+          - generic [aria-hidden] [ref=e746]: 同
+        - button "Invite members" [ref=e747] [cursor=pointer]
+      - generic [ref=e751]:
+        - complementary "Space tools and materials" [ref=e752]:
+          - generic [ref=e753]:
+            - link "Team Cross Home Page" [ref=e754] [cursor=pointer]:
+              - /url: "#/"
+              - generic [ref=e761]: Team Cross
+            - button "Collapse space sidebar" [expanded] [ref=e762] [cursor=pointer]
+          - generic [ref=e766]:
+            - button "Publish session materials" [ref=e768] [cursor=pointer]:
+              - generic [ref=e771]: Publish material
+            - tablist "Space workbench" [ref=e772]:
+              - tab "Space overview" [ref=e773] [cursor=pointer]
+              - tab "Local digital shadows" [ref=e780] [cursor=pointer]
+              - tab "Requests" [ref=e784] [cursor=pointer]:
+                - generic [ref=e910]: "2"
+              - tab "Space brief" [active] [selected] [ref=e788] [cursor=pointer]
+              - tab "Conversations" [ref=e792] [cursor=pointer]
+            - navigation "Shared session" [ref=e798]:
+              - generic [ref=e799]:
+                - strong [ref=e800]: Shared session
+                - generic [ref=e801]: "0"
+              - paragraph [ref=e802]: No collaboration sessions yet
+              - button "New collaboration session" [ref=e803] [cursor=pointer]
+            - generic [ref=e807]:
+              - generic [ref=e808]:
+                - generic [ref=e809]: Published materials
+                - button "Search materials" [ref=e810] [cursor=pointer]
+              - group "Filter materials" [ref=e814]:
+                - button "All materials" [pressed] [ref=e815] [cursor=pointer]
+                - button "Recently published" [ref=e818] [cursor=pointer]
+                - button "With comments" [ref=e822] [cursor=pointer]
+                - button "Published by me" [ref=e825] [cursor=pointer]
+                - button "Favorites" [ref=e829] [cursor=pointer]
+              - generic [ref=e832]:
+                - generic [ref=e835]: 接口超时调查 · 协作空间
+                - generic [ref=e836]: "2"
+              - navigation "Switch materials" [ref=e837]:
+                - button "Read 并发与断线复核" [ref=e838] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=e839]: 发
+                  - generic [ref=e840]:
+                    - strong [ref=e841]: 并发与断线复核
+                    - generic [ref=e842]:
+                      - text: 发起者 · Codex
+                      - generic [ref=e843]: · v1
+                - button "Read 连接池等待与重试策略 · 复核版" [ref=e844] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=e845]: 发
+                  - generic [ref=e846]:
+                    - strong [ref=e847]: 连接池等待与重试策略 · 复核版
+                    - generic [ref=e848]:
+                      - text: 发起者 · Codex
+                      - generic [ref=e849]: · v2
+          - generic [ref=e850]:
+            - link "Library" [ref=e851] [cursor=pointer]:
+              - /url: "#/library"
+            - link "Settings and Connections" [ref=e855] [cursor=pointer]:
+              - /url: "#/settings"
+            - button "Space assistant · Not enabled" [ref=e911] [cursor=pointer]
+            - generic [ref=e867]: Share and review
+        - tabpanel "Space brief" [ref=e982]:
+          - generic [ref=e983]:
+            - generic [ref=e984]:
+              - generic [ref=e985]:
+                - heading "Space brief" [level=2] [ref=e986]
+                - paragraph [ref=e987]: Version 5 · Visible to all participants.
+              - button "Edit brief" [ref=e988] [cursor=pointer]
+            - generic [ref=e991]:
+              - heading "Current topic" [level=3] [ref=e992]
+              - paragraph [ref=e993]: 合并复核：保留客户端边界并完成恢复测试。
+            - generic [ref=e994]:
+              - generic [ref=e995]:
+                - generic [ref=e996]:
+                  - heading "Decisions and proposals" [level=3] [ref=e999]
+                  - generic [ref=e1000]: "2"
+                - generic [ref=e1001]:
+                  - paragraph [ref=e1002]: Confirmed · 发起者
+                  - paragraph [ref=e1003]: 当前范围已增加并发验证；继续引用原固定材料版本。
+                  - button "连接池等待与重试策略 · Version 1" [ref=e1005] [cursor=pointer]
+                - generic [ref=e1006]:
+                  - paragraph [ref=e1007]: Disputed · 发起者
+                  - paragraph [ref=e1008]: 建议先核对原请求状态，再决定是否重试；还需补充分支验证。
+                  - button "这组验证是否覆盖重试和断线恢复？" [ref=e1010] [cursor=pointer]
+              - generic [ref=e1011]:
+                - generic [ref=e1012]:
+                  - heading "Open questions" [level=3] [ref=e1015]
+                  - generic [ref=e1016]: "1"
+                - generic [ref=e1017]:
+                  - paragraph [ref=e1018]: Open · 发起者
+                  - paragraph [ref=e1019]: 投递结果不明时，怎样避免启动第二轮输入？
+                  - button "这组验证是否覆盖重试和断线恢复？" [ref=e1021] [cursor=pointer]
+              - generic [ref=e1022]:
+                - generic [ref=e1023]:
+                  - heading "Work progress" [level=3] [ref=e1026]
+                  - generic [ref=e1027]: "2"
+                - generic [ref=e1028]:
+                  - paragraph [ref=e1029]: Completed · 发起者
+                  - paragraph [ref=e1030]: 已核对原简报的固定材料范围，继续整理并发和断线验证。
+                  - button "Space brief · Version 1" [ref=e1032] [cursor=pointer]
+                - generic [ref=e1033]:
+                  - paragraph [ref=e1034]: In progress · 发起者
+                  - paragraph [ref=e1035]: 同事正在核对发布窗口，保留这条独立进展。
+```

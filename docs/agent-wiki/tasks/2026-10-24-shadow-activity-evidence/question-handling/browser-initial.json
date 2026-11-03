@@ -1,0 +1,32 @@
+{
+  "fixture": "a",
+  "browser": "Codex in-app browser",
+  "steps": [
+    "waiting_others showed one actual question and two task conditions",
+    "takeover directly changed owner without confirmation",
+    "needs_owner showed taken-over question",
+    "handback directly restored shadow",
+    "human unread badge stayed at 2 groups"
+  ],
+  "records": [
+    {
+      "handling": [
+        {
+          "handler": "shadow",
+          "revision": 2,
+          "state": "active"
+        }
+      ],
+      "continuations": [
+        {
+          "state": "queued",
+          "mode": "direct",
+          "eventIds": []
+        }
+      ],
+      "receivedEvents": 0
+    }
+  ],
+  "scope": "Single Mac real Core and business discussion; paused fixture shadow; no native model",
+  "followup": "Add exact question excerpt and scroll non-unread waiting sources, then recheck final UI"
+}

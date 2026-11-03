@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-21",
+  "buildCommand": "make release VERSION=0.2.6-dev.multi-session.20261021",
+  "verificationCommand": "make verify-release VERSION=0.2.6-dev.multi-session.20261021",
+  "manifest": {
+    "version": "0.2.6-dev.multi-session.20261021",
+    "commit": "f49b2a1547490e4ef90eb41b08f695aef2737158",
+    "buildNumber": "164",
+    "dirty": true,
+    "architecture": "arm64",
+    "minimumMacOS": "14.0",
+    "developerIDSigned": false,
+    "notarized": false,
+    "artifacts": {
+      "teamcross-0.2.6-dev.multi-session.20261021-darwin-arm64.tar.gz": "51d72a1fc2eac5704f1e2f4a71d718a28a014e7ca40de9537c237d5af424c182",
+      "Team-Cross-0.2.6-dev.multi-session.20261021-arm64.dmg": "a3d72f005106dc6ab4289540df68b66a794c531c1553db83f2476be58215f172"
+    }
+  },
+  "dmgBytes": 11566825,
+  "sourceSnapshot": {
+    "matched": true,
+    "files": 104,
+    "file": "source-sha256.json"
+  },
+  "lifecycle": {
+    "singleInstance": true,
+    "canonicalPath": true,
+    "defaultPortFallback": true,
+    "explicitPortConflict": true,
+    "authenticatedStop": true,
+    "mcpLazyStart": true,
+    "unresponsiveCoreNoRespawn": true,
+    "crashRecovery": true,
+    "dataPreserved": true
+  },
+  "appInstances": {
+    "concurrentAppCopies": true,
+    "canonicalDataDirectory": true,
+    "homeForwarded": true,
+    "invitationBatchesForwardedOnce": true,
+    "receiptRetryDeduplicated": true,
+    "invalidRequestsRejected": true,
+    "unresponsiveOwnerRecovery": true,
+    "reopenExistingApp": true,
+    "independentDataDirectories": true,
+    "secondaryExitPreservesCore": true,
+    "shellCrashRecovery": true,
+    "explicitQuitStopsCore": true,
+    "dataPreserved": true,
+    "pluginOptInRequired": true,
+    "pluginStartupSync": false,
+    "pluginFollowsAppCore": false,
+    "realCodexOrLAN": false
+  },
+  "releaseVerification": {
+    "checksums": true,
+    "dmgInstall": true,
+    "appIcon": true,
+    "appSignatureIntegrity": true,
+    "cliAppVersionParity": true,
+    "appSingleInstance": true,
+    "appCLIInstallAndRemove": true,
+    "existingCommandPreserved": true,
+    "compatibleCoreReuse": true,
+    "publicInstallation": false
+  },
+  "cleanup": {
+    "dmgDetached": true,
+    "fixtureProcessesRemaining": 0
+  },
+  "scope": "Local development build; temporary installation verification only. No user installation, publication, new real-model run, or Homebrew installation test."
+}

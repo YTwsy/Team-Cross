@@ -1,0 +1,10 @@
+=== RUN   TestLiveTailcatMembership
+--- PASS: TestLiveTailcatMembership (3.51s)
+PASS
+ok  	teamcross/internal/sharing	3.845s
+=== RUN   TestLiveTailcatCollaboration
+    tailcat_live_test.go:33: unexpected owner sharing/transport/link: true <nil> <nil>
+--- FAIL: TestLiveTailcatCollaboration (1.76s)
+FAIL
+FAIL	teamcross/internal/collab	2.349s
+FAIL

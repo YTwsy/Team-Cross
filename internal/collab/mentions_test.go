@@ -101,7 +101,7 @@ func TestMentionSearchChecksWithdrawalAndRevocationBeforeReturningTitles(t *test
 		t.Fatal(err)
 	}
 	guest, _, _ := fixture(t)
-	j, err := guest.Join(ctx, s.share.Token())
+	j, err := guest.Join(ctx, s.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal(err)
 	}

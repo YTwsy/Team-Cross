@@ -1,0 +1,13 @@
+{
+  "documents": [
+    "docs/agent-wiki/sources/decisions/local-shadows.md",
+    "docs/agent-wiki/sources/protocol.md",
+    "docs/agent-wiki/sources/validation/test-gates.md",
+    "docs/agent-wiki/sources/validation/evidence-map.md",
+    "docs/agent-wiki/tasks/2026-10-24-shadow-activity-implementation.md"
+  ],
+  "relativeLinks": 407,
+  "gitDiffCheck": 0,
+  "productChangesAfterVerification": [],
+  "issues": []
+}

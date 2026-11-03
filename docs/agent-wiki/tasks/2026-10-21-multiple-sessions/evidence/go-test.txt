@@ -1,0 +1,19 @@
+ok  	teamcross/cmd/teamcross	0.504s
+?   	teamcross/internal/buildinfo	[no test files]
+ok  	teamcross/internal/cliinstall	(cached)
+ok  	teamcross/internal/collab	33.315s
+ok  	teamcross/internal/materialstore	(cached)
+ok  	teamcross/internal/mcp	0.818s
+?   	teamcross/internal/mcpassets	[no test files]
+ok  	teamcross/internal/mcpevents	(cached)
+ok  	teamcross/internal/nativeclaude	(cached)
+ok  	teamcross/internal/nativecodex	(cached)
+ok  	teamcross/internal/pluginpack	(cached)
+?   	teamcross/internal/problem	[no test files]
+?   	teamcross/internal/readview	[no test files]
+?   	teamcross/internal/runtimeconfig	[no test files]
+ok  	teamcross/internal/service	(cached)
+ok  	teamcross/internal/sharing	(cached)
+ok  	teamcross/internal/uilanguage	(cached)
+?   	teamcross/internal/webassets	[no test files]
+ok  	teamcross/internal/workspace	(cached)

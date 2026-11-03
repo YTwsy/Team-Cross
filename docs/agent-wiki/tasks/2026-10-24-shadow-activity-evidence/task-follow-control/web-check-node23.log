@@ -1,0 +1,3 @@
+.                                        | [WARN] Unsupported engine: wanted: {"node":">=24"} (current: {"node":"v23.10.0","pnpm":"11.19.0"})
+$ tsc -b --pretty false && node scripts/check-i18n.mjs
+Checked 1265 translated UI messages.

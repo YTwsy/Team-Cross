@@ -1,0 +1,170 @@
+### Page
+- Page URL: http://127.0.0.1:61281/#/collaborations/29cb8e1b-9446-4017-b667-c05f2a961fb8
+- Page Title: Team Cross
+### Snapshot
+```yaml
+- generic [ref=e3]:
+  - link "跳到主要内容" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - main [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - link "返回协作空间" [ref=e8] [cursor=pointer]:
+          - /url: "#/"
+        - generic [ref=e12]:
+          - heading "接口超时调查 · 协作空间" [level=1] [ref=e13]
+          - generic [ref=e14]: 材料、讨论与协作会话
+        - group [ref=e15]:
+          - generic "查看共享状态详情" [ref=e16] [cursor=pointer]: 共享中
+        - button "空间成员" [ref=e19] [cursor=pointer]:
+          - generic [aria-hidden] [ref=e20]: 工
+          - generic [aria-hidden] [ref=e21]: 同
+        - button "邀请成员" [ref=e22] [cursor=pointer]
+      - generic [ref=e26]:
+        - complementary "空间功能与材料" [ref=e27]:
+          - generic [ref=e28]:
+            - link "Team Cross 首页" [ref=e29] [cursor=pointer]:
+              - /url: "#/"
+              - generic [ref=e36]: Team Cross
+            - button "收起空间侧栏" [expanded] [ref=e37] [cursor=pointer]
+          - generic [ref=e41]:
+            - button "发布会话材料" [ref=e43] [cursor=pointer]:
+              - generic [ref=e46]: 发布材料
+            - tablist "空间工作台" [ref=e47]:
+              - tab "空间概览" [ref=e48] [cursor=pointer]
+              - tab "本机数字分身" [ref=e55] [cursor=pointer]
+              - tab "协作请求" [ref=e59] [cursor=pointer]:
+                - generic [ref=e245]: "2"
+              - tab "空间简报" [selected] [ref=e63] [cursor=pointer]
+              - tab "参与会话" [ref=e67] [cursor=pointer]
+            - navigation "协作会话" [ref=e73]:
+              - generic [ref=e74]:
+                - strong [ref=e75]: 协作会话
+                - generic [ref=e76]: "0"
+              - paragraph [ref=e77]: 还没有协作会话
+              - button "新增协作会话" [ref=e78] [cursor=pointer]
+            - generic [ref=e82]:
+              - generic [ref=e83]:
+                - generic [ref=e84]: 已发布材料
+                - button "搜索材料" [ref=e85] [cursor=pointer]
+              - group "筛选材料" [ref=e89]:
+                - button "全部材料" [pressed] [ref=e90] [cursor=pointer]
+                - button "最近发布" [ref=e93] [cursor=pointer]
+                - button "有评论" [ref=e97] [cursor=pointer]
+                - button "我发布的" [ref=e100] [cursor=pointer]
+                - button "已收藏" [ref=e104] [cursor=pointer]
+              - generic [ref=e107]:
+                - generic [ref=e110]: 接口超时调查 · 协作空间
+                - generic [ref=e111]: "2"
+              - navigation "材料切换" [ref=e112]:
+                - button "阅读 并发与断线复核" [ref=e113] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=e114]: 发
+                  - generic [ref=e115]:
+                    - strong [ref=e116]: 并发与断线复核
+                    - generic [ref=e117]:
+                      - text: 发起者 · Codex
+                      - generic [ref=e118]: · v1
+                - button "阅读 连接池等待与重试策略 · 复核版" [ref=e119] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=e120]: 发
+                  - generic [ref=e121]:
+                    - strong [ref=e122]: 连接池等待与重试策略 · 复核版
+                    - generic [ref=e123]:
+                      - text: 发起者 · Codex
+                      - generic [ref=e124]: · v2
+          - generic [ref=e125]:
+            - link "资源库" [ref=e126] [cursor=pointer]:
+              - /url: "#/library"
+            - link "设置与连接" [ref=e130] [cursor=pointer]:
+              - /url: "#/settings"
+            - button "专用会话 · 未启用" [ref=e246] [cursor=pointer]
+            - generic [ref=e142]: 分享与审阅
+        - tabpanel "空间简报" [ref=e318]:
+          - generic [ref=e319]:
+            - generic [ref=e321]:
+              - heading "空间简报" [level=2] [ref=e322]
+              - paragraph [ref=e323]: 版本 3 · 所有参与者均可读取。
+            - status [ref=e381]:
+              - strong [ref=e383]: 草稿尚未保存
+              - generic [ref=e384]: 保存所做修改；条目的确认状态分别保留。
+            - generic [ref=e385]:
+              - text: 当前议题
+              - textbox "当前议题" [active] [ref=e386]: 合并复核：保留客户端边界并完成恢复测试。
+            - generic [ref=e330]:
+              - generic [ref=e331]:
+                - generic [ref=e332]:
+                  - heading "决定与建议" [level=3] [ref=e335]
+                  - generic [ref=e336]: "2"
+                - generic [ref=e337]:
+                  - generic [ref=e387]:
+                    - text: 决定与建议 1
+                    - textbox "决定与建议 1" [ref=e388]: 当前范围已增加并发验证；继续引用原固定材料版本。
+                  - generic [ref=e389]:
+                    - text: 条目状态
+                    - combobox "条目状态" [ref=e390]:
+                      - option "建议"
+                      - option "已确认" [selected]
+                      - option "有争议"
+                  - group [ref=e391]:
+                    - generic "+ 关联已发布来源 1" [ref=e392] [cursor=pointer]:
+                      - text: + 关联已发布来源
+                      - generic [ref=e393]: "1"
+                  - button "移除条目" [ref=e394] [cursor=pointer]
+                - generic [ref=e342]:
+                  - generic [ref=e395]:
+                    - text: 决定与建议 2
+                    - textbox "决定与建议 2" [ref=e396]: 建议先核对原请求状态，再决定是否重试；还需补充分支验证。
+                  - generic [ref=e397]:
+                    - text: 条目状态
+                    - combobox "条目状态" [ref=e398]:
+                      - option "建议"
+                      - option "已确认"
+                      - option "有争议" [selected]
+                  - group [ref=e399]:
+                    - generic "+ 关联已发布来源 1" [ref=e400] [cursor=pointer]:
+                      - text: + 关联已发布来源
+                      - generic [ref=e401]: "1"
+                  - button "移除条目" [ref=e402] [cursor=pointer]
+                - button "添加决定与建议" [ref=e403] [cursor=pointer]
+              - generic [ref=e347]:
+                - generic [ref=e348]:
+                  - heading "待解决事项" [level=3] [ref=e351]
+                  - generic [ref=e352]: "1"
+                - generic [ref=e353]:
+                  - generic [ref=e406]:
+                    - text: 待解决事项 1
+                    - textbox "待解决事项 1" [ref=e407]: 投递结果不明时，怎样避免启动第二轮输入？
+                  - generic [ref=e408]:
+                    - text: 条目状态
+                    - combobox "条目状态" [ref=e409]:
+                      - option "待解决" [selected]
+                      - option "已解决"
+                  - group [ref=e410]:
+                    - generic "+ 关联已发布来源 1" [ref=e411] [cursor=pointer]:
+                      - text: + 关联已发布来源
+                      - generic [ref=e412]: "1"
+                  - button "移除条目" [ref=e413] [cursor=pointer]
+                - button "添加待解决事项" [ref=e414] [cursor=pointer]
+              - generic [ref=e358]:
+                - generic [ref=e359]:
+                  - heading "工作进展" [level=3] [ref=e362]
+                  - generic [ref=e363]: "1"
+                - generic [ref=e364]:
+                  - generic [ref=e417]:
+                    - text: 工作进展 1
+                    - textbox "工作进展 1" [ref=e418]: 已核对原简报的固定材料范围，继续整理并发和断线验证。
+                  - generic [ref=e419]:
+                    - text: 条目状态
+                    - combobox "条目状态" [ref=e420]:
+                      - option "进行中"
+                      - option "已完成" [selected]
+                      - option "受阻"
+                  - group [ref=e421]:
+                    - generic "+ 关联已发布来源 1" [ref=e422] [cursor=pointer]:
+                      - text: + 关联已发布来源
+                      - generic [ref=e423]: "1"
+                  - button "移除条目" [ref=e424] [cursor=pointer]
+                - button "添加工作进展" [ref=e425] [cursor=pointer]
+            - generic [ref=e428]:
+              - button "保存简报" [ref=e429] [cursor=pointer]
+              - button "取消编辑" [ref=e432] [cursor=pointer]
+```

@@ -1,0 +1,51 @@
+{
+  "closedBrowserSession": "shadow-brief",
+  "fixtures": [
+    {
+      "directory": "/private/tmp/teamcross-native-brief-20261024-7a176160",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "directory": "/private/tmp/teamcross-native-brief-20261024-63948e03",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "directory": "/private/tmp/teamcross-brief-playwright-daemon",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "processInventory": "ps was unavailable in the sandbox; exact directories, PID handles and listening ports checked instead",
+  "closedPorts": [
+    {
+      "port": 57945,
+      "connectExit": 61
+    },
+    {
+      "port": 61281,
+      "connectExit": 61
+    },
+    {
+      "port": 62991,
+      "connectExit": 61
+    }
+  ],
+  "browserPIDHandles": {
+    "pid": 31368,
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": ""
+  },
+  "finalBrowserPIDHandles": {
+    "pid": 35279,
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": ""
+  },
+  "labelsFixtureEnded": true
+}

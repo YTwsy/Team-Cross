@@ -26,7 +26,7 @@ func (s *Session) attachClaude(w http.ResponseWriter, r *http.Request, role stri
 	}
 	s.mu.Lock()
 	p, ok := s.process.(claudeTerminal)
-	if !ok || !s.callerValidLocked(r.Context()) || !sharing.ExecutionAuthorized(r.Context(), s.share) || s.writer != role || !s.online || s.starting || s.record.State != "ready" || (role != "owner" && (s.share == nil || !s.share.HasExecutionAccess(role))) {
+	if !ok || !s.callerValidLocked(r.Context()) || !sharing.ExecutionAuthorized(r.Context(), s.sharedRuntime(), s.record.ID) || s.writer != role || !s.online || s.starting || s.record.Paused || s.record.State != "ready" || (role != "owner" && (s.sharedRuntime() == nil || !s.sharedRuntime().HasMember(role))) {
 		s.mu.Unlock()
 		http.Error(w, "等待输入交接或恢复运行时", 403)
 		return
@@ -39,7 +39,7 @@ func (s *Session) attachClaude(w http.ResponseWriter, r *http.Request, role stri
 	d := &direct{role: role, kind: "Claude Code TUI", done: make(chan struct{})}
 	s.direct = d
 	epoch := s.epoch
-	if s.share == nil {
+	if s.sharedRuntime() == nil {
 		s.releaseWhenIdle = true
 	}
 	s.mu.Unlock()

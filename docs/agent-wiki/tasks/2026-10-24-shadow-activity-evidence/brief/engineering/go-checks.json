@@ -1,0 +1,45 @@
+[
+  {
+    "check": "go-test",
+    "command": [
+      "go",
+      "test",
+      "-p",
+      "2",
+      "./...",
+      "-count=1",
+      "-timeout=240s"
+    ],
+    "exitCode": 0,
+    "seconds": 101.748
+  },
+  {
+    "check": "go-vet",
+    "command": [
+      "go",
+      "vet",
+      "-p",
+      "2",
+      "./..."
+    ],
+    "exitCode": 0,
+    "seconds": 1.326
+  },
+  {
+    "check": "go-race",
+    "command": [
+      "go",
+      "test",
+      "-race",
+      "-p",
+      "2",
+      "./internal/shadow",
+      "./internal/collab",
+      "./internal/mcp",
+      "-count=1",
+      "-timeout=240s"
+    ],
+    "exitCode": 0,
+    "seconds": 104.127
+  }
+]

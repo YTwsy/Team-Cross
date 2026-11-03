@@ -1,0 +1,15 @@
+{
+  "command": [
+    "python3",
+    "scripts/verify-shadow-native.py",
+    "--brief",
+    "--fixture-dir",
+    "/private/tmp/teamcross-native-brief-20261024-7a176160",
+    "--codex-bin",
+    "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+    "--codex-auth",
+    "/Users/wsy/.codex/auth.json"
+  ],
+  "exitCode": 1,
+  "seconds": 42.784
+}

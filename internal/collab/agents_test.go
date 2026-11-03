@@ -32,7 +32,7 @@ func agentFixture(t *testing.T) (*App, *fakeRuntime, *Session, AgentPairing, age
 	return a, f, s, paired, c
 }
 func agentInput(p AgentPairing, s *Session) agentRequestInput {
-	return agentRequestInput{RequestID: uuid.NewString(), PairingID: p.ID, References: []LibraryReference{{SpaceID: s.record.ID, Kind: "context"}}, Instruction: "核对原文后告诉我建议", Intent: "analyze"}
+	return agentRequestInput{RequestID: uuid.NewString(), PairingID: p.ID, References: []LibraryReference{{SpaceID: s.spaceID(), ExecutionID: s.record.ID, Kind: "context"}}, Instruction: "核对原文后告诉我建议", Intent: "analyze"}
 }
 
 func TestPairingBindsExactRuntimeAndHidesSecrets(t *testing.T) {
@@ -323,7 +323,7 @@ func TestAgentRequestPagesReferencesAndDoesNotReplayAfterRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	in.References = append(in.References, LibraryReference{Kind: "annotation", SpaceID: s.record.ID, AnnotationID: note.ID})
+	in.References = append(in.References, LibraryReference{Kind: "annotation", SpaceID: s.spaceID(), ExecutionID: s.record.ID, AnnotationID: note.ID})
 	r, err := a.sendAgentRequest(ctx, in)
 	if err != nil {
 		t.Fatal(err)

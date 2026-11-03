@@ -1,0 +1,31 @@
+{
+  "commands": [
+    {
+      "name": "go-test",
+      "command": "GOCACHE=/private/tmp/teamcross-shadow-activity-gocache go test ./... -count=1",
+      "exitCode": 0
+    },
+    {
+      "name": "go-vet",
+      "command": "GOCACHE=/private/tmp/teamcross-shadow-activity-gocache go vet ./...",
+      "exitCode": 0
+    },
+    {
+      "name": "race",
+      "command": "GOCACHE=/private/tmp/teamcross-shadow-activity-gocache go test -race ./internal/shadow ./internal/collab -run 'Test(Attention|Task|Toolset|ShadowDependency|ShadowRequestDependency|ShadowSource|ShadowTool|MemberActivity|ShadowActivity)' -count=1",
+      "exitCode": 0
+    },
+    {
+      "name": "toolsets-unit",
+      "command": "GOCACHE=/private/tmp/teamcross-shadow-activity-gocache go test ./internal/shadow -run '^TestToolset' -count=1",
+      "exitCode": 0
+    },
+    {
+      "name": "native-toolsets",
+      "command": "GOCACHE=/private/tmp/teamcross-shadow-activity-gocache python3 scripts/verify-shadow-native.py --toolset-upgrade --fixture-dir /private/tmp/teamcross-shadow-toolset-native-20261024-a --codex-bin /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex --codex-auth /Users/wsy/.codex/auth.json",
+      "exitCode": 0
+    }
+  ],
+  "nativeFixture": "dedicated home and repository; actual Luna main/worker sessions; controlled dependency source",
+  "cleanup": "Native test terminal exit 0; lsof +D fixture directory returned no open handles."
+}

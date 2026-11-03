@@ -1,3 +1,4 @@
+import { useRefreshState, useRefreshGuard } from "../refreshState";
 import { formatDate, t, tr } from "../i18n";
 import { useEffect, useState } from "react";
 import { api, errorText } from "../api";
@@ -19,8 +20,14 @@ type InvitationPreview = {
   transport: ShareTransport;
 };
 export function Join({ pendingId }: { pendingId?: string }) {
-  const [invitation, setInvitation] = useState("");
-  const [preview, setPreview] = useState<InvitationPreview>();
+  const refreshKey = "Join:v1:" + (pendingId || "new");
+  const [invitation, setInvitation] = useRefreshState(
+    refreshKey + ":invitation",
+    "",
+  );
+  const [preview, setPreview] = useRefreshState<InvitationPreview>(
+    refreshKey + ":preview",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -56,6 +63,7 @@ export function Join({ pendingId }: { pendingId?: string }) {
       setBusy(false);
     }
   }
+  useRefreshGuard(refreshKey, !!invitation);
   return (
     <>
       <a href="#/" className="back-link">
@@ -84,7 +92,7 @@ export function Join({ pendingId }: { pendingId?: string }) {
               <textarea
                 autoFocus
                 rows={5}
-                placeholder={t("tcx3.… 或 teamcross://join?invite=…")}
+                placeholder={t("tcx4.… 或 teamcross://join?invite=…")}
                 value={invitation}
                 disabled={busy}
                 onChange={(e) => {
@@ -109,7 +117,7 @@ export function Join({ pendingId }: { pendingId?: string }) {
               {preview.readOnly ? (
                 <p>
                   {t(
-                    "只读分享与讨论：可以查看已发布材料、发布自己的调查与回复；没有原生执行或目录访问权。",
+                    "加入后可阅读空间中的已发布材料、协作会话历史、文件和讨论，也可以发布自己的调查。实际执行需要取得相应会话的输入权。",
                   ) + " "}
                 </p>
               ) : (

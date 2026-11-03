@@ -9,12 +9,14 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { MarkdownText } from "../components/MarkdownText";
-import { ReaderMessage } from "../components/Reading";
+import { ReaderMessage, ReaderSequence } from "../components/Reading";
+import { LibraryProvider } from "../library";
 import { Annotations, type AnnotationRequest } from "../components/Annotations";
 import { MaterialReferencePicker } from "../components/MaterialReferences";
 import { Materials } from "../components/Materials";
 import {
   codeOffsets,
+  itemLabel,
   joinMaterialSegments,
   mappedSelection,
   mergeMaterialSegments,
@@ -456,6 +458,7 @@ it("places tool expansion inside the fold summary and keeps the process open", a
   render(
     <ReaderMessage
       label="命令与结果 · 共 10 字 · 已显示 5 字"
+      itemType="commandExecution"
       source="HEAD--"
       target={{
         kind: "history",
@@ -479,7 +482,188 @@ it("places tool expansion inside the fold summary and keeps the process open", a
   await user.click(screen.getByRole("button", { name: "读取完整输出" }));
   expect(onExpand).toHaveBeenCalledTimes(1);
   expect((details as HTMLDetailsElement).open).toBe(true);
+  expect(screen.getByText("Shell")).toBeVisible();
+  expect(screen.getByRole("region", { name: "命令与结果" })).toHaveAttribute(
+    "tabindex",
+    "0",
+  );
   await user.click(screen.getByRole("button", { name: "读取完整输出" }));
   expect(onExpand).toHaveBeenCalledTimes(2);
   expect((details as HTMLDetailsElement).open).toBe(true);
+});
+
+function processSegment(
+  itemId: string,
+  type = "commandExecution",
+  turnId = "turn",
+): MaterialPage["segments"][number] {
+  return {
+    turnId,
+    itemId,
+    type,
+    text: itemId,
+    startOffset: 0,
+    endOffset: itemId.length,
+    length: itemId.length,
+  };
+}
+
+it.each(["history", "material"] as const)(
+  "folds consecutive %s tools without hiding dialogue or crossing turns, and preserves open state on pagination",
+  async (kind) => {
+    const user = userEvent.setup();
+    const onExpand = vi.fn();
+    const segments = [
+      processSegment("question", "userMessage"),
+      processSegment("plan", "agentMessage"),
+      processSegment("command"),
+      processSegment("output", "toolResult"),
+      // A second fragment of one item is still one process record.
+      {
+        ...processSegment("output", "toolResult"),
+        startOffset: 12,
+        endOffset: 18,
+      },
+      processSegment("progress", "agentMessage"),
+      processSegment("standalone"),
+      processSegment("next-command", "commandExecution", "next-turn"),
+      processSegment("next-tool", "mcpToolCall", "next-turn"),
+      processSegment("export-notice", "unavailable", "next-turn"),
+      processSegment("after-notice", "fileChange", "next-turn"),
+      processSegment("answer", "agentMessage", "next-turn"),
+    ];
+    const sequence = (items = segments, activeTarget?: AnnotationTarget) => (
+      <ReaderSequence segments={items} activeTarget={activeTarget}>
+        {(segment) => (
+          <ReaderMessage
+            key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
+            label={itemLabel(segment.type)}
+            source={segment.text}
+            target={{
+              kind,
+              turnId: segment.turnId,
+              itemId: segment.itemId,
+              startOffset: segment.startOffset,
+              quote: segment.text,
+            }}
+            activeTarget={activeTarget}
+            onAnnotate={() => {}}
+            onExpand={segment.itemId === "command" ? onExpand : undefined}
+          />
+        )}
+      </ReaderSequence>
+    );
+    const { container, rerender } = render(sequence());
+    const groups = container.querySelectorAll<HTMLDetailsElement>(
+      ".reader-process-group",
+    );
+    expect(groups).toHaveLength(2);
+    expect(groups[0]!.open).toBe(false);
+    expect(groups[0]!.querySelector("summary")).toHaveAccessibleName(
+      "执行过程 · 2 项",
+    );
+    for (const text of ["question", "plan", "progress", "answer"])
+      expect(screen.getByText(text)).toBeVisible();
+    for (const item of ["standalone", "export-notice", "after-notice"])
+      expect(
+        container
+          .querySelector(`[data-item-id="${item}"]`)
+          ?.closest(".reader-process-group"),
+      ).toBeNull();
+    expect(onExpand).not.toHaveBeenCalled();
+    await user.click(groups[0]!.querySelector("summary")!);
+    expect(groups[0]!.open).toBe(true);
+    // Opening the group itself does not fetch every tool output.
+    expect(onExpand).not.toHaveBeenCalled();
+    await user.click(
+      within(groups[0]!).getByRole("button", { name: "读取完整输出" }),
+    );
+    expect(onExpand).toHaveBeenCalledTimes(1);
+    const command = container.querySelector<HTMLDetailsElement>(
+      ".reader-process-group .reader-tool",
+    )!;
+    expect(command.open).toBe(true);
+    const appended = [
+      ...segments.slice(0, 5),
+      processSegment("appended-tool", "toolCall"),
+      ...segments.slice(5),
+    ];
+    rerender(sequence(appended));
+    expect(container.querySelector(".reader-process-group")).toBe(groups[0]);
+    expect(groups[0]!.querySelector("summary")).toHaveAccessibleName(
+      "执行过程 · 3 项",
+    );
+    expect(groups[0]!.open).toBe(true);
+    expect(command.open).toBe(true);
+    await user.click(groups[0]!.querySelector("summary")!);
+    expect(groups[0]!.open).toBe(false);
+    rerender(sequence(appended));
+    expect(groups[0]!.open).toBe(false);
+    // An explicit annotation location opens both levels, before scrolling.
+    rerender(
+      sequence(appended, {
+        kind,
+        turnId: "turn",
+        itemId: "output",
+        quote: "output",
+        startOffset: 0,
+        endOffset: 6,
+      }),
+    );
+    expect(groups[0]!.open).toBe(true);
+    const highlight = container.querySelector<HTMLElement>(
+      "[data-annotation-highlight]",
+    )!;
+    expect(highlight).toBeVisible();
+    expect(highlight.closest<HTMLDetailsElement>(".reader-tool")!.open).toBe(
+      true,
+    );
+    expect(groups[1]!.open).toBe(false);
+  },
+);
+
+it("keeps the exact session when selecting an excerpt into the library", async () => {
+  const user = userEvent.setup();
+  const writes: unknown[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url, init?: RequestInit) => {
+      if (init?.body) writes.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ resources: [], selection: [] }));
+    }),
+  );
+  const { container } = render(
+    <LibraryProvider>
+      <ReaderMessage
+        spaceId="space/sessions/second"
+        source="需要选择的片段"
+        label="Codex"
+        target={{
+          kind: "history",
+          sessionId: "native-second",
+          turnId: "turn",
+          itemId: "answer",
+          quote: "需要选择的片段",
+        }}
+        onAnnotate={() => {}}
+      />
+    </LibraryProvider>,
+  );
+  const message = container.querySelector<HTMLElement>("[data-message-text]")!;
+  select(message.querySelector("[data-source-start]")!.firstChild!, 0);
+  fireEvent.mouseUp(message);
+  await user.click(screen.getByRole("button", { name: "加入选择" }));
+  expect(writes).toEqual([
+    expect.objectContaining({
+      reference: expect.objectContaining({
+        spaceId: "space",
+        executionId: "second",
+        kind: "context",
+        target: expect.objectContaining({
+          sessionId: "native-second",
+          quote: "需要选择的片段",
+        }),
+      }),
+    }),
+  ]);
 });

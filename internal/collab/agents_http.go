@@ -17,13 +17,24 @@ func (a *App) agentsHTTP(w http.ResponseWriter, r *http.Request, path string) bo
 	if !strings.HasPrefix(path, "agent-") {
 		return false
 	}
-	if strings.HasPrefix(path, "agent-tools/") || path == "agent-receivers/poll" {
+	if strings.HasPrefix(path, "agent-tools/") || path == "agent-receivers/poll" || path == "agent-current-connection" {
 		if r.Method != "POST" || r.Header.Get("Origin") != "" || subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+a.Token)) != 1 {
 			http.Error(w, "会话工具访问不可用", 403)
 			return true
 		}
 		if path == "agent-receivers/poll" {
 			a.pollAgentReceiver(w, r)
+			return true
+		}
+		if path == "agent-current-connection" {
+			var in struct {
+				Caller  mcp.CallerSource `json:"caller"`
+				SpaceID string           `json:"spaceId"`
+			}
+			if decode(w, r, &in) {
+				out, err := a.currentConnection(r.Context(), in.Caller, in.SpaceID)
+				respond(w, out, err)
+			}
 			return true
 		}
 		var in struct {

@@ -4,6 +4,8 @@
 
 这是对[接收会话推送方案概览](2026-10-05-receiver-lifecycle.md#方案比较与证据层次)中两个候选方案的详细补充，不重复维护当前产品支持范围或验收状态。当前能力仍以[配对契约](../sources/decisions/agent-pairing.md)、[空间事件契约](../sources/decisions/space-events.md)与[证据入口](../sources/validation/evidence-map.md)为准。
 
+2026-10-07 另获授权开始本地 Events 宿主检查：最小事件服务协议对照与普通 MCP 身份核对通过，所测 Codex `0.160.0` 拒绝为本地配置服务建立事件流订阅，阻塞后续空闲接收和模型处理。详细范围见[本轮报告](finished_archived/2026-10-07-local-mcp-events/README.md)；这不改变原记录的讨论范围，也没有实施等待型工具或产品事件流接入。
+
 ## 两个方案解决的场景
 
 | 方案 | 谁发起接收 | Agent 为什么开始或继续处理 | 主要边界 |

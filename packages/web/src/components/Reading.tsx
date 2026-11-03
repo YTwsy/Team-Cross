@@ -1,6 +1,13 @@
-import { serviceText, t } from "../i18n";
-import { ResourceActions } from "../library";
 import {
+  ReaderImages,
+  type ReaderImage,
+  type ReaderResource,
+} from "./ReaderMedia";
+import { serviceText, t, tr } from "../i18n";
+import { ResourceActions } from "../library";
+import { resourceScope } from "../execution";
+import {
+  Fragment,
   useCallback,
   useEffect,
   useId,
@@ -19,8 +26,8 @@ import {
   shift,
   useFloating,
 } from "@floating-ui/react";
-import type { Annotation, AnnotationTarget } from "../types";
-import { mappedSelection, sameMessage } from "../reading";
+import type { Annotation, AnnotationTarget, MaterialPage } from "../types";
+import { itemLabel, mappedSelection, sameMessage } from "../reading";
 import {
   captureReadingPosition,
   restoreReadingPosition,
@@ -28,6 +35,7 @@ import {
 } from "../reading-position";
 import { MarkdownText } from "./MarkdownText";
 import { Icon } from "./ui";
+import { SpaceAvatar } from "./SpaceIdentity";
 
 export type AnnotationOrigin = { element: HTMLElement; range?: Range };
 export type Annotate = (
@@ -108,12 +116,14 @@ export function SelectionAction({
       className="selection-action"
     >
       <button
-        className="button primary small"
+        type="button"
+        className="reader-icon-button"
+        aria-label={t("批注所选内容")}
+        title={t("批注所选内容")}
         onMouseDown={(e) => e.preventDefault()}
         onClick={onClick}
       >
         <Icon name="comment" size={14} />
-        {t("批注所选内容") + " "}
       </button>
       {children}
     </div>,
@@ -229,6 +239,7 @@ export function ReadingLayout({
   toolbar,
   toolbarTarget,
   adaptiveOutline = false,
+  defaultOutlineOpen,
 }: {
   outline: {
     id: string;
@@ -246,6 +257,7 @@ export function ReadingLayout({
   toolbar?: ReactNode;
   toolbarTarget?: HTMLElement | null;
   adaptiveOutline?: boolean;
+  defaultOutlineOpen?: boolean;
 }) {
   const [localFocus, setLocalFocus] = useState(false);
   const focus = controlledFocus ?? localFocus;
@@ -254,7 +266,9 @@ export function ReadingLayout({
   const directoryButton = useRef<HTMLButtonElement>(null);
   const outlineId = useId();
   const [wide, setWide] = useState(false);
-  const [outlineOpen, setOutlineOpen] = useState<boolean>();
+  const [outlineOpen, setOutlineOpen] = useState<boolean | undefined>(
+    defaultOutlineOpen,
+  );
   const sideOutline = adaptiveOutline && wide && outline.length > 1;
   const showOutline = outlineOpen ?? sideOutline;
   const pendingPosition = useRef<ReadingPosition | undefined>(undefined);
@@ -342,7 +356,10 @@ export function ReadingLayout({
             }}
           >
             <button
-              className="text-button"
+              type="button"
+              className="reader-icon-button"
+              aria-label={`${t("目录")} ${outline.length}`}
+              title={`${t("目录")} ${outline.length}`}
               ref={directoryButton}
               aria-expanded={showOutline}
               aria-controls={outlineId}
@@ -355,8 +372,6 @@ export function ReadingLayout({
               }}
             >
               <Icon name="book" size={14} />
-              {" " + t("目录") + " "}
-              {outline.length}
             </button>
             {showOutline && !sideOutline && (
               <div className="reader-outline reader-directory-popover">
@@ -366,7 +381,10 @@ export function ReadingLayout({
           </div>
         )}
         <button
-          className="text-button"
+          type="button"
+          className="reader-icon-button"
+          aria-label={focus ? t("退出专注阅读") : t("专注阅读")}
+          title={focus ? t("退出专注阅读") : t("专注阅读")}
           onClick={() => {
             pendingPosition.current = captureReadingPosition(root.current);
             setLocalFocus(!focus);
@@ -374,7 +392,7 @@ export function ReadingLayout({
           }}
           aria-pressed={focus}
         >
-          {focus ? t("退出专注阅读") : t("专注阅读")}
+          <Icon name={focus ? "collapse" : "expand"} size={15} />
         </button>
       </div>
     </div>
@@ -427,12 +445,116 @@ export function itemExpandLabel(loading: boolean, shown: number) {
   return shown <= 1500 ? t("读取完整输出") : t("继续读取这条输出");
 }
 
+type ReadingSegment = MaterialPage["segments"][number];
+
+// Group only adjacent process records within a turn. The original segments and
+// offsets stay intact for pagination, annotations and reading-position restore.
+export function ReaderSequence({
+  segments,
+  activeTarget,
+  children,
+}: {
+  segments: ReadingSegment[];
+  activeTarget?: AnnotationTarget;
+  children: (
+    segment: ReadingSegment,
+    index: number,
+    all: ReadingSegment[],
+  ) => ReactNode;
+}) {
+  const runs: { start: number; process: boolean; items: ReadingSegment[] }[] =
+    [];
+  segments.forEach((segment, index) => {
+    const process = !["userMessage", "agentMessage", "unavailable"].includes(
+      segment.type,
+    );
+    const previous = runs.at(-1);
+    if (
+      process &&
+      previous?.process &&
+      previous.items[0]!.turnId === segment.turnId
+    )
+      previous.items.push(segment);
+    else runs.push({ start: index, process, items: [segment] });
+  });
+  return runs.map(({ start, process, items }) => {
+    const first = items[0]!;
+    const key = `${first.turnId}:${first.itemId}:${first.startOffset}`;
+    const count = new Set(items.map((item) => item.itemId)).size;
+    const content = items.map((segment, index) =>
+      children(segment, start + index, segments),
+    );
+    return process && count > 1 ? (
+      <ReaderProcessGroup
+        key={key}
+        count={count}
+        first={first}
+        activeTarget={
+          activeTarget &&
+          items.some(
+            (item) =>
+              item.turnId === activeTarget.turnId &&
+              item.itemId === activeTarget.itemId,
+          )
+            ? activeTarget
+            : undefined
+        }
+      >
+        {content}
+      </ReaderProcessGroup>
+    ) : (
+      <Fragment key={key}>{content}</Fragment>
+    );
+  });
+}
+
+function ReaderProcessGroup({
+  count,
+  first,
+  activeTarget,
+  children,
+}: {
+  count: number;
+  first: ReadingSegment;
+  activeTarget?: AnnotationTarget;
+  children: ReactNode;
+}) {
+  const details = useRef<HTMLDetailsElement>(null);
+  useLayoutEffect(() => {
+    if (activeTarget && details.current) details.current.open = true;
+  }, [activeTarget]);
+  return (
+    <details
+      ref={details}
+      className="reader-process-group"
+      data-reader-turn={first.turnId}
+      data-reading-key={`process:${first.turnId}:${first.itemId}`}
+    >
+      <summary aria-label={tr`执行过程 · ${count} 项`}>
+        <span className="reader-process-icon">
+          <Icon name="book" size={16} />
+        </span>
+        <span className="reader-process-title">{t("执行过程")}</span>
+        <span className="reader-process-count">{tr`${count} 项`}</span>
+        <span className="reader-process-action" aria-hidden="true">
+          <Icon name="chevron" size={14} />
+        </span>
+      </summary>
+      <div className="reader-process-items">{children}</div>
+    </details>
+  );
+}
+
 export function ReaderMessage({
+  images,
+  mediaResource,
+  streaming = false,
   spaceId,
   source,
   target,
   activeTarget,
   label,
+  itemType,
   annotations = [],
   onAnnotate,
   onDiscuss,
@@ -442,12 +564,17 @@ export function ReaderMessage({
   onExpand,
   expanding,
   shownLength = 0,
+  speaker,
 }: {
+  images?: ReaderImage[];
+  mediaResource?: ReaderResource;
+  streaming?: boolean;
   spaceId?: string;
   source: string;
   target: AnnotationTarget;
   activeTarget?: AnnotationTarget;
   label: string;
+  itemType?: string;
   annotations?: Annotation[];
   onAnnotate: Annotate;
   onDiscuss?: Discuss;
@@ -457,6 +584,7 @@ export function ReaderMessage({
   onExpand?: () => void;
   expanding?: boolean;
   shownLength?: number;
+  speaker?: { name: string; author: string; assistant: boolean };
 }) {
   const [raw, setRaw] = useState(false),
     [hint, setHint] = useState("");
@@ -468,11 +596,19 @@ export function ReaderMessage({
     message = useRef<HTMLDivElement>(null);
   const details = useRef<HTMLDetailsElement>(null);
   const id = useId();
-  const tool = !isDialogueRole(label);
+  const tool =
+    !speaker &&
+    (itemType
+      ? !["userMessage", "agentMessage"].includes(itemType)
+      : !isDialogueRole(label));
+  const toolLabel = itemType ? itemLabel(itemType) : label;
   const expand = onExpand ? (
     <button
       type="button"
-      className="button small reader-expand-item"
+      className="reader-icon-button reader-expand-item"
+      aria-label={itemExpandLabel(!!expanding, shownLength)}
+      title={itemExpandLabel(!!expanding, shownLength)}
+      aria-busy={!!expanding}
       disabled={expanding}
       onClick={(event) => {
         event.preventDefault();
@@ -481,7 +617,7 @@ export function ReaderMessage({
         onExpand();
       }}
     >
-      {itemExpandLabel(!!expanding, shownLength)}
+      <Icon name={expanding ? "refresh" : "more"} size={15} />
     </button>
   ) : null;
   const base = target.startOffset || 0;
@@ -521,6 +657,19 @@ export function ReaderMessage({
         })),
     [source, base, activeTarget, targetKey, notes],
   );
+  useEffect(() => {
+    if (raw || !highlights.some((highlight) => highlight.active)) return;
+    // Markdown delimiters, link destinations and rendered formulae can hide
+    // a source match. Fall back to exact source rather than a blank jump.
+    const frame = requestAnimationFrame(() => {
+      if (
+        content.current &&
+        !content.current.querySelector("[data-annotation-highlight]")
+      )
+        setRaw(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [raw, highlights]);
   useEffect(() => {
     if (!selected) return;
     const clear = () => {
@@ -566,21 +715,38 @@ export function ReaderMessage({
   const contentBody = (
     <>
       <div className="message-heading">
-        <span className="reader-role">{label}</span>
+        {speaker ? (
+          <span className="reader-speaker">
+            <SpaceAvatar name={speaker.author} agent={speaker.assistant} />
+            <strong>{speaker.name}</strong>
+          </span>
+        ) : (
+          <span className="reader-role">
+            {tool && itemType === "commandExecution" ? "Shell" : label}
+          </span>
+        )}
         <div className="reader-message-actions">
-          <button
-            className="text-button"
-            onClick={() => {
-              setRaw(!raw);
-              setSelected(undefined);
-            }}
-            aria-pressed={raw}
-          >
-            {raw ? t("阅读排版") : t("显示原文")}
-          </button>
+          {!tool && (
+            <button
+              type="button"
+              className="reader-icon-button"
+              aria-label={raw ? t("阅读排版") : t("显示原文")}
+              title={raw ? t("阅读排版") : t("显示原文")}
+              onClick={() => {
+                setRaw(!raw);
+                setSelected(undefined);
+              }}
+              aria-pressed={raw}
+            >
+              <Icon name={raw ? "book" : "code"} size={15} />
+            </button>
+          )}
           {!disabled && target.itemId && source.trim() && (
             <button
-              className="message-annotate"
+              type="button"
+              className="message-annotate reader-icon-button"
+              aria-label={actionLabel}
+              title={actionLabel}
               onClick={() => {
                 const quote = Array.from(source).slice(0, 8000).join("");
                 onAnnotate(
@@ -595,16 +761,21 @@ export function ReaderMessage({
               }}
             >
               <Icon name="comment" size={13} />
-              {actionLabel}
             </button>
           )}
           {!tool && expand}
         </div>
       </div>
+      {tool && itemType === "commandExecution" && toolLabel !== label && (
+        <p className="reader-tool-meta">{label}</p>
+      )}
       {notice && <p className="inline-note">{serviceText(notice)}</p>}
       <div
         ref={content}
         data-message-text
+        role={tool ? "region" : undefined}
+        aria-label={tool ? toolLabel : undefined}
+        tabIndex={tool ? 0 : undefined}
         data-turn-id={target.turnId}
         data-item-id={target.itemId}
         onMouseUp={capture}
@@ -614,7 +785,49 @@ export function ReaderMessage({
           source={source}
           highlights={highlights}
           raw={raw || tool}
+          streaming={streaming}
+          onAnnotate={
+            !disabled && target.itemId
+              ? (start, end, element) =>
+                  onAnnotate(
+                    {
+                      ...target,
+                      startOffset: base + start,
+                      endOffset: base + end,
+                      quote: source.slice(start, end),
+                    },
+                    { element },
+                  )
+              : undefined
+          }
         />
+        {!!images?.length && mediaResource && (
+          <ReaderImages
+            images={images}
+            resource={mediaResource}
+            onAnnotate={
+              !disabled
+                ? (image) => {
+                    const start = image.startOffset - base,
+                      end = image.endOffset - base;
+                    if (
+                      image.quote ||
+                      (start >= 0 && end <= source.length && end > start)
+                    )
+                      onAnnotate(
+                        {
+                          ...target,
+                          startOffset: image.startOffset,
+                          endOffset: image.endOffset,
+                          quote: image.quote || source.slice(start, end),
+                        },
+                        { element: content.current! },
+                      );
+                  }
+                : undefined
+            }
+          />
+        )}
       </div>
       {hint && (
         <p className="small-text muted" role="status">
@@ -657,7 +870,11 @@ export function ReaderMessage({
                     materialId: selected.target.materialId,
                     version: selected.target.version,
                   }
-                : { spaceId, kind: "context", target: selected.target }
+                : {
+                    ...resourceScope(spaceId),
+                    kind: "context",
+                    target: selected.target,
+                  }
             }
           />
         )}
@@ -668,7 +885,7 @@ export function ReaderMessage({
     <div
       ref={message}
       id={id}
-      className={`reader-message ${tool ? "reader-tool-message" : ""}`}
+      className={`reader-message ${tool ? "reader-tool-message" : ""} ${speaker ? `space-dialogue-message ${speaker.assistant ? "space-assistant-message" : "space-user-message"}` : ""}`}
     >
       {tool ? (
         <details
@@ -677,12 +894,23 @@ export function ReaderMessage({
           open={highlights.some((h) => h.active) || undefined}
         >
           <summary>
-            <span className="reader-tool-summary-text">
-              {label} <span>{t("查看已保存的过程")}</span>
+            <Icon
+              name={
+                itemType === "commandExecution"
+                  ? "terminal"
+                  : itemType === "fileChange"
+                    ? "file"
+                    : "book"
+              }
+              size={16}
+            />
+            <span className="reader-tool-summary-text">{toolLabel}</span>
+            <span className="reader-tool-chevron">
+              <Icon name="chevron" size={14} />
             </span>
             {expand}
           </summary>
-          {contentBody}
+          <div className="reader-tool-content">{contentBody}</div>
         </details>
       ) : (
         contentBody

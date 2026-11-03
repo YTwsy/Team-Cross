@@ -54,12 +54,12 @@ func TestReadOnlySpacePublicationBoundariesAndRecovery(t *testing.T) {
 	if err = s.Share(ctx, "lan"); err != nil {
 		t.Fatal(err)
 	}
-	inv, err := sharing.Decode(s.share.Token())
+	inv, err := sharing.Decode(s.sharedRuntime().Token())
 	if err != nil || !inv.ReadOnly || inv.RuntimeMode != "" {
 		t.Fatal(inv, err)
 	}
 	b, _, _ := fixture(t)
-	j, err := b.Join(ctx, s.share.Token())
+	j, err := b.Join(ctx, s.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +277,7 @@ func TestThreeMembersPublishVersionsAndPinnedReferences(t *testing.T) {
 	}
 }
 
-func TestEnableExecutionPreservesMembersLinkAndAccessScopes(t *testing.T) {
+func TestEnableExecutionSharesReadingAndPreservesMembersAndLink(t *testing.T) {
 	ctx := context.Background()
 	a, f, _ := fixture(t)
 	s, err := a.CreateSpace(ctx, SpaceInput{RequestID: uuid.NewString(), Title: "调查后执行"})
@@ -313,75 +313,66 @@ func TestEnableExecutionPreservesMembersLinkAndAccessScopes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if created != s || s.record.ExecutionRecord == nil || len(s.record.Annotations) != 1 || f.forks != 1 || s.share == nil || s.share.Token() != link.Token {
+	if created.space != s || s.record.ExecutionRecord != nil || created.record.ExecutionRecord == nil || len(s.record.Annotations) != 1 || f.forks != 1 || s.sharedRuntime() == nil || s.sharedRuntime().Token() != link.Token {
 		t.Fatal("enabling execution changed space, link or membership")
 	}
 	if _, err = a.Create(ctx, in); err != nil || f.forks != 1 {
 		t.Fatal("execution retry forked twice", err)
 	}
-	private, err := s.annotate(Annotation{Text: "原生范围批注", Target: &AnnotationTarget{Kind: "history", TurnID: "native", ItemID: "item", Quote: "未公开", EndOffset: 3}}, "发起者")
+	private, err := created.annotate(Annotation{Text: "原生范围批注", Target: &AnnotationTarget{Kind: "history", TurnID: "native", ItemID: "item", Quote: "未公开", EndOffset: 3}}, "发起者")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, kind := range []string{"history", "file", "changes", "events"} {
-		if err = j.request(ctx, "GET", "/v2/context?kind="+kind+"&path=file.txt", nil, nil); err == nil {
-			t.Fatal("readonly obtained native context", kind)
+		if err = j.request(ctx, "GET", remoteExecutionPath(created.record.ID, "context?kind="+kind+"&path=file.txt"), nil, nil); err != nil {
+			t.Fatal("existing member could not read new session", kind, err)
 		}
 	}
-	if view := j.view(ctx); view["selfId"] != bid || view["hasExecution"] != false || view["executionAvailable"] != true || view["runtimeState"] != nil || view["writer"] != nil || view["executionCwd"] != nil || view["state"] != "ready" {
-		t.Fatal("readonly member lost identity or received native state", view)
+	if view := j.view(ctx); view["selfId"] != bid || view["hasExecution"] != false || view["sessionCount"] != float64(1) {
+		t.Fatal("space identity changed", view)
+	}
+	if view := executionViewFixture(t, j, created); view["sessionId"] != created.record.SessionID {
+		t.Fatal("session metadata missing", view)
 	}
 	var annotations map[string]any
-	if err = j.request(ctx, "GET", "/v2/context?kind=annotations", nil, &annotations); err != nil {
+	if err = j.request(ctx, "GET", remoteExecutionPath(created.record.ID, "context?kind=annotations"), nil, &annotations); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := json.Marshal(annotations)
-	if strings.Contains(string(raw), "原生范围批注") || annotations["sessionId"] != nil {
-		t.Fatal("native annotation leaked", string(raw))
+	if !strings.Contains(string(raw), "原生范围批注") {
+		t.Fatal("session discussion hidden", string(raw))
 	}
-	if err = j.request(ctx, "POST", "/v2/annotation-replies", AnnotationReplyInput{AnnotationID: private.ID, Text: "越界", RequestID: uuid.NewString()}, nil); err == nil {
-		t.Fatal("readonly replied to hidden native annotation")
+	if err = j.request(ctx, "POST", remoteExecutionPath(created.record.ID, "annotation-replies"), AnnotationReplyInput{AnnotationID: private.ID, Text: "一起复核", RequestID: uuid.NewString()}, nil); err != nil {
+		t.Fatal(err)
 	}
-	if err = j.request(ctx, "POST", "/v2/rpc", RPCInput{Method: "thread/read", Params: map[string]any{}}, nil); err == nil {
-		t.Fatal("readonly accessed native RPC")
-	}
-	if err = s.ActionFor(ctx, "handoff", bid); err == nil {
-		t.Fatal("handoff implicitly granted execution")
+	if err = j.request(ctx, "POST", remoteExecutionPath(created.record.ID, "rpc"), RPCInput{Method: "turn/start", RequestID: uuid.NewString(), Params: map[string]any{"input": []any{}}}, nil); err == nil {
+		t.Fatal("reading membership gave input ownership")
 	}
 	if _, err = b.Publish(ctx, j.ID, PublishInput{PreviewID: draft.ID, PreviewHash: draft.Hash, RequestID: uuid.NewString(), MaterialID: mid, BaseVersion: 1}); err != nil {
-		t.Fatal("member can no longer update their publication", err)
+		t.Fatal("member cannot update publication", err)
 	}
 	c, _, _ := fixture(t)
 	jc, err := c.Join(ctx, link.Token)
-	if err != nil || jc.view(ctx)["hasExecution"] != false {
-		t.Fatal("old link stopped working or broadened access", err)
-	}
-	owner := managementBackend(t, a)
-	guest := managementBackend(t, b)
-	if _, err = guest.Invoke(ctx, "set_execution_access", map[string]any{"id": j.ID, "memberId": bid, "allowed": true}); err == nil {
-		t.Fatal("guest granted their own execution access")
-	}
-	invokeObject(t, owner, "set_execution_access", map[string]any{"id": s.record.ID, "memberId": bid, "allowed": true})
-	if view := j.view(ctx); view["selfId"] != bid || view["hasExecution"] != true || view["sessionId"] != s.record.SessionID {
-		t.Fatal("grant required rejoining", view)
-	}
-	if err = j.request(ctx, "GET", "/v2/context?kind=history", nil, nil); err != nil {
-		t.Fatal("granted native read rejected", err)
-	}
-	if err = s.ActionFor(ctx, "handoff", bid); err != nil {
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err = s.SetExecutionAccess(bid, false); err != nil {
+	if view := executionViewFixture(t, jc, created); view["sessionId"] != created.record.SessionID {
+		t.Fatal("new member cannot read existing session", view)
+	}
+	if err = created.ActionFor(ctx, "handoff", bid); err != nil {
 		t.Fatal(err)
 	}
-	if s.view()["writer"] != "owner" || !s.share.HasMember(bid) {
-		t.Fatal("revocation failed to preserve membership and reclaim input")
+	if err = created.Action(ctx, "reclaim"); err != nil {
+		t.Fatal(err)
 	}
-	if err = j.request(ctx, "GET", "/v2/context?kind=history", nil, nil); err == nil {
-		t.Fatal("revoked execution access survived")
+	if created.view()["writer"] != "owner" || !s.sharedRuntime().HasMember(bid) {
+		t.Fatal("reclaim changed membership")
+	}
+	if err = j.request(ctx, "GET", remoteExecutionPath(created.record.ID, "context?kind=history"), nil, nil); err != nil {
+		t.Fatal("reclaim ended reading", err)
 	}
 	if err = j.request(ctx, "POST", "/v2/read-material", MaterialRead{MaterialID: mid, Version: 1}, nil); err != nil {
-		t.Fatal("execution revocation ended material access", err)
+		t.Fatal("reclaim ended material access", err)
 	}
 	reset, err := s.Invite(ctx, "lan", "rotated", true)
 	if err != nil {
@@ -409,12 +400,12 @@ func TestReadOnlySpaceCanCloseBeforeAnyoneJoinsAndReopen(t *testing.T) {
 				if err = s.Share(ctx, "lan"); err != nil {
 					t.Fatal(err)
 				}
-				old = s.share.Token()
+				old = s.sharedRuntime().Token()
 			}
 			if err = s.Action(ctx, "end"); err != nil {
 				t.Fatal(err)
 			}
-			if s.view()["state"] != "ended" || s.share != nil {
+			if s.view()["state"] != "ended" || s.sharedRuntime() != nil {
 				t.Fatal("close only hid invitation")
 			}
 			id, dir := s.record.ID, a.Config.DataDir
@@ -786,7 +777,7 @@ func TestPublicationDraftSummaryCountsNoticesWithinPreviewScope(t *testing.T) {
 	}
 }
 
-func TestSchemaTwoSpaceRemainsOnDiskButIsNotLoaded(t *testing.T) {
+func TestOldSpaceIsExplicitlyUnsupportedAndPreserved(t *testing.T) {
 	data := t.TempDir()
 	id := uuid.NewString()
 	path := filepath.Join(data, "collaborations", id, "collaboration.json")
@@ -801,8 +792,8 @@ func TestSchemaTwoSpaceRemainsOnDiskButIsNotLoaded(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer a.Close()
-	if _, err = a.owned(id); err == nil {
-		t.Fatal("schema 2 space was loaded")
+	if old, err := a.owned(id); err != nil || old.view()["state"] != "unsupported" {
+		t.Fatal("old format was silently lost", err)
 	}
 	if _, err = os.Stat(path); err != nil {
 		t.Fatal("schema 2 data was removed", err)

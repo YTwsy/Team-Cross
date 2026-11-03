@@ -1,0 +1,153 @@
+### Page
+- Page URL: http://127.0.0.1:61281/#/settings
+- Page Title: Team Cross
+### Snapshot
+```yaml
+- generic [ref=e3]:
+  - link "跳到主要内容" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary [ref=e485]:
+    - link "Team Cross 首页" [ref=e486] [cursor=pointer]:
+      - /url: "#/"
+      - generic [ref=e492]:
+        - text: Team Cross
+        - generic [ref=e493]: 一起继续
+    - navigation "主导航" [ref=e494]:
+      - link "协作空间" [ref=e495] [cursor=pointer]:
+        - /url: "#/"
+      - link "我的动态 1 组未读动态" [ref=e502] [cursor=pointer]:
+        - /url: "#/activity"
+        - generic [ref=e505]: 我的动态
+        - generic "1 组未读动态" [ref=e506]: "1"
+      - link "资源库" [ref=e507] [cursor=pointer]:
+        - /url: "#/library"
+      - link "设置与连接" [ref=e511] [cursor=pointer]:
+        - /url: "#/settings"
+    - generic [ref=e517]:
+      - generic [ref=e518]:
+        - text: 本地运行
+        - generic [ref=e520]: 实验版
+      - button "切换主题，当前跟随系统" [ref=e521] [cursor=pointer]: 跟随系统
+  - main [ref=e5]:
+    - generic [ref=e525]: 你的工作现场，与同事相连
+    - generic [ref=e527]:
+      - generic [ref=e529]:
+        - heading "设置与连接" [active] [level=1] [ref=e530]
+        - paragraph [ref=e531]: 配置原生客户端与协作工具。
+      - generic [ref=e532]:
+        - region "ChatGPT 插件" [ref=e533]:
+          - generic [ref=e535]:
+            - heading "ChatGPT 插件" [level=2] [ref=e536]
+            - paragraph [ref=e537]: 在本机 ChatGPT 的 Work/Codex 中打开 Team Cross，并引用材料和批注。
+          - status [ref=e538]: 正在加载…
+          - button "检查状态" [disabled] [ref=e541]
+          - paragraph [ref=e542]: 断开连接会移除 ChatGPT 中的插件并关闭自动同步。材料、批注和协作数据会保留。
+        - generic [ref=e543]:
+          - generic [ref=e544]:
+            - generic [ref=e545]:
+              - heading "接收会话" [level=2] [ref=e546]
+              - paragraph [ref=e547]: 在批注和选择清单中，把内容交给已经配对的 Agent 会话。
+            - button "配对会话" [ref=e548] [cursor=pointer]
+          - generic [ref=e550]:
+            - generic [ref=e551]:
+              - strong [ref=e552]: 成员的分析会话
+              - generic [ref=e553]: 已配对 · Claude Code
+            - button "移除配对 成员的分析会话" [ref=e554] [cursor=pointer]: 移除配对
+          - paragraph [ref=e555]: 移除配对会停止后续投递，已经提交的请求不会因此撤回。
+          - group [ref=e556]:
+            - generic "最近发送的请求" [ref=e557] [cursor=pointer]
+        - generic [ref=e558]:
+          - generic [ref=e559]:
+            - heading "界面语言" [level=2] [ref=e560]
+            - paragraph [ref=e561]: 默认按这台 Mac 的首选系统语言显示：中文使用简体中文，其他语言使用英文。手动选择会同步菜单栏和 WebGUI。
+          - group "界面语言" [ref=e562]:
+            - button "跟随系统" [ref=e563] [cursor=pointer]
+            - button "简体中文" [pressed] [ref=e565] [cursor=pointer]
+            - button "English" [ref=e568] [cursor=pointer]
+        - generic [ref=e570]:
+          - generic [ref=e571]:
+            - heading "命令行工具" [level=2] [ref=e572]
+            - paragraph [ref=e573]: 在终端运行 teamcross，也可以打开协作空间。
+          - generic [ref=e574]:
+            - term [ref=e575]: 命令位置
+            - definition [ref=e576]: /opt/homebrew/bin/teamcross
+            - term [ref=e577]: 安装来源
+            - definition [ref=e578]: Team Cross App
+            - term [ref=e579]: 已安装版本
+            - definition [ref=e580]: 尚未确认
+            - term [ref=e581]: 运行中的版本
+            - definition [ref=e582]: 0.2.1-dev
+          - paragraph [ref=e583]: 通过 DMG 安装后，可从菜单栏的“命令行工具…”安装或移除命令入口。Homebrew 安装由对应渠道管理。
+          - paragraph [ref=e584]: 检测到其他安装的命令：/opt/homebrew/bin/teamcross。切换前请通过原安装渠道处理。
+        - generic [ref=e585]:
+          - generic [ref=e586]:
+            - heading "外观" [level=2] [ref=e587]
+            - paragraph [ref=e588]: 选择适合你的工作环境。
+          - generic [ref=e589]:
+            - button "跟随系统" [pressed] [ref=e590] [cursor=pointer]
+            - button "浅色" [ref=e598] [cursor=pointer]
+            - button "深色" [ref=e604] [cursor=pointer]
+        - generic [ref=e610]:
+          - generic [ref=e611]:
+            - generic [ref=e612]:
+              - heading "原生客户端" [level=2] [ref=e613]
+              - paragraph [ref=e614]: 用于读取本机会话和打开客户端。
+            - button "重新检测" [ref=e615] [cursor=pointer]
+          - generic [ref=e616]:
+            - generic [ref=e617]:
+              - strong [ref=e618]: Codex CLI
+              - generic [ref=e619]: 需要配置
+            - alert [ref=e620]:
+              - strong [ref=e621]: 暂时无法完成
+              - paragraph [ref=e622]: 无法读取 Codex CLI 版本
+            - paragraph [ref=e623]: 请检查文件是否为可运行的 Codex CLI，再重新检测
+            - group "Codex CLI 来源" [ref=e624]:
+              - button "自动发现" [ref=e625] [cursor=pointer]
+              - button "手动指定" [pressed] [ref=e626] [cursor=pointer]
+              - button "恢复自动发现" [ref=e627] [cursor=pointer]
+            - paragraph [ref=e628]: 自动发现会使用已选择应用的内置 CLI、PATH 或本机常见安装位置。
+            - generic [ref=e629]:
+              - text: Codex CLI 路径
+              - textbox "Codex CLI 路径" [ref=e630]:
+                - /placeholder: 可执行文件的完整路径或命令名
+                - text: /usr/bin/true
+            - group [ref=e631]:
+              - generic "检测详情" [ref=e632] [cursor=pointer]
+            - generic [ref=e633]:
+              - text: Codex Desktop 应用
+              - textbox "Codex Desktop 应用 留空自动发现；直接操作会使用独立的数据目录启动专用实例。" [ref=e634]:
+                - /placeholder: /Applications/ChatGPT.app
+              - generic [ref=e635]: 留空自动发现；直接操作会使用独立的数据目录启动专用实例。
+            - generic [ref=e636]:
+              - text: Claude Code CLI 路径
+              - textbox "Claude Code CLI 路径 2.1.270 (Claude Code)" [ref=e637]:
+                - /placeholder: /Users/wsy/.nvm/versions/node/v24.18.0/bin/claude
+              - generic [ref=e638]: 2.1.270 (Claude Code)
+            - generic [ref=e639]:
+              - status
+              - button "保存设置" [ref=e640] [cursor=pointer]
+        - generic [ref=e641]:
+          - generic [ref=e647]:
+            - heading "用自己的客户端辅助协作" [level=2] [ref=e648]
+            - paragraph [ref=e649]: 为个人 Codex 或 Claude Code 安装 Team Cross 工具。
+          - generic [ref=e650]: 让个人客户端列出协作并选择目标，即可读取上下文、留下批注，并在持有输入权时使用目标协作支持的操作。
+          - generic [ref=e651]:
+            - generic [ref=e652]:
+              - heading "连接 Team Cross 工具" [level=3] [ref=e653]
+              - generic "个人辅助客户端" [ref=e656]:
+                - button "Codex" [pressed] [ref=e657] [cursor=pointer]
+                - button "Claude Code" [ref=e658] [cursor=pointer]
+            - paragraph [ref=e659]: 接入个人 Codex，TUI 与 Desktop 共用配置。已打开的客户端需重新加载工具。
+            - generic [ref=e660]:
+              - button "接入本机 Codex" [disabled] [ref=e661]
+              - button "检查工具连接" [ref=e664] [cursor=pointer]
+            - generic [ref=e667]:
+              - generic [ref=e668]:
+                - generic [ref=e672]: 工具协议
+                - strong [ref=e673]: 尚未检查
+              - generic [ref=e674]:
+                - generic [ref=e678]: 客户端调用
+                - strong [ref=e679]: 等待实际工具调用
+            - group [ref=e680]:
+              - generic "手动配置与诊断" [ref=e681] [cursor=pointer]
+```

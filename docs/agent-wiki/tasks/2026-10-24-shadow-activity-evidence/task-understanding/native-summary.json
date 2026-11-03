@@ -1,0 +1,41 @@
+{
+  "passed": true,
+  "starts": 2,
+  "resumes": 2,
+  "operations": [
+    "start",
+    "status",
+    "wait",
+    "status",
+    "understand",
+    "status",
+    "finish"
+  ],
+  "jobs": [
+    {
+      "state": "completed",
+      "version": 1,
+      "revision": 8,
+      "threadId": "01a16b7e-71dd-7bc0-a758-01b511c0a185",
+      "result": "ANSWER_RECONCILED：实际答复确认兼容客户端 v3；既有 OIDC 登录方案保持不变。",
+      "completionChecks": [
+        "根据实际答复确认客户端兼容版本：已确认兼容客户端 v3，依据 reply:fixture-answer。",
+        "将答案并入讨论认识并保留原有 OIDC 事实：已将 v3 写入 understanding，并保留 OIDC 登录保持不变。"
+      ]
+    }
+  ],
+  "focuses": [
+    {
+      "summary": "客户端兼容版本为 v3；既有 OIDC 登录方案保持不变。",
+      "revision": 4,
+      "evidence": [
+        {
+          "spaceId": "understanding-native",
+          "annotationId": "discussion",
+          "replyId": "fixture-answer"
+        }
+      ],
+      "openQuestions": []
+    }
+  ]
+}

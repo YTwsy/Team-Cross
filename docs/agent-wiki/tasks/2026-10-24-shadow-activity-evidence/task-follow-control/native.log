@@ -1,0 +1,13 @@
+=== RUN   TestNativeShadowTaskFollow
+    task_follows_native_test.go:147: FOLLOW_TASK_STARTED
+    task_follows_native_test.go:149: worker entered native evidence tool
+    task_follows_native_test.go:165: FOLLOW_TASK_PAUSED
+    task_follows_native_test.go:166: native worker actually stopped
+    task_follows_native_test.go:173: FOLLOW_GOAL_UPDATED
+    task_follows_native_test.go:174: paused latest goal retained
+    task_follows_native_test.go:192: FOLLOW_TASK_RESUMED
+    task_follows_native_test.go:193: same worker replanned and completed revised goal
+--- PASS: TestNativeShadowTaskFollow (91.31s)
+PASS
+ok  	teamcross/internal/shadow	91.780s
+Native acceptance report: /private/tmp/teamcross-shadow-task-follow-native-20261024-c/report.json

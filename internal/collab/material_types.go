@@ -9,15 +9,24 @@ import (
 
 // Published content contains visible messages and saved tool results only. It
 // never grants native resume, filesystem access, or access to the source reader.
+type MaterialImage struct {
+	StartOffset int    `json:"startOffset"`
+	EndOffset   int    `json:"endOffset"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	MIME        string `json:"mime"`
+	Data        string `json:"data"`
+}
 type MaterialItem struct {
-	Phase              string `json:"phase,omitempty"`
-	Label              string `json:"label,omitempty"`
-	ID                 string `json:"id"`
-	Type               string `json:"type"`
-	Text               string `json:"text"`
-	Notice             string `json:"notice,omitempty"`
-	SourceUTF16Length  int    `json:"sourceUtf16Length,omitempty"`
-	OmittedUTF16Length int    `json:"omittedUtf16Length,omitempty"`
+	Attachments        []MaterialImage `json:"attachments,omitempty"`
+	Phase              string          `json:"phase,omitempty"`
+	Label              string          `json:"label,omitempty"`
+	ID                 string          `json:"id"`
+	Type               string          `json:"type"`
+	Text               string          `json:"text"`
+	Notice             string          `json:"notice,omitempty"`
+	SourceUTF16Length  int             `json:"sourceUtf16Length,omitempty"`
+	OmittedUTF16Length int             `json:"omittedUtf16Length,omitempty"`
 }
 type MaterialTurn struct {
 	ID     string         `json:"id"`
@@ -108,6 +117,8 @@ type publicationNegotiation struct {
 	Result       map[string]any `json:"result,omitempty"`
 }
 type MaterialRead struct {
+	ReaderRequest
+
 	readview.Options
 	MaterialID     string `json:"materialId"`
 	Version        int    `json:"version"`
@@ -118,6 +129,8 @@ type MaterialRead struct {
 	IncludeOutline bool   `json:"includeOutline,omitempty"`
 }
 type PublicationDraftRead struct {
+	ReaderRequest
+
 	readview.Options
 	DraftID        string `json:"draftId"`
 	Cursor         string `json:"cursor,omitempty"`

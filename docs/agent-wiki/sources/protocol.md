@@ -4,7 +4,26 @@
 
 本页维护字段、路由与协议行为。产品语义见 [词汇与核心模型](product-core-and-glossary.md)，领域支持边界见对应契约，例如 [接收会话配对](decisions/agent-pairing.md) 与 [本机插件](decisions/chatgpt-local-plugin.md)；模块和调用入口见 [架构](architecture.md)。接口存在不等于宿主已接通或真实验收通过，已知执行结果与适用范围见 [证据入口](validation/evidence-map.md)。
 
+## 空间与会话身份
+
+`spaceId` 标识空间，`executionId` 标识空间内的协作会话，`sessionId` 标识 Provider 原生 fork。三个身份不能互换。空间与执行会话不能复用同一个 ID；并发创建也检查此约束。创建 requestId 同时作为 executionId；未指定 spaceId 时由该请求确定性生成新的空间 ID。创建结果同时返回 spaceId 与 executionId，后续恢复和操作保留这对目标。
+
+执行 API 统一使用 `/api/collaborations/:spaceId/sessions/:executionId`；主机核对父子归属，不接受把执行 ID 当作空间 ID。空间接口负责成员、邀请、材料、公开讨论及工作台。MCP 和 CLI 没有隐式选中会话，即使空间只有一个会话，执行动作仍须提供 executionId。
+
 ## 本机管理 API
+
+### 顺流感知接口
+
+业务范围见 [顺流感知契约](decisions/in-flow-awareness.md)。工作台 `view` 增加 `inFlow`（接收对象到启用布尔值）和最近四十条 `notes`；目标增加 `inFlow`，与主动接收 `available` 分开。
+
+- `POST /collaborations/:spaceId/workbench/inflow-config`：`{targetId|executionId,enabled}`，二选一；成员只设置自己的关联目标，协作会话由发起者设置。
+- `POST .../workbench/inflow-note`：`{requestId,targetId,instruction}`，UUID 去重，正文 1–300 字；返回 `{id,targetId,actor,text,createdAt,deliveredAt?}`。`inflow-note-read` 按 `{requestId}` 查询同一条。
+- 留言校验未通过返回 `inflow_note_rejected`；查询不存在返回 `inflow_note_not_found`。网络失败仍视为结果不明；查询后明确重试沿用原 ID 和正文，不能自动换 ID 重发。
+- 模型工具为 `configure_space_inflow(spaceId,enabled)`、`send_space_note(spaceId,requestId,targetId,instruction)`、`get_space_note(spaceId,requestId)`。绑定运行时省略 spaceId；当前调用者由传输核对，不能由工具参数指定。
+- 内部传输 `POST /inflow` 只接受 Core Bearer 且拒绝 Origin，使用 `{caller,operation:prepare|delivered|release,batch?}`；不是模型工具。绑定运行时通过原 `runtime-annotations/:id` 凭据通道使用内部 `_inflow` 操作，只访问绑定空间。
+- `prepare` 返回 `{spaceId,targetId?|executionId?,receipt?,items}`；receipt 仅供内部写出后记账，不进入模型上下文。条目含 kind、sourceId、version、spaceId、executionId（评论）、署名、有限正文及时间。`delivered` 只提交准备批次中的版本；失败用 `release` 释放，过期批次重新准备。
+
+### 通用管理路径
 
 默认尝试 `http://127.0.0.1:43210/api`，占用时使用动态 loopback 端口，实际地址由本机连接文件和启动输出提供。仅接受 loopback Host；浏览器写入需同源。响应为 JSON，错误返回 `{ "code": "英文类型", "error": "可读说明", "recovery": "下一步（可选）" }`。接收端也必须在自己的 Mac 运行 Core，由它连接远端。
 
@@ -31,32 +50,37 @@
 | `POST /sources/current` | 核对个人 MCP 的原生调用身份，返回来源与当前轮次 |
 | `POST /share-requests/preview` | 预览当前 Session 的本轮完成后分享 |
 | `POST /share-requests` | 幂等登记分享请求，立即返回，不等待本轮结束 |
-| `GET /share-requests/:id` | 查询请求状态、已创建协作 ID 和错误恢复提示 |
+| `GET /share-requests/:id` | 查询请求状态、spaceId、executionId 和错误恢复提示 |
 | `POST /share-requests/:id/cancel` | 只取消仍在 waiting 的请求，保留已创建资源 |
 | `POST /preview` | 检查来源的最新完成轮与 Git 起点 |
 | `GET /collaborations` | 本机发起与加入的协作 |
-| `POST /collaborations` | 创建新的协作 fork；可用 `spaceId` 附到已有只读空间 |
+| `POST /collaborations` | 创建新的协作 fork；可用 `spaceId` 附到已有空间；已有会话不限制继续创建 |
 | `POST /join` | `{invitation}` 或 `{pendingId}`，连接邀请并幂等返回本机加入记录 |
-| `GET /collaborations/:id` | 状态、目录、输入者、批注 |
-| `GET /collaborations/:id/context?kind=&path=&after=&cursor=&turnId=&itemId=&startOffset=` | `history/changes/file/annotations/events`；history 可按 `pageCursor + turnId + itemId + startOffset` 读取单条 |
+| `GET /collaborations/:id` | 空间状态、材料、公开批注及按访问范围过滤的 sessions 目录 |
+| `GET /collaborations/:id/sessions` | 空间内的会话目录 |
+| `GET /collaborations/:id/sessions/:executionId` | 指定会话的状态、目录、输入者和会话批注 |
+| `GET /collaborations/:id/context?kind=annotations` | 只读取空间公开讨论 |
+| `GET /collaborations/:id/sessions/:executionId/context?kind=&path=&after=&cursor=&turnId=&itemId=&startOffset=` | 指定会话的 `history/changes/file/annotations/events`；history 可按 `pageCursor + turnId + itemId + startOffset` 读取单条 |
 | `POST /collaborations/:id/action` | `{action,transport?,epoch,memberId?}`；`share` 使用 `lan|tailcat`，省略仅为兼容本机调用并默认 `lan` |
 | `POST /collaborations/:id/invitations` | `{transport,requestId?,reset?}` 生成或取回可复用链接；`reset:true` 配合 requestId 重置链接；也可只传 `{invitationId}` 取回指定链接 |
-| `POST /collaborations/:id/execution-access` | `{memberId,allowed}`，主机开放或收回该成员的执行访问，保留材料与讨论资格 |
+
 | `POST /collaborations/:id/revoke-invitation` | `{invitationId}`，关闭该链接加入，保留已加入成员 |
 | `POST /collaborations/:id/remove-member` | `{memberId}`，撤销该成员及旧请求；当前输入者被移除时输入归还发起者 |
-| `POST /collaborations/:id/open` | `{client:tui|desktop,launch:boolean}` 直接客户端 |
-| `POST /collaborations/:id/personal-desktop` | `{launch:boolean}`，仅本机发起的 Codex 协作；在个人 Desktop 定位已保存的 fork |
-| `POST /collaborations/:id/assist` | `{provider:codex|claude,client:tui|desktop,launch:boolean}`，Provider 选择个人客户端，省略默认 Codex；Claude 仅 TUI |
-| `POST /collaborations/:id/rpc` | `{method,params,requestId}` 协作原生调用 |
-| `POST /collaborations/:id/respond` | `{id,result}` 原生请求回应 |
+| `POST /collaborations/:id/sessions/:executionId/open` | `{client:tui|desktop,launch:boolean}` 直接客户端 |
+| `POST /collaborations/:id/sessions/:executionId/personal-desktop` | `{launch:boolean}`，仅本机发起的 Codex 协作；在个人 Desktop 定位已保存的 fork |
+| `POST /collaborations/:id/sessions/:executionId/assist` | `{provider:codex|claude,client:tui|desktop,launch:boolean}`，Provider 选择个人客户端，省略默认 Codex；Claude 仅 TUI |
+| `POST /collaborations/:id/sessions/:executionId/rpc` | `{method,params,requestId}` 协作原生调用 |
+| `POST /collaborations/:id/sessions/:executionId/respond` | `{id,result}` 原生请求回应 |
 | `GET /collaborations/:id/materials` | 材料与版本目录，不含正文 |
 | `POST /collaborations/:id/materials` | `{previewId,previewHash,requestId,materialId?,baseVersion?}`，发布本机已确认预览 |
 | `POST /collaborations/:id/read-material` | `{materialId,version,turnId?,itemId?,startOffset?,cursor?,includeOutline?,view?,toolOutputs?,turnLimit?,maxBytes?}`，按选定视图或单条范围读取固定版本 |
 | `POST /collaborations/:id/publication-status` | `{requestId}`，查询自己的发布结果 |
 | `POST /collaborations/:id/withdraw-material` | `{materialId}`，撤回自己材料的所有版本 |
 | `POST /collaborations/:id/annotations` | `{text,target?,reference?,materials?}` |
-| `POST /collaborations/:id/annotation-replies` | `{annotationId,text,requestId,materials?}`，返回更新后的原批注 |
+| `POST /collaborations/:id/annotation-replies` | `{annotationId,text,requestId,materials?,mentions?,replyTo?}`，返回更新后的原批注 |
 | `POST /runtime-annotations/:id` | 仅 A loopback，独立协作凭据，`{name,arguments}`，读取或回复本空间批注，按需读已发布材料 |
+
+会话级 `action/assist/annotations/annotation-replies/endpoint` 使用同一 sessions 层级。空间 action 只管理分享、关闭或离开；会话 action 管理 start、pause、end 与输入交接。会话的 end 接回输入并暂停执行，保留空间及所有成员读取；pause 拒绝新写入，保留当前输入归属和读取。公开讨论保留根路径，会话整体意见即使不带引用也写入子路径。
 
 创建及预览输入：
 
@@ -74,9 +98,9 @@
 
 `runtimeMode` 为 `restricted|trusted`，省略默认为 `restricted`，未知值拒绝。Codex 与 Claude 均支持。它绑定预览哈希、创建请求去重与持久化协作记录，创建后没有修改入口；重试不能借同一个 requestId 改变模式。恢复继续同一 sessionId 与模式。信任模式继承当前主机原生配置，不是创建时配置文件的快照。
 
-预览返回 `runtimeMode`、`source`、`sourceTurnId`、`sourceTurnStatus`、`workspace`、`targetDirectory`、`previewHash`。不接受 dirty patch 或未跟踪文件选项。创建哈希绑定 Provider、协作模式、来源会话、完成轮、目录模式、目录、Git HEAD 和分支；未提交文件只是原目录当前现场，不捕获为快照。Codex 来源有 rollout 路径时，以原始轮次事件核对运行/完成状态，避免独立读取进程将其他客户端仍在运行的轮次误判为中断。
+提供有效 requestId 的预览同时返回确定的 `spaceId/executionId`，结果不明时先按这对 ID 查询；预览另返回 `runtimeMode`、`source`、`sourceTurnId`、`sourceTurnStatus`、`workspace`、`targetDirectory`、`previewHash`。不接受 dirty patch 或未跟踪文件选项。创建哈希绑定 Provider、协作模式、来源会话、完成轮、目录模式、目录、Git HEAD 和分支；未提交文件只是原目录当前现场，不捕获为快照。Codex 来源有 rollout 路径时，以原始轮次事件核对运行/完成状态，避免独立读取进程将其他客户端仍在运行的轮次误判为中断。
 
-`action` 包括：`start` 恢复运行时，`share` 按显式 `transport` 生成邀请，`end` 结束共享，`handoff` 交给接收者，`reclaim` 发起者接回，`return` 接收者交还，`leave` 接收者离开，`request_input` / `cancel_input` 接收者申请或取消输入。申请同样校验 epoch，不自动交接。输入交接需要当前 `epoch`。WebGUI 必须让用户在 `lan` 和 `tailcat` 之间二选一；协议默认 `lan` 只用于已有本机调用者，不表示自动探测或回退。
+`action` 包括：`start` 恢复运行时，`share` 按显式 `transport` 生成邀请，`pause` 暂停该会话，`end` 结束目标的共享（空间或会话由路由决定），`handoff` 交给接收者，`reclaim` 发起者接回，`return` 接收者交还，`leave` 接收者离开，`request_input` / `cancel_input` 接收者申请或取消输入。申请同样校验 epoch，不自动交接。输入交接需要当前 `epoch`。WebGUI 必须让用户在 `lan` 和 `tailcat` 之间二选一；协议默认 `lan` 只用于已有本机调用者，不表示自动探测或回退。
 
 协作列表以本机记录和最近一次成功状态立即响应，不等待逐个远端主机重连；已加入协作的远端状态在后台去重刷新，下一次页面轮询会显示结果。`GET /collaborations/:id` 仍等待该协作的实时状态探测，供详情页和工具确认当前输入归属与运行状态。
 
@@ -98,7 +122,7 @@
 | `POST /library/read-selection` | `{code,offset?,compact?}`，读取编号中的一页资源，与个人 MCP `read_selection` 对应 |
 | `POST /library/prepare-send` | `{references}`，检查当前可读且来自同一空间；不创建编号、不发送输入 |
 
-引用为 `{spaceId,kind:material\|annotation\|context,materialId?,version?,annotationId?,target?}`。材料必须指定正整数版本；批注必须指定原批注 ID；上下文可提供已存在的 history/file/changes `AnnotationTarget`，材料不得混用原生定位。`spaceId` 是调用者本机的空间 ID，加入者使用自己的 `joined-…` ID。资源 key 是规范引用 JSON 的 SHA-256 前 16 字节十六进制值，用于界面状态，不授予访问。资源条目带来源 Session、空间、类型、更新时间、收藏/选择/本人参与标记与 `available/offline/withdrawn/unavailable` 状态。
+引用为 `{spaceId,executionId?,kind:material\|annotation\|context,materialId?,version?,annotationId?,target?}`。上下文和会话批注必须携带 executionId，公开材料和空间讨论不能混用该字段。材料必须指定正整数版本；批注必须指定原批注 ID；上下文可提供已存在的 history/file/changes `AnnotationTarget`，材料不得混用原生定位。`spaceId` 是调用者本机的空间 ID，加入者使用自己的 `joined-…` ID。资源 key 是规范引用 JSON 的 SHA-256 前 16 字节十六进制值，用于界面状态，不授予访问。资源条目带来源 Session、空间、类型、更新时间、收藏/选择/本人参与标记与 `available/offline/withdrawn/unavailable` 状态。
 
 选择最多 32 项。编号为 `TC-` 加 6 个随机字节的无填充 Base32 编码，仅在当前数据目录有效，有效期 7 天，至多保留 256 个未到期编号。同一 `requestId` 与相同引用重试返回同一编号，引用不同拒绝；当前勾选的后续变更不影响编号。Web API 默认每次最多返回 4 项；个人 MCP `read_selection` 使用 `compact:true`，每次 1 项，仅返回 `reference/content`，去掉 UI 状态和重复引用全文。材料和历史使用 `answers` 视图，正文预算 20 KiB；批注直接按 ID 读取。更多项通过 `nextOffset` 继续；`offset` 为 0–31 的整数。正文分页继续使用已有 `read_material/read_context`，逐项结果包含明确引用和当前内容或错误，不以失去访问前的批注正文兜底。材料撤回后正文拒绝，仍在授权范围内的历史讨论继续保留。
 
@@ -127,7 +151,7 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 
 个人 MCP 与插件模型工具提供 `connect_current_session(spaceId,name?)`，返回 `linked`、`receiving`、配对和目标信息；同空间、同 Provider 与传输会话身份复用关联。Codex/Claude 使用既有原生证明；ChatGPT 使用 `_meta["openai/session"]` 加 subject/org 的 SHA-256，不把这个键当作原生 thread ID。已有 Codex 连接使用 `codex_proxy` 传输，并核对原生已加载会话；原生代理租约不跨 Core 重启。工具不能指定 Provider、Session 或接收连接。空间资源 URI 为 `teamcross://<scope>/space/<id>`，读取返回空间 ID、简报与角色状态，引用本身只读。
 
-个人 MCP 增加 `pair_current_session(code)`、`confirm_pairing(pairingId,challenge)`、`read_agent_request(requestId,offset?)`、`finish_agent_request(requestId,status,summary)`。共享运行时仅加入其中的配对、读取请求和完成请求三个工具，不提供 Channel `confirm_pairing`。运行时调用复用原 `runtime-annotations/:id` 的专用 token，caller 必须与该运行时 Provider/Session 匹配。这组配对工具不任意指定空间或发送其他模型输入；明确的空间间接投递由下节通用工作台工具提供。`analyze_reply` 至少需要一条原批注；共享目标引用全部属于它的空间；读取请求时再次检查访问，正文继续走现有工具。每次返回一项引用和 `offset/total/nextOffset?`，`offset` 为 0–31；分页不改变持久化的完整引用组。
+个人 MCP 增加 `pair_current_session(code)`、`confirm_pairing(pairingId,challenge)`、`read_agent_request(requestId,offset?)`、`finish_agent_request(requestId,status,summary)`。共享运行时仅加入其中的配对、读取请求和完成请求三个工具，不提供 Channel `confirm_pairing`。运行时调用复用原 `runtime-annotations/:id` 的专用 token，caller 必须与该运行时 Provider/Session 匹配。这组配对工具不任意指定空间或发送其他模型输入；明确的空间间接投递由下节通用工作台工具提供。`analyze_reply` 至少需要一条原批注；共享目标引用全部属于它的空间，私有会话引用还必须属于目标 executionId；读取请求时再次检查访问，正文继续走现有工具。每次返回一项引用和 `offset/total/nextOffset?`，`offset` 为 0–31；分页不改变持久化的完整引用组。
 
 `agent-pairings.json` 按 0600 原子保存，最多 64 个配对记录、512 个请求；创建时清除到期未配对记录，以及超过三十天的完成/失败请求。状态为 `submitting/submitted/received/completed/failed/unknown`；`completed` 为 Agent 自报完成，`failed` 区分投递失败的 `error` 与 Agent 自报失败的 `summary`，不由传输成功推断完成；摘要最多 2000 字。请求提交前持久化，同 ID 不同内容拒绝，已有请求只返回状态。重启不重放；内存接收租约失效，个人 Channel 需要重新配对。
 
@@ -143,7 +167,9 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 | `POST …/workbench/remove` | `{targetId}`，仅目标所属成员或空间发起者解除关联；保留记录，取消未投递请求 |
 | `POST …/workbench/send` | `{requestId,targetId,parentRequestId?,references,instruction,intent}`；0–32 项本空间固定材料/公开批注，空引用可用于简报协作；其他限额沿用配对请求 |
 | `POST …/workbench/cancel` | `{requestId}`，仅发起成员或空间发起者取消 `queued` 请求 |
-| `POST …/workbench/brief` | `{baseRevision,brief:{topic,decisions,questions}}`，人工成员确认，CAS 更新；条目为 `{text,sources,requestId?}`，引用请求须已完成/失败且有摘要 |
+| `GET …/workbench/brief-read?revision=&itemId=&requestId=` | 默认读取当前简报；revision 选准确历史版本，itemId 只返回该条目，requestId 核对保存命令。无效版本参数拒绝，不回退到当前正文 |
+| `POST …/workbench/brief` | `{requestId,baseRevision,brief:{topic,decisions,questions,progress}}`，以实际作者完整保存，CAS 更新；界面使用此入口 |
+| `POST …/workbench/brief-update` | `{requestId,baseRevision,topic?,changes}`，每项为 `{operation:upsert\|remove,section:decisions\|questions\|progress,itemId?,item?}`；upsert 在 item 中提供稳定 itemId，remove 在修改项提供 itemId |
 | `POST …/workbench/assistant` | `{baseEpoch,state,targetId?,requestId?}`，仅空间发起者；`state=initializing|paused|disabled`，初始化需就绪的独立目标和新的请求 ID |
 | `POST …/workbench/create-receiver` | `{requestId,name}`，在当前成员 Core 创建并关联独立 Codex 接收会话；相同 ID 不重复创建 |
 | `GET /space-receivers?spaceId=…` | 当前 Core 自己的接收会话、原生 TUI 命令、运行时确认模型及状态；含 `activeTurnId`、持久化的 `receivingPaused`、等待执行/进程退出的 `releasePending`，不通过远端返回 |
@@ -155,17 +181,85 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 
 成员 Core 使用已有 TLS 成员访问调用 `POST /v2/workbench/:op`，操作包括上述领域读写以及 `poll/claim/receipt/read/finish/annotations/reply/receiver-check/event-snapshot`。空间托管端从访问凭据派生成员身份；只有接收目标的所属成员能领取和报告该目标的请求。浏览器入口将 `actor` 覆盖为人工，MCP 入口从核对后的传输生成会话身份。成员 Core 是该成员的可信边界，不能以自报 `actor.memberId` 冒充其他成员。
 
+`register` 重试在成员、Provider、不透明会话身份和 executionId 一致时允许更新显示名称，复用原 targetId。`poll` 可随 `presence` 附带 `targetNames: {targetId: name}`；仅更新同批 presence 内属于认证成员、尚未移除的目标名称，限 1–80 字，不创建或重新关联目标。本机配对的 `nameSource` 记录 `custom/native/fallback`，用于保留自定义名称和补全旧默认占位，不作为权限或目标身份。
+
+插件专用只读路由 `plugin/current-connection?spaceId=…` 返回 `{known,linked,receiving,targetId?,name?}`；UI 不能提交调用者身份。MCP 桥只从传输提取 Codex threadId 或 ChatGPT 不透明身份，通过受 Bearer 保护且拒绝 Origin 的 `POST /agent-current-connection` 读取精确关联。内部 `connection-status` 只返回属于认证成员、未移除的目标，不注册目标或连接原生进程。缺少可用身份返回 `known=false`，不等同于确认未关联。
+
+插件界面更新使用 `teamcross_ui_read` 的两条 app-only 只读路由：`plugin/panel-version` 返回 `{protocol:1,requiredBridgeProtocol,revision}`；`plugin/panel-bundle?revision=…` 返回同一版本并附带 `{script,style}`。`protocol` 是资源传输格式；`requiredBridgeProtocol` 是该界面需要的累积 MCP 路由与语义能力，当前为 1，历史资源未声明时为 0。Core 仅接受 GET、精确 Core Bearer 且无 Origin，revision 与当前内嵌资源不符返回 409。revision 为 UTF-8 `style + NUL + script` 的 SHA-256；面板取得 bundle 后再次校验。bundle 仅放在 MCP `structuredContent`，不重复写入文本 content；资源来自正在运行的 Core，不能指定文件或外部 URL。
+
+`teamcross_ui_read` 的 `plugin/bootstrap` 接受可选 `body:{requiredBridgeProtocol}`，返回 `{language,scope,bridgeProtocol}`。`bridgeProtocol` 来自处理调用的驻留 MCP，不来自磁盘版本或 Core；当前为 1，未声明按历史 0 处理。MCP 在启动 Core、写入加载回执之前拒绝超出能力的请求，返回 `plugin_reload_required` 和保存未发送内容、重新加载宿主连接的恢复说明。新版面板下载及替换前分别比较需求与驻留能力，启动时再核对 bootstrap；历史 MCP 拒绝带正文的 bootstrap 时，只允许对该只读探测回退一次无正文请求，不重试业务写入。更新过程、旧编辑器回退与草稿边界见[本机插件契约](decisions/chatgpt-local-plugin.md#一套-webgui两种运行环境)。
+
+共同执行目标使用 `executionId` 绑定精确会话，私人接收目标省略该字段；投递时重新检查空间成员资格和该会话输入归属。
+
 `Record.workbench` 保存 `targets`、`requests`、`brief` 和 `assistant`，最多 256 个目标、4096 条请求。目标公开随机目标 ID、成员、名称、Provider、原生身份的不可逆摘要、是否共同执行、可用性和解除关联状态，不公开私人配对 ID、原生 ID 或凭据。请求保存完整发起身份、接收目标、父请求 ID、固定引用、要求、处理方式、状态、摘要/错误以及创建、更新、读取、结束时间。父请求必须属于当前空间，关联深度不超过 16。
 
 接收 Core 约每 2 秒报告关联目标的接收状态，租约有效期 20 秒。`queued` 最长等待 30 秒；`claim` 先持久化 `unknown` 再进行外部输入，且只能领取一次。随后 `receipt` 报告 `submitted/failed/unknown`；Agent 的 `read_agent_request` 才标为 `received`，读取后 `finish_agent_request` 才可标为 `completed/failed`。同 ID 内容不一致拒绝，已完成结果不同拒绝；原请求可查询，断线或重启不重放。空间关闭后拒绝新的发送/创建等操作，允许保留的本机结果查询和已投递结果收尾；成员凭据撤销仍优先拒绝所有远端访问。
 
 普通请求保存 `briefRevision` 与 `context:{brief,previousBriefRevision?,parent?}`；`parent` 为 `{requestId,state,instruction,summary?}` 的发送时快照。`previousBriefRevision` 按目标最近的读取时间计算，包括角色接手。列表省略 `context`；完整读取保留。创建时为读取封装和后续结果预留 16 KiB，超过读取预算的上下文在外部投递前拒绝；重复请求保持旧快照。
 
-简报议题最多 2000 字，决定/问题各最多 32 条、每条 2000 字，整体 JSON 最大 24 KB，来源同样逐次核对公开范围。`revision` 递增并记录确认成员。专用角色为 `disabled/initializing/ready/paused/failed`，启用、暂停、停用或更换时递增 `epoch`；启动请求保存 `SpaceBootstrap`，包含空间身份、角色版本、完整确认简报、最多 16 份材料的最新固定版本目录、16 个目标、32 个待处理 ID、对应总数及规则。接手必须同时匹配当前 bootstrap ID 和 epoch，先读取再成功完成，不能由送达推断。
+简报议题最多 2000 字，决定/问题/进展各最多 32 条、每条 2000 字，整体 JSON 最大 24 KB。条目为 `{itemId,text,status,sources,requestId?,updatedBy,updatedAt}`；实际作者与时间由 Core 写入，未变化条目保留原记录。决定状态为 proposed/confirmed/disputed，问题为 open/resolved，进展为 in_progress/completed/blocked。新决定默认 proposed，保存不自动确认全部内容；无条目状态的既有人工简报保留原确认含义。
 
-个人 MCP 和绑定运行时都提供：`list_space_targets`、`read_space_brief`、`list_space_requests`、`get_space_request`、`send_space_request`。个人工具需要 `spaceId`，绑定运行时移除顶层选择字段并拒绝额外空间选择。请求目录每页最多 10 项，返回短预览和 `nextOffset`，完整正文按 ID 读取。投递是需要用户明确授权的写工具；不因读取材料、简报或收到其他请求自动获得授权。
+来源沿用 SpaceSourceRef，新增 `briefRevision/briefItemId` 精确定位历史简报；每条最多 32 项本空间公开依据，支持固定材料、准确讨论/回复、已完成或失败且有摘要的请求、历史简报及已终结的公开执行轮次。新增或修改条目逐项核对来源，未改动条目可保留后来已撤回的历史引用。简报事件携带实际修订；失效来源明确返回不可用，不拿最新正文替换。
+
+每次更新最多 32 项修改，requestId 为稳定 UUID，内容实际改变才递增 revision；无变化仍保存命令回执。成功返回 `{state:saved,requestId,revision,source,brief,readBack:{tool:read_space_brief,requestId}}`，同一命令及作者重试取得原修订，同 ID 换内容或作者拒绝。CAS 冲突返回 `{state:conflict,revision,brief,conflicts}`，不写入；conflicts 为改变的相关条目或 `$topic/$history`，其他条目引起的全局版本冲突可为空。合并后使用新命令 ID。
+
+workbench 另存 briefHistory 和 briefCommands，当前版本之外保留最近 256 份历史快照，最多 4096 条命令回执。保存失败回滚正文、历史和回执；容量达到上限时拒绝新命令，不删去去重记录后重新执行。按 requestId 读取返回实际保存版本，必要时只返回指定条目；历史过期为 brief_revision_unavailable，条目缺失为 brief_item_missing。历史正文不可用时仍保留已保存状态，避免不明结果被误当作未执行。
+
+专用角色为 `disabled/initializing/ready/paused/failed`，启用、暂停、停用或更换时递增 `epoch`；启动请求保存 SpaceBootstrap，包含空间身份、角色版本、完整简报及条目状态、最多 16 份材料的最新固定版本目录、16 个目标、32 个待处理 ID、对应总数及规则。角色可根据当前工作直接咨询、跟进和整理简报。接手必须同时匹配当前 bootstrap ID 和 epoch，先读取再成功完成，不能由送达推断。
+
+个人 MCP 和绑定运行时都提供：`list_space_targets`、`read_space_brief`、`update_space_brief`、`list_space_requests`、`get_space_request`、`send_space_request`；分身使用同一简报业务接口。个人工具需要 spaceId，绑定运行时移除顶层选择字段并拒绝额外空间选择。请求目录每页最多 10 项，返回短预览和 nextOffset，完整正文按 ID 读取。按当前工作发起普通咨询、接续和整理简报无需逐次发送许可，保留真实身份、来源及共同执行的输入归属。简报更新回执使用 read_space_brief(requestId)，get_space_request 仅查询实际协作请求。
 
 独立接收会话保存于 `DataDir/receivers/receiver-<requestId>/receiver.json`，专用目录为其 `workspace/`。使用 `thread/start` 并核对实际 ID，不创建空间 `execution`；`runtime-annotations/receiver-…` 使用自己的 token，所有工具调用均验证原生 Provider/Session/Turn 身份。Core 重启不自动启动进程；明确 `start` 沿用原生 ID。配对、成员引用别名与请求回执在接收 Core 桥接，重映射只处理 `spaceId` 字段，不改写用户文本。
+
+## 本机数字分身
+
+本机入口为 `collaborations/{spaceId}/shadows/view|source|models|create|send`。`view` 使用 GET，可传 `shadowId` 和 `offset`，每页最近 100 条，`nextOffset` 向前翻页；不传 ID 仅返回目录元数据。`create` 由当前本机成员提交 UUID `requestId`、`name`、绝对 `cwd` 和 `settings:{model,modelProvider,reasoningEffort}`，创建 ID 等于 requestId，同 ID 必须匹配原配置（含 settings）。仅接入本机 Codex。
+
+`GET collaborations/{spaceId}/shadows/source` 接受 `shadowId` 和 `messageId`／`resultId` 二选一，返回 `{source,message?|result?|unavailable?}`；`read_space_shadow` 使用相同选择器，不与 offset 分页混用。消息正文身份不可覆盖，结果为固定 `TaskResult`，保留 taskId/taskVersion/sourceId/messageId/parentId、state/outcome/text、completionCriteria/completionChecks/checkpoint/sources/createdAt。不可用时返回 shadow_message_unavailable 或 shadow_result_unavailable，不回退到当前结果。
+
+本机 `Record.taskResults` 随业务结束同次落盘；跨 Core sync 带结果快照，主机拒绝改写已知结果 ID 的内容。每个分身保留 256 份，普通 view 仅带最近 20 份不含正文的 taskResults 索引与 taskResultCount；目录省略结果索引。已有原生投递与结果通知账本的语义不变。
+
+`GET collaborations/{spaceId}/shadows/models?cwd=…` 经成员检查后在当前本机读取原生配置与模型列表，返回 `models` 和 `defaults`；不通过空间主机查询其他成员配置。`models` 包含 model/displayName/defaultReasoningEffort/supportedReasoningEfforts；`custom:true` 表示原生未提供能力列表。`defaults` 与 settings 同结构。只返回模型元数据，不返回配置路径、凭据、MCP 或 Provider 定义。`create` 再核对选择，持久化成功后的同 ID 重试不重新解析默认值；旧客户端省略 settings 重试已存在的 ID 时仅返回原记录，不用于新建。
+
+分身视图的 `settings` 是不可变启动选择，顶层 model/modelProvider/reasoningEffort 是最近原生确认值；尚未确认时保持空值。原生线程创建、恢复和轮次都沿用启动设置，不增加消息级覆盖字段。
+
+本机 `Segment`、`Job` 和在途 `Transition` 保存 `toolsetDigest`，根据实际动态工具注册及角色版本生成；不向 `thread/resume` 发送不存在的工具参数。主段通过既有交接切换到新注册，工作任务升级保存 `previousThreads` 并保留原目标版本、检查点及运行账本。摘要和工作会话升级链只作本机记录，不进入共享 View；普通恢复继续准确原生 ID。创建回执未知仍由既有 creating/unknown 状态处理，不凭工具变化重新创建。
+
+`send` 提交 `{shadowId,message:{id,text}}`，ID 为 UUID，正文上限 64 KiB。作者由传输确定；同 ID 只接受相同作者和内容。返回投递状态 `sending|sendFailed|delivered`；前两者不能称为已送达。分身 Core 持久写入后返回 `receivedAt`，共享消息才成为 delivered；后续 `submitted|completed|failed|unknown` 描述处理状态，不能覆盖送达事实。失败只允许明确手动同 ID 重试。
+
+分身本机的 `GET shadows/{id}/local` 返回本机工作目录和原生待处理请求；`POST shadows/{id}/action` 接受 `pause|resume|rollover|reconcile|respond`。`respond` 传精确原生请求 ID 与该方法要求的结果。其他成员没有这些管理路由；审批不经空间同步。`rollover` 为本机诊断入口，普通聊天不要求手动换段。
+
+成员 Core 经现有受认证 TLS 传输调用 `/v2/shadows/check|register|view|source|send|sync|return-prepare|return-delivered|return-release`；只有注册 owner 可以同步该分身。空间主机核对接收快照里的原始消息 ID、文本、作者与 `receivedAt`。在线租约为内存态、10 秒过期，投递尝试 12 秒后失败；重启或恢复在线不会把失败尝试重新加入投递。共享快照不包含 Codex home、工具调用账本或审批。
+
+分身委托的发起 Core 保存本机 `ShadowReturnRoute`，send 的内部传输携带 `returnRouteId/returnSessionKey`；普通模型参数仍只包含原 messageId、text 和分身。主机将返回路线绑定实际成员、分身和原消息。sync 可额外携带最多 256 份固定 `results`；来源历史窗口与待同步/待返回 outbox 分开，成功保存后分身 Core 才确认导出。直接答复的导出每批最多 100 条；任务协调轮消息带 `taskResultId`，不重复作为普通答复返回。
+
+任务返回批次增加 `returnRouteId`，`return-prepare/delivered/release` 复用已有租约与写出确认语义；finish 必须回传此 ID。条目 kind 为 `shadow_reply` 或 `shadow_task_result`，携带 `shadowId`、原始 `sourceId`，以及 `messageId` 或 `resultId/taskId/taskVersion`。item.version 是不可变返回条目的版本，任务目标版本由 taskVersion 单独表达。每批最多 3 项、4096 字节；没有目标配对也可返回，既有明确静音生效。没有关联目标但存在任务路线时，configure_space_inflow 返回 `scope: task_returns`，仅设置此空间、此发起会话的任务返回偏好。
+
+普通 MCP 暴露 `list_space_shadows`、`read_space_shadow`、`send_space_shadow`；可为当前工作开展相关协作，不要求逐条重复确认发送。调用身份经传输核验，分身调用保留 shadow 身份及所属成员。绑定运行时自动确定空间，不允许传入其他 spaceId。UI 桥只允许相应公开读写路由，不暴露 sync/register 或原生 RPC。
+
+新建分身原生 thread 附加 `shadow_reply|shadow_recall|shadow_remember|shadow_task|shadow_topics|shadow_history|shadow_watch` 及现有空间协作动态工具。工作、结果和接续轮可维护任务与话题，观察及维护轮不执行公开协作写入；长期记忆仍基于实际成员输入。Core 按实际工具注册摘要在空闲边界升级旧主段及待接续 W；不向 thread/resume 传新增工具参数，不重放未知输入。原生工具与权限继续继承；各状态及故障接续见 [分身契约](decisions/local-shadows.md)。
+
+`shadow_watch` 接受 operation 为 read/list/start/update/pause/resume/complete。read 使用 id 或 subject；list 使用 limit 1–50 和带当前清单版本的 cursor，默认 20 个索引。写入需要稳定 requestId 和 baseGoalVersion；新对象为 0，已有对象从 read 取得。start 需要准确 subject（material/discussion/execution），可带 goal；update 修改 goal；其他操作保持目标正文。实际来源由活动轮次追溯至所属成员原消息，不接受调用方指定作者。成员 Core 将意图、目标与回执保存在本机 attention，最多 10,000 个操作回执，受同一 32 MiB 总预算限制。
+
+start 通过所属成员的认证 `/v2/member-activity/ensure-follow` 复用已有关注，输入为 subject/requestId；主机核对对象并原子保存新 revision 与初始化信号。同一 requestId 返回原结果，不因其后取消关注而重做。普通 `follow` 仍要求显式偏好 revision；该内部接续入口不替代其比较更新语义。目标版本与认识 revision 独立；完成目标不会自动取消成员关注。
+
+分身原生动态工具附带可选 inputId；多人同轮的来源写入必须指定它。C1 消息使用输入包 id；一个讨论包有多条 origins 时使用准确 origins[].id。该字段只在成员 Core 做来源归属，不转发成远端业务参数。shared-chat 的 `shadow_reply:{inputId?,text}` 立即保存回复及 ReplyOutbox；text 上限 24 KiB，回复绑定选中的真实消息，不创建任务。讨论输入使用原讨论工具，不能转发到共享聊天。`shadow_history` 的准确 anchor 可配 offset 分页读取长原文，每页 8000 字符，并返回 nextOffset/totalChars。
+
+输入批次保存在 Run.inputBatches，包含稳定 id、method、turnId、state 和逐条身份。state 为 prepared/accepted/rejected/failed/unknown；accepted 只证明原生受理。空闲 S 使用 turn/start，活动 S 使用 turn/steer(expectedTurnId)，先持久化再发送。原生批次标记只从 userMessage 历史核对，工具输出或最终文本不能伪造接收回执。
+
+默认 `shadow_task` operation 为 start/report/status/update/cancel/resume，另保留 handling/handoff/replan。start 保存独立 work 的 title/prompt/completionCriteria，不创建 coordination。report 只由活动 W 提交，参数为 state:continue|wait|complete|fail、result、可选 checkpoint/dependencies/resolutions/criteriaChecks/publishedActionId。Core 从 Run 绑定任务 ID 和当前目标版本；若显式提供身份必须匹配。result 最多 16000 字节；默认检查点摘要由结果有界提取。continue 可继续工具执行，wait/complete/fail 后结束本轮。complete 必须有逐项 criteriaChecks、无未解决依赖或 openQuestions；原生 final 本身不会完成任务。
+
+checkpoint 为 `{summary,nextStep,evidence?,openQuestions?}`。wait 最多登记八项 discussion/request/job/time 依赖，各有稳定 id、kind、condition，讨论必须准确 source，job 固定 jobId/jobVersion，time 使用带时区 dueAt；需要恢复后的 nextStep。Core 保存 cursor/signals/满足状态，模型通过 `resolutions:[{id,explanation,signalIds}]` 核对真实答复，不得伪造接收位置。普通补问不使用这套状态。
+
+公开回报与工作状态同次保存：共享聊天使用 ReplyOutbox，讨论复用 AutomaticReport 行动、准确 replyTo 和稳定 requestId，异步送达。publishedActionId 必须是本 Work 当前版本已 saved 且覆盖原问题的讨论回复；关联它不重复发文。终态固定 TaskResult 不因发送错误或认识整理失败回滚。报告身份包含当前持久 Run；同一运行的重试沿用身份，恢复后的新执行不吞掉相同文字的新结果。主会话不再必经 result 改写轮。目标改变和取消后，未发送的过时报告不再发出；已提交网络动作保留真实回执。
+
+status 指定 id 返回工作详情；省略时返回最多 32 个活跃及 8 个近期结束任务。update/cancel/resume 使用 id/baseVersion。followId 仍可关联已有目标；目标变化使任务 version 递增并停止旧原生 turn，原 W 重核时使用 replan 的 prompt/completionCriteria/checkpoint/retainDependencyIds。任务 goal/version 与认识 revision 分开，不让普通认识整理阻塞 report。
+
+已有内部 Questions、Contexts 与 Understandings 记录及准确来源 API 保留，用于既有 Work 关系、维护和专用回放；默认工具 schema 不再暴露 ask/questions/understand、relatedFocuses/contextReviews。内部 ask 的新任务必须显式为 work，禁止默认创建 coordination；普通回复无需答复条件或下一步。认识回写仍按准确 revision 与实际信号原子保存，但不是 wait/complete 的前置条件，也不会自动满足依赖。私有账本不进入共享 View。
+
+内部 `POST /v2/shadow-task-source` 仍接受 `{shadowId,query:{subject,cursor:{seq,retention,initialized}}}`，返回有界 `{cursor,signals,resync?}`。成员/空间核对、准确来源、每页最多十六项、最多四项异步读取、historyGap 与 snapshot 边界沿用[分身契约](decisions/local-shadows.md)。本轮不扩展复杂来源联动。
+
+成员 Core 的 `POST /v2/shadow-tools` 传 `{shadowId,name,arguments}`，主机核对所属成员并复用公开业务方法，Core 写入 `{kind:shadow,shadowId,memberId,name}` 作者。个人动态和关注清单不通过这个入口传入共享运行时。`POST /v2/shadow-dependency` 传 `{shadowId,dependency,candidate?}`，仅读取该任务登记的讨论或请求，返回 `{cursor,signals,questionSource?}`；讨论一次最多 16 个匹配回复，按原父项及后续回复链读取。它不依赖成员提醒，因此包含本人自己的答复；不推进人的已读，也不把答复到达当作条件已满足。原文仍按 signals 中的准确来源读取。 待回执的提问依赖另带 Core 保存的 questionId/questionActionId/questionTool/questionSourcePending；主机按所属 shadow/member 的真实命令查回准确 annotationId/replyId，通过 questionSource 返回。candidate 路由在核对原问题后检查准确回复链，来源绑定和答案在成员 Core 原子保存；没有找到命令只返回空增量，不发送新问题，不将相似正文当成同一行动。问题发送状态保存在本机 Questions，公开 View 不包含内部 questionActionId、待核对标记或回执索引。
 
 ## 空间事件网关
 
@@ -189,7 +283,7 @@ MCP 2.0 版本为 `2026-07-28`：`server/discover` 返回 tools/events 能力，
 
 ## 共享邀请与传输
 
-原始邀请格式 `tcx3.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `3`，能力 `collaboration-spaces-v3-links`。公共字段含空间 ID、显示名称、主机、`readOnly`、`runtimeMode`、`transport`、SHA-256 SPKI 指纹、随机 secret 和到期时间。只读邀请 `readOnly=true` 且不携带 `runtimeMode`；执行邀请 `readOnly=false`，模式省略为受限、未知值拒绝。连接后的能力以 A 的记录为准。`expiresAt` 为可选墙钟期限，省略或零值表示本次共享内无固定到期时间；`tcx2`、v1/v2 空间能力及其他旧能力明确拒绝，双方需使用兼容版本。
+原始邀请格式 `tcx4.<base64url(JSON)>`，App 链接包装为 `teamcross://join?invite=<URL 编码的原始邀请>`，版本 `4`，能力 `collaboration-spaces-v4-sessions`。公共字段含空间 ID、显示名称、主机、`readOnly`、`runtimeMode`、`transport`、SHA-256 SPKI 指纹、随机 secret 和到期时间。Core 生成的空间邀请统一 `readOnly=true` 且不携带 `runtimeMode`；加入获得空间资格和全部材料、会话读取，具体会话的模式分别查询，输入权按会话交接；readOnly 表示加入本身不授予输入权。连接后的能力以 A 的记录为准。`expiresAt` 为可选墙钟期限，省略或零值表示本次共享内无固定到期时间；`tcx3` 及更早邀请、旧空间能力明确拒绝，双方需使用兼容版本。
 
 候选字段按传输互斥：
 
@@ -210,9 +304,11 @@ Tailcat 地址包含 WireGuard 节点材料和默认预共享密钥，整个邀�
 | `POST /v2/join` | `{credential,name?}`，确认加入；同一链接接纳多个独立凭据，相同凭据的重试复用成员 |
 | `POST /v2/leave` | 主动离开，只撤销本人凭据；若为当前输入者，关闭其直接连接并将输入归还 A |
 | `GET /v2/status` | 此协作状态，不返回邀请 secret |
-| `GET /v2/context` | 此协作上下文 |
-| `POST /v2/rpc` | 有输入归属检查的原生请求 |
-| `POST /v2/respond` | 原生审批/输入回应 |
+| `GET /v2/context?kind=annotations` | 空间公开讨论 |
+| `GET /v2/sessions/:executionId/status` | 指定会话状态，全部有效空间成员可读取 |
+| `GET /v2/sessions/:executionId/context` | 该会话的历史、目录、事件及会话批注 |
+| `POST /v2/sessions/:executionId/rpc` | 有输入归属检查的原生请求 |
+| `POST /v2/sessions/:executionId/respond` | 原生审批/输入回应 |
 | `POST /v2/annotations` | 添加批注 |
 | `POST /v2/annotation-replies` | 回复已有原批注 |
 | `GET /v2/materials` | 此空间的材料目录 |
@@ -220,30 +316,34 @@ Tailcat 地址包含 WireGuard 节点材料和默认预共享密钥，整个邀�
 | `POST /v2/read-material` | 按固定版本和公开范围读取 |
 | `POST /v2/publication-status` | 查询当前成员自己的发布请求 |
 | `POST /v2/withdraw-material` | 撤回当前成员自己的材料 |
-| `POST /v2/return` | 接收者交还输入 |
+| `POST /v2/sessions/:executionId/return` | 接收者交还输入 |
 | `POST /v2/presence` | `{online}`，Core 心跳或本机退出；10 秒发送 / 30 秒在线窗口，不决定成员资格 |
-| `POST /v2/request_input` | `{epoch}`，申请输入 |
-| `POST /v2/cancel_input` | `{epoch}`，取消输入申请 |
-| `GET /v2/connect` | 原生 WebSocket upgrade |
+| `POST /v2/sessions/:executionId/request_input` | `{epoch}`，申请输入 |
+| `POST /v2/sessions/:executionId/cancel_input` | `{epoch}`，取消输入申请 |
+| `GET /v2/sessions/:executionId/connect` | 原生 WebSocket upgrade |
+
+会话级 annotations/annotation-replies 同样使用 `/v2/sessions/:executionId/` 前缀；空间公开讨论保留根路由。监听器绑定空间，分派子会话时校验父子归属与有效空间成员资格。
 
 TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS/Tailcat 路径和凭据由本机 Core 管理。LAN 只读请求失败可依次查询邀请候选，Tailcat 只按邀请地址重建客户端；写入失败都不自动重放。成员主动离开后可通过仍有效的链接重新加入；链接关闭、到期或整个共享结束后需有效链接；B 的 Core 重启从持久化凭据和原传输重连，不重新加入、不改选传输。
 
 ## 状态与事件
 
-`hasExecution` 区分独立只读空间与带可操作会话的空间；`reachable` 表示本次空间探测是否成功，不能用运行时的 `online` 代替。只读空间没有 `sessionId/executionCwd/runtimeMode/writer/epoch` 等执行字段，`context` 仅接受 `kind=annotations`，原生 RPC、连接、恢复及输入申请拒绝。发布材料与批注不需要输入权。带执行的空间即使运行时离线，也可分享已保存材料和讨论。
+空间状态返回 `sessions` 和 `sessionCount`；每个会话有独立 `id/executionId/spaceId`。全部有效空间成员均可读取会话名称、原生 ID、目录、模型、状态与批注；会话配置执行后返回 `hasExecution:true`。根空间不返回单一 Provider、输入者或目录，`context` 只接受空间 annotations。`reachable` 表示空间探测是否成功，不能用运行时 `online` 代替。
 
-持久化记录采用 `schema:3`，顶层保存身份、批注和材料版本元数据，原生字段收纳为可选 `execution`；材料清单与正文按本页后述布局独立保存。旧 `schema:2` 及更早记录保留在磁盘但不加载或迁移。为已有空间创建执行，预览及创建绑定 `spaceId`，保留原链接与成员。只读成员保持原范围；主机通过 `execution-access` 明确授权原生历史与目录。每个空间最多一个执行，沿用固定模式及恢复规则。只读空间的 `action:end` 将 `state:ended` 持久化，即使尚未开放共享也有效；再次生成链接恢复为 ready。
+持久化采用 `schema:4`：`collaborations/<spaceId>/collaboration.json` 保存空间材料元数据与公开讨论；`sessions/<executionId>/execution.json` 保存每个会话及会话批注。材料正文仍按内容寻址布局保存。旧格式原样保留，以 `unsupported` 状态报告，不覆盖、迁移或自动恢复。创建绑定 spaceId、requestId 和预览哈希，保留原链接及成员；requestId 同时是 executionId。一个会话创建失败不修改兄弟会话。
 
-`role` 仅区分本机发起者 `owner` 与加入者 `remote`；授权不使用共同的 `remote` 身份。`selfId` 为本机成员身份（发起者为 `owner`），`writer` 为 `owner` 或具体成员 ID。直接客户端和辅助工具比较 `selfId` 与 `writer`。`members` 返回 `{id,name,joinedAt,active,online,inputRequested,executionAccess}` 数组；每人凭据独立，显示名称允许重复，不用于授权或去重。`invitations` 仅向发起者返回各邀请的 `{id,state,expiresAt?,joinedCount}`，不含凭据。
+暂停持久化 paused，拒绝新写入及新投递，保留阅读与讨论；当前工作结束后关闭专属运行实例并释放原生会话写入锁。不同会话可共用目录。结束共同执行另接回该会话输入；关闭空间才撤销所有成员。恢复保持同一原生 ID 和固定模式，不重放输入。Codex 的 `executionCwd` 跟随同一原生会话最近确认的 `thread.cwd`，恢复前先读取最新值；读取失败或无有效绝对路径时保留最近已知值，不从单条命令的路径推断会话目录。根空间 `action:end` 持久化 ended，再次生成链接恢复 ready；Core 重启只加载记录，不自动启动所有会话。
 
-`handoff` 的 `memberId` 指向已加入成员；多于一位成员时省略会拒绝，只有一位时可明确推导。已获执行访问的成员都能申请输入，其他成员持有输入时也能排队；不会自动交接，交给 C 不清除 B 的申请。离线只改变在线状态，主动离开或移除才撤销资格。
+`role` 仅区分本机发起者 `owner` 与加入者 `remote`；授权不使用共同的 `remote` 身份。`selfId` 为本机成员身份（发起者为 `owner`），`writer` 为 `owner` 或具体成员 ID。直接客户端和辅助工具比较 `selfId` 与 `writer`。`members` 返回 `{id,name,joinedAt,active,online,inputRequested}` 数组，其中 inputRequested 在子会话视图中仅表示该会话的范围；每人凭据独立，显示名称允许重复，不用于授权或去重。`invitations` 仅向发起者返回各邀请的 `{id,state,expiresAt?,joinedCount}`，不含凭据。
+
+`handoff` 的 `memberId` 指向已加入成员；多于一位成员时省略会拒绝，只有一位时可明确推导。空间成员都能申请该会话输入，其他成员持有输入时也能排队；不会自动交接，交给 C 不清除 B 的申请。离线只改变在线状态，主动离开或移除才撤销资格。
 
 邀请 `requestId` 用于操作去重；普通调用始终取回当前链接，新 requestId 不新增单人邀请。`reset:true` 必须携带 requestId，重试返回同一次重置结果，旧链接立即停止新加入，已有成员保持有效。`invitationId` 只取回指定链接，不能与 requestId 或 reset 混用。参与端在同一空间和 TLS 指纹下复用已有身份，即使打开的是重置后的链接。更换传输前必须结束整个共享。
 
 
 协作状态 `preparing/ready/error`，接收者还可为 `joining/left/ended`。`online` 表示运行时是否连接，`busy` 表示轮次是否运行，`approvals` 表示待回应数量，`sharing` 表示共享是否开启，`sharingPreparing` 表示所选传输仍在建立，`transport` 为当前或正在准备的 `lan|tailcat`，`connected` 表示是否已有直接客户端。`participantOnline` 表示至少一位成员 Core 的有效心跳；发起者的 `inputRequested` 表示任一成员申请，加入者的该字段只表示本人申请；两者与直接客户端连接独立。`clientState` 为 `disconnected/connected/session_ready`，最后一种必须由该直接连接成功读取或恢复绑定的 thread 确认。
 
-`participantJoined` 独立于在线心跳；`invitationState` 为 `active/expired/revoked`，active 才返回当前链接。`invitationId` 标识当前链接，`invitationReadOnly` 表示链接授予的原始范围；`invitations` 中记录 `joinedCount`，不绑定单个 memberId。默认链接无固定时限，存在期限时才返回 expiresAt。`runtimeState` 为 `running/starting/releasing/released/offline`，`releasePending` 表示共享关闭后仍在等待工作或客户端结束。
+`participantJoined` 独立于在线心跳；`invitationState` 为 `active/expired/revoked`，active 才返回当前链接。`invitationId` 标识当前链接，`invitationReadOnly` 表示链接授予的原始范围；`invitations` 中记录 `joinedCount`，不绑定单个 memberId。默认链接无固定时限，存在期限时才返回 expiresAt。`runtimeState` 为 `running/starting/releasing/released/offline`，`releasePending` 表示会话暂停或共享关闭后仍在等待已接收工作、审批或客户端结束。
 
 未指定 Agent 读取选项的 `context?kind=history` 从 Provider 每次取得至多 8 轮，再投影为与材料一致的 `{thread,contentHash,pageCursor,nextCursor,scope,sourcePageComplete,pageEndsAtTurnBoundary,turns,segments}`。`thread` 只保留会话 ID、名称、预览、目录、时间、模型与状态等白名单元数据；隐藏推理和未知原生字段不透出。页内按时间正序排列；用户/助手消息完整进入正文流，超过 1500 个 UTF-16 字符的工具输出默认折叠，16000/24000 字符预算、64 段上限和轮边界语义与材料相同。`contentHash` 绑定会话、Provider 页游标及该页完整投影源，可供客户端跳过未变化页面；`pageCursor` 固定该 Provider 页，供之后按条读取。
 
@@ -259,14 +359,17 @@ TUI/Desktop 使用本机代理的根 WebSocket 地址；远端 TLS/Tailcat 路�
 
 STDIO MCP 采用逐行 JSON-RPC 2.0，协议版本 `2024-11-05`；只在 stdout 输出协议消息。工具输入和结果遵循上述管理 API。
 
-个人 MCP 提供 `request_input/cancel_input_request/handoff_input/reclaim_input/return_input`，参数为 `{id,epoch,memberId?}`（`memberId` 用于选择交接接收者），分别映射 `request_input/cancel_input/handoff/reclaim/return`。`epoch` 必须是刚查询到的正整数状态版本；缺失、过期、错误角色、尚未加入或忙碌交出/交还均拒绝。接回不自动中断轮次。成功后查询详情获取新版本，失败或超时不自动刷新版本重放动作。普通详情和输入管理结果均移除 `invitation`；工具错误以 JSON 文本返回 `code/error/recovery` 并设置 `isError:true`。
+个人 MCP 提供 `request_input/cancel_input_request/handoff_input/reclaim_input/return_input`，参数为 `{id,executionId,epoch,memberId?}`（`memberId` 用于选择交接接收者），分别映射 `request_input/cancel_input/handoff/reclaim/return`。`epoch` 必须是刚查询到的正整数状态版本；缺失、过期、错误角色、尚未加入或忙碌交出/交还均拒绝。接回不自动中断轮次。成功后查询详情获取新版本，失败或超时不自动刷新版本重放动作。普通详情和输入管理结果均移除 `invitation`；工具错误以 JSON 文本返回 `code/error/recovery` 并设置 `isError:true`。
 
-CLI `collaborations [--id <id>] [--json]` 查询列表或详情；`input request|cancel|handoff|reclaim|return --id <id> --epoch <版本> [--json]` 使用同一工具适配与 Core API。两者支持 `--data-dir`，按需启动或复用 Core，不打开浏览器。`status` 保持服务诊断语义，不能代替协作详情。
+CLI `collaborations [--id <spaceId>] [--execution <executionId>] [--json]` 查询列表或详情；`input request|cancel|handoff|reclaim|return --id <spaceId> --execution <executionId> --epoch <版本> [--json]` 使用同一工具适配与 Core API。两者支持 `--data-dir`，按需启动或复用 Core，不打开浏览器。`status` 保持服务诊断语义，不能代替协作详情。
 
 ### 个人 MCP 管理入口
 
 | 工具 | 参数与映射 |
 | --- | --- |
+| `list_collaborations` / `get_collaboration` | 列表无参数；详情 `{id,executionId?}`，省略 executionId 读取空间目录，提供时读取精确会话 |
+| `read_context` | `{id,executionId,kind,...}` 读取指定会话；仅公开 annotations 可以省略 executionId |
+| `add_annotation` / `reply_to_annotation` | `{id,executionId?,...}`，会话内意见必须携带 executionId，公开讨论省略 |
 | `list_source_sessions` | `{provider,search?,cursor?}` → `GET /sources`；只读取本机来源 |
 | `preview_collaboration` | `{provider,sourceId,workspaceMode,runtimeMode?,title?,requestId?,spaceId?}` → `POST /preview`；省略 requestId 时生成 UUID，并在结果附带 `requestId/workspaceMode` |
 | `create_collaboration` | 同预览，加必填 `requestId/previewHash` → `POST /collaborations` |
@@ -275,10 +378,11 @@ CLI `collaborations [--id <id>] [--json]` 查询列表或详情；`input request
 | `share_current_session` | 同上，加必填 `requestId/previewHash` → `POST /share-requests`；不接受 provider/sourceId/caller 工具参数 |
 | `get_share_request` / `cancel_share_request` | `{id}` → `GET /share-requests/:id` / `POST /share-requests/:id/cancel` |
 | `create_invitation` | `{id,transport,requestId?,reset?,invitationId?}` → `POST /collaborations/:id/invitations`；传输必须显式指定；开放链接增加 `invitationUrl` |
-| `set_execution_access` | `{id,memberId,allowed}` → `POST /collaborations/:id/execution-access`；只允许发起者操作 |
+
 | `preview_invitation` / `join_collaboration` | `{invitation}` → 预览 / 加入；不自动打开浏览器或原生客户端 |
-| `open_client` | `{id,client,launch?}` → `/open`，默认 launch=true；TUI 使用新终端窗口 |
-| `end_sharing` / `leave_collaboration` / `resume_collaboration` | `{id}` → `action:end/leave/start`，Core 检查本机角色 |
+| `open_client` | `{id,executionId,client,launch?}` → `/open`，默认 launch=true；TUI 使用新终端窗口 |
+| `end_sharing` / `leave_collaboration` | `{id}` → 空间 `action:end/leave` |
+| `resume_collaboration` / `pause_execution` / `end_execution_sharing` | `{id,executionId}` → 子会话 `action:start/pause/end` |
 | `create_readonly_space` | `{title,requestId}` → `POST /spaces` |
 | `freeze_source_session` | `{provider,sourceId}` → `POST /publications/source` |
 | `preview_publication` | `{draftId,title,startTurnId,endTurnId,readingStartId?}` → `POST /publications/preview` |
@@ -300,13 +404,13 @@ MCP 根据 `initialize.clientInfo.name` 识别个人客户端。Codex 从 `tools
 
 延后分享预览哈希绑定来源 Provider、Session、本轮 ID、固定模式、目录、Git HEAD/分支和传输。运行中的 Claude transcript 会继续追加工具结果，因此该意图哈希不绑定中途 JSONL 指纹；本轮完成后重新使用普通 Preview/Create 绑定完整最终指纹。Codex 读取原生 rollout 的 `session_meta`、`task_started/task_complete/turn_aborted`，核对 Session 和最新轮次；读取不 resume 来源。未知、损坏或超过 64 MiB 的历史拒绝创建。
 
-请求状态为 `waiting → creating → inviting → ready`，另有 `cancelled/failed/interrupted`。同一 requestId 与相同预览返回原请求，参数变化拒绝；请求 ID 同时是拟创建的协作 ID。每个 Core 至多 32 个活动请求，单次请求限时 15 分钟；未完成请求计入 Core 停止保护。来源变成另一轮、Git 起点变化或本轮中断时失败，不自动选新起点或重复创建。`waiting` 可取消；已开始创建后不删除 fork/worktree。创建留下部分结果或邀请失败时，状态保留 collaborationId，先查询该协作，邀请只单独重试。
+请求状态为 `waiting → creating → inviting → ready`，另有 `cancelled/failed/interrupted`。同一 requestId 与相同预览返回原请求，参数变化拒绝；请求 ID 同时是拟创建的 executionId，spaceId 由明确选择或请求确定性生成。每个 Core 至多 32 个活动请求，单次请求限时 15 分钟；未完成请求计入 Core 停止保护。来源变成另一轮、Git 起点变化或本轮中断时失败，不自动选新起点或重复创建。`waiting` 可取消；已开始创建后不删除 fork/worktree。创建留下部分结果或邀请失败时，状态保留 spaceId 和 executionId，先查询准确会话，邀请只单独重试。
 
 状态和错误原子写入 `share-requests/<id>.json`，不保存邀请 secret。Core 关闭会取消并等待工作线程；重启把未完成记录改为 interrupted，不自动重放。ready 表示该请求已完成创建和邀请，不承诺之后共享一直有效；Core 重启后仍按普通协作规则恢复、重新邀请。CLI `share-status/cancel-share --id <请求ID> [--json]` 使用同一查询/取消工具，不从 shell 环境猜当前来源。
 
-Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客户端连接返回。A 的共享网关不支持远端修改主机账户，也不返回主机认证 token；`threadId/cwd/permissionProfile` 等共享执行参数由协作绑定。其他未开放的原生方法返回可读的“不支持”错误，不默认穿透。
+Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客户端连接返回。A 的共享网关不支持远端修改主机账户，也不返回主机认证 token；`threadId` 限定目标协作，目录采用原生会话确认值，权限遵守创建时的协作模式。其他未开放的原生方法返回可读的“不支持”错误，不默认穿透。
 
-成员执行访问与空间成员资格独立。`executionAvailable` 表示空间已配置执行；远端 `hasExecution` 只在该成员获准时为 true。未获准的状态投影不含原生 ID、目录、模型、输入和运行时信息；历史、文件、改动、事件、RPC 与直接客户端均校验执行授权。带原生定位的批注及回复也只对获准成员可见，材料与普通讨论保持开放。收回执行访问取消该授权下的在途原生请求、关闭直接连接并接回输入；不移除成员或自动中断模型。
+空间成员资格授予所有会话读取能力；不提供逐会话执行访问授权接口。`executionAvailable` 与 `hasExecution` 描述该对象是否配置执行，不是成员阅读权限。历史、文件、改动、事件、批注和回复均验证有效空间成员资格与父子会话归属。写入 RPC、直接客户端、审批和输入交接另外验证当前输入者及 epoch；移除成员取消其全部在途请求并接回输入，重新加入不能复活旧请求。
 
 ## 模型设置
 
@@ -316,9 +420,9 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 
 ## 已发布会话材料
 
-冻结来源必须提供准确的 `provider/sourceId`；可使用来源列表，或先由个人 MCP `get_current_source` 核对当前原生身份，不能根据更新时间或目录猜测。冻结只读取已结束的连续历史前缀，不 resume、fork 或读取来源目录；正在运行的一轮留在本机。Codex 还以持久化轮次事件核对结束边界。草稿保存在本机 `publication-drafts/`，新对话不会追加进去。
+冻结来源必须提供准确的 `provider/sourceId`；可使用来源列表，或先由个人 MCP `get_current_source` 核对当前原生身份，不能根据更新时间或目录猜测。冻结只导出已结束的连续历史前缀，不 resume、fork 或扫描来源目录；仅解析原生明确的图片附件字段。正在运行的一轮留在本机。Codex 还以持久化轮次事件核对结束边界。草稿保存在本机 `publication-drafts/`，新对话不会追加进去。
 
-预览在固定草稿中选择连续的 `startTurnId..endTurnId`，每轮包含可导出的用户提问、可见回复和已保存工具过程。`readingStartId` 仅为导航，必须在范围内。WebGUI 对冻结和预览请求传入 `compact:true`；个人 MCP 的 `freeze_source_session` / `preview_publication` 默认也返回小型目录：`{id,hash,frozenAt,title,provider,sourceId,startTurnId,endTurnId,readingStartId?,turnCount,noticeCount,turns,readHint}`，轮次含 `id/status/label/itemCount/noticeCount`。导出说明按带有非空 `notice` 的 item 计数，预览只统计所选范围；正文不内联，WebGUI 通过 `publications/read-draft`、个人 MCP 通过 `read_publication_draft` 按需读取。确认页使用范围预览自己的 `draftId/hash`，不能复用完整来源草稿的游标。隐藏推理不导出；未知内容、未导出的图片/附件与过长项目有明确说明，不凭路径或 URL 额外拉取内容。折叠只是读取投影，完整已保存正文仍属于预览和授权范围。
+预览在固定草稿中选择连续的 `startTurnId..endTurnId`，每轮包含可导出的用户提问、可见回复和已保存工具过程。`readingStartId` 仅为导航，必须在范围内。WebGUI 对冻结和预览请求传入 `compact:true`；个人 MCP 的 `freeze_source_session` / `preview_publication` 默认也返回小型目录：`{id,hash,frozenAt,title,provider,sourceId,startTurnId,endTurnId,readingStartId?,turnCount,noticeCount,turns,readHint}`，轮次含 `id/status/label/itemCount/noticeCount`。导出说明按带有非空 `notice` 的 item 计数，预览只统计所选范围；正文不内联，WebGUI 通过 `publications/read-draft`、个人 MCP 通过 `read_publication_draft` 按需读取。确认页使用范围预览自己的 `draftId/hash`，不能复用完整来源草稿的游标。隐藏推理不导出；未知内容、未导出的图片/附件与过长项目有明确说明，不沿正文中的路径或 URL 额外拉取内容。折叠只是读取投影，完整已保存正文仍属于预览和授权范围。
 
 本机草稿与托管材料都以不可变清单和内容寻址正文保存。清单描述 `turns → items → {id,type,phase?,label?,notice,body}`；`phase` 原样保留来源的可见消息阶段，`label` 是最多 160 字的命令/工具/查询标识；不超过 4 KiB 且清单累计内联不超过 256 KiB 的正文直接放在 `body.kind=inline`，其他正文使用 `body.kind=blob/hash/byteLength/utf16Length/lineCount`。blob 哈希是原始 UTF-8 字节的 SHA-256；轮次和清单使用带版本域的确定性哈希。材料版本哈希就是清单哈希，展示预览不会改变原文、偏移或哈希。
 
@@ -341,6 +445,14 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 
 每段带 `turnId/itemId/type/phase?/status/text/notice/startOffset/endOffset/length`；源头因 8 MiB 上限被省略时另有 `sourceLength/omittedLength`。偏移均为已保存正文的 UTF-16 位置。`includeOutline:true` 只在无游标首页返回轮次目录，WebGUI 首页会显式请求，后续页不重复传输；MCP 使用下述 Agent 视图。流游标与按条游标都绑定 scope、材料（或草稿）、固定版本和清单哈希，不能跨条、跨版本、跨草稿或跨空间使用。读取到公开末尾就结束，没有“继续读取私人历史”的路径。
 
+### 阅读器图片与全文搜索
+
+图片只从 `userMessage.content` 中的 `image.url`（base64 data URI）、`localImage.path`，以及 `imageView.path`、`imageGeneration.savedPath/result` 读取。路径是结构化附件身份，不接受正文、命令参数或工具 JSON 中的任意文件路径；不请求外部 HTTP 图片。图片校验真实格式、MIME、编码及尺寸，支持 PNG/JPEG/GIF/WebP，原始字节最多 6 MiB、宽高分别不超过 16384 且总像素不超过 4000 万。每条消息最多 32 张，缺失或超限保留说明；正文截断时不保留无法准确定位的图片。
+
+清单 item 可含 `attachments:[{id,name,mime,startOffset,endOffset,body}]`，图片 body 是规范 base64 文本的 CAS blob，参与原有版本/空间配额、协商、哈希及持久化。图片对应的可读标记加入导出正文，位置仍为 UTF-16；原图字节不内联到目录或正文分页。segment 在标记起点所在片段返回 `attachments:[{id,name,mime,hash,startOffset,endOffset,quote}]`。固定材料通过 `read-material` 的准确版本读取，草稿通过 `read-draft`，历史通过对应会话 `context?kind=history` 与 `pageCursor` 读取；传 `turnId,itemId,attachmentId,attachmentOffset?`，返回 `attachment:{id,name,mime,hash,data,nextOffset}`。每块最多 128 KiB base64，偏移须为 4 的倍数，`nextOffset:0` 表示结束。每次重查资源权限，哈希不能独立授权读取；材料撤回后所有新块读取拒绝。插件使用相同 JSON 接口，不增加 iframe 网络权限。
+
+材料 `read-material` 可带 `search:{query,includeTools?,cursor?}`；协作历史使用查询参数 `search/includeTools/searchCursor`。正文结果为 `search:{matches,nextCursor,complete}`，每个命中含 `turnId,itemId,startOffset,endOffset,quote,snippet,pageCursor?`。query 为 1–256 个 UTF-16 字符，按字面、不区分大小写匹配；默认仅用户/助手正文，工具输出显式纳入。每批最多 64 个命中，扫描满 1 MiB 正文后也可续页；历史继续翻阅 Provider 页。游标绑定对象、材料哈希/版本、查询和工具开关；历史页变动使该页旧游标失效，需重新搜索。`complete` 前累计数量是部分结果，不是全局总数；范围以实际存储/可读取的投影为准，不搜索原始隐藏推理、未发布轮次或被截断的内容。
+
 ### Agent 按需读取视图
 
 个人 MCP 的 `read_material/read_publication_draft/read_context kind=history`、共享运行时的 `read_material` 和读取编号中的材料/历史默认采用下列契约。未传选项的 Web 读取维持上述完整对话/折叠工具投影。
@@ -361,7 +473,7 @@ Desktop 的账户与偏好 RPC 在客户端本机分流，登录通知沿原客�
 
 分页在完整 JSON 上计算预算，不截断 JSON 字符串；MCP 读取结果还有 64 KiB 封装预算兜底，超限返回明确错误，不能依赖外层悄悄截断。尚未提供分页的 file/changes/events 等大响应可能命中该保护。状态和回复回执不重复长引用；已知空间、材料版本、批注 ID 或 TC 编号时直接读取目标，只在缺少目标时查目录。执行/交接仍需核对输入归属；收到 saved 回执后不要求例行回读，只有结果不明时查询确认。
 
-当前限制为：来源冻结最多 2048 轮 / 32 MiB 原生响应；清单最多 4 MiB、16384 条 item；单 blob 最多 8 MiB；一个版本引用的唯一 blob 最多 32 MiB；空间所有未撤回版本引用的唯一 blob 最多 256 MiB。超过 8 MiB 的单条在发布者 Core 保留头尾，在中间写入明确省略标记并记录原始/省略 UTF-16 长度；不做隐式分块。附件仍不复制。空间记录以 `schema:3` 保存，只含成员、执行、批注和材料版本元数据；旧 `schema:2` 目录原样留在磁盘但不加载。撤回当前只停止授权并从活动配额中移除引用，不承诺立即回收 blob；自动回收仍是后续工作。
+当前限制为：来源冻结最多 2048 轮 / 32 MiB 原生响应；清单最多 4 MiB、16384 条 item；单 blob 最多 8 MiB；一个版本引用的唯一 blob 最多 32 MiB；空间所有未撤回版本引用的唯一 blob 最多 256 MiB。超过 8 MiB 的单条在发布者 Core 保留头尾，在中间写入明确省略标记并记录原始/省略 UTF-16 长度；不做隐式分块。非图片附件仍不复制。空间与会话记录以 `schema:4` 分开保存；旧格式目录原样保留并报告 unsupported。撤回当前只停止授权并从活动配额中移除引用，不承诺立即回收 blob；自动回收仍是后续工作。
 
 磁盘布局为：
 
@@ -399,7 +511,7 @@ CLI 复用个人 MCP 适配：`space`、`freeze`、`publication-preview`、`publ
 
 `context?kind=file` 返回 `{path,text,contentHash}`。`kind=changes` 返回 `{stat,status,diff,contentHash,baseRevision,truncated}`；diff 路径相对执行目录，限制 256 KiB 并在完整行截断，`truncated` 表示只返回部分内容。`baseRevision` 为该次 diff 使用的具体 HEAD，不使用协作创建时的 HEAD 代替。
 
-`context?kind=annotations` 的 Web API 返回 `{annotations,spaceId,sessionId?,executionCwd?}`，只读空间省略执行字段。`annotationId` 在权限与可见性检查后精确筛选，不存在或不可见时明确报错，不能退回所有批注。本机、LAN 和 Tailcat 路由相同。个人 MCP `read_context kind=annotations` 和运行时 `read_annotations` 使用 `compact:true`：无 ID 时只返回分页摘要（最多 20 项，240 字预览、回复数、是否有引用），以 `nextOffset` 继续；有 ID 时返回该条正文、target 和分页回复。`includeQuote:false` 可省略 quote，响应标记 `quoteOmitted`，此时空 quote 不能当作有效原文锚点。回复分页使用 `nextRead` 中的 `annotationId/offset/includeQuote/maxBytes`，调用者保留本机空间 ID 和 kind；续页不重复长引用。默认预算 24 KiB，过大的单条元数据明确要求增大预算或省略 quote 后按 target 读取，不能静默截断引用。MCP `get_collaboration/list_collaborations` 只返回状态白名单和 `annotationsCount/materialsCount`，不返回讨论、版本目录或邀请 secret；Web 状态 API 继续供界面读取完整信息。`add_annotation` 支持完整的 `target` 对象。工具描述说明如何用 path、消息 ID 和历史游标读取原文，并提醒旧行属于基准提交。
+`context?kind=annotations` 的 Web API 返回 `{annotations,spaceId,executionId?,sessionId?,executionCwd?}`，只读空间省略执行字段。`annotationId` 在权限与可见性检查后精确筛选，不存在或不可见时明确报错，不能退回所有批注。本机、LAN 和 Tailcat 路由相同。个人 MCP `read_context kind=annotations` 和运行时 `read_annotations` 使用 `compact:true`：无 ID 时只返回分页摘要（最多 20 项，240 字预览、回复数、是否有引用），以 `nextOffset` 继续；有 ID 时返回该条正文、target 和分页回复。`includeQuote:false` 可省略 quote，响应标记 `quoteOmitted`，此时空 quote 不能当作有效原文锚点。回复分页使用 `nextRead` 中的 `annotationId/offset/includeQuote/maxBytes`，调用者保留本机空间 ID、executionId（会话批注）和 kind；续页不重复长引用。默认预算 24 KiB，过大的单条元数据明确要求增大预算或省略 quote 后按 target 读取，不能静默截断引用。MCP `get_collaboration/list_collaborations` 只返回状态白名单和 `annotationsCount/materialsCount`，不返回讨论、版本目录或邀请 secret；Web 状态 API 继续供界面读取完整信息。`add_annotation` 支持完整的 `target` 对象。工具描述说明如何用 path、消息 ID 和历史游标读取原文，并提醒旧行属于基准提交。
 
 位置和 `contentHash` 是客户端提供的阅读快照，主机检查字段格式、相对路径、范围与片段长度，不将其作为已验证的当前代码事实，也不会保存时改写成新文件的指纹。文件可在编辑批注期间变化；处理前通过 Team Cross 读取 A 上的实际上下文，再核对片段与版本，不能把 A 上路径当成 B 本机同名文件。指纹不同不代表该片段一定变化，但不能据此直接高亮旧位置。消息按稳定 ID 和精确片段判断；未定位时继续保留引用。
 
@@ -407,13 +519,15 @@ CLI 复用个人 MCP 适配：`space`、`freeze`、`publication-preview`、`publ
 
 ### 批注回复
 
-`AnnotationReply` 为 `{id,requestId,text,author,authorId,createdAt,materials?}`，没有 `target`、`parentReplyId` 或子回复。`annotation-replies` 接受当前空间的原批注 ID、1–4000 字正文、至多 200 字节的非空 `requestId` 和可选材料引用，拒绝其他字段。主机生成作者、ID 和时间；同一作者的同一请求 ID 返回已保存结果，若原批注、正文或材料引用不同则拒绝。保存失败回滚内存，读取快照不会被并发回复原地修改。普通成员无需获得模型输入权即可讨论；结束共享后拒绝远端读写。完整个人 MCP 使用 `reply_to_annotation(id,annotationId,text,requestId,materials?)`。
+紧凑读取可传 `annotationId + replyId` 精确读取回复、根批注和直接父回复；`sourceOnly:true` 只读取根批注与回复数。精确读取不与回复分页 offset 混用，超过预算明确报错，不自动把全文截为预览。分身收到的动态预览仅用于定位，理解与答复须回读原文。
+
+`AnnotationReply` 为 `{id,requestId,text,author,authorId,createdAt,materials?,mentions?,replyTo?,actor}`，不建立嵌套子回复树；`replyTo` 明确同一根讨论内的父项。`annotation-replies` 接受当前空间的原批注 ID、1–4000 字正文、至多 200 字节的非空 `requestId`、可选材料引用、结构化 mentions 和 replyTo，拒绝其他字段。主机生成作者、ID 和时间；同一作者的同一请求 ID 返回已保存结果，若原批注、正文、材料引用、mentions 或 replyTo 不同则拒绝。保存失败回滚内存，读取快照不会被并发回复原地修改。普通成员无需获得模型输入权即可讨论；结束共享后拒绝远端读写。完整个人 MCP 使用 `reply_to_annotation(id,annotationId,text,requestId,executionId?,materials?,mentions?,replyTo?)`。
 
 ### 共享运行时的批注工具
 
-A 的 Codex app-server / Claude worker 通过 `teamcross mcp --data-dir … --runtime-id …` 启动 `teamcross_annotations`。提供 `read_annotations`、`reply_to_annotation`、`list_materials` 和 `read_material`，以及[配对与请求回执工具](#接收会话配对与请求)和[通用空间请求工具](#空间工作台与独立接收会话)。`read_material` 支持流游标及 `turnId/itemId/startOffset` 按条读取；共享运行时不增加私有草稿工具。它们只访问绑定空间，不允许选择其他空间、枚举私人来源、发布材料或读取任意路径；明确投递仅能面向已关联目标，共同执行目标继续校验输入归属与执行访问。个人 MCP 另有 `read_publication_draft`。参数校验在 STDIO 和 Core 两端执行。读取批注使用与个人 MCP 相同的精确筛选、摘要目录和分页回复。个人与运行时 MCP 的回复均返回 `{annotationId,status:"saved",reply}`，只包含本次已保存回复；同一 requestId 重试返回同一回执。`POST annotation-replies?compact=true` 在写入成功后生成该回执，Web 默认仍返回完整 Annotation。共享执行回复作者由运行时 Provider 决定，为 `Codex` 或 `Claude Code`；独立接收会话回复同时标注所属空间成员。
+A 的 Codex app-server / Claude worker 通过 `teamcross mcp --data-dir … --runtime-id …` 启动 `teamcross_annotations`。提供 `read_annotations`、`reply_to_annotation`、`list_materials` 和 `read_material`，以及[配对与请求回执工具](#接收会话配对与请求)和[通用空间请求工具](#空间工作台与独立接收会话)。`read_material` 支持流游标及 `turnId/itemId/startOffset` 按条读取；共享运行时不增加私有草稿工具。它们只访问绑定会话的会话批注及该空间公开材料和讨论，不允许读取兄弟会话或选择其他空间、枚举私人来源、发布材料或读取任意路径；明确投递仅能面向已关联目标，共同执行目标继续校验空间成员资格与输入归属。个人 MCP 另有 `read_publication_draft`。参数校验在 STDIO 和 Core 两端执行。读取批注使用与个人 MCP 相同的精确筛选、摘要目录和分页回复。个人与运行时 MCP 的回复均返回 `{annotationId,status:"saved",reply}`，只包含本次已保存回复；同一 requestId 重试返回同一回执。`POST annotation-replies?compact=true` 在写入成功后生成该回执，Web 默认仍返回完整 Annotation。共享执行回复作者由运行时 Provider 决定，为 `Codex` 或 `Claude Code`；独立接收会话回复同时标注所属空间成员。
 
-每个协作保存独立 `annotationToken`，仅通过 A 上的 MCP 环境变量传递；普通状态、远端响应和原生 `config/read` 不暴露凭据。STDIO 每次调用重新读取本机连接地址，只使用协作凭据，不启动 Core、不使用管理 token。创建、明确恢复或重新开启共享时开启批注工具访问，结束共享关闭访问；发起者恢复后即使尚未重新邀请，也可读取。运行时未连接、已释放或 Core 关闭时拒绝访问。成员访问撤销仍由原生入口和共享路由处理。
+每个协作会话保存独立 `annotationToken`，仅通过 A 上的 MCP 环境变量传递；普通状态、远端响应和原生 `config/read` 不暴露凭据。STDIO 每次调用重新读取本机连接地址，只使用协作凭据，不启动 Core、不使用管理 token。创建、明确恢复或重新开启共享时开启批注工具访问，结束共享关闭访问；发起者恢复后即使尚未重新邀请，也可读取。运行时未连接、已释放或 Core 关闭时拒绝访问。成员访问撤销仍由原生入口和共享路由处理。
 
 Codex 启动协作运行时前按所选模式读取有效 MCP 名称。受限模式在进程配置中逐项禁用继承的服务；信任模式保留这些服务。两者均追加批注服务，有同名个人条目时选用未占用的后缀名称，避免混入原传输和环境配置。命令行 MCP 表会跨层合并，不能依靠空表或新表覆盖来隔离。创建、恢复和 TUI/Desktop 的模型选择保留该进程配置，启动时不改写个人配置文件。Claude 受限模式使用 `--strict-mcp-config`；信任模式在个人 MCP 之外追加带协作 ID 的批注服务名称，原生恢复沿用已保存的启动配置。批注工具不注入业务 prompt；信任模式可能同时加载邀请者原有的完整个人辅助 MCP。此前创建的 Claude worker 仍沿用其旧启动参数；不改写原生 job 状态，使用新建协作接入。
 
@@ -431,7 +545,7 @@ Agent 按需读取见 [历史与材料投影](../../../internal/collab/agent_rea
 
 ## 后台控制与错误分类
 
-控制协议版本为 1，与共享邀请 v3 独立。`connection.json` 包含 `url/pid/instance/token/version/commit/protocol/dataDir/executable/startArgs`，0600 原子写入；公开状态省略 token。控制接口拒绝 Origin 并校验本机 Bearer token。普通页面继续通过现有同源检查访问管理接口。
+控制协议版本为 1，与共享邀请 v4 独立。`connection.json` 包含 `url/pid/instance/token/version/commit/protocol/dataDir/executable/startArgs`，0600 原子写入；公开状态省略 token。控制接口拒绝 Origin 并校验本机 Bearer token。普通页面继续通过现有同源检查访问管理接口。
 
 主要错误类型包括 `transport_invalid`、`sharing_preparing`、`sharing_cancelled`、`sharing_active`、`invitation_invalid`、`invitation_revoked`、`execution_access_required`、`membership_invalid`、`invitation_expired`、`invitation_pending_expired`、`sharing_ended`、`host_unreachable`、`version_incompatible`、`instance_mismatch`、`client_missing`、`mcp_not_configured`、`input_changed`、`active_collaborations`。未分类错误为 `operation_failed`。远端错误保留 code/recovery，写入失败不自动重试。
 
@@ -439,11 +553,11 @@ Agent 按需读取见 [历史与材料投影](../../../internal/collab/agent_rea
 
 ## 命令入口与版本诊断
 
-`GET /info` 的 `version/commit` 是运行 Core 的构建，`installedVersion/installedCommit` 来自稳定安装位置上可执行文件的报告；读取失败返回空值，不把运行构建当作已安装构建。`updatePending` 同时比较版本与 commit，覆盖同版本号的开发包。设置页提示活动结束后下一次打开 App 或调用插件时应用更新。
+`GET /info` 的 `version/commit` 是运行 Core 的构建，`installedVersion/installedCommit` 来自稳定安装位置上可执行文件的报告；读取失败返回空值，不把运行构建当作已安装构建。`updatePending` 同时比较版本与 commit，覆盖同版本号的开发包。设置页提示已安装构建将优先切换，现有工作最多获得 10 秒收尾时间。
 
-`GET /control/status` 同时返回 `executable/startArgs`（此实例的安装位置和启动参数）、`upgradeSupported`（支持空闲升级入口）和 `upgradeBlocked`（有活动或尚未完成的交互）。公共启动器因活动而延后更新时，其返回值增加 `updatePending/installedVersion/installedCommit`；仅查询 control/status 不发起更新。启动器探测失败但运行锁仍被持有时返回 `core_unresponsive`，`recovery` 保留探测错误和日志位置，不重复启动。控制路由不能由插件面板任意调用；新请求在升级收尾期间返回 `core_updating` / 503，业务写入不自动重放。
+`GET /control/status` 同时返回 `executable/startArgs`（此实例的安装位置和启动参数）、`upgradeSupported`、`upgradePolicy:"bounded-10s"` 和 `upgradeDeadline`（尚未开始时为零时间）。`upgradeBlocked` 保留旧客户端的活动提示语义，新启动器不把它当成无限期阻塞。仅查询 control/status 不发起更新；Core 自身另外检查安装变化。启动器探测失败但运行锁仍被持有时返回 `core_unresponsive`，`recovery` 保留探测错误和日志位置，不重复启动。控制路由不能由插件面板任意调用；新请求在升级收尾期间返回 `core_updating` / 503，业务写入不自动重放。
 
-`POST /control/upgrade` 成功返回 `{stopping:true,startArgs}`；交接参数中的 CLI/Desktop 值采用当前有效设置，包括空值所表示的自动发现，防止旧启动参数覆盖后来保存的路径。接收会话视图另返回 `binary/clientError/canRetryCreation/clientRecovered`，路径和错误来自当前检测；可恢复的历史路径错误不再作为当前 `error` 返回，读取不修改保存记录或重放创建。
+`POST /control/upgrade` 成功返回 `{stopping:true,startArgs,deadline}`，重复调用返回同一截止时间。升级停止接收新业务调用，已进入的操作和明确的结果回报最多收尾 10 秒；到期取消剩余请求并停止托管运行时，不等待整个模型任务完成。`finish_agent_request` 在收尾期继续由原身份与权限检查；结束收尾后也拒绝。新 Core 必须在旧运行锁释放后启动；交接参数中的 CLI/Desktop 值采用当前有效设置，包括空值所表示的自动发现，防止旧启动参数覆盖后来保存的路径。接收会话视图另返回 `binary/clientError/canRetryCreation/clientRecovered`，路径和错误来自当前检测；可恢复的历史路径错误不再作为当前 `error` 返回，读取不修改保存记录或重放创建。
 
 `cli` 包含 `executable/target/command/source/installed/canInstall/canRemove/conflict/pathReady`；`source` 为 `app/formula/standalone/unavailable`。命令定位与归属检查只读，不修改 shell 配置。`pathReady` 只反映进程实际继承的 PATH；Finder 下额外检查 Homebrew 位置不代表终端已配置这些目录。
 
@@ -455,10 +569,69 @@ App helper 的 `cli-status`、`install-cli`、`uninstall-cli` 支持 `--json` �
 
 Claude 状态返回 `provider:claude`、`nativeJobId`、`nativeWaiting`，以及 `capabilities`：`nativeTui/sendInput=true`，`nativeDesktop/steerInput/interruptTurn/respondToRequest=false`。`approvals` 不包含 Claude TUI 内部的待审批请求；不能据此推断没有等待交互。模型与推理强度来自最近持久化的原生 assistant 消息，尚未执行下一轮时不提前宣布 TUI 设置已确认。
 
-同一 `/v2/connect` 根据协作 Provider 分发。Claude 首帧为 JSON `{op:"attach",cols,rows,attachId,caps}`；A 返回原生连接 ACK，之后 binary 帧是终端字节，text 帧仅允许同一 `attachId` 的 resize。不存在任意原生命令穿透。成员认证、单个直接客户端、输入归属和 epoch 继续生效。`session_ready` 要求原生 ACK nonce 对应且包含已加载消息的 `content_paint`。
+同一 `/v2/sessions/:executionId/connect` 根据协作 Provider 分发。Claude 首帧为 JSON `{op:"attach",cols,rows,attachId,caps}`；A 返回原生连接 ACK，之后 binary 帧是终端字节，text 帧仅允许同一 `attachId` 的 resize。不存在任意原生命令穿透。成员认证、单个直接客户端、输入归属和 epoch 继续生效。`session_ready` 要求原生 ACK nonce 对应且包含已加载消息的 `content_paint`。
 
 Claude 控制 RPC 支持绑定会话的 `thread/read`、`thread/turns/list`、`thread/list`、`thread/loaded/list`、`thread/unsubscribe` 和空闲时 `turn/start`。后者只接受一段非空、至多 256 KiB 的文本，不接受模型覆盖；返回 `{accepted:true,provider:"claude"}` 表示 worker 接收，不伪造 turn ID。补充、中断、审批和设置方法返回 `native_client_required`。历史分页中 `turn.id` 是原生用户消息 UUID，供阅读与批注定位，不作为原生控制用 turn ID。
 
 Claude 事件使用 `teamcross/claudeState`、`teamcross/claudeHistory` 与已确认的 `thread/settings/updated`；状态轮询不是 Codex 的 `turn/completed` 流。控制端需要同时读状态和历史确认结果。原生 TUI 原始输入没有请求 ID 或逐包执行确认，连接层不会缓存或重放；它不提供 RPC 的幂等接收承诺。
 
-多人成员的个人 MCP 入口包括 `create_invitation`（支持 `requestId`、`reset` 与指定取回的 `invitationId`）、`remove_member`、`revoke_invitation` 和 `set_execution_access`。CLI 对应 `invite`，重置使用 `invite --reset --request-id <新ID>`，执行授权使用 `execution-access --id <空间> --member <成员> --allow=true|false`，以及 `remove-member --id <协作> --member <成员ID>`、`revoke-invitation --id <协作> --invitation-id <邀请ID>`；多人交接使用 `input handoff --id <协作> --member <成员ID> --epoch <版本>`。批注及回复由主机绑定 `authorId` 和显示名称，不采信请求提供的作者。
+多人成员的个人 MCP 入口包括 `create_invitation`（支持 `requestId`、`reset` 与指定取回的 `invitationId`）、`remove_member` 和 `revoke_invitation`。CLI 对应 `invite`，重置使用 `invite --reset --request-id <新ID>`，以及 `remove-member --id <空间> --member <成员ID>`、`revoke-invitation --id <空间> --invitation-id <邀请ID>`；多人交接使用 `input handoff --id <空间> --execution <会话> --member <成员ID> --epoch <版本>`。批注及回复由主机绑定 `authorId` 和显示名称，不采信请求提供的作者。
+
+## 成员动态接口
+
+产品匹配与界面规则见[成员动态](decisions/member-activity.md)。以下路径均相对 `/api`；成员来自当前空间认证上下文，不能在参数中指定别人。全局聚合由本机 Core 分别读取各空间主机，最多八个并发、单空间五秒期限，失败独立返回，不把未知数伪装成零。
+
+| 方法与路径 | 请求／返回 |
+| --- | --- |
+| `GET /activity` | `{spaces: ActivityPage[]}`，本机已关联空间的个人投影 |
+| `GET /collaborations/:spaceId/activity` | `view=mine\|space`、`category=all\|mentions\|replies\|following`、`unread=true`、`cursor`、`limit`；返回 ActivityPage |
+| `GET /collaborations/:spaceId/mention-members` | 当前有效成员 `{id,name,online}[]`，包含 owner，不包含已撤销成员 |
+| `GET /collaborations/:spaceId/follows` | `{items,total,following,nextCursor?}`；默认 50 项，最多 100 项；`cursor` 绑定当前清单版本 |
+| `GET /collaborations/:spaceId/follows?kind=…&subjectId=…&executionId=…` | 查询一个对象时返回单元素数组；包括没有显式记录时的有效继承模式及 revision 0 |
+| `POST` 或 `PUT /collaborations/:spaceId/follow-preferences` | `{subject,mode,revision,requestId}`，返回持久偏好；mode 为 following/direct_only/muted/unmute |
+| `POST /collaborations/:spaceId/activity/read` | `{eventIds?}` 或 `{snapshot,group?}`；原文界面可用 `{visibleSource}` 精确确认实际可见的根批注／回复。返回 ActivityPage，远端已读已落本机队列但未同步时带 pendingSync |
+| `GET /collaborations/:spaceId/activity-agent` | 本人成员的默认分身 shadowId、revision、enabled、独立接收 through 和 initialRemaining |
+| `PUT /collaborations/:spaceId/activity-agent` | `{shadowId,baseRevision,enabled?,requestId}`，CAS 改选路线或暂停自动接手 |
+
+可关注的 `ActivitySubject` 为 `{kind:material|discussion|execution,id,executionId?}`；仅会话讨论需要额外 executionId，材料不能属于任意执行。事件还可使用 brief/request subject，不增加新的成员关注类别。`SpaceSourceRef` 为 `{spaceId,executionId?,materialId?,version?,annotationId?,replyId?,turnId?,itemIds?,requestId?,briefRevision?,briefItemId?,shadowId?,shadowMessageId?,shadowResultId?}`，固定版本／轮次／回复／简报修订／分身结果不能降级为最新正文或相似文本。分身来源须具有 shadowId 和一种准确消息／结果选择器，不能混入其他对象字段。
+
+`ActivityPage` 包含 `spaceId/title/selfId/groups/unread/snapshot/revision/readRevision/syncedAt`，以及可选 `nextCursor/error/pendingSync`。groups 每项保存 `id/latest/attention?/events/count/unread`；attention 是优先展示的未读 @／直接回复／本人结果，latest 仍用于稳定排序。事件仅返回当前成员的 reasons 与 unread，不返回其他成员收件集合。一次列表默认 50 组、最多 100 组，整体 JSON 预算 64 KiB，每组最多 20 个近期事件，预览最多 240 个 Unicode 字符。游标绑定成员、查询、快照和保留版本；仅未读列表在 readRevision 改变后要求刷新，以免偏移跳过事件。
+
+snapshot 使用主机日志密钥签名并绑定成员与 seq，全部已读取当前水位和快照水位的最大值；单事件确认取集合并集。每次 eventIds 最多 500 项，token 最多 4096 字节；无目标的确认拒绝。visibleSource 必须属于当前空间的准确根讨论和可选 replyId/executionId。普通列表、个人 MCP 读取和运行时读取均不推进人的已读。
+
+关注偏好为 `{subject,mode,previousMode?,origin,revision,updatedAt}`；查询额外返回 effectiveMode、inheritedFrom、available、title。每源记录每成员最多 10,000 个偏好、每源记录最多 50,000 个幂等操作回执。CAS 不匹配及同 requestId 异内容明确失败。会话首次关注先确认原生历史基线，不能读取边界时设置不保存。
+
+成员 @ 为 `{memberId,startOffset,endOffset,label}`，范围按 UTF-16 且须精确覆盖正文 `@label`，按顺序、不得重叠，每条最多 20 位成员。根批注新增可选 `requestId/mentions`，回复输入新增 `mentions/replyTo`；replyTo 为 `{kind:annotation|reply,id}`，仅同一根讨论中已存在的父项有效。创建正文、mentions、父项和附件共同参与幂等校验。Core 写入 typed actor，客户端不能覆盖身份。
+
+源记录中的 activity 状态最多 16 MiB，其中 outbox 最多 10,000 项；空间 `member-activity.json` 最多 50,000 个事件、64 MiB。已读或无个人未读的事件在 90 天后可压缩，未读、待确认 outbox 及尚未持久接收的分身消费者事件身份保留。无法保存源事件或自动关注时受控业务提交失败；日志提交失败时 outbox 保留并显示同步错误。原生已发生终态通过已有输入关系／历史回读恢复，不重放模型输入。
+
+分身使用独立的认证 `/v2/activity-consumer/{status,ensure,configure,consume,ack}`。ensure 选择本空间本人最早自建分身并保存路线；consume 读取顺序事件，支持 throughSeq 固定上界、limit 1–100，条目整体预算 64 KiB。返回 receipt 绑定成员、路线及 revision，ack 只确认该批已到达成员 Core；人的 readRevision 不影响它。首次回顾固定事件集合，后续事件按空间 seq 接续，不使用 UI 仅未读分页。成员 Core 的 attention 存储上限为 50,000 个事件、10,000 个认识和 32 MiB，达到边界显示错误并保留未确认回执。
+
+已有关注对象的本人 human 写入可携带仅供所属成员分身使用的 `own_source_change` 与有效 follow 原因，来源、作者、事件 ID 和 seq 沿用原业务事件。空间主机保存的 agentRecipients 不进入人的动态或公开响应，消费者只返回当前成员的 reasons；当前取消或静音仍抑制普通事实同步。首次消费也包含切换前已登记但尚未接收的本人变化；这类事件的保留核对独立消费者进度，不因人的已读而提前删除。
+
+本人 human 批注／回复的有效结构化 `mentions` 包含本人时，复用上述私有 `agentRecipients`，保存 `mention` 直接收件原因，不同时保存 `own_source_change`。它不进入本人的人类提醒，`direct_only` 可投递、`muted` 不投递，消费时再核对当前偏好。未增加新的派活字段、请求路由或任务状态；普通粘贴 `@名字` 不触发。
+
+该消费者另接收 `kind:follow_changed`，包含 `follow:{mode,revision,parent?,baseline?,partial?}`。baseline 是保存偏好时固定的 SourceRef，最多九个（讨论根项及八条近期回复）；parent 为当时明确存在的父偏好快照。旧 revision 或当前已取消的初始化不再投递。内部信号不出现在人的 activity/list、空间全部动态或 read 入口。初始化按来源读取，每个来源正文最多 32 KiB，合成正文最多 64 KiB；实际读到的 references 和 partial 随内部 SourceSnapshot 保存，不能用来源清单声称已读全部历史。
+
+参与者的 `member-activity-read-queue.json` 最多 1,000 个动作、8 MiB，绑定空间 ID 与凭据哈希；后台每次最多八项、单次两秒。只在 host_unreachable 时保留待补交，校验失败或资格结束不无限重试。远端列表缓存最多十二个查询页，每页沿用 64 KiB 预算，只保留计数、身份与来源元数据，清除正文预览。主机离线返回缓存并标注 pendingSync/error/syncedAt；已确认撤权不返回缓存。
+
+远端传输为认证后的 `POST /v2/member-activity/{list,follows,members,follow,read}`。个人 MCP 提供 `list_member_activity`、`set_member_follow`、`mark_member_activity_read`；最后一个只能在用户明确要求确认已读时使用。嵌入 UI 通过既有 UI 路由白名单访问上述本机接口。绑定运行时 MCP 不获得个人动态工具或查询权限；其公开回复仅增加结构化 mentions/replyTo 字段，不跨越原空间权限。
+
+
+### 本机问题回复交接与等待索引
+
+以下只经本机 `/api` 和本机 UI bridge 提供，不增加共享 `/v2` 私有投影。先向空间主机核对当前成员；处理详情和问题交接只使用同空间该成员的本机记录，问题交接不接受非本机 shadowId。默认路线可以选择空间已登记的本人分身，即使它当前没有可用本机运行实例。跨成员与跨空间的分身选择不接受。
+
+- `GET /api/collaborations/{id}/attention/route`：返回 `{route:{shadowId,revision,enabled,...},runtime?:{shadowId,name,state},localShadows}`；runtime 由本机 Core 报告 ready/offline/paused/error/starting。读取不执行 ensure、不创建默认路线或模型轮次。
+- `POST /api/collaborations/{id}/attention/route`：正文 `{shadowId,baseRevision,requestId}`，选择该成员已登记分身；此入口不接受 enabled。成功或同 ID 重试后读取并应用主机当前路线，再返回上述结构；原命令的旧回执不回滚较新路线。
+- `GET /api/collaborations/{id}/attention/event?eventId=`：准确事件的私有处理详情，eventId 非空且最多 256 字节。返回 state、shadowId/name、hold、error、receivedAt 和 jobs/actions，各最多 16 项并保留 totalJobs/totalActions；总响应 32 KiB，超出时减少明细项。行动只带类型、状态、更新时间、一个准确来源及白名单中的历史 receiptState，不返回工具参数、原始回执、提示词或原生 thread ID。读取不标已读、不确认 Agent 接收、不重试动作。
+- `GET /api/collaborations/{id}/attention/questions?shadowId=&history=true|false&cursor=&limit=`：本人成员本机分身的提问索引，默认仅关联未结束任务，history=true 包含历史。返回 `{items,total,revision,nextCursor?}`，每项只带简短正文、发送/处理状态、已核实来源及关联数量，默认最多 20 项，响应最多 48 KiB。
+- `GET /api/collaborations/{id}/attention/question?shadowId=&id=&cursor=&limit=`：准确问题详情，增加 condition、respondsTo、tasks、totalConditions、revision、nextCursor。原问题关系保留准确 source，摘录按 600 字符、正文按 4000 字符截取，截断时另加省略号；每页最多 16 项关联条件并保留各任务的 state、version、active、dependencyState、answerReceived、unavailable 和 nextStep，总响应最多 48 KiB，预算不足时缩小本页。两种游标均绑定分身、查询及当前投影版本，变更后返回首批读取；来源仅在实际提问已核实保存后出现。只读本机 UI 路由和插件桥可用，不进入远端共享 View，不启动模型或改变人的已读。
+
+- `GET /api/collaborations/{id}/attention?direction=needs_owner|waiting_others|processing&cursor=&limit=`：返回 `{waiting:{items,total,revision,nextCursor?},route,localShadows}`；不传 direction 读取全部。默认 30、最多 50 项，游标绑定当前投影版本，变化时从第一页重读。每项含准确 source、question、state、direction、tasks、totalTasks，tasks 最多展示 16 项并保留实际 dependencyId 与各自 condition。time/job 等内部等待进入 processing；未确认提问不会将父引用伪装成已发送问题。
+- `GET /api/collaborations/{id}/attention/handling?annotationId=&replyId=&executionId=`：返回准确问题的 `{id,source,handler,revision,question,state,canHandoff,...}`。默认 handler=shadow、revision=0。canHandoff 只表示本机存在本人分身，不承诺原生运行中。
+- `POST /api/collaborations/{id}/attention/handling`：正文 `{requestId,source,handler:owner|shadow,baseRevision,shadowId?}`。默认使用稳定分身路线；只有一个本机本人分身且路线未建立时可直接选择它。先读取准确问题，再持久保存。相同 requestId 重试返回原回执，不重新覆盖后来交接；内容不一致拒绝。交回只登记内部 continuation，暂停分身恢复后再运行。
+
+本机个人 activity/list 与全局 activity 的每空间页面在原始响应后附加 `processing` 简短投影，只含状态、分身名称/ID、等待原因、明细存在标志及总数。主机原始页面和远端缓存仍为 64 KiB；本机附加状态后的页面最多 96 KiB，先省略分身名称/ID和等待原因，仍超出则省略处理投影并返回 processingError，原动态内容不变。任务及动作明细通过上述 event 接口按需加载。空间全部动态不附加私有投影。
+
+原生 `shadow_task handling` 读准确 source，`handoff` 使用同一 source/requestId/handler/baseRevision，须来自实际本人成员请求。交接是回复分工，不是普通发送审批。`CollaborationAction.submittedAt/responseSources` 保存提交排序及问题关系；held_for_owner 表示尚未发送，unknown 与 saved 仍分别表示回执不明和已收到业务保存回执。

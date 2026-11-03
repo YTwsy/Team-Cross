@@ -13,7 +13,7 @@
 | 判断定位、产品范围或命名 | [项目简报](../sources/project-brief.md)、[核心词汇](../sources/product-core-and-glossary.md) | [协作类型](../../../internal/collab/types.go) |
 | 修改只读分享、三人以上与多会话材料 | [空间契约](../sources/decisions/collaboration-spaces.md)、[材料协议](../sources/protocol.md#已发布会话材料) | [空间](../../../internal/collab/spaces.go)、[材料](../../../internal/collab/materials.go)、[MCP](../../../internal/mcp/materials.go) |
 | 调整模块、启动或数据路径 | [架构](../sources/architecture.md)、[协议](../sources/protocol.md) | [CLI](../../../cmd/teamcross/main.go)、[协作核心](../../../internal/collab/app.go) |
-| 修改原目录、worktree、fork 或恢复 | [目录与生命周期](../sources/decisions/workspace-and-lifecycle.md) | [workspace](../../../internal/workspace/)、[app.go](../../../internal/collab/app.go) |
+| 修改多会话、原目录、worktree、fork 或恢复 | [目录与生命周期](../sources/decisions/workspace-and-lifecycle.md) | [workspace](../../../internal/workspace/)、[app.go](../../../internal/collab/app.go)、[会话隔离](../../../internal/collab/executions.go) |
 | 修改 TUI/Desktop、登录、模型或原生接入 | [原生客户端与模型](../sources/decisions/native-clients-and-models.md) | [nativecodex](../../../internal/nativecodex/)、[本机路由](../../../internal/collab/local_client.go) |
 | 修改受限/信任模式与原生配置继承 | [协作模式](../sources/decisions/runtime-modes.md) | [模式定义](../../../internal/runtimeconfig/mode.go)、[创建与恢复](../../../internal/collab/app.go) |
 | 修改实验性 Claude TUI 或辅助入口 | [Claude 接入契约](../sources/decisions/claude-native-tui.md) | [nativeclaude](../../../internal/nativeclaude/)、[协作适配](../../../internal/collab/claude.go) |
@@ -24,7 +24,10 @@
 | 修改会话配对与交给 Agent | [配对契约](../sources/decisions/agent-pairing.md) | [Core](../../../internal/collab/agents.go)、[MCP](../../../internal/mcp/agents.go)、[界面](../../../packages/web/src/components/AgentPairings.tsx) |
 | 修改 ChatGPT 本机 WebGUI 插件或宿主消息桥 | [本机插件](../sources/decisions/chatgpt-local-plugin.md) | [UI MCP](../../../internal/mcp/ui.go)、[包管理](../../../internal/pluginpack/plugin.go)、[共同入口](../../../packages/web/src/main.tsx)、[插件环境](../../../packages/web/src/plugin/environment.ts) |
 | 修改空间请求、简报或可选专用会话 | [空间工作台契约](../sources/decisions/space-workbench.md) | [空间业务](../../../internal/collab/workbench.go)、[接收会话](../../../internal/collab/space_receivers.go)、[工作台](../../../packages/web/src/components/SpaceWorkbench.tsx) |
+| 修改本机分身、连续聊天、分段、记忆或后台任务 | [分身契约](../sources/decisions/local-shadows.md) | [运行引擎](../../../internal/shadow/)、[空间桥](../../../internal/collab/shadows.go)、[聊天界面](../../../packages/web/src/components/SpaceShadows.tsx) |
+| 修改成员关注、@、回复提醒或已读同步 | [成员动态](../sources/decisions/member-activity.md) | [Core](../../../internal/collab/member_activity.go)、[动态界面](../../../packages/web/src/components/MemberActivity.tsx)、[个人 MCP](../../../internal/mcp/member_activity.go) |
 | 修改持续关注、Cloud 事件或订阅回执 | [空间事件契约](../sources/decisions/space-events.md) | [MCP Events](../../../internal/mcpevents/)、[Core](../../../internal/collab/space_events.go)、[隔离网关](../../../cmd/teamcross/events.go) |
+| 修改正常交互中的附带更新、评论感知或定向留言 | [顺流感知](../sources/decisions/in-flow-awareness.md) | [分发](../../../internal/collab/inflow.go)、[MCP 与 Hook](../../../internal/mcp/inflow.go)、[界面](../../../packages/web/src/components/InFlow.tsx) |
 | 选择测试与通过标准 | [验证门槛](../sources/validation/test-gates.md) | 页内按改动范围选择自动化、客户端与网络入口 |
 | 判断支持范围与实际验收结论 | [验证范围与证据入口](../sources/validation/evidence-map.md) | 先确定具体路径，再核对契约、实现和对应报告 |
 | 安装、App 外壳与首次体验 | [分发与首次体验](../sources/distribution-and-onboarding.md) | [公共启动器](../../../internal/service/service.go)、[App](../../../apps/macos/TeamCross.swift)、[构建](../../../scripts/build-release.py) |
@@ -35,8 +38,8 @@
 | 理解的问题 | 概念页 |
 | --- | --- |
 | 个人会话、材料与共同执行如何关联 | [产品模型与词汇](concepts/product-model-and-glossary.md) |
-| 成员、公开范围、执行访问与输入权怎样区分 | [协作空间](concepts/collaboration-spaces.md) |
-| 空间、Core、原生运行时与成员主机如何分工 | [运行时架构](concepts/runtime-architecture.md) |
+| 空间成员、共同阅读与会话输入权怎样区分 | [协作空间](concepts/collaboration-spaces.md) |
+| Core、执行实例与会话历史如何关联，两类交接改变什么 | [运行时架构](concepts/runtime-architecture.md) |
 | 人与 Agent 的入口怎样共用内容、分别接收请求 | [WebGUI 与 MCP](concepts/webgui-and-mcp.md) |
 | 方法、实测结果与当前能力判断怎样关联 | [验证与证据](concepts/validation-gates.md) |
 

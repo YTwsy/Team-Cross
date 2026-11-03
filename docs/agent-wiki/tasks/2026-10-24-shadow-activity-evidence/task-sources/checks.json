@@ -1,0 +1,99 @@
+{
+  "go-checks": [
+    {
+      "check": "go-test",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "2",
+        "./...",
+        "-count=1",
+        "-timeout=180s"
+      ],
+      "exitCode": 0,
+      "seconds": 104.356
+    },
+    {
+      "check": "go-vet",
+      "command": [
+        "go",
+        "vet",
+        "-p",
+        "2",
+        "./..."
+      ],
+      "exitCode": 0,
+      "seconds": 1.187
+    },
+    {
+      "check": "go-race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-p",
+        "2",
+        "./internal/shadow",
+        "./internal/collab",
+        "-count=1",
+        "-timeout=180s"
+      ],
+      "exitCode": 0,
+      "seconds": 88.947
+    }
+  ],
+  "web-checks": [
+    {
+      "check": "web-check",
+      "command": [
+        "pnpm",
+        "--filter",
+        "@teamcross/web",
+        "check"
+      ],
+      "exitCode": 0,
+      "seconds": 5.369
+    },
+    {
+      "check": "web-test",
+      "command": [
+        "pnpm",
+        "--filter",
+        "@teamcross/web",
+        "test"
+      ],
+      "exitCode": 0,
+      "seconds": 10.419
+    },
+    {
+      "check": "web-build",
+      "command": [
+        "pnpm",
+        "--filter",
+        "@teamcross/web",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 9.173
+    }
+  ],
+  "native-checks": [
+    {
+      "check": "native",
+      "command": [
+        "python3",
+        "scripts/verify-shadow-native.py",
+        "--task-sources",
+        "--fixture-dir",
+        "/private/tmp/teamcross-native-task-sources-20261024-95ed6abd",
+        "--codex-bin",
+        "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+        "--codex-auth",
+        "/Users/wsy/.codex/auth.json"
+      ],
+      "exitCode": 0,
+      "seconds": 67.229
+    }
+  ]
+}

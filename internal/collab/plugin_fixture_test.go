@@ -3,6 +3,7 @@ package collab
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/google/uuid"
 	"io/fs"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"teamcross/internal/buildinfo"
+	"teamcross/internal/mcpassets"
 	"teamcross/internal/service"
 	"teamcross/internal/webassets"
 	"teamcross/internal/workspace"
@@ -108,7 +110,7 @@ func TestChatGPTPluginFixture(t *testing.T) {
 	// real Core storage. Model delivery has a separate opt-in native fixture.
 	_, caller, target := spaceChannel(t, a, space.record.ID)
 	ref := LibraryReference{SpaceID: space.record.ID, Kind: "material", MaterialID: mid, Version: 1}
-	wb(t, a, space.record.ID, "brief", workbenchInput{Brief: SpaceBrief{Topic: "核对连接池调查与协作重试。", Decisions: []BriefItem{{Text: "先核对已发布的固定版本。", Sources: []LibraryReference{ref}}}, Questions: []BriefItem{}}})
+	wb(t, a, space.record.ID, "brief", workbenchInput{Brief: SpaceBrief{Topic: "核对连接池调查与协作重试。", Decisions: []BriefItem{{Text: "先核对已发布的固定版本。", Sources: []SpaceSourceRef{{SpaceID: ref.SpaceID, MaterialID: ref.MaterialID, Version: ref.Version, AnnotationID: ref.AnnotationID}}}}, Questions: []BriefItem{}}})
 	requestID := uuid.NewString()
 	wb(t, a, space.record.ID, "send", workbenchInput{RequestID: requestID, TargetID: target.ID, References: []LibraryReference{ref, {SpaceID: space.record.ID, Kind: "annotation", AnnotationID: note.ID}}, Instruction: "请核对固定版本的样本条件和待复测事项。", Intent: "analyze"})
 	a.pumpWorkbench(ctx)
@@ -126,10 +128,46 @@ func TestChatGPTPluginFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler := a.Handler(http.FileServer(http.FS(web)))
+	// Optional upgrade fixture: keep an actual old stdio process while the
+	// authenticated Core switches from old UI to the reported broken UI to the fix.
+	var upgradeBundles []mcpassets.Bundle
+	if bundleDir := os.Getenv("TEAMCROSS_PLUGIN_UPGRADE_BUNDLES"); bundleDir != "" {
+		for _, name := range []string{"legacy.html", "previous.html"} {
+			panel, err := os.ReadFile(filepath.Join(bundleDir, name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			upgradeBundles = append(upgradeBundles, mcpassets.ParseBundle(string(panel)))
+		}
+		upgradeBundles = append(upgradeBundles, mcpassets.Current)
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		requests = append(requests, map[string]string{"method": r.Method, "path": r.URL.Path})
 		mu.Unlock()
+		if len(upgradeBundles) != 0 && (r.URL.Path == "/api/plugin/panel-version" || r.URL.Path == "/api/plugin/panel-bundle") {
+			if r.Method != "GET" || r.Header.Get("Authorization") != "Bearer "+a.Token || r.Header.Get("Origin") != "" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			stage := 0
+			if value, err := os.ReadFile(filepath.Join(dir, "bundle-stage")); err == nil {
+				_, _ = fmt.Sscan(string(value), &stage)
+			}
+			if stage < 0 || stage >= len(upgradeBundles) {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			bundle := upgradeBundles[stage]
+			if r.URL.Path == "/api/plugin/panel-version" {
+				bundle.Script, bundle.Style = "", ""
+			} else if r.URL.Query().Get("revision") != bundle.Revision {
+				w.WriteHeader(http.StatusConflict)
+				return
+			}
+			respond(w, bundle, nil)
+			return
+		}
 		if r.URL.Path == "/api/control/status" {
 			if r.Header.Get("Authorization") != "Bearer "+a.Token {
 				w.WriteHeader(http.StatusForbidden)
@@ -147,7 +185,7 @@ func TestChatGPTPluginFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	connection = service.Connection{URL: server.URL, PID: os.Getpid(), Instance: uuid.NewString(), Token: a.Token, Version: buildinfo.Version, Commit: buildinfo.Commit, Protocol: buildinfo.ControlProtocol, DataDir: data}
+	connection = service.Connection{URL: server.URL, PID: os.Getpid(), Instance: uuid.NewString(), Token: a.Token, Version: buildinfo.Version, Commit: buildinfo.Commit, Protocol: buildinfo.ControlProtocol, DataDir: data, Executable: os.Getenv("TEAMCROSS_PLUGIN_FIXTURE_EXECUTABLE")}
 	if err := service.Save(data, connection); err != nil {
 		t.Fatal(err)
 	}

@@ -25,7 +25,7 @@ func TestModelSettingsFollowNativeChoices(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertSettings("fixture-selected-model", "medium")
-	if f.requests["thread/settings/update"]["cwd"] != s.record.ExecutionCwd || f.requests["thread/settings/update"]["permissions"] != nativecodex.Profile {
+	if f.requests["thread/settings/update"]["cwd"] != nil || f.requests["thread/settings/update"]["permissions"] != nativecodex.Profile {
 		t.Fatal("execution binding changed")
 	}
 	_, err = s.RPC(ctx, "owner", "turn/start", map[string]any{"input": []any{}}, "keep-settings")

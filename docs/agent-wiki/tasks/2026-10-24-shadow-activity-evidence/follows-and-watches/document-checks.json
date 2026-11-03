@@ -1,0 +1,8 @@
+{
+  "markdownFiles": 8,
+  "relativeLinks": 326,
+  "sourceHashes": 64,
+  "pythonSyntax": "passed",
+  "indexReachability": "index -> local-shadows -> implementation",
+  "errors": []
+}

@@ -1,0 +1,15 @@
+=== RUN   TestNativeShadowTaskReturns
+    shadow_returns_native_test.go:87: native shadow registered online
+    shadow_returns_native_test.go:98: timeout real worker finished checked business result
+--- FAIL: TestNativeShadowTaskReturns (203.27s)
+FAIL
+FAIL	teamcross/internal/collab	203.723s
+FAIL
+Traceback (most recent call last):
+  File "/Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/scripts/verify-shadow-native.py", line 81, in <module>
+    run(parser.parse_args())
+  File "/Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/scripts/verify-shadow-native.py", line 61, in run
+    subprocess.run(["go", "test", "./internal/collab" if args.brief or args.result_sources or args.task_returns else "./internal/shadow", "-run", "^" + test + "$", "-v", "-count=1", "-timeout=12m"], cwd=Path(__file__).resolve().parent.parent, env=env, check=True)
+  File "/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/subprocess.py", line 528, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['go', 'test', './internal/collab', '-run', '^TestNativeShadowTaskReturns$', '-v', '-count=1', '-timeout=12m']' returned non-zero exit status 1.

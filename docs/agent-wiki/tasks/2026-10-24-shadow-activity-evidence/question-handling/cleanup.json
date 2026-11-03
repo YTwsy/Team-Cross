@@ -1,0 +1,30 @@
+{
+  "fixtures": [
+    {
+      "fixture": "a",
+      "testPassed": true,
+      "lsofExit": 1,
+      "lsofOutput": "",
+      "lsofError": "",
+      "temporaryCoreDirectoryExists": false
+    },
+    {
+      "fixture": "b",
+      "testPassed": true,
+      "lsofExit": 1,
+      "lsofOutput": "",
+      "lsofError": "",
+      "temporaryCoreDirectoryExists": false
+    },
+    {
+      "fixture": "c",
+      "testPassed": true,
+      "lsofExit": 1,
+      "lsofOutput": "",
+      "lsofError": "",
+      "temporaryCoreDirectoryExists": false
+    }
+  ],
+  "tabs": "All three agent-created browser tabs closed",
+  "exactProcessCheck": "Only inspection shell and rg matched exact fixture pattern; no remaining fixture process"
+}

@@ -63,7 +63,7 @@ export function InvitationPanel({
       <p className="small-text muted">
         {(c.invitationReadOnly ?? c.hasExecution === false)
           ? t(
-              "通过此链接可以阅读已发布材料、参与讨论和发布调查。执行访问由发起者在成员列表另行开放。",
+              "通过此链接加入后，可阅读空间全部已发布材料和协作会话，参与讨论和发布调查。执行输入需要按会话交接。",
             )
           : t(
               "通过此链接可以阅读已发布材料、协作原生历史和工作目录，并参与共同执行；实际输入由发起者交接。",

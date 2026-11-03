@@ -1,0 +1,60 @@
+{
+  "fixture": "c",
+  "scope": "Single Mac, real local Core UI and business source; paused fixture shadow with controlled task records; no native model",
+  "steps": [
+    "Chinese waiting index merged one actual question with two task conditions",
+    "Exact source excerpt was shown and original reply located",
+    "Takeover and handback each succeeded directly without confirmation",
+    "Waiting source reads preserved 2 unread groups through both controls",
+    "English labels and question-handling controls verified; user text retained original Chinese"
+  ],
+  "records": [
+    {
+      "handling": [
+        {
+          "handler": "shadow",
+          "revision": 2,
+          "state": "active"
+        }
+      ],
+      "continuations": [
+        {
+          "state": "queued",
+          "mode": "direct",
+          "eventIds": []
+        }
+      ],
+      "receivedEvents": 0
+    }
+  ],
+  "engines": [
+    {
+      "enabled": false,
+      "messages": 0,
+      "questions": 1,
+      "jobs": 2
+    }
+  ],
+  "screenshots": {
+    "waiting-zh.jpg": {
+      "width": 523,
+      "height": 615
+    },
+    "waiting-zh-final.jpg": {
+      "width": 1150,
+      "height": 647
+    },
+    "takeover-zh-final.jpg": {
+      "width": 1150,
+      "height": 647
+    },
+    "waiting-en-final.jpg": {
+      "width": 1150,
+      "height": 647
+    },
+    "takeover-zh-initial.jpg": {
+      "width": 523,
+      "height": 615
+    }
+  }
+}

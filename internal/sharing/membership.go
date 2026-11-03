@@ -32,19 +32,16 @@ type admission struct {
 }
 type member struct {
 	Member
-	credential      string
-	invitationID    string
-	executionCtx    context.Context
-	executionCancel context.CancelFunc
-	ctx             context.Context
-	cancel          context.CancelFunc
+	credential   string
+	invitationID string
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 type Member struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	JoinedAt        time.Time `json:"joinedAt"`
-	Active          bool      `json:"active"`
-	ExecutionAccess bool      `json:"executionAccess"`
+	ID       string    `json:"id"`
+	Name     string    `json:"name"`
+	JoinedAt time.Time `json:"joinedAt"`
+	Active   bool      `json:"active"`
 }
 type InvitationInfo struct {
 	ID          string    `json:"id"`
@@ -59,7 +56,7 @@ type IssuedInvitation struct {
 
 func encodeInvitation(i Invitation) string {
 	b, _ := json.Marshal(i)
-	return "tcx3." + base64.RawURLEncoding.EncodeToString(b)
+	return "tcx4." + base64.RawURLEncoding.EncodeToString(b)
 }
 func (r *Runtime) initializeLocked() {
 	if r.invitations != nil {
@@ -187,66 +184,23 @@ func (r *Runtime) HasMember(id string) bool {
 	return !r.revoked && m != nil && m.ctx.Err() == nil
 }
 
-func (r *Runtime) HasExecutionAccess(id string) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	m := r.members[id]
-	return !r.revoked && m != nil && m.ctx.Err() == nil && m.ExecutionAccess
-}
+// Membership grants reading across the space. Bind each native request to its
+// explicit execution so it cannot be reused against a sibling's input channel.
+// The authorization context is already cancelled when this member leaves.
+type executionScopeKey struct{}
 
-func (r *Runtime) SetExecutionAccess(id string, allowed bool) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	m := r.members[id]
-	if r.revoked || m == nil || m.ctx.Err() != nil {
-		return false
-	}
-	if m.ExecutionAccess != allowed {
-		m.ExecutionAccess = allowed
-		if allowed {
-			m.executionCtx, m.executionCancel = context.WithCancel(m.ctx)
-		} else if m.executionCancel != nil {
-			m.executionCancel()
-		}
-	}
-	return true
-}
-
-// Bind native reads and writes to the current execution grant. Revoking and
-// granting again cannot revive an in-flight request from an older grant.
-func ExecutionContext(ctx context.Context, current *Runtime) (context.Context, context.CancelFunc, bool) {
-	a, remote := ctx.Value(authorizationKey{}).(authorization)
-	if !remote {
-		return ctx, func() {}, true
-	}
-	if current == nil || current != a.runtime {
+func ExecutionContext(ctx context.Context, current *Runtime, executionID string) (context.Context, context.CancelFunc, bool) {
+	if executionID == "" || !ExecutionAuthorized(ctx, current, executionID) {
 		return ctx, func() {}, false
 	}
-	current.mu.Lock()
-	defer current.mu.Unlock()
-	if current.revoked || !a.member.ExecutionAccess || a.member.ctx.Err() != nil || a.member.executionCtx == nil || a.member.executionCtx.Err() != nil {
-		return ctx, func() {}, false
-	}
-	bound, cancel := context.WithCancel(ctx)
-	stop := context.AfterFunc(a.member.executionCtx, cancel)
-	return context.WithValue(bound, executionGrantKey{}, a.member.executionCtx), func() { stop(); cancel() }, true
+	return context.WithValue(ctx, executionScopeKey{}, executionID), func() {}, true
 }
 
-type executionGrantKey struct{}
-
-func ExecutionAuthorized(ctx context.Context, current *Runtime) bool {
-	a, remote := ctx.Value(authorizationKey{}).(authorization)
-	if !remote {
-		return true
-	}
-	if current == nil || current != a.runtime || ctx.Err() != nil {
-		return false
-	}
-	current.mu.Lock()
-	defer current.mu.Unlock()
-	grant, bound := ctx.Value(executionGrantKey{}).(context.Context)
-	return !current.revoked && a.member.ctx.Err() == nil && a.member.ExecutionAccess && (!bound || (grant == a.member.executionCtx && grant.Err() == nil))
+func ExecutionAuthorized(ctx context.Context, current *Runtime, executionID string) bool {
+	bound, ok := ctx.Value(executionScopeKey{}).(string)
+	return Authorized(ctx, current) && (!ok || bound == executionID)
 }
+
 func (r *Runtime) RevokeMember(id string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -376,10 +330,7 @@ func (r *Runtime) authorize(next http.Handler) http.Handler {
 					name = "协作者 " + id[:8]
 				}
 				ctx, cancel := context.WithCancel(context.Background())
-				m = &member{Member: Member{ID: id, Name: name, JoinedAt: time.Now(), Active: true, ExecutionAccess: !a.invitation.ReadOnly}, credential: in.Credential, invitationID: a.id, ctx: ctx, cancel: cancel}
-				if m.ExecutionAccess {
-					m.executionCtx, m.executionCancel = context.WithCancel(ctx)
-				}
+				m = &member{Member: Member{ID: id, Name: name, JoinedAt: time.Now(), Active: true}, credential: in.Credential, invitationID: a.id, ctx: ctx, cancel: cancel}
 				r.members[id] = m
 			}
 			memberID := ""

@@ -94,10 +94,11 @@ func TestPersonalDesktopRejectsUnavailableTargetsAndLaunchFailure(t *testing.T) 
 	if err := s.Action(ctx, "share"); err != nil {
 		t.Fatal(err)
 	}
-	j, err := b.Join(ctx, s.share.Token())
+	j, err := b.Join(ctx, s.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := b.PersonalDesktopPlan(ctx, j.ID, false); err == nil {
 		t.Fatal("accepted remote collaboration")
 	}
@@ -143,7 +144,7 @@ func TestPersonalDesktopHTTPUsesStoredSessionAndSameOrigin(t *testing.T) {
 	a.settings.DesktopApp = t.TempDir()
 	handler := a.Handler(http.NotFoundHandler())
 	for _, origin := range []string{"http://127.0.0.1:43210", "https://example.invalid"} {
-		req := httptest.NewRequest("POST", "http://127.0.0.1:43210/api/collaborations/"+s.record.ID+"/personal-desktop", bytes.NewBufferString(`{"launch":false,"sessionId":"untrusted","url":"https://example.invalid"}`))
+		req := httptest.NewRequest("POST", "http://127.0.0.1:43210/api/collaborations/"+executionAddress(s.spaceID(), s.record.ID)+"/personal-desktop", bytes.NewBufferString(`{"launch":false,"sessionId":"untrusted","url":"https://example.invalid"}`))
 		req.Header.Set("Origin", origin)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)

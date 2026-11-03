@@ -1,0 +1,15 @@
+{
+  "fixture": "/private/tmp/teamcross-native-task-returns-host-20261024-46d26d5e",
+  "command": [
+    "python3",
+    "scripts/verify-shadow-native.py",
+    "--task-returns",
+    "--fixture-dir",
+    "/private/tmp/teamcross-native-task-returns-host-20261024-46d26d5e",
+    "--codex-bin",
+    "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+    "--codex-auth",
+    "/Users/wsy/.codex/auth.json"
+  ],
+  "environment": "standard host execution"
+}

@@ -28,21 +28,22 @@ func TestLiveTailcatCollaboration(t *testing.T) {
 	if err := session.Share(ctx, string(sharing.TransportTailcat)); err != nil {
 		t.Fatal(err)
 	}
-	ownerView := session.view()
+	ownerView := session.space.view()
 	if ownerView["sharing"] != true || ownerView["transport"] != "tailcat" || ownerView["invitationState"] != "active" {
 		t.Fatalf("unexpected owner sharing/transport/link: %v %v %v", ownerView["sharing"], ownerView["transport"], ownerView["invitationState"])
 	}
 
-	joined, err := b.Join(ctx, session.share.Token())
+	joined, err := b.Join(ctx, session.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal(err)
 	}
 	remoteView := joined.view(ctx)
-	if remoteView["online"] != true || remoteView["state"] != "ready" || remoteView["transport"] != "tailcat" {
+
+	if remoteView["reachable"] != true || remoteView["state"] != "ready" || remoteView["transport"] != "tailcat" {
 		t.Fatalf("unexpected remote view: %#v", remoteView)
 	}
 	c, _, _ := fixture(t)
-	third, err := c.Join(ctx, session.share.Token())
+	third, err := c.Join(ctx, session.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal("same link rejected third participant", err)
 	}
@@ -53,7 +54,7 @@ func TestLiveTailcatCollaboration(t *testing.T) {
 	if err = session.ActionFor(ctx, "handoff", remoteView["selfId"].(string)); err != nil {
 		t.Fatal(err)
 	}
-	endpoint, err := b.endpoint(joined.ID)
+	endpoint, err := b.endpoint(executionAddress(joined.ID, session.record.ID))
 	if err != nil {
 		t.Fatal(err)
 	}

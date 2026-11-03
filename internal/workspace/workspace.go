@@ -100,6 +100,10 @@ func ReadFile(root, path string) (string, error) {
 	if filepath.IsAbs(path) {
 		return "", fmt.Errorf("使用相对于协作目录的文件路径")
 	}
+	root, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
 	resolved, err := filepath.EvalSymlinks(filepath.Join(root, path))
 	if err != nil {
 		return "", err

@@ -1,0 +1,5 @@
+=== RUN   TestMultipleExecutionsBrowserFixture
+    executions_browser_test.go:83: multi-session fixture ready /private/tmp/teamcross-shared-reading-ui-final-20261021
+--- PASS: TestMultipleExecutionsBrowserFixture (566.57s)
+PASS
+ok  	teamcross/internal/collab	567.254s

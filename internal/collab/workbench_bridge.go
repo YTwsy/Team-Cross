@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -88,7 +89,7 @@ func (a *App) registerSpacePairing(ctx context.Context, id, pairingID string) (a
 		}
 	}
 	a.agentMu.Unlock()
-	out, err := a.workbenchCall(ctx, id, "register", workbenchInput{TargetID: p.Links[id], Name: p.Name, Provider: p.Provider, Session: contentHash([]string{p.Provider, p.SessionID})[:24], Execution: p.Transport == "native" && p.RuntimeID == ""})
+	out, err := a.workbenchCall(ctx, id, "register", workbenchInput{TargetID: p.Links[id], Name: p.Name, Provider: p.Provider, Session: contentHash([]string{p.Provider, p.SessionID})[:24], ExecutionID: p.ExecutionID})
 	if err == nil {
 		a.wakeWorkbench()
 	}
@@ -101,8 +102,17 @@ func (a *App) workbenchHTTP(w http.ResponseWriter, r *http.Request, path string)
 		return false
 	}
 	id, op := parts[1], parts[3]
-	if (op == "view" || op == "request") && r.Method == "GET" {
-		out, err := a.workbenchCall(r.Context(), id, op, workbenchInput{RequestID: r.URL.Query().Get("requestId"), Offset: int(number(r.URL.Query().Get("offset")))})
+	if (op == "view" || op == "request" || op == "brief-read") && r.Method == "GET" {
+		revision := 0
+		if raw := r.URL.Query().Get("revision"); raw != "" {
+			var err error
+			revision, err = strconv.Atoi(raw)
+			if err != nil || revision < 1 {
+				respond(w, nil, fmt.Errorf("简报版本需要正整数"))
+				return true
+			}
+		}
+		out, err := a.workbenchCall(r.Context(), id, op, workbenchInput{RequestID: r.URL.Query().Get("requestId"), Offset: int(number(r.URL.Query().Get("offset"))), Revision: revision, ItemID: r.URL.Query().Get("itemId")})
 		respond(w, out, err)
 		return true
 	}
@@ -120,7 +130,7 @@ func (a *App) workbenchHTTP(w http.ResponseWriter, r *http.Request, path string)
 	switch op {
 	case "register":
 		out, err = a.registerSpacePairing(r.Context(), id, in.PairingID)
-	case "send", "brief", "assistant", "cancel", "remove":
+	case "send", "brief", "brief-update", "brief-read", "assistant", "cancel", "remove", "inflow-config", "inflow-note", "inflow-note-read":
 		out, err = a.workbenchCall(r.Context(), id, op, in)
 	case "create-receiver":
 		out, err = a.createSpaceReceiver(r.Context(), id, in.RequestID, in.Name)
@@ -168,6 +178,8 @@ func (a *App) startWorkbench() {
 			case <-a.workbenchWake:
 			}
 			a.pumpWorkbench(ctx)
+			a.pumpMemberActivity(ctx)
+			a.flushActivityReads(ctx)
 		}
 	}()
 }
@@ -187,6 +199,7 @@ func (a *App) pumpWorkbench(ctx context.Context) {
 	a.agentMu.Lock()
 	pairs := libraryClone(a.agents.Pairings)
 	a.agentMu.Unlock()
+	a.refreshLegacyAgentNames(ctx, pairs)
 	spaces := map[string]map[string]AgentPairing{}
 	for _, p := range pairs {
 		for id, target := range p.Links {
@@ -201,7 +214,9 @@ func (a *App) pumpWorkbench(ctx context.Context) {
 			return
 		}
 		presence := map[string]string{}
+		names := map[string]string{}
 		for target, p := range targets {
+			names[target] = p.Name
 			reason := ""
 			if p.State == "linked" {
 				reason = "已关联空间，尚未接通主动接收"
@@ -230,7 +245,7 @@ func (a *App) pumpWorkbench(ctx context.Context) {
 			presence[target] = reason
 		}
 		pollCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
-		raw, err := a.workbenchCall(pollCtx, id, "poll", workbenchInput{Presence: presence})
+		raw, err := a.workbenchCall(pollCtx, id, "poll", workbenchInput{Presence: presence, TargetNames: names})
 		cancel()
 		if err != nil {
 			continue
@@ -248,7 +263,7 @@ func (a *App) pumpWorkbench(ctx context.Context) {
 			} // A lost claim is never replayed.
 			request = workbenchDecode[SpaceRequest](raw)
 			role := "owner"
-			if p.RuntimeID == "" && p.Transport == "native" {
+			if p.ExecutionID != "" && p.Transport == "native" {
 				role = request.Actor.MemberID
 			}
 			r, err := a.sendAgentRequest(ctx, agentRequestInput{RequestID: request.ID, PairingID: p.ID, References: request.References, Instruction: request.Instruction, Intent: request.Intent, WorkbenchSpaceID: id, TargetID: request.TargetID, Role: role})

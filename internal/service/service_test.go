@@ -50,18 +50,14 @@ func TestProbeIdentityAndProtocol(t *testing.T) {
 	}
 }
 
-func TestEnsureUsesDiskBuildAndDefersWithoutInterrupting(t *testing.T) {
-	for _, scenario := range []string{"active", "busy", "became-busy", "same", "other-installation", "unreadable"} {
+func TestEnsureUsesInstalledBuildAndPrioritizesUpgrade(t *testing.T) {
+	for _, scenario := range []string{"active", "busy", "same", "other-installation", "unreadable"} {
 		t.Run(scenario, func(t *testing.T) {
 			data, _ := Normalize(t.TempDir())
 			binary := filepath.Join(t.TempDir(), "teamcross")
-			write := func(path, commit string) {
-				t.Helper()
-				if err := os.WriteFile(path, []byte("#!/bin/sh\nprintf '%s\\n' '{\"version\":\"same-version\",\"commit\":\""+commit+"\",\"protocol\":1}'\n"), 0700); err != nil {
-					t.Fatal(err)
-				}
+			if err := os.WriteFile(binary, []byte("#!/bin/sh\nprintf '%s\\n' '{\"version\":\"same-version\",\"commit\":\"installed\",\"protocol\":1}'\n"), 0700); err != nil {
+				t.Fatal(err)
 			}
-			write(binary, "installed")
 			var stops atomic.Int32
 			var advertised Status
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -70,23 +66,22 @@ func TestEnsureUsesDiskBuildAndDefersWithoutInterrupting(t *testing.T) {
 					if r.URL.Path != "/api/control/upgrade" {
 						t.Error(r.URL.Path)
 					}
+					// Stop here: the real process handoff is covered by the three-build gate.
 					w.WriteHeader(409)
-					json.NewEncoder(w).Encode(problem.New("upgrade_busy", "busy", ""))
+					json.NewEncoder(w).Encode(problem.New("fixture_stop", "fixture", ""))
 					return
 				}
 				json.NewEncoder(w).Encode(advertised)
 			}))
 			defer server.Close()
-			c := Connection{URL: server.URL, PID: 42, Instance: "exact-instance", Token: "private", Version: "same-version", Commit: "running", Protocol: 1, DataDir: data, Executable: binary}
-			advertised = Status{Connection: c, Running: true, UpgradeSupported: true}
+			c := Connection{URL: server.URL, PID: 42, Instance: "instance", Token: "private", Version: "same-version", Commit: "running", Protocol: 1, DataDir: data, Executable: binary}
+			advertised = Status{Connection: c, Running: true, UpgradeSupported: true, UpgradePolicy: "bounded-10s"}
 			switch scenario {
 			case "active":
 				advertised.Active = 1
 			case "busy":
 				advertised.UpgradeBlocked = true
-			case "same":
-				advertised.Commit = "installed"
-			case "other-installation":
+			case "same", "other-installation":
 				advertised.Commit = "installed"
 			case "unreadable":
 				os.Remove(binary)
@@ -96,27 +91,24 @@ func TestEnsureUsesDiskBuildAndDefersWithoutInterrupting(t *testing.T) {
 			}
 			caller := binary
 			if scenario == "other-installation" {
-				caller = filepath.Join(t.TempDir(), "teamcross")
-				write(caller, "older-caller")
+				caller = "/unrelated/teamcross"
 			}
-			s, err := Ensure(context.Background(), data, caller, nil)
-			if err != nil || s.Instance != c.Instance {
-				t.Fatal(s, err)
-			}
-			pending := scenario == "active" || scenario == "busy" || scenario == "became-busy"
-			if s.UpdatePending != pending {
-				t.Fatal("wrong build state", s)
-			}
-			wantStops := int32(0)
-			if scenario == "became-busy" {
-				wantStops = 1
-			}
-			if stops.Load() != wantStops {
-				t.Fatal("unexpected stop", stops.Load())
+			result, err := Ensure(context.Background(), data, caller, nil)
+			if scenario == "active" || scenario == "busy" {
+				if problem.Describe(err).Code != "fixture_stop" || stops.Load() != 1 {
+					t.Fatal("activity incorrectly delayed upgrade", err, stops.Load())
+				}
+			} else if scenario == "unreadable" {
+				if problem.Describe(err).Code != "installation_unavailable" || stops.Load() != 0 {
+					t.Fatal(err, stops.Load())
+				}
+			} else if err != nil || result.Instance != c.Instance || stops.Load() != 0 {
+				t.Fatal(result, err, stops.Load())
 			}
 		})
 	}
 }
+
 func TestNormalizeAndStablePath(t *testing.T) {
 	root := t.TempDir()
 	actual := filepath.Join(root, "actual")

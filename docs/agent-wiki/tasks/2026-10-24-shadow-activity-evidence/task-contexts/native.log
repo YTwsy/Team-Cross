@@ -1,0 +1,7 @@
+=== RUN   TestNativeShadowTaskContexts
+    task_contexts_native_test.go:84: native worker reviewed two sources and saved a context wait
+    task_contexts_native_test.go:114: same native worker reviewed changed facts and completed the original task
+--- PASS: TestNativeShadowTaskContexts (57.91s)
+PASS
+ok  	teamcross/internal/shadow	58.214s
+Native acceptance report: /private/tmp/teamcross-native-task-contexts-20261024-bde40531/report.json

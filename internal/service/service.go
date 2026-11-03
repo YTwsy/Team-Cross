@@ -36,15 +36,17 @@ type Connection struct {
 }
 type Status struct {
 	Connection
-	Running          bool   `json:"running"`
-	Active           int    `json:"active"`
-	UILanguage       string `json:"uiLanguage,omitempty"`
-	ResolvedLanguage string `json:"resolvedLanguage,omitempty"`
-	UpgradeSupported bool   `json:"upgradeSupported,omitempty"`
-	UpgradeBlocked   bool   `json:"upgradeBlocked,omitempty"`
-	UpdatePending    bool   `json:"updatePending,omitempty"`
-	InstalledVersion string `json:"installedVersion,omitempty"`
-	InstalledCommit  string `json:"installedCommit,omitempty"`
+	Running          bool      `json:"running"`
+	Active           int       `json:"active"`
+	UILanguage       string    `json:"uiLanguage,omitempty"`
+	ResolvedLanguage string    `json:"resolvedLanguage,omitempty"`
+	UpgradeSupported bool      `json:"upgradeSupported,omitempty"`
+	UpgradeBlocked   bool      `json:"upgradeBlocked,omitempty"`
+	UpgradePolicy    string    `json:"upgradePolicy,omitempty"`
+	UpgradeDeadline  time.Time `json:"upgradeDeadline,omitempty"`
+	UpdatePending    bool      `json:"updatePending,omitempty"`
+	InstalledVersion string    `json:"installedVersion,omitempty"`
+	InstalledCommit  string    `json:"installedCommit,omitempty"`
 }
 
 func Normalize(path string) (string, error) {
@@ -183,7 +185,8 @@ func Ensure(ctx context.Context, data, executable string, args []string) (Status
 	if e = os.MkdirAll(data, 0700); e != nil {
 		return Status{}, e
 	}
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	// Complete an accepted lifecycle change even if the triggering MCP call is cancelled.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 35*time.Second)
 	defer cancel()
 	var lock *os.File
 	for {
@@ -216,33 +219,73 @@ func Ensure(ctx context.Context, data, executable string, args []string) (Status
 			executable = StableExecutable(s.Executable)
 		}
 		build, err := InstalledBuild(ctx, executable)
-		if err != nil || build.Matches(s.Version, s.Commit) {
+		if err != nil {
+			// Pre-owner Cores do not identify an authoritative installation.
+			// Keep read compatibility; never claim that they were upgraded.
+			if s.Executable == "" {
+				return s, nil
+			}
+			return Status{}, problem.New("installation_unavailable", "无法读取已安装的 Team Cross 构建", "请等待 App 替换完成后重新连接")
+		}
+		if build.Matches(s.Version, s.Commit) {
 			return s, nil
 		}
 		if build.Protocol != buildinfo.ControlProtocol {
 			return Status{}, problem.New("version_incompatible", "已安装构建的控制协议不兼容", "请先从原版本退出服务")
 		}
-		s.UpdatePending, s.InstalledVersion, s.InstalledCommit = true, build.Version, build.Commit
-		if s.Active > 0 || s.UpgradeBlocked {
-			return s, nil
-		}
-		endpoint := "control/stop" // One-time migration from pre-upgrade Cores.
-		if s.UpgradeSupported {
-			endpoint = "control/upgrade"
-		}
 		var handoff struct {
 			StartArgs []string `json:"startArgs"`
 		}
-		if err = s.Call(ctx, "POST", endpoint, map[string]any{"force": false, "instance": s.Instance}, &handoff); err != nil {
-			var p *problem.Error
-			if errors.As(err, &p) && (p.Code == "active_collaborations" || p.Code == "upgrade_busy") {
-				return s, nil
+		if s.UpgradePolicy == "bounded-10s" {
+			err = s.Call(ctx, "POST", "control/upgrade", map[string]any{"instance": s.Instance}, &handoff)
+		} else {
+			// One-time migration: old Cores only know the idle policy. Give
+			// their actual activity a bounded chance to finish, then use their
+			// authenticated stop API. No PID guessing or business replay.
+			deadline := time.Now().Add(UpgradeGrace)
+			graceContext, graceCancel := context.WithDeadline(ctx, deadline)
+			defer graceCancel()
+			for s.Active > 0 || s.UpgradeBlocked {
+				if time.Now().After(deadline) {
+					break
+				}
+				select {
+				case <-ctx.Done():
+					return Status{}, ctx.Err()
+				case <-time.After(100 * time.Millisecond):
+				}
+				if graceContext.Err() != nil {
+					break
+				}
+				current, probeErr := Probe(graceContext, data)
+				if probeErr != nil {
+					if graceContext.Err() != nil {
+						break
+					}
+					return Status{}, probeErr
+				}
+				if current.Instance != s.Instance {
+					return Status{}, problem.New("instance_mismatch", "服务实例已变化", "请重新读取服务状态")
+				}
+				s = current
 			}
+			endpoint := "control/stop"
+			if s.UpgradeSupported {
+				endpoint = "control/upgrade"
+			}
+			err = s.Call(ctx, "POST", endpoint, map[string]any{"force": true, "instance": s.Instance}, &handoff)
+			var p *problem.Error
+			if errors.As(err, &p) && (p.Code == "upgrade_busy" || p.Code == "active_collaborations") {
+				err = s.Call(ctx, "POST", "control/stop", map[string]any{"force": true, "instance": s.Instance}, nil)
+			}
+		}
+		if err != nil {
 			return Status{}, err
 		}
 		if err = waitStopped(ctx, data); err != nil {
 			return Status{}, err
 		}
+
 		// Reuse the previous loopback address so an open browser can reconnect.
 		// Preserve the existing instance's overrides instead of the new caller's defaults.
 		u, _ := url.Parse(s.URL)

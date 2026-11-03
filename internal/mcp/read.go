@@ -14,6 +14,8 @@ func readProperties() map[string]any {
 func annotationProperties() map[string]any {
 	return map[string]any{
 		"annotationId": str("已知原批注 ID 时直接读取；省略只列批注摘要，不附带引用全文和全部回复"),
+		"replyId":      str("与 annotationId 一起精确读取该回复、原讨论和直接父项，不展开其他回复"),
+		"sourceOnly":   map[string]any{"type": "boolean", "description": "只读取指定来源；未提供 replyId 时只读根讨论，不展开全部回复"},
 		"includeQuote": map[string]any{"type": "boolean", "description": "按 ID 首次读取默认 true；只核对回复状态或继续回复分页时设 false"},
 		"offset":       map[string]any{"type": "integer", "minimum": 0, "description": "无 ID 时是批注目录位置；有 ID 时是回复位置。按返回的 nextRead/nextOffset 继续。"},
 		"maxBytes":     readProperties()["maxBytes"],
@@ -26,6 +28,7 @@ func contextProperties(id map[string]any) map[string]any {
 		out[k] = v
 	}
 	out["id"], out["kind"] = id, map[string]any{"type": "string", "enum": []string{"history", "changes", "file", "annotations", "events"}}
+	out["executionId"] = str("协作会话 ID；history/changes/file/events 必填，空间公共批注省略")
 	out["cursor"] = str("history 的 nextCursor；从该页定位其他记录时使用 pageCursor + turnId + itemId")
 	out["turnId"], out["itemId"] = str("只读取指定轮次"), str("与 turnId 一起精确展开一条记录")
 	out["startOffset"] = map[string]any{"type": "integer", "minimum": 0, "description": "按条读取的原始 UTF-16 偏移"}
@@ -41,9 +44,10 @@ func compactStatus(raw json.RawMessage) json.RawMessage {
 	if json.Unmarshal(raw, &value) != nil {
 		return raw
 	}
-	project := func(in map[string]any) map[string]any {
+	var project func(map[string]any) map[string]any
+	project = func(in map[string]any) map[string]any {
 		out := map[string]any{}
-		for _, key := range []string{"id", "title", "state", "error", "host", "role", "selfId", "hasExecution", "executionAvailable", "reachable", "provider", "runtimeMode", "runtimeState", "nativeWaiting", "capabilities", "executionCwd", "sessionId", "writer", "busy", "online", "epoch", "sequence", "approvals", "members", "sharing", "releasePending", "inputRequested", "clientState"} {
+		for _, key := range []string{"id", "spaceId", "executionId", "paused", "sessionCount", "title", "state", "error", "host", "role", "selfId", "hasExecution", "executionAvailable", "reachable", "provider", "runtimeMode", "runtimeState", "nativeWaiting", "capabilities", "executionCwd", "sessionId", "writer", "busy", "online", "epoch", "sequence", "approvals", "members", "sharing", "releasePending", "inputRequested", "clientState"} {
 			if v, ok := in[key]; ok {
 				out[key] = v
 			}
@@ -53,6 +57,15 @@ func compactStatus(raw json.RawMessage) json.RawMessage {
 			if rows, ok := in[key].([]any); ok {
 				out[key+"Count"] = len(rows)
 			}
+		}
+		if sessions, ok := in["sessions"].([]any); ok {
+			rows := []any{}
+			for _, value := range sessions {
+				if child, ok := value.(map[string]any); ok {
+					rows = append(rows, project(child))
+				}
+			}
+			out["sessions"] = rows
 		}
 		return out
 	}

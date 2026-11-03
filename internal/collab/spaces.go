@@ -35,6 +35,13 @@ type SpaceInput struct {
 // A space owns publications and discussion. Creating it never inspects a Git
 // directory, starts a provider runtime, or resumes/forks the source session.
 func (a *App) CreateSpace(ctx context.Context, in SpaceInput) (*Session, error) {
+	a.creationMu.Lock()
+	defer a.creationMu.Unlock()
+	return a.createSpace(ctx, in)
+}
+
+// Caller holds creationMu so space and execution identities cannot race.
+func (a *App) createSpace(ctx context.Context, in SpaceInput) (*Session, error) {
 	if _, err := uuid.Parse(in.RequestID); err != nil {
 		return nil, fmt.Errorf("空间创建需要唯一 requestId")
 	}
@@ -46,9 +53,13 @@ func (a *App) CreateSpace(ctx context.Context, in SpaceInput) (*Session, error) 
 	defer a.spaceCreateMu.Unlock()
 	a.mu.Lock()
 	closed, old := a.closed, a.sessions[in.RequestID]
+	executionExists := a.executions[in.RequestID] != nil
 	a.mu.Unlock()
 	if closed || ctx.Err() != nil {
 		return nil, fmt.Errorf("Core 已退出或请求取消")
+	}
+	if executionExists {
+		return nil, fmt.Errorf("requestId 已用于协作会话，请为新空间选择新的标识")
 	}
 	if old != nil {
 		old.mu.Lock()
@@ -61,7 +72,7 @@ func (a *App) CreateSpace(ctx context.Context, in SpaceInput) (*Session, error) 
 		old.mu.Unlock()
 		return old, err
 	}
-	r := Record{Schema: 3, ID: in.RequestID, Title: in.Title, State: "ready", CreatedAt: time.Now(), UpdatedAt: time.Now(), Annotations: []Annotation{}}
+	r := Record{Schema: 4, ID: in.RequestID, Title: in.Title, State: "ready", CreatedAt: time.Now(), UpdatedAt: time.Now(), Annotations: []Annotation{}}
 	if err := os.MkdirAll(filepath.Join(a.Config.DataDir, "collaborations", r.ID), 0700); err != nil {
 		return nil, err
 	}

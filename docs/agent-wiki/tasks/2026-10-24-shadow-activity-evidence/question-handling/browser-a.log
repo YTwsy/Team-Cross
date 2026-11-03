@@ -1,0 +1,5 @@
+=== RUN   TestMemberActivityBrowserFixture
+    member_activity_browser_test.go:85: activity browser fixture ready /private/tmp/teamcross-handling-browser-20261024-a
+--- PASS: TestMemberActivityBrowserFixture (243.41s)
+PASS
+ok  	teamcross/internal/collab	244.063s

@@ -15,6 +15,9 @@ func agentAnnotations(spaceID string, notes []Annotation, in HistoryRead) (any, 
 		return nil, fmt.Errorf("批注分页参数无效")
 	}
 	out := map[string]any{"spaceId": spaceID, "annotations": []any{}, "total": len(notes)}
+	if (in.ReplyID != "" || in.SourceOnly) && in.AnnotationID == "" {
+		return nil, fmt.Errorf("精确讨论来源需要 annotationId")
+	}
 	if in.AnnotationID == "" {
 		if in.Offset > len(notes) {
 			return nil, fmt.Errorf("批注分页位置无效")
@@ -39,6 +42,48 @@ func agentAnnotations(spaceID string, notes []Annotation, in HistoryRead) (any, 
 		return nil, fmt.Errorf("没有找到当前空间的原批注")
 	}
 	note := notes[0]
+	if in.ReplyID != "" || in.SourceOnly {
+		if in.Offset != 0 {
+			return nil, fmt.Errorf("精确来源读取不能混用回复分页位置")
+		}
+		root := note
+		root.Replies = nil
+		if in.IncludeQuote != nil && !*in.IncludeQuote && root.Target != nil {
+			target := *root.Target
+			target.Quote = ""
+			root.Target = &target
+			out["quoteOmitted"] = true
+		}
+		out["annotations"], out["replyCount"], out["sourceOnly"] = []Annotation{root}, len(note.Replies), true
+		if in.ReplyID != "" {
+			var reply *AnnotationReply
+			for i := range note.Replies {
+				if note.Replies[i].ID == in.ReplyID {
+					reply = &note.Replies[i]
+					break
+				}
+			}
+			if reply == nil {
+				return nil, fmt.Errorf("没有找到当前讨论中的准确回复")
+			}
+			out["reply"] = *reply
+			if reply.ReplyTo != nil && reply.ReplyTo.Kind == "reply" {
+				for _, parent := range note.Replies {
+					if parent.ID == reply.ReplyTo.ID {
+						out["parentReply"] = parent
+						break
+					}
+				}
+				if out["parentReply"] == nil {
+					return nil, fmt.Errorf("回复父项缺失，不能确认讨论上下文")
+				}
+			}
+		}
+		if readview.WireSize(out) > opts.MaxBytes {
+			return nil, fmt.Errorf("精确讨论来源超过 maxBytes；可增加预算或设 includeQuote=false 后按 target 回读")
+		}
+		return out, nil
+	}
 	if in.Offset > len(note.Replies) {
 		return nil, fmt.Errorf("回复分页位置无效")
 	}

@@ -1,3 +1,4 @@
+import { collaborationAddress } from "../execution";
 import { localStorage } from "../storage";
 import { serviceText, t, tr } from "../i18n";
 import { useEffect, useState } from "react";
@@ -59,7 +60,7 @@ export function Clients({
     setPlan(undefined);
     try {
       const result = await api<ClientPlan>(
-        `collaborations/${collaboration.id}/${mode === "direct" ? "open" : "assist"}`,
+        `collaborations/${collaborationAddress(collaboration)}/${mode === "direct" ? "open" : "assist"}`,
         {
           client,
           launch,
@@ -230,7 +231,11 @@ export function Clients({
           <span className="eyebrow">{tr`可以这样告诉自己的 ${name}`}</span>
           <p>{tr`使用 Team Cross 查看「${collaboration.title}」的上下文和当前状态。`}</p>
           <Copy
-            text={tr`使用 Team Cross 工具查看协作 ${collaboration.id}（${collaboration.title}）的上下文和当前状态。`}
+            text={
+              collaboration.executionId
+                ? tr`使用 Team Cross 工具查看空间 id=${collaboration.spaceId} 中 executionId=${collaboration.executionId}（${collaboration.title}）的上下文和状态。`
+                : tr`使用 Team Cross 工具查看协作 ${collaboration.id}（${collaboration.title}）的上下文和当前状态。`
+            }
             label={tr`复制给 ${name}`}
           />
         </div>

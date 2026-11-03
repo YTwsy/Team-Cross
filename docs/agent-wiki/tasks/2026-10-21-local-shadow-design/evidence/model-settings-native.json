@@ -1,0 +1,18 @@
+{
+  "configurationAndMCPInherited": true,
+  "currentSegment": "01a162cf-6639-7a33-b766-624eafe62647",
+  "exactThreadResume": true,
+  "firstSegment": "01a162ce-1fa8-7ff0-b90d-f5b98017bc84",
+  "idleMemoryConsolidation": true,
+  "lateWorkerResult": true,
+  "launchSettingsPinnedAcrossAllThreadsAndRestart": true,
+  "mainResponsiveWhileWorkerRan": true,
+  "memoryCorrectionAndForget": true,
+  "model": "gpt-5.6-luna",
+  "nativeContextSteward": true,
+  "provider": "openai",
+  "reasoningEffort": "low",
+  "segmentHandoff": true,
+  "settingsConfirmations": 6,
+  "workerThread": "01a162ce-d1a5-78f1-a35f-849dd8c5b7f4"
+}

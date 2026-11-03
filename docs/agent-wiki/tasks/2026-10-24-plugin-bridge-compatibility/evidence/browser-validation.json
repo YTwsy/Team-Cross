@@ -1,0 +1,125 @@
+{
+  "date": "2026-10-24",
+  "baseCommit": "c7612dbb46bb0557ab178ca277cfd36e53d9cec1",
+  "implementation": "codex/plugin-bridge-compatibility uncommitted changes",
+  "environment": "macOS 14.8.5 arm64; real old stdio/Core/production UI; simulated host; no model",
+  "legacyVersion": "0.2.6-dev.workspace-plugin.20261023",
+  "legacyCommit": "8bc8397702bdc7ef6911678a2c6b9e726ad173dc",
+  "legacySHA256": "06d64b708ec559a35bf140a88bc756bc8a34d5e98d2b08fd6fc1410ef7e9c5b1",
+  "brokenUIVersion": "0.2.6-dev.member-activity.20261023",
+  "hotUpdateTestBinarySHA256": "2247027a99cce96bd7e7675073c7a87dec06b088a08ba787407107b181423986",
+  "finalColdTestBinarySHA256": "4492fe68688039f137099f7c7ca42f126b49e233c84a5bde10b50d33aea885f2",
+  "residentStages": [
+    {
+      "stage": 1,
+      "residentPid": 88279,
+      "legacyStillRunning": true
+    },
+    {
+      "stage": 2,
+      "residentPid": 88279,
+      "legacyStillRunning": true
+    }
+  ],
+  "oldPid": 88279,
+  "reloadedPid": 93878,
+  "stableSeconds": 134.241,
+  "writes": [
+    {
+      "pid": 88279,
+      "tool": "teamcross_ui_write",
+      "path": "collaborations/b9ae2289-0bb5-4aca-8f30-ce06286e5840/activity/read",
+      "isError": true,
+      "error": null,
+      "code": null
+    },
+    {
+      "pid": 88279,
+      "tool": "teamcross_ui_write",
+      "path": "collaborations/b9ae2289-0bb5-4aca-8f30-ce06286e5840/activity/read",
+      "isError": true,
+      "error": null,
+      "code": null
+    },
+    {
+      "pid": 93878,
+      "tool": "teamcross_ui_write",
+      "path": "collaborations/b9ae2289-0bb5-4aca-8f30-ce06286e5840/activity/read",
+      "isError": false,
+      "error": null,
+      "code": null
+    }
+  ],
+  "bootstrapCalls": [
+    {
+      "pid": 88279,
+      "tool": "teamcross_ui_read",
+      "path": "plugin/bootstrap",
+      "isError": false,
+      "error": null,
+      "code": null
+    },
+    {
+      "pid": 88279,
+      "tool": "teamcross_ui_read",
+      "path": "plugin/bootstrap",
+      "isError": false,
+      "error": null,
+      "code": null
+    },
+    {
+      "pid": 88279,
+      "tool": "teamcross_ui_read",
+      "path": "plugin/bootstrap",
+      "isError": true,
+      "error": null,
+      "code": null
+    },
+    {
+      "pid": 88279,
+      "tool": "teamcross_ui_read",
+      "path": "plugin/bootstrap",
+      "isError": false,
+      "error": null,
+      "code": null
+    },
+    {
+      "pid": 88279,
+      "tool": "teamcross_ui_read",
+      "path": "plugin/bootstrap",
+      "isError": false,
+      "error": null,
+      "code": null
+    },
+    {
+      "pid": 93878,
+      "tool": "teamcross_ui_read",
+      "path": "plugin/bootstrap",
+      "isError": false,
+      "error": null,
+      "code": null
+    }
+  ],
+  "newActivityReadErrors": 0,
+  "coldBootstrapOnly": true,
+  "draftSubmitted": false,
+  "annotations": 25,
+  "forks": 0,
+  "executionEnabled": false,
+  "ownedProcessesExited": [
+    88279,
+    93878,
+    95862,
+    96644,
+    1578,
+    87636
+  ],
+  "screenshots": [
+    "reproduced.png",
+    "preserved-draft.png",
+    "overview-guidance.png",
+    "recovered.png",
+    "cold-zh-360.png",
+    "cold-en-dark-768.png"
+  ]
+}

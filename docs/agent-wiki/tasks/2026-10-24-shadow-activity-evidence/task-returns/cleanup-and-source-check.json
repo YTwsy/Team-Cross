@@ -1,0 +1,26 @@
+{
+  "fixtures": [
+    {
+      "run": "native",
+      "fixture": "/private/tmp/teamcross-native-task-returns-host-20261024-46d26d5e",
+      "lsofExit": 1,
+      "openHandles": [],
+      "lsofError": ""
+    },
+    {
+      "run": "native-sandbox",
+      "fixture": "/private/tmp/teamcross-native-task-returns-20261024-88eebf8c",
+      "lsofExit": 1,
+      "openHandles": [],
+      "lsofError": ""
+    }
+  ],
+  "model": "gpt-5.6-luna",
+  "modelProvider": "openai",
+  "nativeRunSourceMatchesInitialGate": true,
+  "changesAfterInitialGate": [
+    "internal/collab/shadow_return_outbox.go",
+    "internal/collab/shadow_returns_test.go"
+  ],
+  "changesAfterFinalGate": []
+}

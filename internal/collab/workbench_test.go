@@ -56,6 +56,9 @@ func spaceChannel(t *testing.T, a *App, spaceID string) (AgentPairing, agentCall
 
 func wb(t *testing.T, a *App, spaceID, op string, in workbenchInput) any {
 	t.Helper()
+	if op == "brief" && in.RequestID == "" {
+		in.RequestID = uuid.NewString()
+	}
 	out, err := a.workbenchCall(context.Background(), spaceID, op, in)
 	if err != nil {
 		t.Fatalf("%s: %v", op, err)
@@ -79,11 +82,11 @@ func TestSpaceWorkbenchThreeCoresPreserveIdentityScopeAndResults(t *testing.T) {
 	c, fc, _ := fixture(t)
 	stopWorkbenchPump(b)
 	stopWorkbenchPump(c)
-	jb, err := b.Join(ctx, s.share.Token())
+	jb, err := b.Join(ctx, s.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal(err)
 	}
-	jc, err := c.Join(ctx, s.share.Token())
+	jc, err := c.Join(ctx, s.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,13 +175,13 @@ func TestSpaceBriefCASAndAssistantLifecycle(t *testing.T) {
 	ctx := context.Background()
 	a, _, s := spaceFixture(t)
 	_, caller, target := spaceChannel(t, a, s.record.ID)
-	brief := SpaceBrief{Topic: "明确接口改造范围", Decisions: []BriefItem{{Text: "先验证兼容行为", Sources: []LibraryReference{}}}, Questions: []BriefItem{{Text: "还有哪些测试缺口？", Sources: []LibraryReference{}}}}
+	brief := SpaceBrief{Topic: "明确接口改造范围", Decisions: []BriefItem{{Text: "先验证兼容行为", Sources: []SpaceSourceRef{}}}, Questions: []BriefItem{{Text: "还有哪些测试缺口？", Sources: []SpaceSourceRef{}}}}
 	wb(t, a, s.record.ID, "brief", workbenchInput{Brief: brief})
-	if _, err := a.workbenchCall(ctx, s.record.ID, "brief", workbenchInput{Brief: brief}); err == nil {
-		t.Fatal("lost brief update")
+	if out, err := a.workbenchCall(ctx, s.record.ID, "brief", workbenchInput{RequestID: uuid.NewString(), Brief: brief}); err != nil || workbenchDecode[BriefResult](out).State != "conflict" {
+		t.Fatal("stale draft did not return the current brief", out, err)
 	}
-	if _, err := a.workbenchCall(ctx, s.record.ID, "brief", workbenchInput{BaseRevision: 1, Brief: brief, Actor: SpaceActor{Kind: "session"}}); err == nil {
-		t.Fatal("agent confirmed human decisions")
+	if _, err := a.workbenchCall(ctx, s.record.ID, "brief", workbenchInput{RequestID: uuid.NewString(), BaseRevision: 1, Brief: brief, Actor: SpaceActor{Kind: "session"}}); err == nil {
+		t.Fatal("accepted an incomplete runtime identity")
 	}
 	var wg sync.WaitGroup
 	results := make(chan error, 8)
@@ -353,7 +356,7 @@ func TestIndependentReceiverDoesNotEnableExecutionAndScopesNativeTools(t *testin
 	}
 	a.pumpWorkbench(ctx)
 	view := workbenchDecode[WorkbenchView](wb(t, a, s.record.ID, "view", workbenchInput{}))
-	if len(view.Targets) != 1 || !view.Targets[0].Available || view.Targets[0].Execution {
+	if len(view.Targets) != 1 || !view.Targets[0].Available || view.Targets[0].ExecutionID != "" {
 		t.Fatal(view)
 	}
 	caller := mcp.CallerSource{Provider: "codex", SourceID: receiver.record.SessionID, TurnID: "turn-fixture"}
@@ -370,6 +373,14 @@ func TestIndependentReceiverDoesNotEnableExecutionAndScopesNativeTools(t *testin
 	}
 	if res := invoke("read_space_brief", map[string]any{"spaceId": uuid.NewString()}, caller); res.Code == 200 {
 		t.Fatal("receiver selected another space")
+	}
+	if res := invoke("update_space_brief", map[string]any{"requestId": uuid.NewString(), "baseRevision": 0, "changes": []BriefChange{briefPut("progress", "receiver-progress", "Reviewed the public brief", "in_progress")}}, caller); res.Code != 200 {
+		t.Fatal("bound runtime could not maintain the brief", res.Code, res.Body.String())
+	} else {
+		var result BriefResult
+		if err := json.Unmarshal(res.Body.Bytes(), &result); err != nil || result.State != "saved" || result.Brief.UpdatedBy.Kind != "session" || result.Brief.UpdatedBy.Provider != "codex" {
+			t.Fatal("runtime attribution missing", res.Body.String(), err)
+		}
 	}
 	wrong := caller
 	wrong.SourceID = uuid.NewString()

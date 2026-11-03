@@ -1,0 +1,32 @@
+=== RUN   TestTaskUnderstandingRoutedAnswerUpdatesFactsAndLinkedWork
+--- PASS: TestTaskUnderstandingRoutedAnswerUpdatesFactsAndLinkedWork (0.11s)
+=== RUN   TestTaskUnderstandingPollingBeforeActivityAndRestartDoesNotReplay
+--- PASS: TestTaskUnderstandingPollingBeforeActivityAndRestartDoesNotReplay (0.07s)
+=== RUN   TestTaskUnderstandingRejectsStaleAndFabricatedUpdatesAtomically
+=== RUN   TestTaskUnderstandingRejectsStaleAndFabricatedUpdatesAtomically/stale
+=== RUN   TestTaskUnderstandingRejectsStaleAndFabricatedUpdatesAtomically/foreign_focus
+=== RUN   TestTaskUnderstandingRejectsStaleAndFabricatedUpdatesAtomically/fabricated_source
+=== RUN   TestTaskUnderstandingRejectsStaleAndFabricatedUpdatesAtomically/fabricated_signal
+=== RUN   TestTaskUnderstandingRejectsStaleAndFabricatedUpdatesAtomically/no_answer_evidence
+--- PASS: TestTaskUnderstandingRejectsStaleAndFabricatedUpdatesAtomically (0.04s)
+    --- PASS: TestTaskUnderstandingRejectsStaleAndFabricatedUpdatesAtomically/stale (0.00s)
+    --- PASS: TestTaskUnderstandingRejectsStaleAndFabricatedUpdatesAtomically/foreign_focus (0.00s)
+    --- PASS: TestTaskUnderstandingRejectsStaleAndFabricatedUpdatesAtomically/fabricated_source (0.00s)
+    --- PASS: TestTaskUnderstandingRejectsStaleAndFabricatedUpdatesAtomically/fabricated_signal (0.00s)
+    --- PASS: TestTaskUnderstandingRejectsStaleAndFabricatedUpdatesAtomically/no_answer_evidence (0.00s)
+=== RUN   TestTaskUnderstandingDiskFailureDoesNotConsumeAnswers
+--- PASS: TestTaskUnderstandingDiskFailureDoesNotConsumeAnswers (0.04s)
+=== RUN   TestTaskUnderstandingLateObservationPreservesNewFactsAndActions
+=== RUN   TestTaskUnderstandingLateObservationPreservesNewFactsAndActions/observer
+=== RUN   TestTaskUnderstandingLateObservationPreservesNewFactsAndActions/direct_already_acted
+--- PASS: TestTaskUnderstandingLateObservationPreservesNewFactsAndActions (0.19s)
+    --- PASS: TestTaskUnderstandingLateObservationPreservesNewFactsAndActions/observer (0.09s)
+    --- PASS: TestTaskUnderstandingLateObservationPreservesNewFactsAndActions/direct_already_acted (0.09s)
+=== RUN   TestTaskUnderstandingProjectionIsBoundedAndPrivate
+--- PASS: TestTaskUnderstandingProjectionIsBoundedAndPrivate (0.03s)
+=== RUN   TestTaskUnderstandingQuestionRelationsCommitTogether
+--- PASS: TestTaskUnderstandingQuestionRelationsCommitTogether (0.05s)
+=== RUN   TestTaskUnderstandingOnlyConsumesExplicitAnswerPage
+--- PASS: TestTaskUnderstandingOnlyConsumesExplicitAnswerPage (0.04s)
+PASS
+ok  	teamcross/internal/shadow	0.890s

@@ -1,0 +1,8 @@
+{
+  "fixture": "/private/tmp/teamcross-native-task-sources-20261024-7c00d6be",
+  "nativeExitCode": 0,
+  "lsofExitCode": 1,
+  "openHandles": [],
+  "diagnostics": [],
+  "scope": "Dedicated test waited for result delivery and settled turns, exited, and Engine.Close ran; no global process termination."
+}

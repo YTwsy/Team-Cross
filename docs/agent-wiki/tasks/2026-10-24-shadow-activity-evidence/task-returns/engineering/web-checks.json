@@ -1,0 +1,17 @@
+[
+  {
+    "command": "pnpm check",
+    "exit": 0,
+    "wallSeconds": 5.581
+  },
+  {
+    "command": "pnpm test",
+    "exit": 0,
+    "wallSeconds": 11.475
+  },
+  {
+    "command": "pnpm build",
+    "exit": 0,
+    "wallSeconds": 9.861
+  }
+]

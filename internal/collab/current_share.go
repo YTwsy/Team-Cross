@@ -28,14 +28,15 @@ type currentShareInput struct {
 }
 
 type shareRequestRecord struct {
-	ID              string            `json:"id"`
-	State           string            `json:"state"`
-	Input           currentShareInput `json:"input"`
-	SourceTurnID    string            `json:"sourceTurnId"`
-	CollaborationID string            `json:"collaborationId,omitempty"`
-	CreatedAt       time.Time         `json:"createdAt"`
-	UpdatedAt       time.Time         `json:"updatedAt"`
-	Error           *problem.Error    `json:"error,omitempty"`
+	ID           string            `json:"id"`
+	State        string            `json:"state"`
+	Input        currentShareInput `json:"input"`
+	SourceTurnID string            `json:"sourceTurnId"`
+	SpaceID      string            `json:"spaceId,omitempty"`
+	ExecutionID  string            `json:"executionId,omitempty"`
+	CreatedAt    time.Time         `json:"createdAt"`
+	UpdatedAt    time.Time         `json:"updatedAt"`
+	Error        *problem.Error    `json:"error,omitempty"`
 }
 
 type shareRequest struct {
@@ -56,7 +57,7 @@ func (j *shareRequest) snapshot() shareRequestRecord {
 func (j *shareRequest) saveLocked() error {
 	return writeJSONFile(filepath.Join(j.app.Config.DataDir, "share-requests", j.record.ID+".json"), j.record)
 }
-func (j *shareRequest) transition(state, collaborationID string, err error) error {
+func (j *shareRequest) transition(state, executionID string, err error) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	// A successful cancellation of waiting wins over a late reader response.
@@ -64,8 +65,9 @@ func (j *shareRequest) transition(state, collaborationID string, err error) erro
 		return context.Canceled
 	}
 	j.record.State, j.record.UpdatedAt = state, time.Now()
-	if collaborationID != "" {
-		j.record.CollaborationID = collaborationID
+	if executionID != "" {
+		j.record.SpaceID = creationSpaceID(j.record.Input.CreateInput)
+		j.record.ExecutionID = executionID
 	}
 	if err != nil {
 		j.record.Error = problem.Describe(err)
@@ -198,7 +200,7 @@ func (a *App) currentClaudeSource(ctx context.Context, c mcp.CallerSource) (map[
 // fingerprint: the tool's own results necessarily append to that transcript.
 // Once the turn completes, ordinary Preview/Create revalidate the full snapshot.
 func currentShareHash(p Preview, in currentShareInput) string {
-	b, _ := json.Marshal([]any{"after-current-v1", in.Provider, p.RuntimeMode, in.SourceID, p.SourceTurnID, p.Workspace.Mode, p.Workspace.Repo, p.Workspace.SourceCwd, p.Workspace.Head, p.Workspace.Branch, in.Transport})
+	b, _ := json.Marshal([]any{"after-current-v2", creationSpaceID(in.CreateInput), in.RequestID, in.Provider, p.RuntimeMode, in.SourceID, p.SourceTurnID, p.Workspace.Mode, p.Workspace.Repo, p.Workspace.SourceCwd, p.Workspace.Head, p.Workspace.Branch, in.Transport})
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
 }
@@ -370,7 +372,7 @@ func (j *shareRequest) run(ctx context.Context) {
 			return
 		}
 		if err := s.Share(ctx, r.Input.Transport); err != nil {
-			fail(problem.New("invitation_failed", err.Error(), "协作已创建；使用 collaborationId 单独重试邀请，不重新创建"))
+			fail(problem.New("invitation_failed", err.Error(), "协作会话已创建；使用 spaceId 单独重试邀请，以 spaceId 和 executionId 查询会话，不重新创建"))
 			return
 		}
 		if err := j.transition("ready", s.record.ID, nil); err != nil {

@@ -35,7 +35,7 @@ func TestLiveTailcatMembership(t *testing.T) {
 	}
 	t.Cleanup(runtime.Close)
 
-	if runtime.Transport() != TransportTailcat || !strings.HasPrefix(runtime.Token(), "tcx3.") || runtime.Invitation.Tailcat == nil || len(runtime.Invitation.Endpoints) != 0 {
+	if runtime.Transport() != TransportTailcat || !strings.HasPrefix(runtime.Token(), "tcx4.") || runtime.Invitation.Tailcat == nil || len(runtime.Invitation.Endpoints) != 0 {
 		t.Fatalf("unexpected Tailcat invitation: %#v", runtime.Invitation)
 	}
 

@@ -1,0 +1,8 @@
+=== RUN   TestNativeShadowTaskReturns
+    shadow_returns_native_test.go:87: native shadow registered online
+    shadow_returns_native_test.go:98: real worker finished checked business result
+    shadow_returns_native_test.go:107: host saved result and reply exports
+--- PASS: TestNativeShadowTaskReturns (64.43s)
+PASS
+ok  	teamcross/internal/collab	64.897s
+Native acceptance report: /private/tmp/teamcross-native-task-returns-host-20261024-46d26d5e/report.json

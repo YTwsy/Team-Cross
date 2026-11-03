@@ -84,7 +84,7 @@ func TestCurrentShareWaitsForExactRoundAndCreatesOnce(t *testing.T) {
 	}
 	setSourceTurn(f, "current-turn", "completed")
 	r := waitShare(t, j, "ready")
-	if r.CollaborationID != in.RequestID {
+	if r.ExecutionID != in.RequestID {
 		t.Fatal(r)
 	}
 	if a.Active() != 1 {
@@ -95,11 +95,11 @@ func TestCurrentShareWaitsForExactRoundAndCreatesOnce(t *testing.T) {
 	if status["state"] != "ready" || status["invitation"] != nil {
 		t.Fatal(status)
 	}
-	c := invokeObject(t, b, "get_collaboration", map[string]any{"id": r.CollaborationID})
+	c := invokeObject(t, b, "get_collaboration", map[string]any{"id": r.SpaceID, "executionId": r.ExecutionID})
 	if c["sessionId"] == in.SourceID {
 		t.Fatal("shared original source")
 	}
-	inv := invokeObject(t, b, "create_invitation", map[string]any{"id": r.CollaborationID, "transport": "lan"})
+	inv := invokeObject(t, b, "create_invitation", map[string]any{"id": r.SpaceID, "transport": "lan"})
 	if inv["invitation"] == nil {
 		t.Fatal("no completed invitation")
 	}
@@ -174,16 +174,16 @@ func TestCurrentShareRetainsPartialCreationForRecovery(t *testing.T) {
 	}
 	setSourceTurn(f, "current-turn", "completed")
 	r := waitShare(t, j, "failed")
-	if r.CollaborationID != in.RequestID {
+	if r.ExecutionID != in.RequestID {
 		t.Fatal("lost partial collaboration identity", r)
 	}
 	a.mu.Lock()
-	s := a.sessions[r.CollaborationID]
+	s := a.executions[r.ExecutionID]
 	a.mu.Unlock()
 	if s == nil || s.view()["state"] != "error" {
 		t.Fatal("lost partial creation")
 	}
-	if _, err := os.Stat(filepath.Join(a.Config.DataDir, "collaborations", r.CollaborationID, "worktree", "file.txt")); err != nil {
+	if _, err := os.Stat(filepath.Join(s.runtimeDirectory(), "worktree", "file.txt")); err != nil {
 		t.Fatal("removed partial worktree", err)
 	}
 	if again, err := a.submitCurrentShare(context.Background(), in); err != nil || again != j {

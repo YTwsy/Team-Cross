@@ -1,0 +1,72 @@
+
+> @teamcross/web@0.1.4 test
+> vitest run
+
+
+ RUN  v3.2.4 /Users/wsy/CascadeProjects/Team Cross/packages/web
+
+ ✓ src/test/multiple-executions.test.tsx (5 tests) 3075ms
+   ✓ keeps each session's comment and file draft while the URL selects an exact session  1271ms
+   ✓ a late save stays bound to its original session and leaving clears cached content  415ms
+   ✓ opens the right-hand comments on wide screens and keeps manual choices across sessions and sizes  1269ms
+ ✓ src/test/context-refresh.test.tsx (10 tests) 3897ms
+   ✓ 协作上下文刷新 > owner 的对话在状态刷新期间保留容器和阅读位置，并显示更新结果  833ms
+   ✓ 协作上下文刷新 > remote 的对话在状态刷新期间保留容器和阅读位置，并显示更新结果  320ms
+   ✓ 协作上下文刷新 > 长工具输出可按 pageCursor 和 item 坐标继续读取  894ms
+   ✓ 协作对话目录导航 > 读取未加载的轮次后定位，已加载轮次直接跳转，继续分页和返回最近对话清除定位参数  576ms
+   ✓ 协作对话目录导航 > 定位尚未完成时切换标签，不让迟到响应滚动页面或覆盖当前内容  331ms
+ ✓ src/test/space-workbench.test.tsx (13 tests) 4214ms
+   ✓ drains a paused receiver before exposing Desktop continuation and same-session resume  910ms
+   ✓ shows a paused assistant as unavailable in the participating conversations  405ms
+   ✓ keeps the reader mounted while tabs and keyboard navigation expose shared work  569ms
+   ✓ preserves brief sources and submits the revision the member reviewed  399ms
+   ✓ keeps source progress nearby and proposes results without saving a decision automatically  390ms
+ ✓ src/test/publication.test.tsx (11 tests) 4635ms
+   ✓ keeps scope, the active reader tools, export notices and a single next action in the shared controls  1117ms
+   ✓ reads compact private drafts, navigates independently of scope, and renders Markdown without annotation actions  320ms
+   ✓ requires a refreshed confirmation after editing the title and keeps request identity after a lost publish response  1505ms
+   ✓ reads tool pages separately and preserves their expansion across range changes and confirmation  431ms
+   ✓ collapses completed intent choices and restores them when choosing another source  313ms
+ ✓ src/test/annotations.test.tsx (10 tests) 5428ms
+   ✓ 原处批注 > 参与者、共享状态与技术信息各自归位，长讨论不改变信息结构  1114ms
+   ✓ 原处批注 > 选中重复片段时保留准确消息与 UTF-16 范围，保存不发送模型输入  424ms
+   ✓ 原处批注 > 连续文件行自动引用，返回旧批注时不高亮已变化的同号行  1587ms
+   ✓ 原处批注 > 保存失败保留正文和引用，切换整体意见后可继续原草稿  632ms
+   ✓ 原处批注 > 直接写整体意见无需按钮或弹窗，回复保持原批注数量和位置  536ms
+   ✓ 原处批注 > 回复失败或收起保留草稿，重试沿用 requestId  809ms
+   ✓ 原处批注 > 历史批注离开最近八轮后按游标查找并高亮原片段  323ms
+ ✓ src/test/space-lifecycle.test.tsx (5 tests) 1516ms
+   ✓ closes an empty read-only space, including sharing=false, and can reopen it  621ms
+   ✓ closes an empty read-only space, including sharing=true, and can reopen it  395ms
+ ✓ src/test/flows.test.tsx (41 tests) 6318ms
+   ✓ 邀请者在个人 Codex 中打开协作 > 同事正在操作时不自动跳转，点击才打开已有 fork  743ms
+   ✓ 个人 Claude Code 辅助模式 > Codex 工具调用不会把 Claude 误报为已接入，安装明确选择个人客户端  893ms
+   ✓ 产品路径 > 会话释放后读取上下文不恢复运行时，明确操作才恢复  334ms
+   ✓ 多人成员与邀请 > 发起者明确交给 C，成员列表保留 B，已有人加入仍可继续邀请  350ms
+ ✓ src/test/reading.test.tsx (16 tests) 1057ms
+ ✓ src/test/materials.test.tsx (6 tests) 724ms
+   ✓ opens only the selected material by default, with navigation on the left and comments folded  317ms
+ ✓ src/test/space-reading.test.tsx (5 tests) 1383ms
+   ✓ discloses secondary comment actions and keeps the reply draft when dismissing them  369ms
+   ✓ retains each material's fixed version and cached reading when navigating and filtering  386ms
+ ✓ src/test/reading-scroll.test.tsx (8 tests) 646ms
+ ✓ src/test/native-client-settings.test.tsx (7 tests) 773ms
+ ✓ src/test/plugin-connection.test.tsx (4 tests) 283ms
+ ✓ src/test/library.test.tsx (21 tests) 7767ms
+   ✓ 个人资源库 > keeps rows and groups in place after visits, selection, favorites and background refreshes  1182ms
+   ✓ 个人资源库 > offers one material selection action and selects the version currently being read  1455ms
+   ✓ 个人资源库 > can publish from the overview with retained library selections and a reading entry (execution: false)  844ms
+   ✓ 个人资源库 > can publish from the overview with retained library selections and a reading entry (execution: true)  555ms
+   ✓ 个人资源库 > switches between material and session from the sidebar while retaining each reader  669ms
+   ✓ 个人资源库 > opens the matching reading tab when locating a material or live context annotation  654ms
+   ✓ 个人资源库 > separates reading from selection and preserves mixed selections through filters  365ms
+   ✓ 个人资源库 > removes cached previews on access loss but allows removing unavailable selections  386ms
+ ✓ src/test/space-events.test.tsx (1 test) 186ms
+ ✓ src/test/plugin.test.tsx (10 tests) 370ms
+ ✓ src/test/i18n.test.tsx (1 test) 193ms
+ ✓ src/test/agent-pairings.test.tsx (4 tests) 354ms
+
+ Test Files  18 passed (18)
+      Tests  178 passed (178)
+   Start at  12:50:16
+   Duration  10.41s (transform 1.27s, setup 4.08s, collect 7.19s, tests 42.82s, environment 11.92s, prepare 1.73s)

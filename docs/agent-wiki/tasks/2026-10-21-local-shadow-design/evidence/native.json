@@ -1,0 +1,22 @@
+{
+  "configurationAndMCPInherited": true,
+  "currentSegment": "01a15f11-12e0-7732-bf35-9aca2dd56bc6",
+  "exactThreadResume": true,
+  "firstSegment": "01a15f0f-99f7-7913-a2c7-25f0257c2d26",
+  "idleMemoryConsolidation": true,
+  "lateWorkerResult": true,
+  "mainResponsiveWhileWorkerRan": true,
+  "memoryCorrectionAndForget": true,
+  "model": "gpt-5.6-luna",
+  "nativeContextSteward": true,
+  "provider": "openai",
+  "reasoningEffort": "low",
+  "segmentHandoff": true,
+  "workerThread": "01a15f10-62fd-7c90-8fab-b81548cf86d0",
+  "cliVersion": "0.163.0-alpha.11",
+  "sourceBase": "4d33a78",
+  "sourceScope": "base plus local-shadow task implementation",
+  "date": "2026-10-21",
+  "scope": "one Mac, isolated home and repository, dedicated new native threads",
+  "elapsedSeconds": 164.65
+}

@@ -39,6 +39,9 @@ func versionInfo(v MaterialVersion) map[string]any {
 }
 
 func (s *Session) materialDirectoryLocked() []map[string]any {
+	if s.space != nil {
+		return s.space.materialDirectoryLocked()
+	}
 	out := []map[string]any{}
 	for _, material := range s.record.Materials {
 		versions := make([]map[string]any, 0, len(material.Versions))
@@ -84,10 +87,13 @@ func publicationRequestHash(manifestHash string, in publicationUpload) string {
 func requireUploadedBlobs(bundle materialstore.Bundle) error {
 	for _, turn := range bundle.Manifest.Turns {
 		for _, item := range turn.Items {
-			if item.Body.Kind == materialstore.BodyBlob {
-				if _, ok := bundle.Blobs[item.Body.Hash]; !ok {
-					return fmt.Errorf("发布请求必须携带每个 blob；省略上传只能通过已授权协商")
+			for _, body := range item.Bodies() {
+				if body.Kind == materialstore.BodyBlob {
+					if _, ok := bundle.Blobs[body.Hash]; !ok {
+						return fmt.Errorf("发布请求必须携带每个 blob；省略上传只能通过已授权协商")
+					}
 				}
+
 			}
 		}
 	}
@@ -150,9 +156,12 @@ func (s *Session) activeBlobBytesLocked(add materialstore.Manifest) (int64, erro
 	count := func(manifest materialstore.Manifest) {
 		for _, turn := range manifest.Turns {
 			for _, item := range turn.Items {
-				if item.Body.Kind == materialstore.BodyBlob && !seen[item.Body.Hash] {
-					seen[item.Body.Hash] = true
-					total += int64(item.Body.ByteLength)
+				for _, body := range item.Bodies() {
+					if body.Kind == materialstore.BodyBlob && !seen[body.Hash] {
+						seen[body.Hash] = true
+						total += int64(body.ByteLength)
+					}
+
 				}
 			}
 		}
@@ -307,6 +316,9 @@ func (s *Session) withdrawMaterial(ctx context.Context, id string) (any, error) 
 }
 
 func (s *Session) materialVersionLocked(ref MaterialReference) (MaterialVersion, error) {
+	if s.space != nil {
+		return s.space.materialVersionLocked(ref)
+	}
 	for _, material := range s.record.Materials {
 		if material.ID != ref.MaterialID {
 			continue
@@ -364,20 +376,21 @@ type materialCursor struct {
 }
 
 type materialSegment struct {
-	Phase         string `json:"phase,omitempty"`
-	TurnID        string `json:"turnId"`
-	Status        string `json:"status"`
-	ItemID        string `json:"itemId"`
-	Type          string `json:"type"`
-	Text          string `json:"text"`
-	StartOffset   int    `json:"startOffset"`
-	EndOffset     int    `json:"endOffset"`
-	Length        int    `json:"length"`
-	SourceLength  int    `json:"sourceLength,omitempty"`
-	OmittedLength int    `json:"omittedLength,omitempty"`
-	Notice        string `json:"notice,omitempty"`
-	Collapsed     bool   `json:"collapsed,omitempty"`
-	ReadHint      string `json:"readHint,omitempty"`
+	Attachments   []readerImage `json:"attachments,omitempty"`
+	Phase         string        `json:"phase,omitempty"`
+	TurnID        string        `json:"turnId"`
+	Status        string        `json:"status"`
+	ItemID        string        `json:"itemId"`
+	Type          string        `json:"type"`
+	Text          string        `json:"text"`
+	StartOffset   int           `json:"startOffset"`
+	EndOffset     int           `json:"endOffset"`
+	Length        int           `json:"length"`
+	SourceLength  int           `json:"sourceLength,omitempty"`
+	OmittedLength int           `json:"omittedLength,omitempty"`
+	Notice        string        `json:"notice,omitempty"`
+	Collapsed     bool          `json:"collapsed,omitempty"`
+	ReadHint      string        `json:"readHint,omitempty"`
 }
 
 type materialOutline struct {
@@ -390,16 +403,18 @@ type materialOutline struct {
 }
 
 type materialReadResponse struct {
-	View                   string            `json:"view,omitempty"`
-	Items                  []agentItemIndex  `json:"items,omitempty"`
-	MaterialID             string            `json:"materialId"`
-	Version                map[string]any    `json:"version"`
-	NextCursor             string            `json:"nextCursor"`
-	Scope                  string            `json:"scope"`
-	ItemComplete           bool              `json:"itemComplete,omitempty"`
-	PageEndsAtTurnBoundary bool              `json:"pageEndsAtTurnBoundary"`
-	Turns                  []materialOutline `json:"turns,omitempty"`
-	Segments               []materialSegment `json:"segments"`
+	Attachment             *readerImageChunk     `json:"attachment,omitempty"`
+	Search                 *readerSearchResponse `json:"search,omitempty"`
+	View                   string                `json:"view,omitempty"`
+	Items                  []agentItemIndex      `json:"items,omitempty"`
+	MaterialID             string                `json:"materialId"`
+	Version                map[string]any        `json:"version"`
+	NextCursor             string                `json:"nextCursor"`
+	Scope                  string                `json:"scope"`
+	ItemComplete           bool                  `json:"itemComplete,omitempty"`
+	PageEndsAtTurnBoundary bool                  `json:"pageEndsAtTurnBoundary"`
+	Turns                  []materialOutline     `json:"turns,omitempty"`
+	Segments               []materialSegment     `json:"segments"`
 }
 
 func encodeMaterialCursor(cursor materialCursor) string {
@@ -496,7 +511,8 @@ func segmentNotice(item materialstore.Item, collapsed bool) string {
 
 func newMaterialSegment(turn materialstore.Turn, loaded loadedMaterialItem, text string, start, end int, collapsed bool) materialSegment {
 	segment := materialSegment{
-		TurnID: turn.ID, Status: turn.Status, ItemID: loaded.item.ID, Type: loaded.item.Type, Phase: loaded.item.Phase,
+		Attachments: imageMetadata(loaded.item, loaded.text, start, end),
+		TurnID:      turn.ID, Status: turn.Status, ItemID: loaded.item.ID, Type: loaded.item.Type, Phase: loaded.item.Phase,
 		Text: text, StartOffset: start, EndOffset: end, Length: loaded.length,
 		SourceLength: loaded.item.SourceUTF16Length, OmittedLength: loaded.item.OmittedUTF16Length,
 		Notice: segmentNotice(loaded.item, collapsed), Collapsed: collapsed,
@@ -659,6 +675,9 @@ func (s *Session) readMaterialStream(version MaterialVersion, manifest materials
 }
 
 func (s *Session) readMaterial(ctx context.Context, in MaterialRead) (any, error) {
+	if s.space != nil {
+		return s.space.readMaterial(ctx, in)
+	}
 	s.mu.Lock()
 	if s.closed || !s.callerValidLocked(ctx) {
 		s.mu.Unlock()
@@ -672,6 +691,14 @@ func (s *Session) readMaterial(ctx context.Context, in MaterialRead) (any, error
 	manifest, err := s.materialStore.LoadManifest(version.Hash)
 	if err != nil {
 		return nil, err
+	}
+	if in.AttachmentID != "" {
+		image, err := readImage(s.materialStore.ReadBody, manifest, in.TurnID, in.ItemID, in.ReaderRequest)
+		return materialReadResponse{Attachment: image}, err
+	}
+	if in.Search != nil {
+		result, err := searchMaterial(ctx, s.materialStore.ReadBody, manifest, version.Hash, in.MaterialID, *in.Search)
+		return materialReadResponse{Search: result}, err
 	}
 	cursor := materialCursor{Scope: "stream", MaterialID: in.MaterialID, Version: in.Version, Hash: version.Hash}
 	if in.Cursor != "" {

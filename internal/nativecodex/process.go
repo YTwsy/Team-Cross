@@ -296,6 +296,19 @@ func (p *Process) read() {
 	}
 }
 
+// RPCError is an explicit server rejection, distinct from a lost transport
+// receipt. Callers must not retry an input on the strength of a timeout.
+type RPCError struct {
+	Method  string
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data,omitempty"`
+}
+
+func (e *RPCError) Error() string {
+	return fmt.Sprintf("%s: %s (code %d)", e.Method, e.Message, e.Code)
+}
+
 func (p *Process) Call(ctx context.Context, method string, params, out any) error {
 	if !p.Alive() {
 		return errors.New("Codex 运行时未连接")
@@ -324,6 +337,11 @@ func (p *Process) Call(ctx context.Context, method string, params, out any) erro
 			return errors.New("Codex 控制连接已断开")
 		}
 		if len(m.Error) > 0 {
+			var rejected RPCError
+			if json.Unmarshal(m.Error, &rejected) == nil && rejected.Message != "" {
+				rejected.Method = method
+				return &rejected
+			}
 			return fmt.Errorf("%s: %s", method, m.Error)
 		}
 		if out != nil {

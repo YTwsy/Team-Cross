@@ -16,8 +16,12 @@ import (
 // cursor used inside that page. A pageCursor returned to clients identifies
 // the exact eight-turn source page needed for later item reads.
 type HistoryRead struct {
+	ReaderRequest
+
 	readview.Options
 	AnnotationID string
+	ReplyID      string
+	SourceOnly   bool
 	Compact      bool
 	Offset       int
 	IncludeQuote *bool
@@ -28,18 +32,20 @@ type HistoryRead struct {
 }
 
 type historyReadResponse struct {
-	View                   string            `json:"view,omitempty"`
-	Items                  []agentItemIndex  `json:"items,omitempty"`
-	Thread                 map[string]any    `json:"thread"`
-	ContentHash            string            `json:"contentHash"`
-	PageCursor             string            `json:"pageCursor"`
-	NextCursor             string            `json:"nextCursor"`
-	Scope                  string            `json:"scope"`
-	ItemComplete           bool              `json:"itemComplete,omitempty"`
-	SourcePageComplete     bool              `json:"sourcePageComplete,omitempty"`
-	PageEndsAtTurnBoundary bool              `json:"pageEndsAtTurnBoundary"`
-	Turns                  []materialOutline `json:"turns,omitempty"`
-	Segments               []materialSegment `json:"segments"`
+	Attachment             *readerImageChunk     `json:"attachment,omitempty"`
+	Search                 *readerSearchResponse `json:"search,omitempty"`
+	View                   string                `json:"view,omitempty"`
+	Items                  []agentItemIndex      `json:"items,omitempty"`
+	Thread                 map[string]any        `json:"thread"`
+	ContentHash            string                `json:"contentHash"`
+	PageCursor             string                `json:"pageCursor"`
+	NextCursor             string                `json:"nextCursor"`
+	Scope                  string                `json:"scope"`
+	ItemComplete           bool                  `json:"itemComplete,omitempty"`
+	SourcePageComplete     bool                  `json:"sourcePageComplete,omitempty"`
+	PageEndsAtTurnBoundary bool                  `json:"pageEndsAtTurnBoundary"`
+	Turns                  []materialOutline     `json:"turns,omitempty"`
+	Segments               []materialSegment     `json:"segments"`
 }
 
 func historyThreadMetadata(thread map[string]any) map[string]any {
@@ -52,10 +58,14 @@ func historyThreadMetadata(thread map[string]any) map[string]any {
 	return out
 }
 
-func exportedHistoryTurns(raw []json.RawMessage) ([]MaterialTurn, error) {
+func exportedHistoryTurns(raw []json.RawMessage, cwd ...string) ([]MaterialTurn, error) {
+	directory := ""
+	if len(cwd) > 0 {
+		directory = cwd[0]
+	}
 	turns := make([]MaterialTurn, 0, len(raw))
 	for _, encoded := range raw {
-		turn, err := exportTurn(encoded)
+		turn, err := exportTurnWithImages(encoded, directory)
 		if err != nil {
 			return nil, err
 		}
@@ -89,7 +99,7 @@ func (s *Session) loadHistoryPage(ctx context.Context, record Record, process Ru
 			"cwd": history.Cwd, "updatedAt": history.UpdatedAt, "model": history.Model,
 			"reasoningEffort": history.ReasoningEffort,
 		}
-		turns, err := exportedHistoryTurns(raw)
+		turns, err := exportedHistoryTurns(raw, record.ExecutionCwd)
 		return historyThreadMetadata(metadata), turns, next, err
 	}
 
@@ -115,7 +125,7 @@ func (s *Session) loadHistoryPage(ctx context.Context, record Record, process Ru
 		return nil, nil, "", err
 	}
 	slices.Reverse(page.Data)
-	turns, err := exportedHistoryTurns(page.Data)
+	turns, err := exportedHistoryTurns(page.Data, record.ExecutionCwd)
 	next := ""
 	if page.NextCursor != nil {
 		next = *page.NextCursor
@@ -132,9 +142,19 @@ func transientHistoryManifest(turns []MaterialTurn) materialstore.Manifest {
 			notice := sourceItem.Notice
 			if omitted > 0 {
 				notice = appendMaterialNotice(notice, fmt.Sprintf("原始内容过长，读取时省略 %d 个 UTF-16 字符；保留头尾", omitted))
+				if len(sourceItem.Attachments) > 0 {
+					sourceItem.Attachments = nil
+					notice = appendMaterialNotice(notice, "图片未包含：消息正文已截断")
+				}
+			}
+			attachments := []materialstore.Attachment{}
+			for _, a := range sourceItem.Attachments {
+				body := materialstore.InlineBody(a.Data)
+				body.Hash = materialstore.HashBlob(a.Data)
+				attachments = append(attachments, materialstore.Attachment{StartOffset: a.StartOffset, EndOffset: a.EndOffset, ID: a.ID, Name: a.Name, MIME: a.MIME, Body: body})
 			}
 			turn.Items = append(turn.Items, materialstore.Item{
-				ID: sourceItem.ID, Type: sourceItem.Type, Phase: sourceItem.Phase, Label: sourceItem.Label, Notice: notice,
+				Attachments: attachments, ID: sourceItem.ID, Type: sourceItem.Type, Phase: sourceItem.Phase, Label: sourceItem.Label, Notice: notice,
 				Body: materialstore.InlineBody(text), SourceUTF16Length: sourceLength, OmittedUTF16Length: omitted,
 			})
 		}
@@ -153,6 +173,10 @@ func historyPageHash(sessionID, sourceCursor string, turns []MaterialTurn) strin
 }
 
 func (s *Session) readHistory(ctx context.Context, record Record, process Runtime, in HistoryRead) (historyReadResponse, error) {
+	if in.Search != nil {
+		result, err := s.searchHistory(ctx, record, process, *in.Search)
+		return historyReadResponse{Search: result}, err
+	}
 	cursor := materialCursor{Scope: "stream", MaterialID: record.SessionID}
 	if in.Cursor != "" {
 		decoded, err := decodeMaterialCursor(in.Cursor)
@@ -171,6 +195,10 @@ func (s *Session) readHistory(ctx context.Context, record Record, process Runtim
 	}
 	cursor.Hash = pageHash
 	manifest := transientHistoryManifest(turns)
+	if in.AttachmentID != "" {
+		image, err := readImage(func(item materialstore.Item) (string, error) { return item.Body.Text, nil }, manifest, in.TurnID, in.ItemID, in.ReaderRequest)
+		return historyReadResponse{Attachment: image}, err
+	}
 	base := materialCursor{Scope: "stream", MaterialID: record.SessionID, Hash: pageHash, SourceCursor: cursor.SourceCursor}
 	pageCursor := encodeMaterialCursor(base)
 	response := historyReadResponse{Thread: thread, ContentHash: pageHash, PageCursor: pageCursor, Scope: cursor.Scope, SourcePageComplete: len(manifest.Turns) == 0, PageEndsAtTurnBoundary: true}

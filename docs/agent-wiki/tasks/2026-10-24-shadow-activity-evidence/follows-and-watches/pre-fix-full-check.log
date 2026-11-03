@@ -1,0 +1,99 @@
+ok  	teamcross/cmd/teamcross	0.834s
+?   	teamcross/internal/buildinfo	[no test files]
+ok  	teamcross/internal/cliinstall	1.300s
+--- FAIL: TestMemberActivityOutboxCrashAndConcurrentReads (0.08s)
+    member_activity_test.go:155: source committed without durable pending event
+FAIL
+FAIL	teamcross/internal/collab	52.757s
+?   	teamcross/internal/inflow	[no test files]
+ok  	teamcross/internal/materialstore	1.303s
+ok  	teamcross/internal/mcp	1.754s
+ok  	teamcross/internal/mcpassets	0.702s
+ok  	teamcross/internal/mcpevents	1.194s
+ok  	teamcross/internal/nativeclaude	13.206s
+ok  	teamcross/internal/nativecodex	5.343s
+ok  	teamcross/internal/pluginpack	10.772s
+?   	teamcross/internal/problem	[no test files]
+?   	teamcross/internal/readview	[no test files]
+?   	teamcross/internal/runtimeconfig	[no test files]
+ok  	teamcross/internal/service	8.261s
+panic: test timed out after 3m0s
+	running tests:
+		TestCollaborationActionPersistsIntentBeforeCallingBusinessService (2m23s)
+
+goroutine 203 [running]:
+testing.(*M).startAlarm.func1()
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/testing/testing.go:2959 +0x2c4
+created by time.goFunc
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/time/sleep.go:182 +0x38
+
+goroutine 1 [chan receive, 2 minutes]:
+testing.(*T).Run(0x748abf45e248, {0x10084e889?, 0x748abf396a88?}, 0x100fadd00)
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/testing/testing.go:2266 +0x3cc
+testing.runTests.func1(0x748abf45e248)
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/testing/testing.go:2742 +0x38
+testing.tRunner(0x748abf45e248, 0x748abf396bb8)
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/testing/testing.go:2193 +0xc4
+testing.runTests({0x10082e7ce, 0x9}, {0x100837dde, 0x19}, 0x748abf428198, {0x101008e08, 0x42, 0x42}, {0x748abf396c58?, 0x748abf42c320?, ...})
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/testing/testing.go:2740 +0x400
+testing.(*M).Run(0x748abf4143c0)
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/testing/testing.go:2600 +0x578
+main.main()
+	_testmain.go:176 +0x80
+
+goroutine 181 [sync.Mutex.Lock, 2 minutes]:
+internal/sync.runtime_SemacquireMutex(0x748abf589620?, 0xb3?, 0x100dd2818?)
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/runtime/sema.go:95 +0x28
+internal/sync.(*Mutex).lockSlow(0x748abf483008)
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/internal/sync/mutex.go:149 +0x174
+internal/sync.(*Mutex).Lock(...)
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/internal/sync/mutex.go:70
+sync.(*Mutex).Lock(...)
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/sync/mutex.go:46
+teamcross/internal/shadow.(*Engine).Close(0x748abf483008)
+	/Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/internal/shadow/engine.go:70 +0x6c
+testing.(*common).Cleanup.func1()
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/testing/testing.go:1460 +0xdc
+testing.(*common).runCleanup(0x748abf65db08, 0x748abf384960?)
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/testing/testing.go:1820 +0xd4
+testing.tRunner.func2()
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/testing/testing.go:2187 +0x2c
+panic({0x100f5b198?, 0x100ffba30?})
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/runtime/panic.go:859 +0x120
+teamcross/internal/shadow.(*Engine).callCollaborationTool.func1()
+	/Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/internal/shadow/collaboration_tools.go:124 +0x38
+teamcross/internal/shadow.(*Engine).mutateLocked(0x748abf483008, 0x748abf313aa8)
+	/Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/internal/shadow/store.go:181 +0xb4
+teamcross/internal/shadow.(*Engine).callCollaborationTool(0x748abf483008, {0x100fac838, 0x1010367c0}, {{0x748abf2fa1e0, 0x24}, {0x748abf2fa4b0, 0x24}, {0x748abf2fa660, 0x24}, {0x100833e3e, ...}, ...})
+	/Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/internal/shadow/collaboration_tools.go:124 +0x1298
+teamcross/internal/shadow.TestCollaborationActionPersistsIntentBeforeCallingBusinessService(0x748abf65db08)
+	/Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/internal/shadow/collaboration_tools_test.go:93 +0x490
+testing.tRunner(0x748abf65db08, 0x100fadd00)
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/testing/testing.go:2193 +0xc4
+created by testing.(*T).Run in goroutine 1
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/testing/testing.go:2258 +0x3b8
+
+goroutine 182 [sync.Mutex.Lock, 2 minutes]:
+internal/sync.runtime_SemacquireMutex(0x1007d1a90?, 0x0?, 0x17?)
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/runtime/sema.go:95 +0x28
+internal/sync.(*Mutex).lockSlow(0x748abf483008)
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/internal/sync/mutex.go:149 +0x174
+internal/sync.(*Mutex).Lock(...)
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/internal/sync/mutex.go:70
+sync.(*Mutex).Lock(...)
+	/Users/wsy/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.1.darwin-arm64/src/sync/mutex.go:46
+teamcross/internal/shadow.(*Engine).scheduleJobs(0x748abf483008, {0x100fac8e0, 0x748abf4628c0})
+	/Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/internal/shadow/tools.go:362 +0x90
+teamcross/internal/shadow.(*Engine).step(0x748abf483008, {0x100fac8e0, 0x748abf4628c0})
+	/Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/internal/shadow/engine.go:227 +0x3a8
+teamcross/internal/shadow.(*Engine).loop(0x748abf483008, {0x100fac8e0, 0x748abf4628c0})
+	/Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/internal/shadow/engine.go:135 +0x278
+created by teamcross/internal/shadow.(*Engine).Start in goroutine 181
+	/Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/internal/shadow/engine.go:66 +0x1b8
+FAIL	teamcross/internal/shadow	181.930s
+ok  	teamcross/internal/sharing	2.129s
+?   	teamcross/internal/spacecontext	[no test files]
+ok  	teamcross/internal/uilanguage	1.936s
+?   	teamcross/internal/webassets	[no test files]
+ok  	teamcross/internal/workspace	1.802s
+FAIL

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"teamcross/internal/problem"
 	"teamcross/internal/service"
+	"teamcross/internal/shadow"
 	"teamcross/internal/sharing"
 	"teamcross/internal/uilanguage"
 	"time"
@@ -66,15 +67,19 @@ func (a *App) active(nonblocking bool) (int, bool) {
 		r := j.record
 		j.mu.Unlock()
 		if shareRequestActive(r.State) {
-			activeRequests[r.ID] = true
+			activeRequests[creationSpaceID(r.Input.CreateInput)] = true
 			n++
 		}
 	}
 	for _, s := range ss {
-		if !activityLock(&s.mu, nonblocking) {
+		if !activityLock(s.mu, nonblocking) {
 			return 0, false
 		}
-		if !activeRequests[s.record.ID] && (s.online || s.starting || s.share != nil) {
+		active := s.online || s.starting || s.stopping != nil || s.share != nil
+		for _, child := range s.executions {
+			active = active || child.online || child.starting || child.stopping != nil
+		}
+		if !activeRequests[s.record.ID] && active {
 			n++
 		}
 		s.mu.Unlock()
@@ -126,7 +131,16 @@ func (a *App) UpgradeBusy() bool {
 			return true
 		}
 	}
+	shadows := make([]*shadow.Engine, 0, len(a.shadows))
+	for _, e := range a.shadows {
+		shadows = append(shadows, e)
+	}
 	a.mu.Unlock()
+	for _, e := range shadows {
+		if e.UpgradeBusy() {
+			return true
+		}
+	}
 	if !a.agentMu.TryLock() {
 		return true
 	}
@@ -142,7 +156,46 @@ func (a *App) UpgradeBusy() bool {
 		}
 	}
 	for _, request := range a.agents.Requests {
-		if request.State != "completed" && request.State != "failed" {
+		// Unknown is a durable receipt, not evidence of a running delivery.
+		// It survives restart and must never be replayed or silently completed.
+		// Real in-flight writes are protected by admission and the states below.
+		if request.State != "completed" && request.State != "failed" && request.State != "unknown" {
+			return true
+		}
+	}
+	return false
+}
+
+// UpgradeWorkBusy gives executing work a grace period. Idle receiver heartbeats,
+// invitations and historical unknown receipts never delay a Core replacement.
+func (a *App) UpgradeWorkBusy() bool {
+	if active, known := a.active(true); !known || active > 0 {
+		return true
+	}
+	if !a.mu.TryLock() {
+		return true
+	}
+	shadows := make([]*shadow.Engine, 0, len(a.shadows))
+	for _, e := range a.shadows {
+		shadows = append(shadows, e)
+	}
+	a.mu.Unlock()
+	for _, e := range shadows {
+		if e.UpgradeBusy() {
+			return true
+		}
+	}
+	if !a.agentMu.TryLock() {
+		return true
+	}
+	defer a.agentMu.Unlock()
+	for _, proxy := range a.agentProxies {
+		if proxy.Alive() {
+			return true
+		}
+	}
+	for _, request := range a.agents.Requests {
+		if request.State == "submitting" || request.State == "submitted" || request.State == "received" {
 			return true
 		}
 	}

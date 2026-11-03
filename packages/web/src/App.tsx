@@ -18,6 +18,7 @@ import { Icon } from "./components/ui";
 import { LibraryProvider } from "./library";
 import { Library, SelectionTray } from "./components/Library";
 import { QuickLook } from "./components/QuickLook";
+import { MemberActivity, ActivityBadge } from "./components/MemberActivity";
 export default function App() {
   return (
     <LibraryProvider>
@@ -53,8 +54,14 @@ function AppShell() {
   });
   useEffect(() => {
     const handler = () => {
-      setRoute(location.hash.slice(1) || "/");
-      window.scrollTo(0, 0);
+      const next = location.hash.slice(1) || "/";
+      setRoute((previous) => {
+        const space = (path: string) =>
+          path.match(/^\/collaborations\/([^/]+)/)?.[1];
+        if (!space(previous) || space(previous) !== space(next))
+          window.scrollTo(0, 0);
+        return next;
+      });
     };
     window.addEventListener("hashchange", handler);
     return () => window.removeEventListener("hashchange", handler);
@@ -82,9 +89,13 @@ function AppShell() {
   }, [route]);
   const libraryRoute = route.split("?")[0];
   const quick = libraryRoute === "/library/quick";
-  const detailId = route.match(/^\/collaborations\/([^/]+)$/)?.[1];
+  const detailMatch = route.split("?")[0]!.match(
+    /^\/collaborations\/([^/]+)(?:\/sessions\/([^/]+))?$/,
+  );
+  const detailId = detailMatch?.[1];
+  const executionId = detailMatch?.[2];
   const page =
-    libraryRoute === "/library" ? (
+    route === "/activity" ? <MemberActivity /> : libraryRoute === "/library" ? (
       <Library
         initialKey={
           new URLSearchParams(route.split("?")[1]).get("item") || undefined
@@ -106,14 +117,14 @@ function AppShell() {
         onLanguageChange={adoptLanguage}
       />
     ) : detailId ? (
-      <Detail key={detailId} id={detailId} />
+      <Detail key={detailId} id={detailId} executionId={executionId} activitySource={new URLSearchParams(route.split("?")[1]).get("activity") || undefined} />
     ) : (
       <Home />
     );
   if (quick) return <QuickLook />;
   return (
     <div
-      className={`app-shell ${libraryRoute === "/library" ? "library-shell" : ""}`}
+      className={`app-shell ${libraryRoute === "/library" ? "library-shell" : ""} ${detailId ? "space-shell" : ""}`}
     >
       <a
         className="skip-link"
@@ -140,31 +151,40 @@ function AppShell() {
         <nav aria-label={t("主导航")}>
           <a
             className={
-              route !== "/settings" && libraryRoute !== "/library"
+              route !== "/settings" && route !== "/activity" && libraryRoute !== "/library"
                 ? "active"
                 : ""
             }
             href="#/"
+            aria-label={t("协作空间")}
+            title={t("协作空间")}
             aria-current={route === "/" ? "page" : undefined}
           >
             <Icon name="grid" />
-            {t("协作空间") + " "}
+            <span>{t("协作空间")}</span>
+          </a>
+          <a className={route === "/activity" ? "active" : ""} href="#/activity" aria-current={route === "/activity" ? "page" : undefined}>
+            <Icon name="comment"/><span>{t("我的动态")}</span><ActivityBadge/>
           </a>
           <a
             className={libraryRoute === "/library" ? "active" : ""}
             href="#/library"
+            aria-label={t("资源库")}
+            title={t("资源库")}
             aria-current={libraryRoute === "/library" ? "page" : undefined}
           >
             <Icon name="book" />
-            {t("资源库") + " "}
+            <span>{t("资源库")}</span>
           </a>
           <a
             className={route === "/settings" ? "active" : ""}
             href="#/settings"
+            aria-label={t("设置与连接")}
+            title={t("设置与连接")}
             aria-current={route === "/settings" ? "page" : undefined}
           >
             <Icon name="settings" />
-            {t("设置与连接") + " "}
+            <span>{t("设置与连接")}</span>
           </a>
         </nav>
         <div className="sidebar-bottom">
@@ -214,7 +234,7 @@ function AppShell() {
             </span>
           </div>
         )}
-        <div className="page" key={route}>
+        <div className="page" key={detailId || route}>
           {page}
         </div>
         <SelectionTray />

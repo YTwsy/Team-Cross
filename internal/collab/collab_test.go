@@ -21,24 +21,30 @@ import (
 )
 
 type fakeRuntime struct {
-	history          []MaterialTurn
-	mu               sync.Mutex
-	source           Source
-	calls            []string
-	forks            int
-	handler          func(nativecodex.Message)
-	last             map[string]any
-	fail             bool
-	alive            bool
-	threads          map[string]Source
-	requests         map[string]map[string]any
-	sourceTurnID     string
-	sourceTurnStatus string
+	nativeUserContent bool
+	history           []MaterialTurn
+	mu                sync.Mutex
+	source            Source
+	calls             []string
+	forks             int
+	handler           func(nativecodex.Message)
+	last              map[string]any
+	fail              bool
+	alive             bool
+	threads           map[string]Source
+	threadsMu         *sync.Mutex
+	requests          map[string]map[string]any
+	sourceTurnID      string
+	sourceTurnStatus  string
 }
 
 func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.threadsMu != nil {
+		f.threadsMu.Lock()
+		defer f.threadsMu.Unlock()
+	}
 	f.calls = append(f.calls, method)
 	params, _ := in.(map[string]any)
 	f.last = params
@@ -64,6 +70,9 @@ func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error 
 		if model, ok := params["model"].(string); ok && model != "" {
 			thread.Model = model
 		}
+		if cwd, ok := params["cwd"].(string); ok && cwd != "" {
+			thread.Cwd = cwd
+		}
 		if effort, ok := params["effort"].(string); ok {
 			thread.ReasoningEffort = &effort
 		}
@@ -72,7 +81,9 @@ func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error 
 				thread.ReasoningEffort = &effort
 			}
 		}
-		f.threads[id] = thread
+		if method != "thread/fork" {
+			f.threads[id] = thread
+		}
 	}
 	var result any = map[string]any{}
 	switch method {
@@ -99,6 +110,22 @@ func (f *fakeRuntime) Call(_ context.Context, method string, in, out any) error 
 		result = map[string]any{"data": []any{map[string]any{"id": turn, "status": status}}}
 		if f.history != nil {
 			result = map[string]any{"data": f.history}
+			if f.nativeUserContent {
+				// Browser fixtures use the native input shape before export.
+				raw, _ := json.Marshal(f.history)
+				var turns []map[string]any
+				_ = json.Unmarshal(raw, &turns)
+				for _, turn := range turns {
+					for _, value := range turn["items"].([]any) {
+						item := value.(map[string]any)
+						if item["type"] == "userMessage" {
+							item["content"] = []any{map[string]any{"type": "text", "text": item["text"]}}
+							delete(item, "text")
+						}
+					}
+				}
+				result = map[string]any{"data": turns}
+			}
 		}
 	case "thread/fork", "thread/start":
 		if method == "thread/fork" {
@@ -203,7 +230,7 @@ func TestCreateAndRecoverWithoutPrompt(t *testing.T) {
 				t.Fatal(e)
 			}
 			defer b.Close()
-			restored := b.sessions[s.record.ID]
+			restored := b.executions[s.record.ID]
 			if restored == nil || restored.record.SessionID != s.record.SessionID {
 				t.Fatal("session lost on restart")
 			}
@@ -233,7 +260,7 @@ func TestInputOwnershipDedupAndApproval(t *testing.T) {
 		t.Fatal("duplicate result not replayed", e)
 	}
 	f.mu.Lock()
-	if f.requests["turn/start"]["cwd"] != s.record.ExecutionCwd || f.requests["turn/start"]["model"] != "fixture-client-model" || f.requests["turn/start"]["effort"] != "medium" {
+	if f.requests["turn/start"]["cwd"] != nil || f.requests["turn/start"]["model"] != "fixture-client-model" || f.requests["turn/start"]["effort"] != "medium" {
 		t.Fatal("runtime binding overridden")
 	}
 	f.mu.Unlock()
@@ -419,14 +446,15 @@ func TestParticipantLoginStaysLocal(t *testing.T) {
 	if e := s.Action(ctx, "share"); e != nil {
 		t.Fatal(e)
 	}
-	j, e := b.Join(ctx, s.share.Token())
+	j, e := b.Join(ctx, s.sharedRuntime().Token())
 	if e != nil {
 		t.Fatal(e)
 	}
+
 	if e = s.Action(ctx, "handoff"); e != nil {
 		t.Fatal(e)
 	}
-	endpoint, e := b.endpoint(j.ID)
+	endpoint, e := b.endpoint(executionAddress(j.ID, s.record.ID))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -483,7 +511,7 @@ func TestParticipantLoginStaysLocal(t *testing.T) {
 	if e != nil || bytes.Contains(config, []byte("secret")) {
 		t.Fatal("share exported private config", e)
 	}
-	if e = s.Action(ctx, "end"); e != nil {
+	if e = s.space.Action(ctx, "end"); e != nil {
 		t.Fatal(e)
 	}
 	view := j.view(ctx)

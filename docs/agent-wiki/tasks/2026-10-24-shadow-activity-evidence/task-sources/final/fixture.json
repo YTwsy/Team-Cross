@@ -1,0 +1,7 @@
+{
+  "directory": "/private/tmp/teamcross-native-task-sources-20261024-7c00d6be",
+  "binary": "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+  "model": "gpt-5.6-luna",
+  "provider": "openai",
+  "reasoningEffort": "low"
+}

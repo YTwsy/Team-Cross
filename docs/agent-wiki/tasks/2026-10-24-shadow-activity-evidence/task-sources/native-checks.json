@@ -1,0 +1,18 @@
+[
+  {
+    "check": "native",
+    "command": [
+      "python3",
+      "scripts/verify-shadow-native.py",
+      "--task-sources",
+      "--fixture-dir",
+      "/private/tmp/teamcross-native-task-sources-20261024-95ed6abd",
+      "--codex-bin",
+      "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+      "--codex-auth",
+      "/Users/wsy/.codex/auth.json"
+    ],
+    "exitCode": 0,
+    "seconds": 67.229
+  }
+]

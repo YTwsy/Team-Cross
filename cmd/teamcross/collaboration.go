@@ -22,7 +22,7 @@ import (
 
 func collaborationCommand(command string) bool {
 	switch command {
-	case "execution-access", "space", "freeze", "publication-preview", "publish", "publication-status", "materials", "read-material", "withdraw-material", "remove-member", "revoke-invitation", "collaborations", "input", "sources", "preview", "create", "share", "invite", "inspect-invitation", "open", "end", "leave", "resume", "share-status", "cancel-share":
+	case "space", "freeze", "publication-preview", "publish", "publication-status", "materials", "read-material", "withdraw-material", "remove-member", "revoke-invitation", "collaborations", "input", "sources", "preview", "create", "share", "invite", "inspect-invitation", "open", "end", "leave", "resume", "pause", "end-session", "share-status", "cancel-share":
 		return true
 	}
 	return false
@@ -35,7 +35,7 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 	action := ""
 	if command == "input" {
 		if len(args) == 0 {
-			return fmt.Errorf("用法: teamcross input request|cancel|handoff|reclaim|return --id <协作> --epoch <版本>")
+			return fmt.Errorf("用法: teamcross input request|cancel|handoff|reclaim|return --id <空间> --execution <会话> --epoch <版本>")
 		}
 		if !strings.HasPrefix(args[0], "-") {
 			action, args = args[0], args[1:]
@@ -44,7 +44,7 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 	f := flag.NewFlagSet(command, flag.ContinueOnError)
 	f.SetOutput(diagnostic)
 	data := f.String("data-dir", collab.DefaultDataDir(), "本机数据目录")
-	spaceID := f.String("space", "", "为已有空间启用执行；保留邀请和成员，另行开放执行访问")
+	spaceID := f.String("space", "", "在已有空间新增协作会话；保留邀请和成员，另行开放会话访问")
 	draftID := f.String("draft", "", "本机冻结草稿 ID")
 	previewID := f.String("preview-id", "", "确认的材料预览 ID")
 	startTurn := f.String("start-turn", "", "公开首轮 ID")
@@ -53,10 +53,10 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 	materialID := f.String("material", "", "已发布材料 ID")
 	materialVersion := f.Int("version", 0, "固定材料版本")
 	baseVersion := f.Int("base-version", 0, "更新前的材料版本")
-	id := f.String("id", "", "协作 ID；省略时列出协作")
+	id := f.String("id", "", "空间 ID；省略时列出空间")
+	executionID := f.String("execution", "", "协作会话 ID；执行、输入和客户端操作必须指定")
 	memberID := f.String("member", "", "输入接收者或要移除的具体成员 ID")
 	resetInvite := f.Bool("reset", false, "重置邀请链接；旧链接失效，保留已有成员，需要 request-id")
-	allowExecution := f.Bool("allow", false, "向指定成员开放执行访问；false 收回")
 	invitationID := f.String("invitation-id", "", "要关闭的邀请链接 ID")
 	epoch := f.Uint64("epoch", 0, "查看协作后得到的输入状态版本")
 	jsonOut := f.Bool("json", false, "输出 JSON")
@@ -132,8 +132,6 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 		if command == "share" && *transport != "lan" && *transport != "tailcat" {
 			err = fmt.Errorf("share 必须明确指定 --transport lan 或 tailcat")
 		}
-	case "execution-access":
-		tool, params = "set_execution_access", map[string]any{"id": *id, "memberId": *memberID, "allowed": *allowExecution}
 	case "invite":
 		tool, params = "create_invitation", map[string]any{"id": *id, "transport": *transport}
 		if *resetInvite {
@@ -155,12 +153,15 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 		tool, params = "preview_invitation", map[string]any{"invitation": *invitation}
 	case "open":
 		tool, params = "open_client", map[string]any{"id": *id, "client": *client, "launch": !*printCommand}
-	case "end", "leave", "resume":
-		tool = map[string]string{"end": "end_sharing", "leave": "leave_collaboration", "resume": "resume_collaboration"}[command]
+	case "end", "leave", "resume", "pause", "end-session":
+		tool = map[string]string{"end": "end_sharing", "leave": "leave_collaboration", "resume": "resume_collaboration", "pause": "pause_execution", "end-session": "end_execution_sharing"}[command]
 		params = map[string]any{"id": *id}
 	case "share-status", "cancel-share":
 		tool = map[string]string{"share-status": "get_share_request", "cancel-share": "cancel_share_request"}[command]
 		params = map[string]any{"id": *id}
+	}
+	if params != nil && *executionID != "" {
+		params["executionId"] = *executionID
 	}
 	if err != nil {
 		return commandError(output, *jsonOut, err)
@@ -184,7 +185,7 @@ func runCollaboration(args []string, output, diagnostic io.Writer) error {
 		if created["state"] != "ready" {
 			err = fmt.Errorf("协作创建状态为 %v，请查询原协作后继续", created["state"])
 		} else {
-			out, err = b.Invoke(ctx, "create_invitation", map[string]any{"id": created["id"], "transport": *transport})
+			out, err = b.Invoke(ctx, "create_invitation", map[string]any{"id": created["spaceId"], "transport": *transport})
 		}
 		if err != nil {
 			partial, _ := json.Marshal(map[string]any{"stage": "created", "collaboration": created, "invitationError": problem.Describe(err), "recovery": "保留协作 ID，使用 teamcross invite --id <id> --transport " + *transport + " 重试邀请；不重新创建"})
@@ -240,9 +241,17 @@ func printCollaborationResult(w io.Writer, raw json.RawMessage, jsonOut bool) er
 		v, ok := row.(map[string]any)
 		if ok && v["id"] != nil && v["role"] != nil {
 			if v["hasExecution"] == false {
-				_, err := fmt.Fprintf(w, "%v · %v\n托管主机：%v · 只读分享与讨论 · %v\n", v["id"], v["title"], v["host"], v["state"])
+				sessions, _ := v["sessions"].([]any)
+				_, err := fmt.Fprintf(w, "%v · %v\n托管主机：%v · %d 个协作会话 · %v\n", v["id"], v["title"], v["host"], len(sessions), v["state"])
 				if err != nil {
 					return err
+				}
+				for _, item := range sessions {
+					if session, ok := item.(map[string]any); ok {
+						if _, err := fmt.Fprintf(w, "  会话 %v · %v · %v\n", session["executionId"], session["title"], session["state"]); err != nil {
+							return err
+						}
+					}
 				}
 			} else if _, err := fmt.Fprintf(w, "%v · %v\n主机：%v · 当前输入者：%v · 本机角色：%v\n状态：%v · 运行中：%v · 输入版本：%v\n目录：%v\n", v["id"], v["title"], v["host"], v["writer"], v["role"], v["state"], v["busy"], v["epoch"], v["executionCwd"]); err != nil {
 				return err

@@ -1,0 +1,12 @@
+[
+  {
+    "command": "go test -race ./internal/collab -run TestShadowReturn|TestInFlow -count=1",
+    "exit": 0,
+    "wallSeconds": 14.812
+  },
+  {
+    "command": "go vet ./...",
+    "exit": 0,
+    "wallSeconds": 2.968
+  }
+]

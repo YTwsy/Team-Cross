@@ -1,3 +1,8 @@
+import {
+  useRefreshState,
+  useRefreshGuard,
+  useRefreshRef,
+} from "../refreshState";
 import { sessionStorage } from "../storage";
 import { t, tr } from "../i18n";
 import { useEffect, useRef, useState } from "react";
@@ -27,16 +32,34 @@ import {
 export function Create({
   spaceId,
   embedded,
-}: { spaceId?: string; embedded?: boolean } = {}) {
-  const [provider, setProvider] = useState<Provider>("codex");
-  const [step, setStep] = useState(1);
-  const [search, setSearch] = useState("");
-  const [query, setQuery] = useState("");
-  const [source, setSource] = useState<Source>();
-  const [mode, setMode] = useState<Mode>("existing");
-  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>("restricted");
-  const [shareTransport, setShareTransport] = useState<ShareTransport>("lan");
-  const [title, setTitle] = useState("");
+  onCreated,
+}: {
+  spaceId?: string;
+  embedded?: boolean;
+  onCreated?: (session: Collaboration) => void;
+} = {}) {
+  const refreshKey = "Create:v1:" + (spaceId || "new");
+  const [provider, setProvider] = useRefreshState<Provider>(
+    refreshKey + ":provider",
+    "codex",
+  );
+  const [step, setStep] = useRefreshState(refreshKey + ":step", 1);
+  const [search, setSearch] = useRefreshState(refreshKey + ":search", "");
+  const [query, setQuery] = useRefreshState(refreshKey + ":query", "");
+  const [source, setSource] = useRefreshState<Source>(refreshKey + ":source");
+  const [mode, setMode] = useRefreshState<Mode>(
+    refreshKey + ":mode",
+    "existing",
+  );
+  const [runtimeMode, setRuntimeMode] = useRefreshState<RuntimeMode>(
+    refreshKey + ":runtimeMode",
+    "restricted",
+  );
+  const [shareTransport, setShareTransport] = useRefreshState<ShareTransport>(
+    refreshKey + ":shareTransport",
+    "lan",
+  );
+  const [title, setTitle] = useRefreshState(refreshKey + ":title", "");
   const [preview, setPreview] = useState<Preview>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -45,7 +68,10 @@ export function Create({
   const [cursor, setCursor] = useState<string | null>();
   const [loadingMore, setLoadingMore] = useState(false);
   const moreAbort = useRef<AbortController | undefined>(undefined);
-  const requestId = useRef(crypto.randomUUID());
+  const requestId = useRefreshRef(
+    refreshKey + ":requestId",
+    crypto.randomUUID(),
+  );
   const errorRef = useRef<HTMLDivElement>(null);
   const sourcesPath = `sources?provider=${provider}&search=${encodeURIComponent(query)}`;
   const sources = useResource<{ data: Source[]; nextCursor?: string }>(
@@ -106,20 +132,26 @@ export function Create({
         previewHash: preview.previewHash,
         requestId: requestId.current,
       });
+      const parentId = c.spaceId || spaceId || c.id;
       if (!spaceId) {
-        sessionStorage.setItem(`teamcross.transport.${c.id}`, shareTransport);
+        sessionStorage.setItem(
+          `teamcross.transport.${parentId}`,
+          shareTransport,
+        );
         try {
-          await api(`collaborations/${c.id}/action`, {
+          await api(`collaborations/${parentId}/action`, {
             action: "share",
             transport: shareTransport,
             epoch: c.epoch,
           });
         } catch (e) {
-          sessionStorage.setItem(`teamcross.create.${c.id}`, errorText(e));
+          sessionStorage.setItem(`teamcross.create.${parentId}`, errorText(e));
         }
-        sessionStorage.setItem(`teamcross.invite.${c.id}`, "1");
+        sessionStorage.setItem(`teamcross.invite.${parentId}`, "1");
       }
-      location.hash = `/collaborations/${c.id}`;
+      if (onCreated) onCreated(c);
+      else
+        location.hash = `/collaborations/${parentId}/sessions/${c.executionId || c.id}`;
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -127,6 +159,7 @@ export function Create({
     }
   }
   const nextCursor = data && (cursor === undefined ? data.nextCursor : cursor);
+  useRefreshGuard(refreshKey, !!source || !!title);
   return (
     <>
       {!embedded && (
@@ -136,7 +169,7 @@ export function Create({
             {t("协作空间") + " "}
           </a>
           <PageHeading
-            title={spaceId ? t("启用共同执行") : t("发起协作")}
+            title={spaceId ? t("新增协作会话") : t("发起协作")}
             subtitle={
               spaceId
                 ? t("在当前空间开始共同执行，保留已有成员、材料和讨论。")
@@ -150,7 +183,7 @@ export function Create({
           <strong>{t("确认新增的共享范围")}</strong>
           <p>
             {t(
-              "将创建新的原生 fork，开放其历史、执行目录、文件与改动读取，并按所选权限执行。原来发布的片段范围不会限制这个 fork。原邀请链接和成员保留；在成员列表向需要参与执行的人开放新增访问。",
+              "将创建新的原生 fork，空间所有成员均可读取其完整历史、执行目录、文件与改动。原来发布的片段范围不会限制这个 fork。原邀请链接和成员保留，实际写入按会话交接输入权。",
             ) + " "}
           </p>
         </div>
@@ -535,7 +568,7 @@ export function Create({
                 </>
               ) : (
                 <>
-                  {spaceId ? t("启用共同执行") : t("创建并邀请")}{" "}
+                  {spaceId ? t("新增协作会话") : t("创建并邀请")}{" "}
                   <Icon name="arrow" size={17} />
                 </>
               )}

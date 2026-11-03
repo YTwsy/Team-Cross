@@ -31,12 +31,54 @@ func TestWorkbenchBrowserFixture(t *testing.T) {
 	s.mu.Lock()
 	s.record.Title = "接口超时调查 · 协作空间"
 	s.mu.Unlock()
-	d := materialDraft(t, a, f)
+	// Multiple materials and immutable versions exercise sidebar navigation and
+	// reference selection in the real UI. This remains synthetic native history.
+	f.mu.Lock()
+	f.nativeUserContent = true
+	f.history = []MaterialTurn{{ID: "review", Status: "completed", Items: []MaterialItem{{ID: "question", Type: "userMessage", Text: "请复核这次调查的处理范围。核对已确认的结论，以及高并发、断线恢复场景中仍需补充的验证，把结论和待确认项分开记录。"}, {
+		ID: "answer", Type: "agentMessage", Text: "## 并发与断线复核\n\n对照当前处理路径，需要补充三组验证：\n\n1. 同一请求并发提交，只接收一次输入。\n2. 请求送达后断线，查询原请求的状态。\n3. 新绑定生效后，隔离旧绑定晚到的结果。\n\n这些建议等待空间成员确认，尚未成为发布结论。",
+	}}}}
+	f.mu.Unlock()
+	review, err := a.FreezeSource(ctx, "codex", f.source.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err = a.PreviewPublication(PublicationSelection{DraftID: review.ID, Title: "并发与断线复核", StartTurnID: "review", EndTurnID: "review"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = a.Publish(ctx, s.record.ID, PublishInput{PreviewID: review.ID, PreviewHash: review.Hash, RequestID: uuid.NewString()}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.history = []MaterialTurn{{ID: "analysis", Status: "completed", Items: []MaterialItem{{ID: "question", Type: "userMessage", Text: "请复核这次调查的处理范围。核对已确认的结论，以及高并发、断线恢复场景中仍需补充的验证，把结论和待确认项分开记录。"}, {
+		ID: "answer", Type: "agentMessage", Text: "## 连接池等待与重试策略\n\n超时主要发生在请求获取连接之前。我们对照了相同并发下的连接池等待与服务端耗时，先保留观察结果，再讨论调整范围。\n\n### 已完成的验证\n\n| 观测项 | 调整前 | 调整后 |\n| --- | --- | --- |\n| 连接池等待 P95 | 420 ms | 38 ms |\n| 服务端耗时 P95 | 30 ms | 31 ms |\n\n### 处理建议\n\n- 保留材料的固定版本，便于后续复核。\n- 对结果不明的请求查询原始状态，避免重复输入。\n- 补充高并发和断线恢复场景后，再确认发布范围。\n\n> 以上为浏览器验证使用的合成数据，不代表真实网络测试结果。\n\n```go\ntransport.MaxConnsPerHost = 20\n```",
+	}}}}
+	f.mu.Unlock()
+	d, err := a.FreezeSource(ctx, "codex", f.source.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err = a.PreviewPublication(PublicationSelection{DraftID: d.ID, Title: "连接池等待与重试策略", StartTurnID: "analysis", EndTurnID: "analysis"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	pub, err := a.Publish(ctx, s.record.ID, PublishInput{PreviewID: d.ID, PreviewHash: d.Hash, RequestID: uuid.NewString()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	mid := pub.(map[string]any)["materialId"].(string)
+	d, err = a.FreezeSource(ctx, "codex", f.source.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err = a.PreviewPublication(PublicationSelection{DraftID: d.ID, Title: "连接池等待与重试策略 · 复核版", StartTurnID: "analysis", EndTurnID: "analysis"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = a.Publish(ctx, s.record.ID, PublishInput{PreviewID: d.ID, PreviewHash: d.Hash, RequestID: uuid.NewString(), MaterialID: mid, BaseVersion: 1}); err != nil {
+		t.Fatal(err)
+	}
 	ref := LibraryReference{SpaceID: s.record.ID, Kind: "material", MaterialID: mid, Version: 1}
 	note, err := s.annotate(Annotation{Text: "这组验证是否覆盖重试和断线恢复？", Materials: []MaterialReference{{MaterialID: mid, Version: 1}}}, "发起者")
 	if err != nil {
@@ -48,13 +90,21 @@ func TestWorkbenchBrowserFixture(t *testing.T) {
 	b, _, _ := fixture(t)
 	b.Host = "同事 B 的 Mac"
 	stopWorkbenchPump(b)
-	j, err := b.Join(ctx, s.share.Token())
+	j, err := b.Join(ctx, s.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, caller, target := spaceChannel(t, b, j.ID)
 	_, _, ownTarget := spaceChannel(t, a, s.record.ID)
-	wb(t, a, s.record.ID, "brief", workbenchInput{Brief: SpaceBrief{Topic: "确认重试、断线与并发场景中的协作行为，再决定是否进入共同执行。", Decisions: []BriefItem{{Text: "只共享已发布的固定材料版本；私人会话保持在各自客户端。", Sources: []LibraryReference{ref}}}, Questions: []BriefItem{{Text: "投递结果不明时，怎样避免启动第二轮输入？", Sources: []LibraryReference{{SpaceID: s.record.ID, Kind: "annotation", AnnotationID: note.ID}}}}}})
+	wb(t, a, s.record.ID, "brief", workbenchInput{Brief: SpaceBrief{Topic: "确认重试、断线与并发场景中的协作行为，再决定是否进入共同执行。", Decisions: []BriefItem{{ID: "publication", Status: "confirmed", Text: "只共享已发布的固定材料版本；私人会话保持在各自客户端。", Sources: []SpaceSourceRef{{SpaceID: ref.SpaceID, MaterialID: ref.MaterialID, Version: ref.Version, AnnotationID: ref.AnnotationID}}}}, Questions: []BriefItem{{Text: "投递结果不明时，怎样避免启动第二轮输入？", Sources: []SpaceSourceRef{{SpaceID: s.record.ID, AnnotationID: note.ID}}}}}})
+	briefShadow := registeredToolShadow(t, b, j.ID)
+	if _, err = b.shadowToolCall(ctx, briefShadow.ID, "update_space_brief", map[string]any{"requestId": uuid.NewString(), "baseRevision": 1, "changes": []BriefChange{
+		briefPut("decisions", "retry-proposal", "建议先核对原请求状态，再决定是否重试；还需补充分支验证。", "proposed", SpaceSourceRef{SpaceID: j.ID, AnnotationID: note.ID}),
+		briefPut("progress", "review-progress", "已核对原简报的固定材料范围，继续整理并发和断线验证。", "in_progress", SpaceSourceRef{SpaceID: j.ID, BriefRevision: 1, BriefItemID: "publication"}),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	briefPatch(t, a, s.record.ID, workbenchInput{BaseRevision: 2, Changes: []BriefChange{briefPut("decisions", "publication", "当前范围已增加并发验证；继续引用原固定材料版本。", "confirmed", SpaceSourceRef{SpaceID: s.record.ID, MaterialID: mid, Version: 1})}})
 	requestID := uuid.NewString()
 	wb(t, a, s.record.ID, "send", workbenchInput{RequestID: requestID, TargetID: target.ID, References: []LibraryReference{ref}, Instruction: "请从并发和断线恢复两个角度检查这份材料，指出还缺少的验证。", Intent: "analyze"})
 	b.pumpWorkbench(ctx)
@@ -73,7 +123,7 @@ func TestWorkbenchBrowserFixture(t *testing.T) {
 	}
 	server := httptest.NewServer(a.Handler(http.FileServer(http.FS(assets))))
 	defer server.Close()
-	if err = writeJSONFile(filepath.Join(dir, "fixture.json"), map[string]string{"url": server.URL + "/#/collaborations/" + s.record.ID, "api": server.URL, "id": s.record.ID, "dataDir": a.Config.DataDir}); err != nil {
+	if err = writeJSONFile(filepath.Join(dir, "fixture.json"), map[string]string{"url": server.URL + "/#/collaborations/" + s.record.ID, "api": server.URL, "id": s.record.ID, "dataDir": a.Config.DataDir, "briefItemId": "publication", "briefRevision": "1"}); err != nil {
 		t.Fatal(err)
 	}
 	t.Log("workbench browser fixture ready", dir)

@@ -71,6 +71,7 @@ func (s *Session) onRuntimeMessage(generation uint64, m nativecodex.Message) {
 	s.sequence++
 	s.observeModelLocked(m.Method, m.Params)
 	s.events = append(s.events, Event{Sequence: s.sequence, Method: m.Method, Params: m.Params, Time: time.Now()})
+	s.observeActivityNativeLocked(m.Method, m.Params)
 	if len(s.events) > 600 {
 		s.events = append([]Event(nil), s.events[len(s.events)-600:]...)
 	}
@@ -104,6 +105,17 @@ func (s *Session) onRuntimeMessage(generation uint64, m nativecodex.Message) {
 			if s.activeTurnID == "" || params.Turn.ID == "" || s.activeTurnID == params.Turn.ID {
 				s.busy = false
 				s.activeTurnID = ""
+				if p := s.process; p != nil && s.record.Provider != "claude" {
+					// The native notification reader must stay free to receive the
+					// thread/read response. Keep the runtime alive until it arrives.
+					s.activeCalls++
+					go func() {
+						defer s.finishCall()
+						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+						defer cancel()
+						s.refreshNativeState(ctx, p, false)
+					}()
+				}
 			}
 		}
 		s.record.UpdatedAt = time.Now()
@@ -166,21 +178,25 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 	}()
 	p := s.process
 	r := s.snapshotLocked()
-	if !sharing.ExecutionAuthorized(ctx, s.share) {
+	if !sharing.ExecutionAuthorized(ctx, s.sharedRuntime(), s.record.ID) {
 		unlock()
-		return nil, fmt.Errorf("尚未获得执行访问")
+		return nil, fmt.Errorf("成员资格或会话目标已失效")
 	}
 	if r.ExecutionRecord == nil || p == nil || !s.online {
 		unlock()
 		return nil, fmt.Errorf("协作运行时未连接，请让发起者恢复运行时")
 	}
-	if role != "owner" && (s.share == nil || !s.share.HasExecutionAccess(role)) {
+	if role != "owner" && (s.sharedRuntime() == nil || !s.sharedRuntime().HasMember(role)) {
 		unlock()
 		return nil, fmt.Errorf("共享已结束")
 	}
 	if !s.callerValidLocked(ctx) {
 		unlock()
 		return nil, fmt.Errorf("连接或输入归属已变化，请重新连接")
+	}
+	if r.Paused && (method == "turn/start" || method == "turn/steer") {
+		unlock()
+		return nil, fmt.Errorf("会话正在暂停，请恢复后再发送新输入")
 	}
 	if r.Provider == "claude" {
 		if e := claudeMethod(method, params); e != nil {
@@ -322,7 +338,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 				delete(params, "effort")
 			}
 		}
-		for _, k := range []string{"path", "history", "config", "baseInstructions", "developerInstructions", "environments", "runtimeWorkspaceRoots"} {
+		for _, k := range []string{"path", "history", "config", "baseInstructions", "developerInstructions", "environments", "cwd", "runtimeWorkspaceRoots"} {
 			delete(params, k)
 		}
 		if r.RuntimeMode != runtimeconfig.Trusted {
@@ -331,7 +347,11 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 			}
 		}
 		for k, v := range nativecodex.SessionOverrides(r.SessionID, r.ExecutionCwd, r.RuntimeMode) {
-			params[k] = v
+			// Continue in the native thread's current workspace. A client's cwd
+			// is its own local path, not an instruction to relocate the host.
+			if k != "cwd" && k != "runtimeWorkspaceRoots" {
+				params[k] = v
+			}
 		}
 		if len(modelConfig) > 0 {
 			params["config"] = modelConfig
@@ -375,11 +395,22 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 			s.record.Commands = map[string]Command{}
 		}
 		s.record.Commands[commandKey] = Command{ID: requestID, Hash: hash, State: "pending"}
+		if s.receiverSpace == "" && (method == "turn/start" || method == "turn/steer") {
+			a := s.activityStateLocked()
+			turnID, _ := params["turnId"].(string)
+			if turnID == "" {
+				turnID, _ = params["expectedTurnId"].(string)
+			}
+			a.Inputs[commandKey] = ActivityTurnInput{MemberID: role, Method: method, TurnID: turnID, State: "pending"}
+		}
 		if method == "turn/start" {
 			s.busy = true
 		}
 		if err := s.saveLocked(); err != nil {
 			delete(s.record.Commands, commandKey)
+			if s.record.Activity != nil {
+				delete(s.record.Activity.Inputs, commandKey)
+			}
 			if method == "turn/start" {
 				s.busy = false
 			}
@@ -400,7 +431,7 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 		}
 	}
 	if err == nil && (method == "turn/start" || method == "thread/resume" || method == "thread/settings/update") {
-		s.refreshModel(ctx, p)
+		s.refreshNativeState(ctx, p, true)
 	}
 	if method == "config/read" && err == nil {
 		var v map[string]any
@@ -447,6 +478,9 @@ func (s *Session) RPC(ctx context.Context, role, method string, params map[strin
 			c.Result = result
 		}
 		s.record.Commands[commandKey] = c
+		if s.receiverSpace == "" && (method == "turn/start" || method == "turn/steer") {
+			s.activityInputResultLocked(commandKey, result, c.State)
+		}
 		s.record.UpdatedAt = time.Now()
 		_ = s.saveLocked()
 		unlock()
@@ -459,7 +493,7 @@ func (s *Session) Respond(ctx context.Context, role string, id json.RawMessage, 
 		s.mu.Unlock()
 		return fmt.Errorf("空间尚未启用共同执行")
 	}
-	if !s.callerValidLocked(ctx) || !sharing.ExecutionAuthorized(ctx, s.share) || role != s.writer || (role != "owner" && (s.share == nil || !s.share.HasExecutionAccess(role))) {
+	if !s.callerValidLocked(ctx) || !sharing.ExecutionAuthorized(ctx, s.sharedRuntime(), s.record.ID) || role != s.writer || (role != "owner" && (s.sharedRuntime() == nil || !s.sharedRuntime().HasMember(role))) {
 		s.mu.Unlock()
 		return fmt.Errorf("请先取得输入权")
 	}
@@ -512,9 +546,16 @@ func (s *Session) contextWithHistory(ctx context.Context, kind, path string, aft
 	}
 	p := s.process
 	r := s.snapshotLocked()
-	executionAccess := sharing.ExecutionAuthorized(ctx, s.share)
-	r.Annotations = visibleAnnotations(r.Annotations, executionAccess)
-	if !executionAccess {
+	targetAuthorized := sharing.ExecutionAuthorized(ctx, s.sharedRuntime(), s.record.ID)
+	if s.space != nil && !targetAuthorized {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("成员资格或会话目标已失效")
+	}
+	r.Annotations = visibleAnnotations(r.Annotations, targetAuthorized)
+	if _, bound := ctx.Value(runtimeAnnotationKey{}).(string); bound && s.space != nil {
+		r.Annotations = append(append([]Annotation{}, s.space.record.Annotations...), r.Annotations...)
+	}
+	if !targetAuthorized {
 		r.ExecutionRecord = nil
 		p = nil
 	}
@@ -536,12 +577,12 @@ func (s *Session) contextWithHistory(ctx context.Context, kind, path string, aft
 			}
 			r.Annotations = filtered
 		}
-		if history.Compact {
-			return agentAnnotations(r.ID, r.Annotations, history)
+		if history.Compact || history.SourceOnly || history.ReplyID != "" {
+			return agentAnnotations(s.spaceID(), r.Annotations, history)
 		}
-		out := map[string]any{"annotations": r.Annotations, "spaceId": r.ID}
+		out := map[string]any{"annotations": r.Annotations, "spaceId": s.spaceID()}
 		if r.ExecutionRecord != nil {
-			out["sessionId"], out["executionCwd"] = r.SessionID, r.ExecutionCwd
+			out["sessionId"], out["executionCwd"], out["executionId"] = r.SessionID, r.ExecutionCwd, r.ID
 		}
 		return out, nil
 	}
@@ -587,7 +628,7 @@ func (s *Session) contextWithHistory(ctx context.Context, kind, path string, aft
 }
 func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
 	s.mu.Lock()
-	if s.record.ExecutionRecord == nil || !sharing.ExecutionAuthorized(r.Context(), s.share) || (role != "owner" && (s.share == nil || !s.share.HasExecutionAccess(role))) {
+	if s.record.ExecutionRecord == nil || !sharing.ExecutionAuthorized(r.Context(), s.sharedRuntime(), s.record.ID) || (role != "owner" && (s.sharedRuntime() == nil || !s.sharedRuntime().HasMember(role))) {
 		s.mu.Unlock()
 		http.Error(w, "空间尚未启用共同执行", 403)
 		return
@@ -603,7 +644,7 @@ func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
 		return
 	}
 	s.mu.Lock()
-	if !s.callerValidLocked(r.Context()) || !sharing.ExecutionAuthorized(r.Context(), s.share) || s.writer != role || !s.online || s.starting || s.record.State != "ready" || (role != "owner" && (s.share == nil || !s.share.HasExecutionAccess(role))) {
+	if !s.callerValidLocked(r.Context()) || !sharing.ExecutionAuthorized(r.Context(), s.sharedRuntime(), s.record.ID) || s.writer != role || !s.online || s.starting || (s.record.Paused && !s.busy && len(s.approvals) == 0) || s.record.State != "ready" || (role != "owner" && (s.sharedRuntime() == nil || !s.sharedRuntime().HasMember(role))) {
 		s.mu.Unlock()
 		http.Error(w, "等待输入交接或恢复运行时", 403)
 		return
@@ -615,7 +656,7 @@ func (s *Session) attach(w http.ResponseWriter, r *http.Request, role string) {
 	}
 	d := &direct{subscribed: true, role: role, kind: "Codex", send: make(chan nativecodex.Message, 256), done: make(chan struct{})}
 	s.direct = d
-	if s.share == nil {
+	if s.sharedRuntime() == nil {
 		s.releaseWhenIdle = true
 	}
 	init := s.process.Initialization()

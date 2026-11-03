@@ -53,25 +53,26 @@ def run(args):
         core.api('settings',{'binary':args.codex_bin,'claudeBinary':'/usr/bin/false'})
         create = {'sourceId':source,'provider':'codex','workspaceMode':'existing','runtimeMode':'restricted','requestId':str(uuid.uuid4()),'title':'Pairing acceptance'}
         preview = core.api('preview',create); create['previewHash'] = preview['previewHash']
-        session = core.api('collaborations',create); cid = session['id']
-        report['sessionId'], report['collaborationId'] = session['sessionId'], cid
+        session = core.api('collaborations',create); cid, eid = session['spaceId'], session['executionId']
+        base = 'collaborations/'+cid+'/sessions/'+eid
+        report.update({'sessionId':session['sessionId'], 'spaceId':cid, 'executionId':eid})
         pair = core.api('agent-pairings',{'name':'Acceptance conversation'})
         prompt = ('Dedicated acceptance task. Use only Team Cross MCP tools. Call pair_current_session with code '+pair['code']+'. '
                   'Do not guess another session. End this turn after the tool result. Do not poll. Do not change files.')
-        plan = subprocess.run([n.BINARY,'open','--data-dir',str(core.data),'--id',cid,'--client','tui','--print-command','--json'],env=env,cwd=repo,capture_output=True,text=True,timeout=60)
+        plan = subprocess.run([n.BINARY,'open','--data-dir',str(core.data),'--id',cid,'--execution',eid,'--client','tui','--print-command','--json'],env=env,cwd=repo,capture_output=True,text=True,timeout=60)
         if plan.returncode: raise RuntimeError(plan.stdout+plan.stderr)
         terminal = n.Terminal('codex-pairing',json.loads(plan.stdout)['command'],env)
-        n.wait_until(lambda:core.api('collaborations/'+cid)['clientState']=='session_ready',45,terminal)
+        n.wait_until(lambda:core.api(base)['clientState']=='session_ready',45,terminal)
         terminal.prompt(prompt)
         approved = set()
         def approve_fixture_tools():
-            for approval in core.api('collaborations/'+cid+'/context?kind=events')['approvals']:
+            for approval in core.api(base+'/context?kind=events')['approvals']:
                 p = approval.get('params',{}); meta = p.get('_meta',{}); params = meta.get('tool_params',{}); message = p.get('message','')
                 known = params.get('code') == pair['code'] and '"pair_current_session"' in message
                 if '"read_agent_request"' in message or '"finish_agent_request"' in message:
                     known = any(r['id']==params.get('requestId') and r['pairingId']==pair['pairing']['id'] for r in core.api('agent-requests'))
                 if known and approval['id'] not in approved and approval['method']=='mcpServer/elicitation/request' and p.get('serverName')=='teamcross_annotations' and p.get('threadId')==session['sessionId']:
-                    core.api('collaborations/'+cid+'/respond',{'id':approval['id'],'result':{'action':'accept','content':{}}})
+                    core.api(base+'/respond',{'id':approval['id'],'result':{'action':'accept','content':{}}})
                     approved.add(approval['id'])
                     report['scopedToolApprovals'] = len(approved)
             (root/'evidence/native-progress.txt').write_text(n.clean(n.terminal_text(terminal.data)))
@@ -79,11 +80,11 @@ def run(args):
             approve_fixture_tools()
             return next((p for p in core.api('agent-pairings') if p['id']==pair['pairing']['id'] and p['state']=='paired'),None)
         target = n.wait_until(paired,150,terminal)
-        n.wait_until(lambda:not core.api('collaborations/'+cid)['busy'],100,terminal)
+        n.wait_until(lambda:not core.api(base)['busy'],100,terminal)
         assert target['sessionId']==session['sessionId'] and target['sessionId']!=source
         report['pairingId'], report['pairedThroughNativeTool'] = target['id'], True
-        note = core.api('collaborations/'+cid+'/annotations',{'text':'Please check the exact contents of baseline.txt. Analysis only; do not reply to this annotation.'})
-        request = {'requestId':str(uuid.uuid4()),'pairingId':target['id'],'references':[{'spaceId':cid,'kind':'annotation','annotationId':note['id']}], 'instruction':'Read the original annotation with read_annotations. Tell me what it requests. Do not modify files or reply to the annotation. Finish this request using finish_agent_request with summary PAIRING_ANALYSIS_DONE.','intent':'analyze'}
+        note = core.api(base+'/annotations',{'text':'Please check the exact contents of baseline.txt. Analysis only; do not reply to this annotation.'})
+        request = {'requestId':str(uuid.uuid4()),'pairingId':target['id'],'references':[{'spaceId':cid,'executionId':eid,'kind':'annotation','annotationId':note['id']}], 'instruction':'Read the original annotation with read_annotations. Tell me what it requests. Do not modify files or reply to the annotation. Finish this request using finish_agent_request with summary PAIRING_ANALYSIS_DONE.','intent':'analyze'}
         submitted = core.api('agent-requests',request)
         assert submitted['state'] in ('submitted','received','completed')
         duplicate = core.api('agent-requests',request)
@@ -96,7 +97,7 @@ def run(args):
         result = n.wait_until(completed,180,terminal)
         assert result['summary']=='PAIRING_ANALYSIS_DONE'
         assert (repo/'baseline.txt').read_text()=='PAIRING_BASELINE\n'
-        note_after = core.api('collaborations/'+cid+'/context?kind=annotations&annotationId='+note['id'])
+        note_after = core.api(base+'/context?kind=annotations&annotationId='+note['id'])
         assert not note_after.get('replies'), 'analyze-only unexpectedly replied'
         report.update({'deliveryReadAndCompletion':True,'duplicateRequestId':True,'analysisDidNotReply':True,'result':result})
         core.api('agent-pairings/'+target['id']+'/remove',{})

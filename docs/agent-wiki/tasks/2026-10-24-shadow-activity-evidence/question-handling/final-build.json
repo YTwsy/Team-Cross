@@ -1,0 +1,12 @@
+{
+  "command": [
+    "go",
+    "build",
+    "-o",
+    "/private/tmp/teamcross-question-handling-core-20261024",
+    "./cmd/teamcross"
+  ],
+  "exitCode": 0,
+  "reason": "Rebuilt after final Web embeds; all Go source hashes unchanged since final Go/race/vet checks",
+  "sha256": "a1b2afb0cbe677ff156b747cfe2a4c6fa9a4e5a789e4bd40e9c8ff9eb47b59f4"
+}

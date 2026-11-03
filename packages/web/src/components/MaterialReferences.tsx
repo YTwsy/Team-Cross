@@ -24,20 +24,29 @@ export function MaterialReferenceLinks({
       {references.map((r, i) => {
         const m = materials.find((m) => m.id === r.materialId),
           v = m?.versions.find((v) => v.version === r.version);
+        const title = v?.title || t("会话材料");
+        const status = m?.withdrawnAt
+          ? t(" · 已撤回")
+          : m && r.version !== m.versions.at(-1)?.version
+            ? t(" · 有新版本")
+            : "";
         return (
           <button
             type="button"
             className="material-reference-chip"
+            aria-label={`${title} · v${r.version}${status}`}
             key={`${r.materialId}-${r.version}-${i}`}
             onClick={() => onLocate(r)}
           >
             <Icon name="link" size={13} />
-            {v?.title || t("会话材料")} · v{r.version}
-            {m?.withdrawnAt
-              ? t(" · 已撤回")
-              : m && r.version !== m.versions.at(-1)?.version
-                ? t(" · 有新版本")
-                : ""}
+            <span className="material-reference-copy">
+              <span>{title}</span>
+              <span className="material-reference-version">
+                <span className="material-reference-separator"> · </span>v
+                {r.version}
+                {status}
+              </span>
+            </span>
           </button>
         );
       })}

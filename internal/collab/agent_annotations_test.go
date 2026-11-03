@@ -31,7 +31,7 @@ func TestAgentAnnotationReadsAndReceiptsStayScoped(t *testing.T) {
 	server := httptest.NewServer(a.Handler(http.NotFoundHandler()))
 	defer server.Close()
 	backend := mcp.Backend{URL: server.URL, Token: a.Token, Client: server.Client()}
-	args := map[string]any{"id": s.record.ID, "kind": "annotations", "annotationId": root.ID}
+	args := map[string]any{"id": s.record.SpaceID, "executionId": s.record.ID, "kind": "annotations", "annotationId": root.ID}
 	raw, err := backend.Invoke(ctx, "read_context", args)
 	if err != nil || bytes.Contains(raw, []byte("unrelated-")) || !bytes.Contains(raw, []byte(quote)) || readview.RawWireSize(raw) > readview.DefaultBytes {
 		t.Fatal(err, string(raw))
@@ -42,11 +42,11 @@ func TestAgentAnnotationReadsAndReceiptsStayScoped(t *testing.T) {
 	if json.Unmarshal(raw, &selected) != nil || len(selected.Annotations) != 1 || selected.Annotations[0].ID != root.ID {
 		t.Fatal(string(raw))
 	}
-	status, err := backend.Invoke(ctx, "get_collaboration", map[string]any{"id": s.record.ID})
+	status, err := backend.Invoke(ctx, "get_collaboration", map[string]any{"id": s.record.SpaceID, "executionId": s.record.ID})
 	if err != nil || bytes.Contains(status, []byte(quote)) || !bytes.Contains(status, []byte(`"annotationsCount":9`)) {
 		t.Fatal(err, string(status))
 	}
-	reply := map[string]any{"id": s.record.ID, "annotationId": root.ID, "text": "saved answer", "requestId": "same-request"}
+	reply := map[string]any{"id": s.record.SpaceID, "executionId": s.record.ID, "annotationId": root.ID, "text": "saved answer", "requestId": "same-request"}
 	receipt, err := backend.Invoke(ctx, "reply_to_annotation", reply)
 	if err != nil || bytes.Contains(receipt, []byte(quote)) || !bytes.Contains(receipt, []byte(`"status":"saved"`)) || !bytes.Contains(receipt, []byte("saved answer")) {
 		t.Fatal(err, string(receipt))

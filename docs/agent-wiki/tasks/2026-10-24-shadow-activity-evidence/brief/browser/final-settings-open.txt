@@ -1,0 +1,9 @@
+### Ran Playwright code
+```js
+await page.getByRole('link', { name: '设置与连接' }).click();
+```
+### Page
+- Page URL: http://127.0.0.1:61281/#/settings
+- Page Title: Team Cross
+### Snapshot
+- [Snapshot](.playwright-cli/page-2026-10-24T03-13-55-053Z.yml)

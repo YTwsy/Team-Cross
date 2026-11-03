@@ -36,20 +36,20 @@ func TestThreeMembersOneLinkInputAndRevocation(t *testing.T) {
 	}
 	epoch := s.view()["epoch"].(uint64)
 	for _, j := range []*Joined{b, c} {
-		if err = j.request(ctx, "POST", "/v2/request_input", map[string]any{"epoch": epoch}, nil); err != nil {
+		if err = j.request(ctx, "POST", remoteExecutionPath(s.record.ID, "request_input"), map[string]any{"epoch": epoch}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if err = s.ActionFor(ctx, "handoff", bid, epoch); err != nil {
 		t.Fatal(err)
 	}
-	if s.writer != bid || c.view(ctx)["inputRequested"] != true {
+	if s.writer != bid || executionViewFixture(t, c, s)["inputRequested"] != true {
 		t.Fatal("handoff consumed another member's request")
 	}
-	if err = c.request(ctx, "POST", "/v2/rpc", RPCInput{Method: "turn/start", RequestID: "same", Params: map[string]any{}}, nil); err == nil {
+	if err = c.request(ctx, "POST", remoteExecutionPath(s.record.ID, "rpc"), RPCInput{Method: "turn/start", RequestID: "same", Params: map[string]any{}}, nil); err == nil {
 		t.Fatal("C wrote while B owns input")
 	}
-	if err = b.request(ctx, "POST", "/v2/rpc", RPCInput{Method: "turn/start", RequestID: "same", Params: map[string]any{}}, nil); err != nil {
+	if err = b.request(ctx, "POST", remoteExecutionPath(s.record.ID, "rpc"), RPCInput{Method: "turn/start", RequestID: "same", Params: map[string]any{}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	// Both members use the same human display name and request ID; authors and
@@ -61,7 +61,7 @@ func TestThreeMembersOneLinkInputAndRevocation(t *testing.T) {
 	reply := AnnotationReplyInput{AnnotationID: root.ID, RequestID: "same-reply", Text: "response"}
 	var result Annotation
 	for _, j := range []*Joined{b, c} {
-		if err = j.request(ctx, "POST", "/v2/annotation-replies", reply, &result); err != nil {
+		if err = j.request(ctx, "POST", remoteExecutionPath(s.record.ID, "annotation-replies"), reply, &result); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -76,17 +76,17 @@ func TestThreeMembersOneLinkInputAndRevocation(t *testing.T) {
 	if s.view()["writer"] != "owner" || s.view()["busy"] != true || s.view()["epoch"].(uint64) <= before {
 		t.Fatal("writer revocation corrupted runtime")
 	}
-	if err = b.request(ctx, "GET", "/v2/context?kind=annotations", nil, nil); err == nil {
+	if err = b.request(ctx, "GET", remoteExecutionPath(s.record.ID, "context?kind=annotations"), nil, nil); err == nil {
 		t.Fatal("revoked B still reads")
 	}
-	if err = c.request(ctx, "GET", "/v2/context?kind=annotations", nil, nil); err != nil {
+	if err = c.request(ctx, "GET", remoteExecutionPath(s.record.ID, "context?kind=annotations"), nil, nil); err != nil {
 		t.Fatal("revoking B affected C", err)
 	}
 	s.onMessage(nativecodex.Message{Method: "turn/completed"})
 	if err = s.ActionFor(ctx, "handoff", cid); err != nil {
 		t.Fatal(err)
 	}
-	if err = c.request(ctx, "POST", "/v2/rpc", RPCInput{Method: "turn/start", RequestID: "same", Params: map[string]any{}}, nil); err != nil {
+	if err = c.request(ctx, "POST", remoteExecutionPath(s.record.ID, "rpc"), RPCInput{Method: "turn/start", RequestID: "same", Params: map[string]any{}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	f.mu.Lock()
@@ -101,7 +101,7 @@ func TestThreeMembersOneLinkInputAndRevocation(t *testing.T) {
 		t.Fatal("one member reused another's write result", calls)
 	}
 	// Reusing a request ID with different content is rejected within a member.
-	if err = c.request(ctx, "POST", "/v2/rpc", RPCInput{Method: "turn/start", RequestID: "same", Params: map[string]any{"input": []any{map[string]any{"type": "text", "text": "changed"}}}}, nil); err == nil {
+	if err = c.request(ctx, "POST", remoteExecutionPath(s.record.ID, "rpc"), RPCInput{Method: "turn/start", RequestID: "same", Params: map[string]any{"input": []any{map[string]any{"type": "text", "text": "changed"}}}}, nil); err == nil {
 		t.Fatal("changed write reused request ID")
 	}
 	var status map[string]any

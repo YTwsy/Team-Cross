@@ -76,6 +76,8 @@ B 的 claude attach
 
 共享开放期间断开 TUI 保留 worker。结束共享后等待原生 busy/等待交互结束、受理中的请求和直接连接清空，再按协作运行标记停止精确 job 与该 runtime 的独立 supervisor；绝不停止个人 Claude daemon，也不删除个人 transcript。历史、原目录和新 worktree 继续保留。共享尚未释放时，不应从普通个人 `/resume` 另开同一 session；请通过 Team Cross 的直接 TUI attach，或结束共享后再在个人历史中继续。恢复前如发现个人侧已有同 session 的活跃 job，会拒绝接管。实时 `status` 优先于可能在中断后保留的 `state=working` 进度标签。状态轮询之间最后一次终端写入有短暂释放保护。本机连接层在 Core 异常退出后，仅清理带匹配所有权记录、无进程监听且 inode 未变化的 Unix socket。
 
+多会话改造后的真实复验边界：2026-10-21 的 Claude 专用 fixture 在来源创建阶段遇到本机模型代理拒绝连接，尚未进入创建、交接或多会话执行；本轮工程回归不能替代这些原生路径。历史结果继续仅适用于其原版本，详见 [多会话记录](../../tasks/2026-10-21-multiple-sessions/README.md)。
+
 ## 实现与验证入口
 
 - [原生 fork、进程与恢复](../../../../internal/nativeclaude/process.go)、[历史读取](../../../../internal/nativeclaude/history.go)、[本机 TUI 连接层](../../../../internal/nativeclaude/client.go)。

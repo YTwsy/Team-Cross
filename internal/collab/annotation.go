@@ -15,7 +15,7 @@ import (
 )
 
 func annotationVisible(a Annotation, execution bool) bool {
-	return execution || a.Target == nil || a.Target.Kind == "material"
+	return execution || (a.ExecutionID == "" && (a.Target == nil || a.Target.Kind == "material"))
 }
 func visibleAnnotations(annotations []Annotation, execution bool) []Annotation {
 	if execution {
@@ -31,7 +31,22 @@ func visibleAnnotations(annotations []Annotation, execution bool) []Annotation {
 }
 
 func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, author string) (Annotation, error) {
-	in.Text = strings.TrimSpace(in.Text)
+	if _, bound := ctx.Value(runtimeAnnotationKey{}).(string); bound && s.space != nil {
+		s.mu.Lock()
+		public := false
+		if s.callerValidLocked(ctx) {
+			for _, note := range s.space.record.Annotations {
+				public = public || note.ID == in.AnnotationID
+			}
+		}
+		s.mu.Unlock()
+		if public {
+			return s.space.replyAnnotation(ctx, in, author)
+		}
+	}
+	if len(in.Mentions) == 0 {
+		in.Text = strings.TrimSpace(in.Text)
+	}
 	if !utf8.ValidString(in.Text) || in.Text == "" || utf8.RuneCountInString(in.Text) > 4000 {
 		return Annotation{}, fmt.Errorf("请输入 1–4000 字的回复")
 	}
@@ -40,13 +55,17 @@ func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, 
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed || !s.callerValidLocked(ctx) {
+	if s.closed || !s.callerValidLocked(ctx) || (s.space != nil && !sharing.ExecutionAuthorized(ctx, s.sharedRuntime(), s.record.ID)) {
 		return Annotation{}, fmt.Errorf("共享已结束或连接已变化")
 	}
 	authorID := sharing.MemberID(ctx)
+	actor := s.activityAuthorLocked(ctx, author)
+	if in.ReplyTo == nil {
+		in.ReplyTo = &ReplyTarget{Kind: "annotation", ID: in.AnnotationID}
+	}
 	index := -1
 	for i, annotation := range s.record.Annotations {
-		if !annotationVisible(annotation, sharing.ExecutionAuthorized(ctx, s.share)) {
+		if !annotationVisible(annotation, sharing.ExecutionAuthorized(ctx, s.sharedRuntime(), s.record.ID)) {
 			continue
 		}
 		if annotation.ID == in.AnnotationID {
@@ -54,7 +73,14 @@ func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, 
 		}
 		for _, reply := range annotation.Replies {
 			if reply.RequestID == in.RequestID && reply.AuthorID == authorID && reply.Author == author {
-				if annotation.ID != in.AnnotationID || reply.Text != in.Text || contentHash(reply.Materials) != contentHash(in.Materials) {
+				if (reply.Actor.Kind == "shadow" || actor.Kind == "shadow") && reply.Actor != actor {
+					return Annotation{}, fmt.Errorf("requestId 已属于其他实际作者")
+				}
+				parent := reply.ReplyTo
+				if parent == nil {
+					parent = &ReplyTarget{Kind: "annotation", ID: annotation.ID}
+				}
+				if annotation.ID != in.AnnotationID || reply.Text != in.Text || contentHash(reply.Materials) != contentHash(in.Materials) || contentHash(reply.Mentions) != contentHash(in.Mentions) || contentHash(parent) != contentHash(in.ReplyTo) {
 					return Annotation{}, fmt.Errorf("此 requestId 已用于其他回复，请先核对已保存的结果")
 				}
 				return annotation, nil
@@ -64,12 +90,27 @@ func (s *Session) replyAnnotation(ctx context.Context, in AnnotationReplyInput, 
 	if index < 0 {
 		return Annotation{}, fmt.Errorf("没有找到原批注；回复只能属于当前协作的一条原批注")
 	}
+	if err := s.validateMentionsLocked(in.Text, in.Mentions); err != nil {
+		return Annotation{}, err
+	}
+	validParent := in.ReplyTo.Kind == "annotation" && in.ReplyTo.ID == in.AnnotationID
+	if in.ReplyTo.Kind == "reply" {
+		for _, r := range s.record.Annotations[index].Replies {
+			if r.ID == in.ReplyTo.ID {
+				validParent = true
+			}
+		}
+	}
+	if !validParent {
+		return Annotation{}, fmt.Errorf("回复对象必须属于同一条讨论")
+	}
 	if err := s.validateReferencesLocked(in.Materials); err != nil {
 		return Annotation{}, err
 	}
 	previous, updated := s.record.Annotations, s.record.UpdatedAt
 	annotation := previous[index]
 	annotation.Replies = append(append([]AnnotationReply(nil), annotation.Replies...), AnnotationReply{
+		Mentions: in.Mentions, ReplyTo: in.ReplyTo, Actor: actor,
 		Materials: in.Materials, ID: uuid.NewString(), RequestID: in.RequestID, Text: in.Text, Author: author, AuthorID: authorID, CreatedAt: time.Now(),
 	})
 	// Context and view readers can still hold the previous snapshot outside mu.
@@ -90,7 +131,7 @@ func (t *AnnotationTarget) validate() error {
 	if !utf8.ValidString(t.Quote) || t.Quote == "" || utf8.RuneCountInString(t.Quote) > 8000 {
 		return fmt.Errorf("请选择 1–8000 字的原文")
 	}
-	if len(t.SessionID) > 200 || len(t.TurnID) > 200 || len(t.ItemID) > 200 || len(t.Cursor) > 4000 {
+	if len(t.ExecutionID) > 200 || len(t.SessionID) > 200 || len(t.TurnID) > 200 || len(t.ItemID) > 200 || len(t.Cursor) > 4000 {
 		return fmt.Errorf("批注定位过长")
 	}
 	if t.Kind != "material" && (t.MaterialID != "" || t.Version != 0) {

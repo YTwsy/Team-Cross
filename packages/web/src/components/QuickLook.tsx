@@ -145,7 +145,7 @@ function CurrentCollaborations({ hidden }: { hidden: boolean }) {
                 </span>
                 <span>
                   {c.hasExecution === false
-                    ? tr`${c.materials?.filter((m) => !m.withdrawnAt).length || 0} 份会话材料`
+                    ? tr`${c.sessions?.length || 0} 个协作会话 · ${c.materials?.filter((m) => !m.withdrawnAt).length || 0} 份材料`
                     : projectName(c.repo)}
                 </span>
                 {c.host && <span title={c.host}>{c.host}</span>}

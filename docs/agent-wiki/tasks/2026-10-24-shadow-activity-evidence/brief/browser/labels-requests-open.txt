@@ -1,0 +1,9 @@
+### Ran Playwright code
+```js
+await page.getByRole('tab', { name: '协作请求' }).click();
+```
+### Page
+- Page URL: http://127.0.0.1:62991/#/collaborations/905d7b8c-20dd-4596-8e3f-4b54432cf89f
+- Page Title: Team Cross
+### Snapshot
+- [Snapshot](.playwright-cli/page-2026-10-24T03-22-33-897Z.yml)

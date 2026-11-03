@@ -8,6 +8,7 @@ import (
 )
 
 type publicationDraftReadResponse struct {
+	Attachment             *readerImageChunk `json:"attachment,omitempty"`
 	View                   string            `json:"view,omitempty"`
 	Items                  []agentItemIndex  `json:"items,omitempty"`
 	DraftID                string            `json:"draftId"`
@@ -92,6 +93,10 @@ func (a *App) ReadPublicationDraft(in PublicationDraftRead) (publicationDraftRea
 	record, manifest, err := a.loadDraftRecord(in.DraftID)
 	if err != nil {
 		return publicationDraftReadResponse{}, err
+	}
+	if in.AttachmentID != "" {
+		image, err := readImage(a.draftStore().ReadBody, manifest, in.TurnID, in.ItemID, in.ReaderRequest)
+		return publicationDraftReadResponse{Attachment: image}, err
 	}
 	cursor, err := draftCursor(manifest, record, in)
 	if err != nil {

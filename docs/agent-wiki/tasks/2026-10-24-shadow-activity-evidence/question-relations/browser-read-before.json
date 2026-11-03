@@ -1,0 +1,250 @@
+{
+  "spaceId": "49d4be14-5ba7-4edb-83ca-6e5b578be1ac",
+  "title": "网络发布 · 协作空间",
+  "selfId": "owner",
+  "groups": [
+    {
+      "id": "discussion::47816d11-f680-4b40-87fa-b5b025dda206",
+      "latest": {
+        "id": "f00a02b7a147d7e6fdeab2811d773a957f2dbf4c83072bf16cc2b9af5fad290a",
+        "seq": 11,
+        "kind": "reply",
+        "source": {
+          "spaceId": "49d4be14-5ba7-4edb-83ca-6e5b578be1ac",
+          "annotationId": "47816d11-f680-4b40-87fa-b5b025dda206",
+          "replyId": "49a62959-65d5-432f-9c18-5d7c66cf559c"
+        },
+        "subject": {
+          "kind": "discussion",
+          "id": "47816d11-f680-4b40-87fa-b5b025dda206"
+        },
+        "actor": {
+          "memberId": "owner",
+          "name": "活动分身",
+          "kind": "shadow",
+          "shadowId": "9ffb5901-8926-4461-bdfb-d9216b89c53e"
+        },
+        "createdAt": "2026-10-24T07:53:22.762002+08:00",
+        "preview": "请确认本次发布需要兼容的最低客户端版本；确认后我会同步更新说明和验证清单。",
+        "reasons": [
+          "direct_reply",
+          "follow_discussion"
+        ],
+        "unread": true
+      },
+      "attention": {
+        "processing": {
+          "details": true,
+          "state": "received",
+          "shadowId": "9ffb5901-8926-4461-bdfb-d9216b89c53e",
+          "shadowName": "活动分身",
+          "hold": "shadow_paused",
+          "totalJobs": 2,
+          "totalActions": 1
+        },
+        "id": "4335b17aec83ea1f0c651e3c7e31a1afa94a1503bbcd0e2cb83b6a2ad154acc1",
+        "seq": 6,
+        "kind": "reply",
+        "source": {
+          "spaceId": "49d4be14-5ba7-4edb-83ca-6e5b578be1ac",
+          "annotationId": "47816d11-f680-4b40-87fa-b5b025dda206",
+          "replyId": "b7597dba-15c6-47cf-8af0-39567e3da10d"
+        },
+        "subject": {
+          "kind": "discussion",
+          "id": "47816d11-f680-4b40-87fa-b5b025dda206"
+        },
+        "actor": {
+          "memberId": "6f4d711a-5b1e-4d1d-904e-37921f282988",
+          "name": "陈宁",
+          "kind": "human"
+        },
+        "createdAt": "2026-10-24T07:53:22.66861+08:00",
+        "preview": "@林澈 已补齐断线恢复测试，可以一起复核最后的验证记录。",
+        "reasons": [
+          "mention",
+          "direct_reply",
+          "follow_discussion"
+        ],
+        "unread": true
+      },
+      "events": [
+        {
+          "processing": {
+            "details": true,
+            "state": "received",
+            "shadowId": "9ffb5901-8926-4461-bdfb-d9216b89c53e",
+            "shadowName": "活动分身",
+            "hold": "shadow_paused",
+            "totalJobs": 2,
+            "totalActions": 1
+          },
+          "id": "4335b17aec83ea1f0c651e3c7e31a1afa94a1503bbcd0e2cb83b6a2ad154acc1",
+          "seq": 6,
+          "kind": "reply",
+          "source": {
+            "spaceId": "49d4be14-5ba7-4edb-83ca-6e5b578be1ac",
+            "annotationId": "47816d11-f680-4b40-87fa-b5b025dda206",
+            "replyId": "b7597dba-15c6-47cf-8af0-39567e3da10d"
+          },
+          "subject": {
+            "kind": "discussion",
+            "id": "47816d11-f680-4b40-87fa-b5b025dda206"
+          },
+          "actor": {
+            "memberId": "6f4d711a-5b1e-4d1d-904e-37921f282988",
+            "name": "陈宁",
+            "kind": "human"
+          },
+          "createdAt": "2026-10-24T07:53:22.66861+08:00",
+          "preview": "@林澈 已补齐断线恢复测试，可以一起复核最后的验证记录。",
+          "reasons": [
+            "mention",
+            "direct_reply",
+            "follow_discussion"
+          ],
+          "unread": true
+        },
+        {
+          "processing": {
+            "state": "received",
+            "shadowId": "9ffb5901-8926-4461-bdfb-d9216b89c53e",
+            "shadowName": "活动分身",
+            "hold": "shadow_paused",
+            "totalJobs": 0,
+            "totalActions": 0
+          },
+          "id": "440df03bba59b27c9fedd8bbda93c6017dbf2fbb44f057a73d6f1483c778a68c",
+          "seq": 8,
+          "kind": "reply",
+          "source": {
+            "spaceId": "49d4be14-5ba7-4edb-83ca-6e5b578be1ac",
+            "annotationId": "47816d11-f680-4b40-87fa-b5b025dda206",
+            "replyId": "8631a022-9130-4262-9b50-229786bbaf75"
+          },
+          "subject": {
+            "kind": "discussion",
+            "id": "47816d11-f680-4b40-87fa-b5b025dda206"
+          },
+          "actor": {
+            "memberId": "9bd8cd8e-f711-4f7a-b74d-c96b587ce293",
+            "name": "周悦",
+            "kind": "human"
+          },
+          "createdAt": "2026-10-24T07:53:22.695598+08:00",
+          "preview": "我核对了回归结果，下一步可以检查旧窗口与新消息并发时的已读状态。",
+          "reasons": [
+            "direct_reply",
+            "follow_discussion"
+          ],
+          "unread": true
+        },
+        {
+          "id": "f00a02b7a147d7e6fdeab2811d773a957f2dbf4c83072bf16cc2b9af5fad290a",
+          "seq": 11,
+          "kind": "reply",
+          "source": {
+            "spaceId": "49d4be14-5ba7-4edb-83ca-6e5b578be1ac",
+            "annotationId": "47816d11-f680-4b40-87fa-b5b025dda206",
+            "replyId": "49a62959-65d5-432f-9c18-5d7c66cf559c"
+          },
+          "subject": {
+            "kind": "discussion",
+            "id": "47816d11-f680-4b40-87fa-b5b025dda206"
+          },
+          "actor": {
+            "memberId": "owner",
+            "name": "活动分身",
+            "kind": "shadow",
+            "shadowId": "9ffb5901-8926-4461-bdfb-d9216b89c53e"
+          },
+          "createdAt": "2026-10-24T07:53:22.762002+08:00",
+          "preview": "请确认本次发布需要兼容的最低客户端版本；确认后我会同步更新说明和验证清单。",
+          "reasons": [
+            "direct_reply",
+            "follow_discussion"
+          ],
+          "unread": true
+        }
+      ],
+      "count": 3,
+      "unread": 3
+    },
+    {
+      "id": "discussion::74e615f1-4b63-413b-bd89-9cb88ecc26ae",
+      "latest": {
+        "processing": {
+          "state": "received",
+          "shadowId": "9ffb5901-8926-4461-bdfb-d9216b89c53e",
+          "shadowName": "活动分身",
+          "hold": "shadow_paused",
+          "totalJobs": 0,
+          "totalActions": 0
+        },
+        "id": "5fbe7f640ecaafb0a59e6709237e8b7218f6102acd3e1113ae86c2f655199a04",
+        "seq": 10,
+        "kind": "comment",
+        "source": {
+          "spaceId": "49d4be14-5ba7-4edb-83ca-6e5b578be1ac",
+          "annotationId": "74e615f1-4b63-413b-bd89-9cb88ecc26ae"
+        },
+        "subject": {
+          "kind": "discussion",
+          "id": "74e615f1-4b63-413b-bd89-9cb88ecc26ae"
+        },
+        "actor": {
+          "memberId": "6f4d711a-5b1e-4d1d-904e-37921f282988",
+          "name": "陈宁",
+          "kind": "human"
+        },
+        "createdAt": "2026-10-24T07:53:22.718855+08:00",
+        "preview": "@林澈 这份材料中还需要补充版本边界说明。",
+        "reasons": [
+          "mention"
+        ],
+        "unread": false
+      },
+      "events": [
+        {
+          "processing": {
+            "state": "received",
+            "shadowId": "9ffb5901-8926-4461-bdfb-d9216b89c53e",
+            "shadowName": "活动分身",
+            "hold": "shadow_paused",
+            "totalJobs": 0,
+            "totalActions": 0
+          },
+          "id": "5fbe7f640ecaafb0a59e6709237e8b7218f6102acd3e1113ae86c2f655199a04",
+          "seq": 10,
+          "kind": "comment",
+          "source": {
+            "spaceId": "49d4be14-5ba7-4edb-83ca-6e5b578be1ac",
+            "annotationId": "74e615f1-4b63-413b-bd89-9cb88ecc26ae"
+          },
+          "subject": {
+            "kind": "discussion",
+            "id": "74e615f1-4b63-413b-bd89-9cb88ecc26ae"
+          },
+          "actor": {
+            "memberId": "6f4d711a-5b1e-4d1d-904e-37921f282988",
+            "name": "陈宁",
+            "kind": "human"
+          },
+          "createdAt": "2026-10-24T07:53:22.718855+08:00",
+          "preview": "@林澈 这份材料中还需要补充版本边界说明。",
+          "reasons": [
+            "mention"
+          ],
+          "unread": false
+        }
+      ],
+      "count": 1,
+      "unread": 0
+    }
+  ],
+  "unread": 1,
+  "snapshot": "eyJtIjoib3duZXIiLCJzIjoxMX0.fnFN19mXXjANrBOWQnm7kHKKl5X-xsO-GA7oWcj4_Cc",
+  "revision": 11,
+  "readRevision": 2,
+  "syncedAt": "2026-10-24T08:07:35.883142+08:00"
+}

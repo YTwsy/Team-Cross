@@ -118,7 +118,7 @@ func TestSendPreservesTextAndId(t *testing.T) {
 	}))
 	defer server.Close()
 	backend := Backend{URL: server.URL, Client: server.Client()}
-	if _, e := backend.Invoke(context.Background(), "send_input", map[string]any{"id": "abc", "requestId": "stable-id", "mode": "steer", "turnId": "turn1", "text": "选定内容"}); e != nil {
+	if _, e := backend.Invoke(context.Background(), "send_input", map[string]any{"id": "abc", "executionId": "session", "requestId": "stable-id", "mode": "steer", "turnId": "turn1", "text": "选定内容"}); e != nil {
 		t.Fatal(e)
 	}
 }
@@ -197,7 +197,7 @@ func TestReadContextForwardsHistoryItemCoordinates(t *testing.T) {
 	defer server.Close()
 	backend := Backend{URL: server.URL, Client: server.Client()}
 	_, err := backend.Invoke(context.Background(), "read_context", map[string]any{
-		"id": "collaboration", "kind": "history", "cursor": "page-cursor",
+		"id": "collaboration", "executionId": "session", "kind": "history", "cursor": "page-cursor",
 		"turnId": "turn", "itemId": "tool", "startOffset": 16000,
 	})
 	if err != nil {

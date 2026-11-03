@@ -29,7 +29,7 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
-const Capability = "collaboration-spaces-v3-links"
+const Capability = "collaboration-spaces-v4-sessions"
 
 type Transport string
 
@@ -157,7 +157,7 @@ func StartSpace(ctx context.Context, transport Transport, id, title, host string
 		transport: transport,
 		Invitation: Invitation{
 			RuntimeMode: mode, ReadOnly: readOnly,
-			Version: 3, ID: id, Title: title, Host: host, Transport: transport,
+			Version: 4, ID: id, Title: title, Host: host, Transport: transport,
 			Pin: hex.EncodeToString(pin[:]), Secret: NewCredential(), Capability: Capability,
 		},
 	}
@@ -185,7 +185,7 @@ func StartSpace(ctx context.Context, transport Transport, id, title, host string
 			_ = listener.Close()
 			return nil, fmt.Errorf("未找到可分享的局域网地址，请连接局域网")
 		}
-		r.mdns, _ = zeroconf.Register("tcx-"+id, "_teamcross._tcp", "local.", port, []string{"id=" + id, "pin=" + r.Invitation.Pin, "version=3"}, nil)
+		r.mdns, _ = zeroconf.Register("tcx-"+id, "_teamcross._tcp", "local.", port, []string{"id=" + id, "pin=" + r.Invitation.Pin, "version=4"}, nil)
 	case TransportTailcat:
 		tunnelListener := newConnectionListener()
 		tailcatHost, address, startErr := startTailcatHost(ctx, tunnelListener)
@@ -210,7 +210,7 @@ func Decode(token string) (Invitation, error) {
 	if strings.ContainsAny(token, "\r\n") {
 		candidate := ""
 		for _, field := range strings.Fields(token) {
-			if strings.HasPrefix(field, "tcx3.") {
+			if strings.HasPrefix(field, "tcx4.") {
 				if candidate != "" && candidate != field {
 					return Invitation{}, problem.New("invitation_invalid", "发现多个不同邀请", "请只粘贴一个邀请码")
 				}
@@ -232,10 +232,10 @@ func Decode(token string) (Invitation, error) {
 		return Invitation{}, problem.New("invitation_invalid", "邀请内容过长", "")
 	}
 	var i Invitation
-	if !strings.HasPrefix(strings.TrimSpace(token), "tcx3.") {
-		return i, problem.New("invitation_invalid", "请粘贴新的 Team Cross 协作邀请（tcx3.…）", "可粘贴原始邀请码或 App 链接")
+	if !strings.HasPrefix(strings.TrimSpace(token), "tcx4.") {
+		return i, problem.New("invitation_invalid", "请粘贴新的 Team Cross 协作邀请（tcx4.…）", "可粘贴原始邀请码或 App 链接")
 	}
-	b, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(strings.TrimSpace(token), "tcx3."))
+	b, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(strings.TrimSpace(token), "tcx4."))
 	if err != nil {
 		return i, problem.New("invitation_invalid", "邀请格式不完整", "请复制完整邀请码或 App 链接")
 	}
@@ -262,7 +262,7 @@ func Decode(token string) (Invitation, error) {
 }
 
 func validateInvitation(i Invitation) error {
-	if i.Version != 3 || i.Capability != Capability || i.ID == "" || len(i.Secret) < 32 || len(i.Pin) != 64 {
+	if i.Version != 4 || i.Capability != Capability || i.ID == "" || len(i.Secret) < 32 || len(i.Pin) != 64 {
 		return fmt.Errorf("邀请基础字段无效")
 	}
 	transport, err := ParseTransport(string(i.Transport))

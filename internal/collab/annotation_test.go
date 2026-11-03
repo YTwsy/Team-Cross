@@ -22,13 +22,14 @@ func TestParticipantAnnotationRoundTripAndRevokedAccess(t *testing.T) {
 	if err := s.Action(ctx, "share"); err != nil {
 		t.Fatal(err)
 	}
-	j, err := b.Join(ctx, s.share.Token())
+	j, err := b.Join(ctx, s.sharedRuntime().Token())
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var result Annotation
 	in := Annotation{Text: "针对原消息的意见", Target: &AnnotationTarget{Kind: "history", TurnID: "turn", ItemID: "item", Quote: "中文🙂", StartOffset: 5, EndOffset: 9}}
-	if err := j.request(ctx, "POST", "/v2/annotations", in, &result); err != nil {
+	if err := j.request(ctx, "POST", remoteExecutionPath(s.record.ID, "annotations"), in, &result); err != nil {
 		t.Fatal(err)
 	}
 	if result.Author != b.Host || result.AuthorID != firstRemote(s) || result.Target.SessionID != s.record.SessionID || result.Target.EndOffset != 9 {
@@ -38,7 +39,7 @@ func TestParticipantAnnotationRoundTripAndRevokedAccess(t *testing.T) {
 		Annotations  []Annotation `json:"annotations"`
 		ExecutionCwd string       `json:"executionCwd"`
 	}
-	if err := j.request(ctx, "GET", "/v2/context?kind=annotations", nil, &read); err != nil {
+	if err := j.request(ctx, "GET", remoteExecutionPath(s.record.ID, "context?kind=annotations"), nil, &read); err != nil {
 		t.Fatal(err)
 	}
 	if len(read.Annotations) != 1 || read.Annotations[0].Target.ItemID != "item" || read.ExecutionCwd != s.record.ExecutionCwd {
@@ -54,10 +55,10 @@ func TestParticipantAnnotationRoundTripAndRevokedAccess(t *testing.T) {
 		}
 	}
 	runtime.mu.Unlock()
-	if err := s.Action(ctx, "end"); err != nil {
+	if err := s.RevokeMember(firstRemote(s)); err != nil {
 		t.Fatal(err)
 	}
-	if err := j.request(ctx, "POST", "/v2/annotations", in, &result); err == nil {
+	if err := j.request(ctx, "POST", remoteExecutionPath(s.record.ID, "annotations"), in, &result); err == nil {
 		t.Fatal("ended participant still wrote an annotation")
 	}
 }
@@ -105,7 +106,7 @@ func TestAnnotationSnapshotPersistsWithoutStartingTurn(t *testing.T) {
 		t.Fatal("saving or reading annotations called the native runtime")
 	}
 	var record Record
-	if err := readJSON(filepath.Join(a.Config.DataDir, "collaborations", s.record.ID, "collaboration.json"), &record); err != nil {
+	if err := readJSON(filepath.Join(s.runtimeDirectory(), "execution.json"), &record); err != nil {
 		t.Fatal(err)
 	}
 	if len(record.Annotations) != 1 || record.Annotations[0].Target.ContentHash != file["contentHash"] {
