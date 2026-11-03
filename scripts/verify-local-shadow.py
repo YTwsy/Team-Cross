@@ -144,9 +144,9 @@ def self_mention_scenarios(root, a, b, spaces, sid, view, report):
     assert 'own_source_change' not in queued[0]['signal']['reasons']
     assert b.api(prefix+'activity')['unread']==before
     b.api('shadows/'+sid+'/action', {'action':'resume'})
-    def answer(marker):
+    def answer(marker, annotation=aid):
         notes = a.api('collaborations/'+space+'/context?kind=annotations')['annotations']
-        note = next(x for x in notes if x['id']==aid)
+        note = next(x for x in notes if x['id']==annotation)
         return next((r for r in note.get('replies', []) if r.get('actor', {}).get('kind')=='shadow' and marker in r['text']), None)
     first = n.wait_until(lambda:answer('SELF_ROOT_417'), 180)
     assert first['actor']['memberId']==owner
@@ -160,6 +160,25 @@ def self_mention_scenarios(root, a, b, spaces, sid, view, report):
     assert len(events())==2 and not view(b, joined)['shadows'][0]['jobs']
     report.update(selfMentionRootAndReply=True, selfMentionQueuedWhilePaused=True, selfMentionNoOwnUnread=True, selfMentionExactRemoteAuthor=True, selfMentionNoWorkOrDuplicate=True)
     (root/'evidence/self-mentions.json').write_text(json.dumps({'annotationId':aid,'events':events(),'replies':[first,second]}, indent=2)+'\n')
+    # Natural, independent questions in separate discussions; the second
+    # arrives during the first turn, without instructing the model to answer
+    # a synthetic checklist of earlier markers.
+    one = b.api(prefix+'annotations', {'requestId':str(uuid.uuid4()), 'text':'@Self 请计算 6+7，在本讨论回答并带上 SELF_FIRST_642。', 'mentions':mention})
+    n.wait_until(lambda:view(b, joined)['shadows'][0]['busy'], 30)
+    two = b.api(prefix+'annotations', {'requestId':str(uuid.uuid4()), 'text':'@Self 另一条独立问题：请计算 14+5，在本讨论回答并带上 SELF_SECOND_953。', 'mentions':mention})
+    first_concurrent = n.wait_until(lambda:answer('SELF_FIRST_642', one['id']), 180)
+    second_concurrent = n.wait_until(lambda:answer('SELF_SECOND_953', two['id']), 180)
+    n.wait_until(lambda:not view(b, joined)['shadows'][0]['busy'], 40)
+    ledger = json.loads((b.data/'shadows'/sid/'shadow.json').read_text())
+    ids = {one['id'], two['id']}
+    matches = []
+    for run in ledger['runs'].values():
+        batches = run.get('inputBatches', [])
+        origins = {o['source'].get('annotationId') for batch in batches if batch['state']=='accepted' for i in batch['inputs'] for o in i.get('origins', [])}
+        if ids <= origins and any(batch['method']=='turn/steer' and batch['state']=='accepted' for batch in batches): matches.append(run['id'])
+    assert len(matches)==1 and not view(b, joined)['shadows'][0]['jobs']
+    report['concurrentSelfMentionsBothAnsweredWithNativeSteer']=True
+    (root/'evidence/concurrent-self-mentions.json').write_text(json.dumps({'runId':matches[0], 'annotations':list(ids), 'replies':[first_concurrent,second_concurrent]},indent=2)+'\n')
     n.emit('self_mention_delegation_verified')
 
 
