@@ -56,4 +56,6 @@ macOS arm64、Node 24.18.0、Go 1.27.1。以下运行在基线加本次未提交
 
 截图保存在 `output/acceptance/shadow-question-filters-20261103/screenshots/`，日志保存在 `.local-backups/shadow-question-filters-20261103/`（均仅本地保存）。隔离 fixture 已结束，测试标签已关闭，临时窗口尺寸已恢复。
 
-待构建并安装界面修正版 `0.2.6-dev.shadow-session-panel.20261103.1`。
+已从干净提交 `3691d4a2dc868e9e3b58559ccbf77917dd5902a1` 构建并安装界面修正版 `0.2.6-dev.shadow-session-panel.20261103.1`，build 218。`make release` 与 `make verify-release` 均通过，仍为 arm64、ad-hoc、未公证。DMG SHA-256 为 `4e908177947a14760db66840fb1336798d23fcc4020d14a1ea54e5241163d44a`，CLI tar SHA-256 为 `16d0a3fb2dc605512ddc02070a5d0f285d02f27a42399c27f2f48fcecc0aae74`。
+
+前一版 App 保存在 `.local-backups/install/2026-11-03-shadow-question-filters/original-installed.app`。安装后 helper 字节与产物一致，Core 正常运行；原测试空间的 S1、共享消息和任务保持。实际安装页面已核对两种空状态和筛选切换，并为用户打开新版区块；`installed-empty.png` 保存在本节截图目录。无新增模型输入或任务，无远端推送。
