@@ -12,7 +12,7 @@
 
 发布来源为核对过的干净提交。先使 `YTwsy/Team-Cross` Release 产物可下载并核对校验值，再发布 `YTwsy/homebrew-teamcross` 中对应的配方。生成的下载 URL 不代表已经发布，实际状态以 GitHub 为准。本地安装测试使用临时 tap、临时 Homebrew 前缀和应用目录。
 
-GitHub 上的 `CI` workflow 对指向 `main` 的 PR 和 `main` push 运行 Go test/vet、相关 race test、Web check/test/build、嵌入资源一致性和 Darwin arm64 CLI 交叉编译。所有 Tailcat 联网用例默认跳过，不把公共 DERP 可用性变成普通 PR 的外部硬依赖。
+GitHub 上的 `CI` workflow 对指向 `main` 或 `Meta` 的 PR 和 `main` push 运行 Go test/vet、相关 race test、Web check/test/build、嵌入资源一致性和 Darwin arm64 CLI 交叉编译。所有 Tailcat 联网用例默认跳过，不把公共 DERP 可用性变成普通 PR 的外部硬依赖。
 
 `Unsigned macOS release` workflow 接受 `X.Y.Z` 与 `X.Y.Z-rc.N`：手动触发时从可到达 `origin/main` 的所选提交构建、验证、attest 并保存 14 天 workflow artifact，不创建 Release；推送同版本 annotated tag 时使用同一构建链，并在全部检查完成后创建不可覆盖的 GitHub Release。RC 标记为 Pre-release，正式版本标记为 Latest。tag 版本是发布版本的唯一输入，发布构建不使用 Makefile 或脚本的开发默认值。自动门槛依次包括：
 
