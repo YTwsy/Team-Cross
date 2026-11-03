@@ -44,7 +44,7 @@ func TestAttentionDirectMentionActsAndUnderstandsInOneTurn(t *testing.T) {
 	id := uuid.NewString()
 	tool(t, e, f, run, "reply_to_annotation", map[string]any{"annotationId": signal.Source.AnnotationID, "replyTo": map[string]any{"kind": "reply", "id": signal.Source.ReplyID}, "requestId": id, "text": "The supported version is v3."})
 	result := Observation{Summary: "Answered the concrete compatibility question.", Evidence: []spacecontext.SourceRef{signal.Source}, Outcome: "no_action"}
-	f.complete(run.ThreadID, jsonText(result), "completed", true)
+	f.complete(run.ThreadID, observationJSON(t, run, result), "completed", true)
 	until(t, func() bool { return attentionCommitted(e, run.ID) })
 	record := s.Snapshot()
 	c := record.Continuations[run.EventID]
@@ -85,7 +85,7 @@ func TestAttentionDirectRecoveryReusesNativeCompletion(t *testing.T) {
 	id := uuid.NewString()
 	tool(t, e, f, run, "reply_to_annotation", map[string]any{"annotationId": "discussion", "requestId": id, "text": "Persist this one reply."})
 	e.Close()
-	f.complete(run.ThreadID, jsonText(Observation{Summary: "The answer was saved.", Outcome: "no_action"}), "completed", false)
+	f.complete(run.ThreadID, observationJSON(t, run, Observation{Summary: "The answer was saved.", Outcome: "no_action"}), "completed", false)
 	e2, err := Open(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -285,7 +285,7 @@ func TestAttentionDirectContinuationPersistsUnderstandingAfterStorageRepair(t *t
 	if err := os.Mkdir(path, 0700); err != nil {
 		t.Fatal(err)
 	}
-	f.complete(run.ThreadID, jsonText(Observation{Summary: "A copied update needs no public answer.", Outcome: "no_action"}), "completed", true)
+	f.complete(run.ThreadID, observationJSON(t, run, Observation{Summary: "A copied update needs no public answer.", Outcome: "no_action"}), "completed", true)
 	until(t, func() bool { return e.View().Error != "" })
 	if attentionCommitted(e, run.ID) || s.Snapshot().Events[signal.ID].State == "processed" {
 		t.Fatal("failed save committed understanding")
@@ -389,7 +389,7 @@ func TestAttentionDirectFinalCannotPromoteUnverifiedEvidence(t *testing.T) {
 			if read {
 				tool(t, e, f, run, "read_material", map[string]any{"materialId": ref.MaterialID, "version": ref.Version})
 			}
-			f.complete(run.ThreadID, jsonText(Observation{Summary: "The compatibility evidence establishes support.", Evidence: []spacecontext.SourceRef{ref}, Outcome: "no_action"}), "completed", true)
+			f.complete(run.ThreadID, observationJSON(t, run, Observation{Summary: "The compatibility evidence establishes support.", Evidence: []spacecontext.SourceRef{ref}, Outcome: "no_action"}), "completed", true)
 			until(t, func() bool { return attentionCommitted(e, run.ID) })
 			got := s.Snapshot().Continuations[run.EventID]
 			if got.State != "processed" || len(got.Analysis.Evidence) != 0 {

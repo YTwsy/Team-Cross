@@ -276,7 +276,7 @@ func TestAttentionOrdinaryClarificationDoesNotCreateWaitingWork(t *testing.T) {
 			e.Start()
 			run := active(t, e, "continuation")
 			tool(t, e, f, run, "reply_to_annotation", map[string]any{"annotationId": "discussion", "requestId": uuid.NewString(), "text": "What is the deadline?"})
-			f.complete(run.ThreadID, jsonText(Observation{Summary: "Waiting for a deadline.", Outcome: outcome, NextStep: "Resume after the answer."}), "completed", true)
+			f.complete(run.ThreadID, observationJSON(t, run, Observation{Summary: "Waiting for a deadline.", Outcome: outcome, NextStep: "Resume after the answer."}), "completed", true)
 			until(t, func() bool { return attentionCommitted(e, run.ID) })
 			r := s.Snapshot()
 			if r.Continuations[run.EventID].State != "processed" || r.Events[signal.ID].State != "processed" || len(r.Continuations[run.EventID].ActionIDs) != 1 || len(e.View().Jobs) != 0 {
@@ -303,7 +303,7 @@ func TestAttentionDirectRegisteredQuestionLinksActualTaskAndOwner(t *testing.T) 
 			if outcome != "no_action" {
 				observation.NextStep = "Read the owner's version choice and continue the original task."
 			}
-			f.complete(run.ThreadID, jsonText(observation), "completed", true)
+			f.complete(run.ThreadID, observationJSON(t, run, observation), "completed", true)
 			until(t, func() bool { return attentionCommitted(e, run.ID) })
 			r := s.Snapshot()
 			focus := r.Focuses[r.Events[signal.ID].FocusID]
@@ -336,7 +336,7 @@ func TestAttentionDirectTracksAnExistingTaskModifiedInThisRun(t *testing.T) {
 				args["id"], args["baseVersion"], args["baseRevision"] = job.ID, job.Version, job.Revision
 			}
 			tool(t, e, f, run, "shadow_task", args)
-			f.complete(run.ThreadID, jsonText(Observation{Summary: "Updated the actual existing work.", Outcome: "continue", NextStep: "Continue that task after the registered answer."}), "completed", true)
+			f.complete(run.ThreadID, observationJSON(t, run, Observation{Summary: "Updated the actual existing work.", Outcome: "continue", NextStep: "Continue that task after the registered answer."}), "completed", true)
 			until(t, func() bool { return attentionCommitted(e, run.ID) })
 			r := s.Snapshot()
 			focus := r.Focuses[r.Events[signal.ID].FocusID]
@@ -358,7 +358,7 @@ func TestAttentionDirectDoesNotInventOwnerWaitFromQuestionToAnotherMember(t *tes
 	body["text"] = "@Peer Which version?"
 	body["mentions"] = []map[string]any{{"memberId": "peer", "label": "Peer", "startOffset": 0, "endOffset": 5}}
 	q, j := questionPair(t, tool(t, e, f, run, "shadow_task", args))
-	f.complete(run.ThreadID, jsonText(Observation{Summary: "Claimed owner is required.", Outcome: "needs_owner", NextStep: "Wait for owner."}), "completed", true)
+	f.complete(run.ThreadID, observationJSON(t, run, Observation{Summary: "Claimed owner is required.", Outcome: "needs_owner", NextStep: "Wait for owner."}), "completed", true)
 	until(t, func() bool { return attentionCommitted(e, run.ID) })
 	r := s.Snapshot()
 	if r.Continuations[run.EventID].State != "processed" || r.Continuations[run.EventID].Analysis.Outcome == "needs_owner" || q.Delivery != "saved" || currentJob(t, e, j.ID).State != "waiting" {

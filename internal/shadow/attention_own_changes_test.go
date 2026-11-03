@@ -24,7 +24,7 @@ func TestAttentionOwnChangeUpdatesUnderstandingWithoutNewWork(t *testing.T) {
 	acceptAttentionSignals(t, store, question)
 	e.Start()
 	first := active(t, e, "attention")
-	native.complete(first.ThreadID, jsonText(Observation{Summary: "The minimum client version is unresolved.", Evidence: []spacecontext.SourceRef{question.Source}, OpenQuestions: []string{"Which minimum client version?"}, Outcome: "no_action"}), "completed", true)
+	native.complete(first.ThreadID, observationJSON(t, first, Observation{Summary: "The minimum client version is unresolved.", Evidence: []spacecontext.SourceRef{question.Source}, OpenQuestions: []string{"Which minimum client version?"}, Outcome: "no_action"}), "completed", true)
 	until(t, func() bool { return attentionCommitted(e, first.ID) })
 	change := clone(question)
 	change.ID, change.Seq, change.Source.ReplyID = "owner-update", 2, "owner-answer"
@@ -45,7 +45,7 @@ func TestAttentionOwnChangeUpdatesUnderstandingWithoutNewWork(t *testing.T) {
 	if len(parts) != 2 || json.Unmarshal([]byte(parts[1]), &packet) != nil || packet.MemberID != change.Actor.MemberID || !reflect.DeepEqual(packet.MemberChanges, []spacecontext.SourceRef{change.Source}) || len(packet.Focus.OpenQuestions) != 1 || len(packet.Sources) != 1 || !strings.Contains(string(packet.Sources[0].Data), "minimum version is v3") {
 		t.Fatal("own change lost the existing question, source or member identity", prompt)
 	}
-	native.complete(run.ThreadID, jsonText(Observation{Summary: "The member confirmed v3 and updated the note.", Evidence: []spacecontext.SourceRef{change.Source}, OpenQuestions: []string{}, Outcome: "no_action"}), "completed", true)
+	native.complete(run.ThreadID, observationJSON(t, run, Observation{Summary: "The member confirmed v3 and updated the note.", Evidence: []spacecontext.SourceRef{change.Source}, OpenQuestions: []string{}, Outcome: "no_action"}), "completed", true)
 	until(t, func() bool { return attentionCommitted(e, run.ID) })
 	record := store.Snapshot()
 	focus := record.Focuses[record.Events[change.ID].FocusID]
