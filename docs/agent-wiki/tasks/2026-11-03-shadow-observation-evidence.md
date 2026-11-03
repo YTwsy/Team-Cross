@@ -14,7 +14,7 @@
 
 ## 验证记录
 
-本机 arm64，Go 1.27.1，Node 24.18.0。验证基线包含本次未提交修改；最终产物来源和本机恢复结果在安装后补充。
+本机 arm64，Go 1.27.1，Node 24.18.0。工程与原生检查时基线包含本次未提交修改；随后修复以 `e9a2cdf5d7d73b4c04feae39e654b7e2bb96c060` 提交，安装产物从该干净提交构建。
 
 - 全部产品包 `go test ./cmd/... ./internal/...` 和 `go vet ./cmd/... ./internal/...` 通过。使用明确的产品目录，避开已有本地发布工具链缓存 `bin/go-mod`。
 - Web check、262 项测试和两套嵌入资源构建通过，构建没有产生资源差异。
@@ -35,3 +35,26 @@
 四轮均为私有认识；没有创建共享消息、续办或 Work。测试结束关闭本次原生运行时。
 
 详细日志和原生状态仅本地保存在 `.local-backups/shadow-observation-evidence-native-20261103*`；这些目录不提交。实际安装空间仍使用此前的专用 Luna 分身及测试仓库，不触发新关联执行会话中的模型输入。该记录不证明两台 Mac 或其他模型已验收。
+
+## 本机安装及原失败记录恢复
+
+- 版本：`0.2.6-dev.shadow-observation-evidence.20261103`，build 221，arm64，来源 `e9a2cdf5d7d73b4c04feae39e654b7e2bb96c060`，dirty=false。
+- `make release` 与 `make verify-release` 通过，覆盖 DMG/校验和、图标、App 签名完整性、CLI/App 版本一致和隔离生命周期。ad-hoc 签名，未使用 Developer ID、未公证、未公开发布。
+- DMG SHA-256：`20c0b44cb7d574b491b3b3f22b8a67c5b1212bd055166cf57eed981f141aa299`。
+- 新版已安装至 `/Applications/Team Cross.app`，App 内 CLI 与运行 Core 的版本和来源提交一致。旧 App 保存在本工作树 `.local-backups/install/2026-11-03-shadow-observation-evidence/original-installed.app`。
+- 安装先等待其他分身空闲。Core 升级使两条先前在线的执行会话离线，并关闭一个共享监听；用原会话恢复入口及共享入口还原后，所有原生会话 ID、online 与 sharing 状态均与安装前一致。没有创建新会话或新邀请；此检查不证明旧邀请地址在监听重建后仍可用。
+
+已安装新版在“分身消息与关注状态测试 · 11月2日”中执行一次本机“核对原生状态”，专用分身运行时确认仍为 `gpt-5.6-luna` / `openai` / `low`。当时实际有四条旧协议来源失败，而不只是最初报告的两条：
+
+| 旧失败对象 | 恢复结果 |
+| --- | --- |
+| 普通关注讨论 B | 保存评审通过、名额 20 → 35 的事实，证据准确指向原讨论回复 |
+| 材料 D | 保存 v2 当前状态和与 v1 的变化，保留准确版本引用 |
+| 新增空间根讨论 | 保存该测试讨论的事实与准确 annotationId，无待执行事项 |
+| 新增执行会话讨论 | 保存该讨论事实，证据包含准确 executionId 与 annotationId |
+
+四条旧失败批次均为 superseded，旧错误和原生输出保留；四轮新观察 completed 且 AttentionCommitted=true。当前所有 focus 的错误数为 0；静音讨论仍按原规则保持未消费，不宣称所有排队项都已处理。
+
+与安装前快照比较：四条公开行动、十条共享聊天消息、Work 集合及原 S1 ID 全部相同，先前已处理的直接输入没有重新排队。没有重发回复、创建 Work 或新增共享输出；材料和讨论的事实确实已持久保存，不仅是清空错误标志。
+
+仅本地证据：`.local-backups/shadow-observation-evidence-live-20261103/{before,after,reconcile}.json`、`before-summary.json`、`after-summary.json` 与 `logs/`；安装与会话恢复回执在 `.local-backups/install/2026-11-03-shadow-observation-evidence/`。专用原生验收运行时已关闭，正常安装的 App、Core 与用户原有协作会话保留运行。此次以后端协议和恢复为主，没有新增界面或截图验收。
