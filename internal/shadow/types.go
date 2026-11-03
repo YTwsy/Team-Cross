@@ -152,31 +152,32 @@ type TaskTrigger struct {
 // A run is written before the native request. An unacknowledged request is
 // reconciled against native history, never retried as a fresh model input.
 type Run struct {
-	ID                 string                   `json:"id"`
-	Kind               string                   `json:"kind"` // main, job, result, steward, handoff, memory, compact
-	ThreadID           string                   `json:"threadId"`
-	TurnID             string                   `json:"turnId,omitempty"`
-	SourceID           string                   `json:"sourceId,omitempty"`
-	InputBatches       []InputBatch             `json:"inputBatches,omitempty"`
-	ExplicitReply      bool                     `json:"explicitReply,omitempty"`
-	JobID              string                   `json:"jobId,omitempty"`
-	JobVersion         int                      `json:"jobVersion,omitempty"`
-	EventID            string                   `json:"eventId,omitempty"`
-	State              string                   `json:"state"` // prepared, submitted, unknown, completed, failed
-	Output             string                   `json:"output,omitempty"`
-	Items              map[string]string        `json:"items,omitempty"`
-	MemoryRevision     int                      `json:"memoryRevision"`
-	MemoryWatermark    int                      `json:"memoryWatermark,omitempty"`
-	SegmentID          string                   `json:"segmentId,omitempty"`
-	Compactions        int                      `json:"compactions,omitempty"`
-	MessageCount       int                      `json:"messageCount,omitempty"`
-	Error              string                   `json:"error,omitempty"`
-	IgnoreResult       bool                     `json:"ignoreResult,omitempty"`
-	AttentionCommitted bool                     `json:"attentionCommitted,omitempty"`
-	ReadSources        []spacecontext.SourceRef `json:"readSources,omitempty"`
-	TaskIDs            []string                 `json:"taskIds,omitempty"`
-	ContextInputs      map[string]string        `json:"contextInputs,omitempty"`
-	CreatedAt          time.Time                `json:"createdAt"`
+	ID                  string                   `json:"id"`
+	Kind                string                   `json:"kind"` // main, job, result, steward, handoff, memory, compact
+	ThreadID            string                   `json:"threadId"`
+	TurnID              string                   `json:"turnId,omitempty"`
+	SourceID            string                   `json:"sourceId,omitempty"`
+	InputBatches        []InputBatch             `json:"inputBatches,omitempty"`
+	ExplicitReply       bool                     `json:"explicitReply,omitempty"`
+	JobID               string                   `json:"jobId,omitempty"`
+	JobVersion          int                      `json:"jobVersion,omitempty"`
+	EventID             string                   `json:"eventId,omitempty"`
+	State               string                   `json:"state"` // prepared, submitted, unknown, completed, failed
+	Output              string                   `json:"output,omitempty"`
+	Items               map[string]string        `json:"items,omitempty"`
+	MemoryRevision      int                      `json:"memoryRevision"`
+	MemoryWatermark     int                      `json:"memoryWatermark,omitempty"`
+	SegmentID           string                   `json:"segmentId,omitempty"`
+	Compactions         int                      `json:"compactions,omitempty"`
+	MessageCount        int                      `json:"messageCount,omitempty"`
+	Error               string                   `json:"error,omitempty"`
+	IgnoreResult        bool                     `json:"ignoreResult,omitempty"`
+	AttentionCommitted  bool                     `json:"attentionCommitted,omitempty"`
+	ObservationEvidence *ObservationEvidence     `json:"observationEvidence,omitempty"`
+	ReadSources         []spacecontext.SourceRef `json:"readSources,omitempty"`
+	TaskIDs             []string                 `json:"taskIds,omitempty"`
+	ContextInputs       map[string]string        `json:"contextInputs,omitempty"`
+	CreatedAt           time.Time                `json:"createdAt"`
 }
 
 type Transition struct {

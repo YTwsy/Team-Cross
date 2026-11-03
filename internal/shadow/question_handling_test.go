@@ -288,7 +288,7 @@ func TestQuestionHandlingHandbackRunsWithoutSyntheticEventOrUserMessage(t *testi
 	if run.SourceID != run.EventID || len(s.Snapshot().Events) != 0 || len(e.View().Messages) != 0 {
 		t.Fatal("handback invented a space event or shared user message", run)
 	}
-	f.complete(run.ThreadID, jsonText(Observation{Summary: "The original human answer is enough; no additional reply is needed.", Outcome: "no_action", Evidence: []spacecontext.SourceRef{signal.Source}}), "completed", true)
+	f.complete(run.ThreadID, observationJSON(t, run, Observation{Summary: "The original human answer is enough; no additional reply is needed.", Outcome: "no_action", Evidence: []spacecontext.SourceRef{signal.Source}}), "completed", true)
 	until(t, func() bool { return attentionCommitted(e, run.ID) })
 	c := s.Snapshot().Continuations[run.EventID]
 	if c.State != "processed" || len(e.View().Messages) != 0 {

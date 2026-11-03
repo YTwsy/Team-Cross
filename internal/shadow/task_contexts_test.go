@@ -256,7 +256,7 @@ func TestTaskContextsOwnChangeObservationFeedsExistingWork(t *testing.T) {
 	acceptAttentionSignals(t, store, signal)
 	e.Start()
 	first := active(t, e, "attention")
-	native.complete(first.ThreadID, jsonText(Observation{Summary: "The supported version is still unknown", Evidence: []spacecontext.SourceRef{signal.Source}, OpenQuestions: []string{"Which client version?"}, Outcome: "no_action"}), "completed", true)
+	native.complete(first.ThreadID, observationJSON(t, first, Observation{Summary: "The supported version is still unknown", Evidence: []spacecontext.SourceRef{signal.Source}, OpenQuestions: []string{"Which client version?"}, Outcome: "no_action"}), "completed", true)
 	until(t, func() bool { return attentionCommitted(e, first.ID) })
 	record := store.Snapshot()
 	focus := record.Focuses[record.Events[signal.ID].FocusID]
@@ -284,7 +284,7 @@ func TestTaskContextsOwnChangeObservationFeedsExistingWork(t *testing.T) {
 	if !strings.Contains(prompt, j.ID) || !strings.Contains(prompt, "The client version affects the migration") || !strings.Contains(prompt, "memberChanges") {
 		t.Fatal("observer did not know existing work or the member's change", prompt)
 	}
-	native.complete(observation.ThreadID, jsonText(Observation{Summary: "The member supplied version v3", Evidence: []spacecontext.SourceRef{change.Source}, Outcome: "no_action"}), "completed", true)
+	native.complete(observation.ThreadID, observationJSON(t, observation, Observation{Summary: "The member supplied version v3", Evidence: []spacecontext.SourceRef{change.Source}, Outcome: "no_action"}), "completed", true)
 	next := nextJobRun(t, e, worker)
 	j = currentJob(t, e, j.ID)
 	if next.ThreadID != worker.ThreadID || len(store.Snapshot().Continuations) != 0 || len(e.View().Jobs) != 1 || j.Contexts[0].Current.Summary != "The member supplied version v3" || !pendingTaskContexts(j) {
