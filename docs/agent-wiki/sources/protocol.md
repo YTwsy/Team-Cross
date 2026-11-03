@@ -609,6 +609,8 @@ snapshot 使用主机日志密钥签名并绑定成员与 seq，全部已读取�
 
 已有关注对象的本人 human 写入可携带仅供所属成员分身使用的 `own_source_change` 与有效 follow 原因，来源、作者、事件 ID 和 seq 沿用原业务事件。空间主机保存的 agentRecipients 不进入人的动态或公开响应，消费者只返回当前成员的 reasons；当前取消或静音仍抑制普通事实同步。首次消费也包含切换前已登记但尚未接收的本人变化；这类事件的保留核对独立消费者进度，不因人的已读而提前删除。
 
+本人 human 批注／回复的有效结构化 `mentions` 包含本人时，复用上述私有 `agentRecipients`，保存 `mention` 直接收件原因，不同时保存 `own_source_change`。它不进入本人的人类提醒，`direct_only` 可投递、`muted` 不投递，消费时再核对当前偏好。未增加新的派活字段、请求路由或任务状态；普通粘贴 `@名字` 不触发。
+
 该消费者另接收 `kind:follow_changed`，包含 `follow:{mode,revision,parent?,baseline?,partial?}`。baseline 是保存偏好时固定的 SourceRef，最多九个（讨论根项及八条近期回复）；parent 为当时明确存在的父偏好快照。旧 revision 或当前已取消的初始化不再投递。内部信号不出现在人的 activity/list、空间全部动态或 read 入口。初始化按来源读取，每个来源正文最多 32 KiB，合成正文最多 64 KiB；实际读到的 references 和 partial 随内部 SourceSnapshot 保存，不能用来源清单声称已读全部历史。
 
 参与者的 `member-activity-read-queue.json` 最多 1,000 个动作、8 MiB，绑定空间 ID 与凭据哈希；后台每次最多八项、单次两秒。只在 host_unreachable 时保留待补交，校验失败或资格结束不无限重试。远端列表缓存最多十二个查询页，每页沿用 64 KiB 预算，只保留计数、身份与来源元数据，清除正文预览。主机离线返回缓存并标注 pendingSync/error/syncedAt；已确认撤权不返回缓存。

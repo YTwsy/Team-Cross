@@ -179,7 +179,7 @@ func (s *AttentionStore) claimContinuationExcept(shadowID string, excluded map[s
 			}
 			continue
 		}
-		if c.HandlingID == "" && focus.State == "paused" || !continuationFollowEligible(s.record, c) || focus.Error != "" && (focus.RetryAfter.IsZero() || time.Now().Before(focus.RetryAfter)) {
+		if c.HandlingID == "" && focus.State == "paused" || !continuationFollowEligible(s.record, c) || c.Mode != "direct" && focus.Error != "" && (focus.RetryAfter.IsZero() || time.Now().Before(focus.RetryAfter)) {
 			continue
 		}
 		if c.State == "queued" {

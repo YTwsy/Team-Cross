@@ -68,6 +68,8 @@
 
 本人分身发出的更新继续在人的动态中显示实际作者与正文，但不展示分身接收状态；消费者已明确排除此类自发事件，不能把未投递给自己的消息显示为长期等待接收。
 
+本人在批注或回复中通过成员选择器显式 @ 自己，表示交给本空间自己的默认分身处理。源事件只给本人分身保存 `mention` 原因，不产生本人的未读提醒，也不作为 `own_source_change` 表示本人已完成工作；原始 human 作者、根讨论与具体回复来源不变。它复用直接消息输入，不自动创建 Work，短问题可直接回复原讨论。`direct_only` 允许，讨论或父对象静音仍抑制；暂停或离线保留尚未处理输入。分身自己的 @ 本人回复仍不反向唤醒自己。
+
 当前 WebGUI、嵌入 WebGUI 的 UI 路由及个人 MCP 具有成员动态接口；运行时 MCP只能按原权限读取／回复公开讨论，不能管理或读取人的私人动态。真实原生、桌面宿主、跨机器及网络的验证范围只以证据入口为准；界面内列表不包含系统推送、邮件、@所有人或跨设备账号迁移。
 
 实现入口：[持久事件与匹配](../../../../internal/collab/member_activity.go)、[查询与已读](../../../../internal/collab/member_activity_api.go)、[原生轮次](../../../../internal/collab/member_activity_native.go)、[远端同步](../../../../internal/collab/member_activity_sync.go)、[界面](../../../../packages/web/src/components/MemberActivity.tsx)。

@@ -458,7 +458,15 @@ func (s *Session) prepareActivityLocked() error {
 		e.Recipients = map[string][]string{}
 		for _, id := range s.activityMembersLocked() {
 			if e.Actor.Kind == "human" && e.Actor.MemberID == id {
-				if ownFollowing {
+				selfMention := false
+				for _, mention := range e.Mentions {
+					selfMention = selfMention || mention.MemberID == id
+				}
+				if selfMention && ownMode != "muted" {
+					// Explicit delegation uses the existing direct-input path. It
+					// is not a human reminder or an already-completed owner change.
+					e.AgentRecipients = map[string][]string{id: {"mention"}}
+				} else if ownFollowing {
 					_, kind := s.activityEffectiveLocked(id, e.Subject)
 					e.AgentRecipients = map[string][]string{id: {"own_source_change", "follow_" + kind}}
 				}

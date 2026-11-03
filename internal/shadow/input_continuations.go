@@ -103,6 +103,10 @@ func (s *AttentionStore) finishMessageInput(id, shadowID, state string, actions,
 	}
 	next.Batches[batch.ID] = batch
 	focus := next.Focuses[c.FocusID]
+	previousError, previousRetry := focus.Error, focus.RetryAfter
+	if previousError == "" {
+		previousError, previousRetry = batch.Focus.Error, batch.Focus.RetryAfter
+	}
 	focus.Processing, focus.Error, focus.RetryAfter = "idle", "", time.Time{}
 	focus.ActionIDs = appendUniqueLinks(focus.ActionIDs, actions)
 	focus.JobIDs = appendUniqueLinks(focus.JobIDs, jobs)
@@ -119,6 +123,11 @@ func (s *AttentionStore) finishMessageInput(id, shadowID, state string, actions,
 	for _, event := range next.Events {
 		if event.FocusID == focus.ID && event.State == "queued" {
 			focus.Processing = "queued"
+			// Handling a new request does not repair or replay an older
+			// failed observation. Keep its error until explicitly retried.
+			if previousError != "" {
+				focus.Processing, focus.Error, focus.RetryAfter = "error", previousError, previousRetry
+			}
 		}
 	}
 	focus.UpdatedAt = time.Now()

@@ -122,10 +122,52 @@ class ShadowCore(n.Core):
             raise
 
 
+def self_mention_scenarios(root, a, b, spaces, sid, view, report):
+    space, joined = spaces
+    prefix = 'collaborations/'+joined+'/'
+    owner = view(b, joined)['selfId']
+    mention = [{'memberId':owner, 'label':'Self', 'startOffset':0, 'endOffset':5}]
+    n.wait_until(lambda:not view(b, joined)['shadows'][0]['busy'], 40)
+    b.api('shadows/'+sid+'/action', {'action':'pause'})
+    before = b.api(prefix+'activity')['unread']
+    note = b.api(prefix+'annotations', {'requestId':str(uuid.uuid4()), 'text':'@Self 这是本人交给分身的测试：用 reply_to_annotation 在此根讨论回复 SELF_ROOT_417 和 3+4 的答案。不要创建 Work，不修改文件。', 'mentions':mention})
+    aid = note['id']
+    def events():
+        for path in (b.data/'shadow-activity').glob('*/attention.json'):
+            record = json.loads(path.read_text())
+            if record['spaceId']==joined:
+                return [e for e in record['events'].values() if e['signal']['source'].get('annotationId')==aid and 'mention' in e['signal'].get('reasons', [])]
+        return []
+    queued = n.wait_until(lambda:events() or None, 30)
+    assert len(queued)==1 and queued[0]['state']=='queued'
+    assert queued[0]['signal']['actor']['memberId']==owner
+    assert 'own_source_change' not in queued[0]['signal']['reasons']
+    assert b.api(prefix+'activity')['unread']==before
+    b.api('shadows/'+sid+'/action', {'action':'resume'})
+    def answer(marker):
+        notes = a.api('collaborations/'+space+'/context?kind=annotations')['annotations']
+        note = next(x for x in notes if x['id']==aid)
+        return next((r for r in note.get('replies', []) if r.get('actor', {}).get('kind')=='shadow' and marker in r['text']), None)
+    first = n.wait_until(lambda:answer('SELF_ROOT_417'), 180)
+    assert first['actor']['memberId']==owner
+    request = {'annotationId':aid, 'requestId':str(uuid.uuid4()), 'text':'@Self 再交给分身一个短问题：用 reply_to_annotation 回复本条具体回复，包含 SELF_REPLY_836 和 8+9 的答案。不要创建 Work，不修改文件。', 'mentions':mention}
+    note = b.api(prefix+'annotation-replies', request)
+    own_reply = next(r for r in note['replies'] if r.get('requestId')==request['requestId'])
+    b.api(prefix+'annotation-replies', request)
+    second = n.wait_until(lambda:answer('SELF_REPLY_836'), 180)
+    assert second['replyTo']=={'kind':'reply', 'id':own_reply['id']}
+    n.wait_until(lambda:not view(b, joined)['shadows'][0]['busy'], 40)
+    assert len(events())==2 and not view(b, joined)['shadows'][0]['jobs']
+    report.update(selfMentionRootAndReply=True, selfMentionQueuedWhilePaused=True, selfMentionNoOwnUnread=True, selfMentionExactRemoteAuthor=True, selfMentionNoWorkOrDuplicate=True)
+    (root/'evidence/self-mentions.json').write_text(json.dumps({'annotationId':aid,'events':events(),'replies':[first,second]}, indent=2)+'\n')
+    n.emit('self_mention_delegation_verified')
+
+
 def run(args):
     root = args.fixture_dir.resolve()
     root.mkdir(mode=0o700)
     (root/'evidence').mkdir(); (root/'repo').mkdir(); (root/'codex-home').mkdir()
+    subprocess.run(['git','init','-q','--initial-branch=main',str(root/'repo')], check=True)
     home = root/'codex-home'
     (home/'auth.json').symlink_to(args.codex_auth.resolve())
     (home/'config.toml').write_text('model = "gpt-5.6-luna"\nmodel_reasoning_effort = "medium"\napproval_policy = "on-request"\nsandbox_mode = "workspace-write"\n')
@@ -180,6 +222,8 @@ def run(args):
         n.emit('shared_native_conversation_verified')
         if args.message_inputs:
             message_input_scenarios(root,a,b,c,(s['id'],jb,jc),sid,view,report)
+        if args.self_mentions:
+            self_mention_scenarios(root,a,b,(s['id'],jb),sid,view,report)
         # No cloud queue: an offline attempt remains failed after reconnect
         # until the sender explicitly retries the same id.
         (home/'config.toml').write_text((home/'config.toml').read_text().replace('model_reasoning_effort = "medium"','model_reasoning_effort = "high"'))
@@ -213,6 +257,8 @@ def run(args):
         proc=subprocess.run([n.BINARY,'mcp','--data-dir',str(c.data)],input='\n'.join(json.dumps(r) for r in requests)+'\n',text=True,capture_output=True,env=env,timeout=30,check=True)
         responses=[json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
         result=next(r['result'] for r in responses if r.get('id')==2)
+        (root/'evidence/stdio-shadow-read.json').write_text(json.dumps(result,indent=2)+'\n')
+        (root/'evidence/report.json').write_text(json.dumps(report,indent=2)+'\n')
         assert not result.get('isError') and 'RESUMED_PIPELINE_OK' in json.dumps(result)
         report['stdioMCPSharedRead']=True
         (root/'evidence/report.json').write_text(json.dumps(report,indent=2)+'\n')
@@ -237,4 +283,5 @@ if __name__=='__main__':
     p.add_argument('--codex-auth',required=True,type=pathlib.Path)
     p.add_argument('--keep-browser',action='store_true')
     p.add_argument('--message-inputs',action='store_true',help='Also verify real three-member steer attribution and foreground chat during a gated Work')
+    p.add_argument('--self-mentions',action='store_true',help='Verify owner mentions in roots and replies, paused receipt, exact remote authors and no duplicate Work')
     run(p.parse_args())

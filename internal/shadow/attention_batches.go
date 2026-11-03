@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
@@ -67,6 +68,25 @@ func signalDirect(signal spacecontext.Signal) bool {
 	return false
 }
 
+// A failed observation must not silence a new explicit request on the same
+// object. Previously attempted inputs still honor the failure/backoff; merely
+// receiving the same host receipt again cannot retry their business actions.
+func attentionRetryReady(record AttentionRecord, event AttentionEvent, now time.Time) bool {
+	focus := record.Focuses[event.FocusID]
+	if focus.Error == "" || !focus.RetryAfter.IsZero() && !focus.RetryAfter.After(now) {
+		return true
+	}
+	if !signalDirect(event.Signal) || event.ObserveOnly {
+		return false
+	}
+	for _, batch := range record.Batches {
+		if batch.Focus.ID == event.FocusID && batch.State == "failed" && slices.Contains(batch.EventIDs, event.Signal.ID) {
+			return false
+		}
+	}
+	return true
+}
+
 // ClaimBatch is metadata-only. It fixes an exact prefix for one object; newer
 // signals remain queued. Calling it never advances understanding or human reads.
 func (s *AttentionStore) ClaimBatch(shadowID string, now time.Time, mergeDelay, maxWait time.Duration) (*ObservationBatch, error) {
@@ -96,7 +116,7 @@ func (s *AttentionStore) ClaimBatch(shadowID string, now time.Time, mergeDelay, 
 	groups := map[string][]AttentionEvent{}
 	for _, event := range s.record.Events {
 		focus := s.record.Focuses[event.FocusID]
-		retryReady := focus.Error == "" || (!focus.RetryAfter.IsZero() && !focus.RetryAfter.After(now))
+		retryReady := attentionRetryReady(s.record, event, now)
 		if event.State == "queued" && attentionEligible(s.record, event.Signal) && !activeFocus[event.FocusID] && (!activeDirect[event.FocusID] || signalDirect(event.Signal) && !event.ObserveOnly) && focus.State != "paused" && retryReady {
 			groups[event.FocusID] = append(groups[event.FocusID], event)
 		}

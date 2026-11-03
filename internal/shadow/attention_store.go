@@ -181,7 +181,7 @@ func (s *AttentionStore) HasPending(shadowID string, now time.Time) bool {
 	}
 	for _, event := range s.record.Events {
 		f := s.record.Focuses[event.FocusID]
-		if event.State == "queued" && attentionEligible(s.record, event.Signal) && f.State != "paused" && (f.Error == "" || (!f.RetryAfter.IsZero() && !f.RetryAfter.After(now))) {
+		if event.State == "queued" && attentionEligible(s.record, event.Signal) && f.State != "paused" && attentionRetryReady(s.record, event, now) {
 			return true
 		}
 	}
