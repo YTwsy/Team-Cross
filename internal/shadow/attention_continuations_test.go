@@ -24,7 +24,7 @@ func continuingAttention(t *testing.T) (*Engine, *fakeNative, Config, *Attention
 	acceptAttentionSignals(t, s, signal)
 	e.Start()
 	observation := active(t, e, "attention")
-	f.complete(observation.ThreadID, jsonText(Observation{Summary: "The original question needs a factual answer.", Outcome: "continue", NextStep: "Read the current discussion and answer with the compatibility evidence."}), "completed", true)
+	f.complete(observation.ThreadID, observationJSON(t, observation, Observation{Summary: "The original question needs a factual answer.", Outcome: "continue", NextStep: "Read the current discussion and answer with the compatibility evidence."}), "completed", true)
 	run := active(t, e, "continuation")
 	return e, f, cfg, s, run
 }

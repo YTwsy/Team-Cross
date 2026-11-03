@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api, errorText, useResource } from "../api";
 import { formatDate, serviceText, t } from "../i18n";
 import { localStorage } from "../storage";
@@ -20,14 +21,22 @@ import { MarkdownText } from "./MarkdownText";
 import { DefaultShadow } from "./DefaultShadow";
 import { ShadowQuestions } from "./ShadowQuestions";
 import { ShadowSessions } from "./ShadowSessions";
+import { SpaceAvatar } from "./SpaceIdentity";
+import { ShadowInspector, type ShadowInspectorTab } from "./ShadowInspector";
 import "../shadows.css";
 
 export function SpaceShadows({
   spaceId,
   disabled,
+  navigation,
+  active = true,
+  onActivate,
 }: {
   spaceId: string;
   disabled: boolean;
+  navigation?: HTMLElement | null;
+  active?: boolean;
+  onActivate?: () => void;
 }) {
   const list = useResource<ShadowView>(
     `collaborations/${spaceId}/shadows/view`,
@@ -35,66 +44,154 @@ export function SpaceShadows({
   );
   const refreshKey = `SpaceShadows:v1:${spaceId}`;
   const [selected, select] = useRefreshState(refreshKey + ":selected", "");
+  const [expanded, setExpanded] = useRefreshState(
+    refreshKey + ":expanded",
+    true,
+  );
+  const [visited, setVisited] = useRefreshState<string[]>(
+    refreshKey + ":visited",
+    [],
+  );
+  const groupId = useId();
   const [creating, setCreating] = useRefreshState(
     refreshKey + ":creating",
     false,
   );
   useRefreshGuard(refreshKey, creating);
-  const current =
-    list.data?.shadows.find((s) => s.id === selected) || list.data?.shadows[0];
+  const shadows = list.data?.shadows || [];
+  const current = shadows.find((s) => s.id === selected) || shadows[0];
+  useEffect(() => {
+    if (active && current)
+      setVisited((ids) =>
+        ids.includes(current.id) ? ids : [...ids, current.id],
+      );
+  }, [active, current?.id]);
+  function create() {
+    onActivate?.();
+    setCreating(true);
+  }
+  const sidebar = (
+    <nav
+      className="shadow-navigation execution-navigation"
+      aria-label={t("本机数字分身")}
+    >
+      <div className="shadow-nav-heading">
+        <button
+          className="shadow-group-toggle"
+          aria-expanded={expanded}
+          aria-controls={groupId}
+          aria-label={expanded ? t("收起数字分身") : t("展开数字分身")}
+          title={t("本机数字分身")}
+          onClick={() => setExpanded(!expanded)}
+        >
+          <Icon name="chevron" size={13} />
+          <span className="space-nav-label">{t("数字分身")}</span>
+          <span className="count">{shadows.length}</span>
+        </button>
+        <button
+          className="icon-button shadow-nav-create"
+          disabled={disabled}
+          aria-label={t("新增数字分身")}
+          title={t("创建我的分身")}
+          onClick={create}
+        >
+          <Icon name="plus" size={15} />
+        </button>
+      </div>
+      <div id={groupId} hidden={!expanded}>
+        {shadows.map((s) => (
+          <button
+            key={s.id}
+            className={`execution-nav-item shadow-nav-item ${active && s.id === current?.id ? "active" : ""}`}
+            aria-current={active && s.id === current?.id ? "page" : undefined}
+            title={s.name}
+            aria-label={`${s.name} · ${shadowStatus(s)}`}
+            onClick={() => {
+              select(s.id);
+              onActivate?.();
+            }}
+          >
+            <span className="shadow-nav-avatar">
+              <SpaceAvatar name={s.name} agent />
+              <span
+                className={`dot ${s.online && s.enabled ? "green-dot" : ""}`}
+              />
+            </span>
+            <span className="execution-nav-copy">
+              <strong>{s.name}</strong>
+              <small>
+                {s.owner.name} · {shadowStatus(s)}
+              </small>
+            </span>
+          </button>
+        ))}
+        {!shadows.length && (
+          <p className="small-text muted shadow-nav-empty">
+            {list.loading ? t("正在读取分身") : t("还没有数字分身")}
+          </p>
+        )}
+        <button
+          className="text-button shadow-nav-add"
+          disabled={disabled}
+          onClick={create}
+          title={t("创建我的分身")}
+        >
+          <Icon name="plus" size={15} />
+          <span>{t("创建我的分身")}</span>
+        </button>
+      </div>
+    </nav>
+  );
   return (
     <section className="shadow-workspace">
-      <header className="workbench-header">
-        <div>
-          <h2>{t("本机数字分身")}</h2>
-          <p>{t("整个空间共享一段对话，直接提问或接着聊。")}</p>
-        </div>
-        <button
-          className="button"
-          disabled={disabled}
-          onClick={() => setCreating(true)}
-        >
-          <Icon name="plus" />
-          {t("创建我的分身")}
-        </button>
-      </header>
-      <ErrorBox message={list.error} />
-      {list.data && (
-        <DefaultShadow
-          key={spaceId}
-          spaceId={spaceId}
-          selfId={list.data.selfId}
-          shadows={list.data.shadows}
-          disabled={disabled}
-        />
-      )}
-      {list.loading && !list.data ? (
-        <Loading />
-      ) : list.data?.shadows.length ? (
-        <>
-          <div className="shadow-picker" aria-label={t("选择分身")}>
-            {list.data.shadows.map((s) => (
-              <button
-                className={`button ${s.id === current?.id ? "primary" : ""}`}
-                key={s.id}
-                onClick={() => select(s.id)}
-              >
-                {s.name}
-                <span
-                  className={`dot ${s.online && s.enabled ? "green-dot" : ""}`}
-                />
-              </button>
-            ))}
-          </div>
-          {current && (
-            <ShadowChat
-              key={current.id}
+      {navigation
+        ? createPortal(sidebar, navigation)
+        : navigation === undefined
+          ? sidebar
+          : null}
+      <header className="shadow-workspace-header">
+        <h2>{t("本机数字分身")}</h2>
+        {list.data && (
+          <details className="shadow-routing-menu">
+            <summary>
+              <Icon name="settings" size={14} />
+              {t("接手我的动态")}
+              <Icon name="chevron" size={12} />
+            </summary>
+            <DefaultShadow
+              key={spaceId}
               spaceId={spaceId}
-              selected={current}
               selfId={list.data.selfId}
+              shadows={shadows}
               disabled={disabled}
             />
-          )}
+          </details>
+        )}
+      </header>
+      <ErrorBox message={list.error} />
+      {list.loading && !list.data ? (
+        <Loading />
+      ) : shadows.length ? (
+        <>
+          {shadows
+            .filter(
+              (s) => visited.includes(s.id) || (active && s.id === current?.id),
+            )
+            .map((s) => (
+              <div
+                className="shadow-chat-slot"
+                key={s.id}
+                hidden={!active || s.id !== current?.id}
+              >
+                <ShadowChat
+                  spaceId={spaceId}
+                  selected={s}
+                  selfId={list.data!.selfId}
+                  disabled={disabled}
+                  active={active && s.id === current?.id}
+                />
+              </div>
+            ))}
         </>
       ) : (
         <div className="panel workbench-empty">
@@ -104,6 +201,14 @@ export function SpaceShadows({
               "分身在创建者的 Mac 上运行。成员看到相同的聊天、记忆和任务进展。",
             )}
           </p>
+          <button
+            className="button primary"
+            disabled={disabled}
+            onClick={create}
+          >
+            <Icon name="plus" />
+            {t("开始创建")}
+          </button>
         </div>
       )}
       {creating && (
@@ -112,6 +217,7 @@ export function SpaceShadows({
           onClose={() => setCreating(false)}
           onCreated={(id) => {
             select(id);
+            setExpanded(true);
             list.reload();
             setCreating(false);
           }}
@@ -119,6 +225,16 @@ export function SpaceShadows({
       )}
     </section>
   );
+}
+
+function shadowStatus(s: Shadow) {
+  return !s.online
+    ? t("离线")
+    : !s.enabled
+      ? t("已暂停接收")
+      : s.busy
+        ? t("正在处理")
+        : t("在线");
 }
 
 function CreateShadow({
@@ -388,16 +504,20 @@ function ShadowChat({
   selected,
   selfId,
   disabled,
+  active,
 }: {
   spaceId: string;
   selected: Shadow;
   selfId: string;
   disabled: boolean;
+  active: boolean;
 }) {
   const refreshKey = `ShadowChat:v1:${spaceId}:${selected.id}`;
   const [offset, setOffset] = useRefreshState(refreshKey + ":offset", 0);
   const data = useResource<ShadowView>(
-    `collaborations/${spaceId}/shadows/view?shadowId=${selected.id}&offset=${offset}`,
+    active
+      ? `collaborations/${spaceId}/shadows/view?shadowId=${selected.id}&offset=${offset}`
+      : null,
     1000,
   );
   const view = data.data?.shadows[0] || selected;
@@ -407,7 +527,7 @@ function ShadowChat({
     cwd: string;
     approvals: ShadowApproval[];
     diagnosticError?: string;
-  }>(own ? `shadows/${selected.id}/local` : null, 1000);
+  }>(own && active ? `shadows/${selected.id}/local` : null, 1000);
   const key = `teamcross-shadow-pending:${spaceId}:${selected.id}`;
   const [pending, setPending] = useState<ShadowMessage[]>(() => {
     try {
@@ -419,12 +539,58 @@ function ShadowChat({
     }
   });
   const [text, setText] = useRefreshState(refreshKey + ":text", "");
-  useRefreshGuard(refreshKey, !!text || pending.length > 0);
+  const [approvalDrafts, setApprovalDrafts] = useRefreshState<
+    Record<string, string>
+  >(refreshKey + ":approvalDrafts", {});
+  useRefreshGuard(
+    refreshKey,
+    !!text ||
+      pending.length > 0 ||
+      Object.values(approvalDrafts).some((value) => value !== "{}"),
+  );
+  useEffect(() => {
+    if (!local.data) return;
+    const ids = new Set(
+      local.data.approvals.map((item) => JSON.stringify(item.id)),
+    );
+    setApprovalDrafts((previous) => {
+      const remaining = Object.entries(previous).filter(([id]) => ids.has(id));
+      return remaining.length === Object.keys(previous).length
+        ? previous
+        : Object.fromEntries(remaining);
+    });
+  }, [local.data, setApprovalDrafts]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [details, setDetails] = useRefreshState(refreshKey + ":details", false);
-  const end = useRef<HTMLDivElement>(null);
-  const nearEnd = useRef(true);
+  const [inspectorTab, setInspectorTab] = useRefreshState<ShadowInspectorTab>(
+    refreshKey + ":inspectorTab",
+    "tasks",
+  );
+  const [inspectorOpen, setInspectorOpen] = useRefreshState(
+    refreshKey + ":inspectorOpen",
+    false,
+  );
+  const [wide, setWide] = useState(
+    () => window.matchMedia?.("(min-width: 1101px)")?.matches ?? false,
+  );
+  const [awayFromEnd, setAwayFromEnd] = useState(false);
+  const scroll = useRefreshRef(refreshKey + ":scroll", {
+    top: 0,
+    follow: true,
+  });
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const query = window.matchMedia?.("(min-width: 1101px)");
+    const update = () => {
+      setWide(query?.matches ?? false);
+      if (query?.matches) setInspectorOpen(false);
+    };
+    query?.addEventListener("change", update);
+    return () => query?.removeEventListener("change", update);
+  }, []);
   const attempts = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   useEffect(
     () => () => {
@@ -450,10 +616,74 @@ function ShadowChat({
       (m) => !view.messages?.some((known) => known.id === m.id),
     ),
   ].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  useLayoutEffect(() => {
+    const el = messagesRef.current;
+    if (!active || !el) return;
+    el.scrollTop =
+      offset === 0 && scroll.current.follow
+        ? el.scrollHeight
+        : scroll.current.top;
+    setAwayFromEnd(el.scrollHeight - el.scrollTop - el.clientHeight >= 100);
+  }, [active, messages.length, messages.at(-1)?.text, offset, scroll]);
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!active || !el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(144, Math.max(52, el.scrollHeight))}px`;
+  }, [text, active]);
   useEffect(() => {
-    if (offset === 0 && nearEnd.current)
-      end.current?.scrollIntoView({ block: "nearest" });
-  }, [messages.length, offset]);
+    const el = messagesRef.current;
+    if (!active || !el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      layoutRef.current?.style.setProperty(
+        "--shadow-scroll-gutter",
+        `${Math.max(0, (el.offsetWidth - el.clientWidth) / 2)}px`,
+      );
+      if (scroll.current.follow && offset === 0) el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => observer.disconnect();
+  }, [active, offset, scroll]);
+  function latest() {
+    scroll.current = { top: 0, follow: true };
+    setOffset(0);
+    if (messagesRef.current)
+      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+    setAwayFromEnd(false);
+  }
+  function submit() {
+    if (!text.trim() || busy || disabled || !view.online || !view.enabled)
+      return;
+    const m: ShadowMessage = {
+      id: crypto.randomUUID(),
+      actor: { id: selfId, name: t("我") },
+      role: "user",
+      text: text.trim(),
+      createdAt: new Date().toISOString(),
+      state: "sending",
+    };
+    setText("");
+    latest();
+    void send(m);
+  }
+  function openInspector(tab: ShadowInspectorTab) {
+    setInspectorTab(tab);
+    setInspectorOpen(!wide);
+  }
+  function openDetails() {
+    setInspectorOpen(false);
+    setDetails(true);
+  }
+  const inspector = (
+    <ShadowInspector
+      view={view}
+      selfId={selfId}
+      tab={inspectorTab}
+      onTab={setInspectorTab}
+      onDetails={openDetails}
+    />
+  );
   async function send(message: ShadowMessage) {
     setBusy(true);
     setError("");
@@ -507,172 +737,257 @@ function ShadowChat({
     }
   }
   return (
-    <div className="shadow-chat-layout">
-      <div className="shadow-chat panel">
+    <div className="shadow-chat-layout" ref={layoutRef}>
+      <div className="shadow-chat">
         <div className="shadow-chat-heading">
-          <div>
-            <strong>{view.name}</strong>
-            <span>
-              {view.owner.name} ·{" "}
-              {view.online
-                ? view.enabled
-                  ? t("在线")
-                  : t("已暂停接收")
-                : t("离线")}
-            </span>
-          </div>
-          <button
-            className="button small"
-            onClick={() => setDetails(!details)}
-            aria-expanded={details}
-            aria-haspopup="dialog"
-          >
-            {t("会话与任务")}
-          </button>
-        </div>
-        <p className="shadow-shared-note">
-          <Icon name="people" size={14} />
-          {t("全体成员可读。已送达表示分身所在 Mac 已保存消息。")}
-        </p>
-        <ErrorBox message={error || data.error || serviceText(view.error)} />
-        <div
-          className="shadow-messages"
-          role="log"
-          aria-label={t("分身共享聊天")}
-          onScroll={(e) => {
-            const el = e.currentTarget;
-            nearEnd.current =
-              el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-          }}
-        >
-          {(data.data?.nextOffset !== undefined || offset > 0) && (
-            <div className="workbench-pagination">
-              <button
-                className="button small"
-                disabled={data.data?.nextOffset === undefined}
-                onClick={() => setOffset(data.data!.nextOffset!)}
-              >
-                {t("更早的消息")}
-              </button>
-              <button
-                className="button small"
-                disabled={!offset}
-                onClick={() => setOffset(0)}
-              >
-                {t("回到最新")}
-              </button>
+          <div className="shadow-chat-identity">
+            <SpaceAvatar name={view.name} agent />
+            <div>
+              <strong>{view.name}</strong>
+              <span>
+                {view.owner.name} ·{" "}
+                {view.online
+                  ? view.enabled
+                    ? t("在线")
+                    : t("已暂停接收")
+                  : t("离线")}
+              </span>
             </div>
-          )}
-          {!messages.length && (
-            <p className="shadow-greeting">
-              {t("直接开始聊。切换话题、追问和长任务都留在这里。")}
-            </p>
-          )}
-          {messages.map((m) => (
-            <article
-              key={m.id}
-              className={`shadow-message ${m.role === "assistant" ? "shadow-answer" : "shadow-question"}`}
+          </div>
+          <div className="shadow-chat-actions">
+            <button
+              className="shadow-toolbar-button"
+              aria-label={t("查看后台任务")}
+              aria-expanded={
+                (wide || inspectorOpen) && inspectorTab === "tasks"
+              }
+              onClick={() => openInspector("tasks")}
             >
-              <header>
-                <strong>{m.actor.name}</strong>
-                <time>
-                  {formatDate(m.createdAt, {
-                    month: "numeric",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </time>
-              </header>
-              {m.role === "assistant" ? (
-                <MarkdownText source={m.text} />
-              ) : (
-                <p className="shadow-user-text">{m.text}</p>
+              <Icon name="layers" size={16} />
+              <span>{t("任务")}</span>
+            </button>
+            <button
+              className="shadow-toolbar-button"
+              aria-label={t("查看共享记忆")}
+              aria-expanded={
+                (wide || inspectorOpen) && inspectorTab === "memory"
+              }
+              onClick={() => openInspector("memory")}
+            >
+              <Icon name="pin" size={16} />
+              <span>{t("记忆")}</span>
+            </button>
+            <button
+              className="icon-button"
+              aria-label={t("会话与任务")}
+              title={t("会话与任务")}
+              onClick={openDetails}
+              aria-expanded={details}
+              aria-haspopup="dialog"
+            >
+              <Icon name="more" size={17} />
+            </button>
+          </div>
+        </div>
+        <ErrorBox message={error || data.error || serviceText(view.error)} />
+        <div className="shadow-message-area">
+          <div
+            className="shadow-messages"
+            ref={messagesRef}
+            role="log"
+            aria-label={t("分身共享聊天")}
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              if (!active) return;
+              const follow =
+                el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+              scroll.current = { top: el.scrollTop, follow };
+              setAwayFromEnd(!follow);
+            }}
+          >
+            <div className="shadow-reading-column">
+              {(data.data?.nextOffset !== undefined || offset > 0) && (
+                <div className="workbench-pagination">
+                  <button
+                    className="button small"
+                    disabled={data.data?.nextOffset === undefined}
+                    onClick={() => {
+                      scroll.current = { top: 0, follow: false };
+                      setOffset(data.data!.nextOffset!);
+                    }}
+                  >
+                    {t("更早的消息")}
+                  </button>
+                  <button
+                    className="button small"
+                    disabled={!offset}
+                    onClick={latest}
+                  >
+                    {t("回到最新")}
+                  </button>
+                </div>
               )}
-              {m.role === "user" && (
-                <footer>
-                  <span>
-                    {m.receivedAt
-                      ? t("已送达")
-                      : m.state === "sending"
-                        ? t("发送中…")
-                        : t("未确认送达")}
-                  </span>
-                  {m.receivedAt && m.state === "submitted" && (
-                    <span>{t("处理中")}</span>
-                  )}
-                  {m.receivedAt && m.state === "unknown" && (
-                    <span>{t("处理结果待核对")}</span>
-                  )}
-                  {m.receivedAt && m.state === "failed" && (
-                    <span>{t("处理失败")}</span>
-                  )}
-                  {!m.receivedAt &&
-                    m.actor.id === selfId &&
-                    m.state !== "sending" && (
-                      <button
-                        className="text-button"
-                        disabled={busy || disabled}
-                        onClick={() => void send(m)}
-                      >
-                        {t("重发")}
-                      </button>
-                    )}
-                </footer>
+              {!messages.length && (
+                <p className="shadow-greeting">
+                  {t("直接开始聊。切换话题、追问和长任务都留在这里。")}
+                </p>
               )}
-            </article>
-          ))}
-          <div ref={end} />
+              {messages.map((m) => (
+                <article
+                  key={m.id}
+                  className={`shadow-message ${m.role === "assistant" ? "shadow-answer" : "shadow-question"} ${m.actor.id === selfId ? "shadow-own-message" : ""}`}
+                >
+                  <header>
+                    <SpaceAvatar
+                      name={m.actor.name}
+                      agent={m.role === "assistant"}
+                    />
+                    <strong>{m.actor.name}</strong>
+                    <time>
+                      {formatDate(m.createdAt, {
+                        month: "numeric",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </time>
+                  </header>
+                  {m.role === "assistant" ? (
+                    <MarkdownText source={m.text} />
+                  ) : (
+                    <p className="shadow-user-text">{m.text}</p>
+                  )}
+                  {m.role === "user" && (
+                    <footer>
+                      <span>
+                        {m.receivedAt
+                          ? t("已送达")
+                          : m.state === "sending"
+                            ? t("发送中…")
+                            : t("未确认送达")}
+                      </span>
+                      {m.receivedAt && m.state === "submitted" && (
+                        <span>{t("处理中")}</span>
+                      )}
+                      {m.receivedAt && m.state === "unknown" && (
+                        <span>{t("处理结果待核对")}</span>
+                      )}
+                      {m.receivedAt && m.state === "failed" && (
+                        <span>{t("处理失败")}</span>
+                      )}
+                      {!m.receivedAt &&
+                        m.actor.id === selfId &&
+                        m.state !== "sending" && (
+                          <button
+                            className="text-button"
+                            disabled={busy || disabled}
+                            onClick={() => void send(m)}
+                          >
+                            {t("重发")}
+                          </button>
+                        )}
+                    </footer>
+                  )}
+                </article>
+              ))}
+            </div>
+          </div>
+          {offset === 0 && awayFromEnd && (
+            <button className="shadow-jump-latest" onClick={latest}>
+              <Icon name="chevron" size={13} />
+              {t("回到最新")}
+            </button>
+          )}
         </div>
         {view.busy && (
           <div className="shadow-thinking" role="status">
             {t("分身正在处理，可以继续留言。")}
           </div>
         )}
-        <form
-          className="shadow-composer"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!text.trim() || busy || disabled) return;
-            const m: ShadowMessage = {
-              id: crypto.randomUUID(),
-              actor: { id: selfId, name: t("我") },
-              role: "user",
-              text: text.trim(),
-              createdAt: new Date().toISOString(),
-              state: "sending",
-            };
-            setText("");
-            setOffset(0);
-            nearEnd.current = true;
-            void send(m);
-          }}
-        >
-          <textarea
-            value={text}
-            maxLength={16000}
-            rows={3}
-            disabled={disabled}
-            aria-label={t("给分身发消息")}
-            placeholder={t("继续聊，或交给它一个后台任务…")}
-            onChange={(e) => setText(e.target.value)}
-          />
-          <div>
+        {own && !!local.data?.approvals.length && (
+          <div className="shadow-approval-notice">
             <span>
-              {!view.online
-                ? t("分身离线时不会自动重发。")
-                : t("记住、纠正或忘掉信息，直接告诉分身。")}
+              {t("有本机请求需要处理")} · {local.data.approvals.length}
             </span>
-            <button
-              className="button primary"
-              disabled={busy || disabled || !text.trim()}
-            >
-              {t("发送")}
+            <button className="text-button" onClick={openDetails}>
+              {t("查看请求")}
             </button>
           </div>
-        </form>
+        )}
+        <div className="shadow-composer-region">
+          <form
+            className="shadow-composer"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submit();
+            }}
+          >
+            <textarea
+              ref={inputRef}
+              value={text}
+              maxLength={16000}
+              rows={2}
+              disabled={disabled}
+              aria-label={t("给分身发消息")}
+              placeholder={t("继续聊，或交给它一个后台任务…")}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (
+                  e.key === "Enter" &&
+                  !e.shiftKey &&
+                  !e.nativeEvent.isComposing &&
+                  e.keyCode !== 229
+                ) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
+            />
+            <div>
+              <span>
+                {!view.online
+                  ? t("分身离线时不会自动重发。")
+                  : t("记住、纠正或忘掉信息，直接告诉分身。")}
+              </span>
+              <button
+                className="button primary"
+                disabled={
+                  busy ||
+                  disabled ||
+                  !text.trim() ||
+                  !view.online ||
+                  !view.enabled
+                }
+              >
+                <Icon name="arrow" size={17} />
+                <span>{t("发送")}</span>
+              </button>
+            </div>
+          </form>
+          <p className="shadow-shared-note">
+            <span>
+              <Icon name="people" size={13} />
+              {t("全空间共享这段对话")}
+            </span>
+            <span>{t("Enter 发送 · Shift+Enter 换行")}</span>
+          </p>
+        </div>
       </div>
-      {details && (
+      {wide && (
+        <aside className="shadow-inspector" aria-label={t("分身详情")}>
+          {inspector}
+        </aside>
+      )}
+      {active && inspectorOpen && !wide && (
+        <Modal
+          title={t("分身详情")}
+          className="shadow-inspector-modal"
+          onClose={() => setInspectorOpen(false)}
+        >
+          {inspector}
+        </Modal>
+      )}
+      {active && details && (
         <Modal
           title={t("会话、任务与记忆")}
           wide
@@ -683,6 +998,31 @@ function ShadowChat({
               {view.name} · {view.owner.name}
             </p>
             <ErrorBox message={data.error} />
+            {own && !!local.data?.approvals.length && (
+              <section className="shadow-approvals">
+                <h3>{t("本机原生请求")}</h3>
+                <p>
+                  {t("只有分身所在 Mac 可以处理这些请求。请核对具体操作。")}
+                </p>
+                {local.data.approvals.map((approval) => (
+                  <NativeRequest
+                    key={String(approval.id)}
+                    value={approvalDrafts[JSON.stringify(approval.id)] ?? "{}"}
+                    onChange={(value) =>
+                      setApprovalDrafts((previous) => ({
+                        ...previous,
+                        [JSON.stringify(approval.id)]: value,
+                      }))
+                    }
+                    request={approval}
+                    busy={busy}
+                    respond={(result) =>
+                      void action("respond", { id: approval.id, result })
+                    }
+                  />
+                ))}
+              </section>
+            )}
             <ShadowSessions view={view} />
             {own && local.data && (
               <ShadowQuestions
@@ -767,40 +1107,23 @@ function ShadowChat({
           </div>
         </Modal>
       )}
-      {own && !!local.data?.approvals.length && (
-        <section className="shadow-approvals panel">
-          <h3>{t("本机原生请求")}</h3>
-          <p>{t("只有分身所在 Mac 可以处理这些请求。请核对具体操作。")}</p>
-          {local.data.approvals.map((approval) => (
-            <NativeRequest
-              key={String(approval.id)}
-              refreshKey={`${refreshKey}:approval:${JSON.stringify(approval.id)}`}
-              request={approval}
-              busy={busy}
-              respond={(result) =>
-                void action("respond", { id: approval.id, result })
-              }
-            />
-          ))}
-        </section>
-      )}
     </div>
   );
 }
 
 function NativeRequest({
-  refreshKey,
+  value,
+  onChange,
   request,
   busy,
   respond,
 }: {
-  refreshKey: string;
+  value: string;
+  onChange: (value: string) => void;
   request: ShadowApproval;
   busy: boolean;
   respond: (result: unknown) => void;
 }) {
-  const [value, setValue] = useRefreshState(refreshKey + ":value", "{}");
-  useRefreshGuard(refreshKey, value !== "{}");
   const [error, setError] = useState("");
   const decision =
     request.method === "item/commandExecution/requestApproval" ||
@@ -842,7 +1165,7 @@ function NativeRequest({
             {t("原生请求回复 JSON")}
             <textarea
               value={value}
-              onChange={(e) => setValue(e.target.value)}
+              onChange={(e) => onChange(e.target.value)}
             />
           </label>
           <button

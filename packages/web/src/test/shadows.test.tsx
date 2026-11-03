@@ -9,7 +9,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { SpaceShadows } from "../components/SpaceShadows";
-import type { Shadow, ShadowSettings } from "../shadows";
+import type { Shadow, ShadowSettings, ShadowApproval } from "../shadows";
 import {
   beginRefreshState,
   endRefreshState,
@@ -18,6 +18,8 @@ import {
 } from "../refreshState";
 
 let shadow: Shadow;
+let extraShadows: Shadow[];
+let approvals: ShadowApproval[];
 let sent: { shadowId: string; message: { id: string; text: string } }[];
 let lose: boolean;
 let created: {
@@ -30,6 +32,8 @@ let paths: string[];
 beforeEach(() => {
   window.localStorage.clear();
   paths = [];
+  extraShadows = [];
+  approvals = [];
   sent = [];
   created = [];
   lose = true;
@@ -60,6 +64,8 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       paths.push(url);
+      if (url.includes("/attention/questions?"))
+        return { ok: true, json: async () => ({ items: [], total: 0 }) };
       if (url.includes("/models?"))
         return {
           ok: true,
@@ -109,11 +115,21 @@ beforeEach(() => {
         ];
         return { ok: true, json: async () => ({ state: "delivered" }) };
       }
+      if (url.endsWith("/local"))
+        return {
+          ok: true,
+          json: async () => ({ view: shadow, cwd: "/fixture", approvals }),
+        };
+      const selected = new URL(url, "http://localhost").searchParams.get(
+        "shadowId",
+      );
       return {
         ok: true,
         json: async () => ({
           selfId: "C",
-          shadows: [shadow],
+          shadows: [shadow, ...extraShadows].filter(
+            (s) => !selected || s.id === selected,
+          ),
           total: shadow.messages?.length || 0,
         }),
       };
@@ -402,4 +418,130 @@ it("uses per-model effort capabilities and invalidates the catalog when cwd chan
   await user.clear(screen.getByLabelText("工作目录"));
   expect(screen.getByRole("button", { name: "创建分身" })).toBeDisabled();
   expect(created).toHaveLength(0);
+});
+
+it("collapses the sidebar group without leaving chat and restores each shadow's draft and reading position", async () => {
+  extraShadows = [{ ...shadow, id: "second", name: "另一位分身" }];
+  const user = userEvent.setup();
+  const { container } = render(
+    <SpaceShadows spaceId="space" disabled={false} />,
+  );
+  const input = await screen.findByRole("textbox", { name: "给分身发消息" });
+  await user.type(input, "尚未发送的第一份草稿");
+  const log = screen.getByRole("log");
+  Object.defineProperties(log, {
+    scrollHeight: { configurable: true, value: 1800 },
+    clientHeight: { configurable: true, value: 400 },
+  });
+  log.scrollTop = 260;
+  fireEvent.scroll(log);
+  await user.click(screen.getByRole("button", { name: "收起数字分身" }));
+  expect(
+    screen.queryByRole("button", { name: "同事分身 · 在线" }),
+  ).not.toBeInTheDocument();
+  expect(input).toBeVisible();
+  expect(input).toHaveValue("尚未发送的第一份草稿");
+  await user.click(screen.getByRole("button", { name: "展开数字分身" }));
+  await user.click(screen.getByRole("button", { name: "另一位分身 · 在线" }));
+  await user.type(
+    screen.getByRole("textbox", { name: "给分身发消息" }),
+    "第二份草稿",
+  );
+  await user.click(screen.getByRole("button", { name: "同事分身 · 在线" }));
+  expect(screen.getByRole("textbox", { name: "给分身发消息" })).toBe(input);
+  expect(input).toHaveValue("尚未发送的第一份草稿");
+  expect(screen.getByRole("log")).toBe(log);
+  expect(log.scrollTop).toBe(260);
+  expect(screen.getByRole("button", { name: "回到最新" })).toBeVisible();
+  expect(container.querySelectorAll(".shadow-chat-slot")).toHaveLength(2);
+  expect(sent).toHaveLength(0);
+  expect(HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled();
+});
+
+it.each(["offline", "paused"])(
+  "keeps a %s shadow's editable draft without submitting Enter",
+  async (state) => {
+    shadow.online = state !== "offline";
+    shadow.enabled = state !== "paused";
+    const user = userEvent.setup();
+    render(<SpaceShadows spaceId="space" disabled={false} />);
+    const input = await screen.findByRole("textbox", { name: "给分身发消息" });
+    await user.type(input, "等它恢复再发");
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", { name: "发送" })).toBeDisabled();
+    expect(input).toHaveValue("等它恢复再发");
+    expect(sent).toHaveLength(0);
+  },
+);
+
+it("sends Enter once while Shift+Enter and IME confirmation preserve the draft", async () => {
+  lose = false;
+  const user = userEvent.setup();
+  render(<SpaceShadows spaceId="space" disabled={false} />);
+  const input = await screen.findByRole("textbox", { name: "给分身发消息" });
+  await user.type(input, "第一行");
+  await user.keyboard("{Shift>}{Enter}{/Shift}");
+  await user.type(input, "第二行");
+  fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+  fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+  expect(input).toHaveValue("第一行\n第二行");
+  expect(sent).toHaveLength(0);
+  await user.keyboard("{Enter}");
+  await waitFor(() => expect(sent).toHaveLength(1));
+  expect(sent[0]!.message.text).toBe("第一行\n第二行");
+  expect(input).toHaveValue("");
+});
+
+it("opens the narrow inspector, navigates it with the keyboard and restores focus without losing chat", async () => {
+  shadow.memories = [
+    {
+      id: "memory",
+      text: "先说结论",
+      sourceIds: [],
+      scope: "space",
+      state: "active",
+      revision: 1,
+    },
+  ];
+  const user = userEvent.setup();
+  render(<SpaceShadows spaceId="space" disabled={false} />);
+  await user.type(
+    await screen.findByRole("textbox", { name: "给分身发消息" }),
+    "待补充",
+  );
+  const trigger = screen.getByRole("button", { name: "查看共享记忆" });
+  await user.click(trigger);
+  const dialog = screen.getByRole("dialog", { name: "分身详情" });
+  expect(within(dialog).getByText("先说结论")).toBeVisible();
+  within(dialog).getByRole("tab", { name: "记忆" }).focus();
+  await user.keyboard("{ArrowRight}");
+  expect(within(dialog).getByRole("tab", { name: "运行" })).toHaveFocus();
+  expect(within(dialog).getByText(/等待原生会话确认模型/)).toBeVisible();
+  fireEvent(dialog, new Event("cancel", { cancelable: true }));
+  await waitFor(() => expect(trigger).toHaveFocus());
+  expect(screen.getByRole("textbox", { name: "给分身发消息" })).toHaveValue(
+    "待补充",
+  );
+  expect(sent).toHaveLength(0);
+});
+
+it("retains an owner's native reply draft when details close and reopen", async () => {
+  beginRefreshState("owner-core");
+  shadow.owner.id = "C";
+  approvals = [
+    { id: 42, method: "fixture/nativeRequest", params: { prompt: "fixture" } },
+  ];
+  const user = userEvent.setup();
+  render(<SpaceShadows spaceId="space" disabled={false} />);
+  await user.click(await screen.findByRole("button", { name: "查看请求" }));
+  const input = screen.getByRole("textbox", { name: "原生请求回复 JSON" });
+  fireEvent.change(input, { target: { value: '{"answer":"未提交"}' } });
+  const dialog = screen.getByRole("dialog", { name: "会话、任务与记忆" });
+  fireEvent(dialog, new Event("cancel", { cancelable: true }));
+  expect(hasRefreshDrafts()).toBe(true);
+  await user.click(screen.getByRole("button", { name: "查看请求" }));
+  expect(
+    screen.getByRole("textbox", { name: "原生请求回复 JSON" }),
+  ).toHaveValue('{"answer":"未提交"}');
+  expect(paths.some((path) => path.endsWith("/action"))).toBe(false);
 });

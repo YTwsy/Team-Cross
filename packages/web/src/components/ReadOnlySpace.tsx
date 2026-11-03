@@ -38,6 +38,10 @@ export function ReadOnlySpace({
     refreshKey + ":visited",
     executionId ? [executionId] : [],
   );
+  const [sessionsExpanded, setSessionsExpanded] = useRefreshState(
+    refreshKey + ":sessionsExpanded",
+    true,
+  );
   const positions = useRef(new Map<string, number>());
   useEffect(() => {
     if (executionId)
@@ -74,13 +78,29 @@ export function ReadOnlySpace({
       if (source.spaceId !== c.id) return;
       setActivityLocation(source);
       if (source.executionId) return;
-      if (source.materialId && source.version) setLocation({target:{kind:"material",materialId:source.materialId,version:source.version,quote:""},serial:Date.now()});
+      if (source.materialId && source.version)
+        setLocation({
+          target: {
+            kind: "material",
+            materialId: source.materialId,
+            version: source.version,
+            quote: "",
+          },
+          serial: Date.now(),
+        });
       if (source.annotationId) {
         const note = c.annotations?.find((a) => a.id === source.annotationId);
-        setRequest({annotationId:source.annotationId,replyId:source.replyId,serial:Date.now()});
-        if (note?.target) setLocation({target:note.target,serial:Date.now()});
+        setRequest({
+          annotationId: source.annotationId,
+          replyId: source.replyId,
+          serial: Date.now(),
+        });
+        if (note?.target)
+          setLocation({ target: note.target, serial: Date.now() });
       }
-    } catch { /* Invalid navigation data cannot select another resource. */ }
+    } catch {
+      /* Invalid navigation data cannot select another resource. */
+    }
   }, [activitySource, c.id]);
   const owner = c.role === "owner";
   const closed = ["ended", "left", "expired"].includes(c.state);
@@ -213,43 +233,60 @@ export function ReadOnlySpace({
         )}
         contextNavigation={
           <nav className="execution-navigation" aria-label={t("协作会话")}>
-            <div className="execution-nav-heading">
+            <button
+              className="execution-nav-heading shadow-group-toggle"
+              aria-label={
+                sessionsExpanded ? t("收起协作会话") : t("展开协作会话")
+              }
+              aria-expanded={sessionsExpanded}
+              aria-controls={`execution-list-${c.id}`}
+              title={t("协作会话")}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSessionsExpanded(!sessionsExpanded);
+              }}
+            >
+              <Icon name="chevron" size={13} />
               <strong>{t("协作会话")}</strong>
-              <span>{c.sessions?.length || 0}</span>
+              <span className="count">{c.sessions?.length || 0}</span>
+            </button>
+            <div id={`execution-list-${c.id}`} hidden={!sessionsExpanded}>
+              {(c.sessions || []).map((session) => (
+                <button
+                  key={session.id}
+                  className={`execution-nav-item ${executionId === session.id ? "active" : ""}`}
+                  aria-current={executionId === session.id ? "page" : undefined}
+                  aria-label={`${session.title} ${session.provider === "claude" ? "Claude Code" : "Codex"} · ${session.busy ? t("正在执行") : session.paused ? t("已暂停") : session.online ? t("等待输入") : t("运行时未连接")}`}
+                  title={session.title}
+                  onClick={() => selectExecution(session.id)}
+                >
+                  <SpaceAvatar
+                    name={
+                      session.provider === "claude" ? "Claude Code" : "Codex"
+                    }
+                    agent
+                  />
+                  <span className="execution-nav-copy">
+                    <strong>{session.title}</strong>
+                    <small>{`${session.provider === "claude" ? "Claude Code" : "Codex"} · ${session.busy ? t("正在执行") : session.paused ? t("已暂停") : session.online ? t("等待输入") : t("运行时未连接")}`}</small>
+                  </span>
+                </button>
+              ))}
+              {!c.sessions?.length && (
+                <p className="small-text muted">{t("还没有协作会话")}</p>
+              )}
+              {owner && !closed && (
+                <button
+                  className="text-button"
+                  aria-label={t("新增协作会话")}
+                  title={t("新增协作会话")}
+                  onClick={() => setModal("create")}
+                >
+                  <Icon name="plus" size={15} />
+                  <span>{t("新增协作会话")}</span>
+                </button>
+              )}
             </div>
-            {(c.sessions || []).map((session) => (
-              <button
-                key={session.id}
-                className={`execution-nav-item ${executionId === session.id ? "active" : ""}`}
-                aria-current={executionId === session.id ? "page" : undefined}
-                aria-label={`${session.title} ${session.provider === "claude" ? "Claude Code" : "Codex"} · ${session.busy ? t("正在执行") : session.paused ? t("已暂停") : session.online ? t("等待输入") : t("运行时未连接")}`}
-                title={session.title}
-                onClick={() => selectExecution(session.id)}
-              >
-                <SpaceAvatar
-                  name={session.provider === "claude" ? "Claude Code" : "Codex"}
-                  agent
-                />
-                <span className="execution-nav-copy">
-                  <strong>{session.title}</strong>
-                  <small>{`${session.provider === "claude" ? "Claude Code" : "Codex"} · ${session.busy ? t("正在执行") : session.paused ? t("已暂停") : session.online ? t("等待输入") : t("运行时未连接")}`}</small>
-                </span>
-              </button>
-            ))}
-            {!c.sessions?.length && (
-              <p className="small-text muted">{t("还没有协作会话")}</p>
-            )}
-            {owner && !closed && (
-              <button
-                className="text-button"
-                aria-label={t("新增协作会话")}
-                title={t("新增协作会话")}
-                onClick={() => setModal("create")}
-              >
-                <Icon name="plus" size={15} />
-                <span>{t("新增协作会话")}</span>
-              </button>
-            )}
           </nav>
         }
         overview={
@@ -390,7 +427,11 @@ export function ReadOnlySpace({
                 active={executionId === id}
                 reload={reload}
                 onLocateMaterial={locateMaterial}
-                activitySource={activityLocation?.executionId === id ? activityLocation : undefined}
+                activitySource={
+                  activityLocation?.executionId === id
+                    ? activityLocation
+                    : undefined
+                }
               />
             </div>
           ) : null;

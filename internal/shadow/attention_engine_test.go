@@ -62,7 +62,7 @@ func TestAttentionNativeObservationIsPrivateAndQueuesOnlyNeededContinuation(t *t
 			if outcome != "no_action" {
 				observation.NextStep = "Find the compatibility limit and answer the original question."
 			}
-			f.complete(run.ThreadID, jsonText(observation), "completed", true)
+			f.complete(run.ThreadID, observationJSON(t, run, observation), "completed", true)
 			until(t, func() bool { return attentionCommitted(e, run.ID) })
 			r := s.Snapshot()
 			if r.Events[signal.ID].State != "processed" || r.Focuses[r.Events[signal.ID].FocusID].ProcessedSeq != 1 {
@@ -80,7 +80,7 @@ func TestAttentionNativeObservationIsPrivateAndQueuesOnlyNeededContinuation(t *t
 }
 
 func TestAttentionInvalidNativeOutputKeepsInputAndDoesNotDisableChat(t *testing.T) {
-	for _, output := range []string{`not json`, `{"summary":"ok","outcome":"continue"}`, `{"summary":"ok","outcome":"no_action","evidence":[{"spaceId":"space-test","annotationId":"invented"}]}`} {
+	for _, output := range []string{`not json`, `{"summary":"ok","outcome":"continue"}`, `{"summary":"ok","outcome":"no_action","evidence":[{"spaceId":"space-test","annotationId":"invented"}]}`, `{"summary":"ok","outcome":"no_action","evidenceIds":["E999"]}`} {
 		t.Run(fmt.Sprintf("case-%d", len(output)), func(t *testing.T) {
 			e, f, _ := setup(t)
 			e.cfg.ReadSource = observationReader
@@ -98,6 +98,9 @@ func TestAttentionInvalidNativeOutputKeepsInputAndDoesNotDisableChat(t *testing.
 			if batch, err := s.ClaimBatch(e.View().ID, time.Now().Add(time.Hour), 0, 0); err != nil || batch != nil {
 				t.Fatal("invalid output caused an automatic retry loop", batch, err)
 			}
+			if err := e.retryLegacyObservationEvidence(); err != nil || s.Snapshot().Focuses[focus.ID].Error != focus.Error {
+				t.Fatal("new protocol failure incorrectly treated as legacy recovery", err)
+			}
 			send(t, e, "owner", "Continue our unrelated chat")
 			main := active(t, e, "main")
 			f.complete(main.ThreadID, "The chat still works.", "completed", true)
@@ -114,7 +117,7 @@ func TestAttentionNativeRecoveryUsesSameThreadAndTurn(t *testing.T) {
 	e.Start()
 	run := active(t, e, "attention")
 	e.Close()
-	f.complete(run.ThreadID, jsonText(Observation{Summary: "Recovered exact native completion.", Outcome: "continue", NextStep: "Answer using the recorded evidence."}), "completed", false)
+	f.complete(run.ThreadID, observationJSON(t, run, Observation{Summary: "Recovered exact native completion.", Outcome: "continue", NextStep: "Answer using the recorded evidence."}), "completed", false)
 	restored, err := OpenAttention(s.directory, "space-test", "owner")
 	if err != nil {
 		t.Fatal(err)
@@ -162,7 +165,7 @@ func TestAttentionCompletionPersistenceFailureReusesNativeResult(t *testing.T) {
 	if err := os.Mkdir(file, 0700); err != nil {
 		t.Fatal(err)
 	}
-	f.complete(run.ThreadID, jsonText(Observation{Summary: "Persist this completed result after repair.", Outcome: "no_action"}), "completed", true)
+	f.complete(run.ThreadID, observationJSON(t, run, Observation{Summary: "Persist this completed result after repair.", Outcome: "no_action"}), "completed", true)
 	until(t, func() bool { return e.View().Error != "" })
 	if attentionCommitted(e, run.ID) || s.Snapshot().Events[signal.ID].State != "observing" {
 		t.Fatal("failed write acknowledged processing")

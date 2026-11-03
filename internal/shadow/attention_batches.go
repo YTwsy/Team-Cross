@@ -14,6 +14,7 @@ import (
 
 var errObsoleteBatch = errors.New("观察批次已过时，未提交模型输入")
 var errInvalidObservation = errors.New("观察结果无效，未推进处理位置")
+var errObservationSource = fmt.Errorf("%w: 证据未在本批或此前有效认识中提供", errInvalidObservation)
 
 type ObservationBatch struct {
 	ID            string           `json:"id"`
@@ -341,25 +342,10 @@ func finishObservation(next *AttentionRecord, id string, observation Observation
 			return fmt.Errorf("%w: 未决问题过长", errInvalidObservation)
 		}
 	}
-	known := map[string]bool{}
-	withdrawn := map[string]bool{}
-	for _, source := range batch.Sources {
-		if source.Unavailable != "" && source.Source.MaterialID != "" {
-			withdrawn[source.Source.MaterialID] = true
-		}
-	}
-	for _, source := range batch.Focus.Evidence {
-		known[attentionHash(source)] = !withdrawn[source.MaterialID]
-	}
-	for _, source := range batch.Sources {
-		known[attentionHash(source.Source)] = source.Unavailable == "" && !withdrawn[source.Source.MaterialID]
-		for _, ref := range source.References {
-			known[attentionHash(ref)] = source.Unavailable == "" && !withdrawn[ref.MaterialID]
-		}
-	}
+	known := observationSourceSet(batch)
 	for _, source := range observation.Evidence {
-		if source.SpaceID != next.SpaceID || !known[attentionHash(source)] {
-			return fmt.Errorf("%w: 证据未在本批或此前有效认识中提供", errInvalidObservation)
+		if _, allowed := known[attentionHash(source)]; source.SpaceID != next.SpaceID || !allowed {
+			return errObservationSource
 		}
 	}
 	focus := next.Focuses[batch.Focus.ID]

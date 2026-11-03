@@ -296,6 +296,8 @@ export function SpaceWorkbench({
   const refreshKey = "SpaceWorkbench:v1:" + c.id;
   const [tab, setTab] = useRefreshState<Tab>(refreshKey + ":tab", "reading");
   const [navigation, setNavigation] = useState<HTMLDivElement | null>(null);
+  const [shadowNavigation, setShadowNavigation] =
+    useState<HTMLDivElement | null>(null);
   const [publishing, setPublishing] = useState<HTMLDivElement | null>(null);
   const [collapsed, setCollapsed] = useRefreshState(
     refreshKey + ":collapsed",
@@ -405,7 +407,6 @@ export function SpaceWorkbench({
   }
   const nav: { value: Tab; label: string }[] = [
     { value: "overview", label: t("空间概览") },
-    { value: "shadows", label: t("本机数字分身") },
     { value: "requests", label: t("协作请求") },
     { value: "brief", label: t("空间简报") },
     { value: "sessions", label: t("参与会话") },
@@ -473,7 +474,7 @@ export function SpaceWorkbench({
       }}
     >
       <div
-        className={`space-workbench ${collapsed ? "space-nav-collapsed" : ""}`}
+        className={`space-workbench ${collapsed ? "space-nav-collapsed" : ""} ${tab === "shadows" ? "space-shadow-active" : ""}`}
       >
         <aside className="space-navigation" aria-label={t("空间功能与材料")}>
           <div className="space-navigation-heading">
@@ -517,7 +518,8 @@ export function SpaceWorkbench({
                   aria-selected={tab === item.value}
                   aria-controls={`${uid}-${item.value}-panel`}
                   tabIndex={
-                    tab === item.value || (tab === "reading" && index === 0)
+                    tab === item.value ||
+                    ((tab === "reading" || tab === "shadows") && index === 0)
                       ? 0
                       : -1
                   }
@@ -586,6 +588,10 @@ export function SpaceWorkbench({
                 {contextNavigation}
               </div>
             )}
+            <div
+              className="space-shadow-navigation"
+              ref={setShadowNavigation}
+            />
             <div className="space-material-navigation" ref={setNavigation} />
           </div>
           <footer className="space-sidebar-footer">
@@ -632,13 +638,18 @@ export function SpaceWorkbench({
           <div
             id={`${uid}-shadows-panel`}
             role="tabpanel"
-            aria-labelledby={`${uid}-shadows-tab`}
+            aria-label={t("本机数字分身")}
             hidden={tab !== "shadows"}
-            className="workbench-pane"
+            className="workbench-pane shadow-pane"
           >
-            {tab === "shadows" && (
-              <SpaceShadows key={c.id} spaceId={c.id} disabled={disabled} />
-            )}
+            <SpaceShadows
+              key={c.id}
+              spaceId={c.id}
+              disabled={disabled}
+              navigation={shadowNavigation}
+              active={tab === "shadows"}
+              onActivate={() => show("shadows")}
+            />
           </div>
           <ErrorBox message={error || data.error} retry={data.reload} />
           <div

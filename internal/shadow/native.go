@@ -229,7 +229,13 @@ func (e *Engine) drainEvents(ctx context.Context) {
 
 func (e *Engine) handleEvent(ctx context.Context, m nativecodex.Message) error {
 	if m.Method == "teamcross/reconcile" {
-		return e.reconcileRuns(ctx)
+		if err := e.reconcileRuns(ctx); err != nil {
+			return err
+		}
+		if err := e.flushAttentionResults(); err != nil {
+			return err
+		}
+		return e.retryLegacyObservationEvidence()
 	}
 	if m.Method == "item/tool/call" && len(m.ID) > 0 {
 		return e.handleTool(ctx, m)
