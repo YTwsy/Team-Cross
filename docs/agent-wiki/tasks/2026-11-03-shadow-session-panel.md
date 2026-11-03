@@ -33,4 +33,15 @@ macOS arm64、Node 24.18.0、Go 1.27.1。以下运行在基线加本次未提交
 
 ## 安装
 
-待从干净提交构建 `0.2.6-dev.shadow-session-panel.20261103`，完成 `verify-release` 后替换本机现有 App，保留前版 App 与全部空间数据，再在原测试空间核对 S1 和无 Work 的实际状态。
+已从干净提交 `d89d96a58f98b11941163a0ca27bfa4c39f06db4` 构建并安装 `0.2.6-dev.shadow-session-panel.20261103`，build 216，arm64 / macOS 14+，ad-hoc 签名、未公证。`make release` 和 `make verify-release` 通过；安装检查覆盖 checksum、DMG、图标、签名完整性、App/CLI 版本一致、双副本与生命周期，不包含真实插件宿主验证。
+
+- 当前安装：`/Applications/Team Cross.app`；其 helper 与产物 helper SHA-256 完全一致，`/opt/homebrew/bin/teamcross` 继续指向该 helper。
+- 产物：`dist/release/0.2.6-dev.shadow-session-panel.20261103/`；清单确认 `dirty:false`。
+- DMG SHA-256：`3d36f1c7aef1ecd5901f5e98666855d3893ec8ac5fa36cd677cd071e8040846c`。
+- CLI tar SHA-256：`69288854170854cf2cdf5fa26757518975ae9239ec0bda66f8dd851710f146fe`。
+- 原 App 备份：`.local-backups/install/2026-11-03-shadow-session-panel/original-installed.app`；只停止已核对 PID 的菜单栏壳，Core 使用自身升级协议。原空间和数据目录保留。
+- 安装后通过 Core 读取与实际浏览器核对：原测试分身当前 S1 的原生 ID 保持 `01a19c5a-d1cd-7d82-a3c0-f136a864f74d`，10 条共享消息保留，Work 为 0，在线且主轮空闲；模型仍为原生确认的 `gpt-5.6-luna / openai / low`。面板正确显示 S1、49,512 / 258,400 tokens、尚未创建 W；本人提问与本机诊断入口仍可见。
+- 当前两个普通关注来源错误仍存在。本次未发送模型输入、创建 Work 或修改关注处理结果。
+- `installed-s1.png` 留于上述本地截图目录；浏览器已为用户打开真实新版面板。两个隔离浏览器 fixture 均正常退出，测试页已关闭，仅保留正常安装服务和交付页面。
+
+本次仅本地提交和安装，没有推送、tag 或发布远端 Release。
