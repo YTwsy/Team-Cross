@@ -372,11 +372,13 @@ export function Modal({
   children,
   onClose,
   wide = false,
+  className = "",
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
+  className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -397,7 +399,7 @@ export function Modal({
   return createPortal(
     <dialog
       ref={ref}
-      className={`modal${wide ? " modal-wide" : ""}`}
+      className={`modal${wide ? " modal-wide" : ""} ${className}`}
       onCancel={(e) => {
         e.preventDefault();
         e.stopPropagation();

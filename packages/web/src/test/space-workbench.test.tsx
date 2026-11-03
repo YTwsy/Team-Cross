@@ -416,8 +416,6 @@ it("keeps the reader mounted while tabs and keyboard navigation expose shared wo
   const overview = screen.getByRole("tab", { name: "空间概览" });
   overview.focus();
   await userEvent.keyboard("{ArrowRight}");
-  expect(screen.getByRole("tab", { name: /本机数字分身/ })).toHaveFocus();
-  await userEvent.keyboard("{ArrowRight}");
   expect(screen.getByRole("tab", { name: /协作请求/ })).toHaveFocus();
   expect(reader).not.toBeVisible();
   await userEvent.click(overview);

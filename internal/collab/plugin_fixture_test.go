@@ -50,6 +50,11 @@ func TestChatGPTPluginFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer a.Close()
+	// Connection status must invoke the supplied helper, never this test binary.
+	a.Config.Executable = os.Getenv("TEAMCROSS_PLUGIN_FIXTURE_EXECUTABLE")
+	if a.Config.Executable == "" {
+		a.Config.Executable = "/usr/bin/false"
+	}
 	a.Host = "Team Cross 插件 · 隔离本机"
 	if err := a.SetUILanguage("zh-CN"); err != nil {
 		t.Fatal(err)
