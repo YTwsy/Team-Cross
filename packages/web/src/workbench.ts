@@ -55,12 +55,6 @@ export type SpaceRequest = {
   updatedAt: string;
   receivedAt?: string;
   finishedAt?: string;
-  bootstrap?: {
-    brief: SpaceBrief;
-    epoch: number;
-    title: string;
-    rules: string;
-  };
 };
 export type BriefItem = {
   itemId?: string;
@@ -80,13 +74,6 @@ export type SpaceBrief = {
   updatedBy: SpaceActor;
   updatedAt: string;
 };
-export type SpaceAssistant = {
-  targetId?: string;
-  epoch: number;
-  state: "disabled" | "initializing" | "ready" | "paused" | "failed";
-  bootstrapId?: string;
-  revision: number;
-};
 export type WorkbenchView = {
   inFlow?: Record<string, boolean>;
   notes?: SpaceNote[];
@@ -97,7 +84,6 @@ export type WorkbenchView = {
   total: number;
   nextOffset?: number;
   brief: SpaceBrief;
-  assistant: SpaceAssistant;
 };
 export type SpaceNote = {
   id: string;

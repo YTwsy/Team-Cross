@@ -481,13 +481,7 @@ export function SendToAgent({
           id: p.id,
           name: `${p.name} · ${p.member}`,
           state: "paired",
-          reason:
-            space.data?.assistant.targetId === p.id &&
-            !["ready", "disabled"].includes(space.data.assistant.state)
-              ? t("专用会话尚未接手或已暂停")
-              : p.available
-                ? ""
-                : p.reason || t("接收端未连接"),
+          reason: p.available ? "" : p.reason || t("接收端未连接"),
           createdAt: "",
           expiresAt: "",
         }))

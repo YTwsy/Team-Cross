@@ -6,7 +6,7 @@ import (
 )
 
 func TestBundleMatchesEmbeddedRevision(t *testing.T) {
-	if Current.Protocol != 1 || Current.RequiredBridgeProtocol != 1 || Current.Script == "" || Current.Style == "" || !strings.Contains(Panel, `name="teamcross-panel-revision" content="`+Current.Revision+`"`) {
+	if Current.Protocol != 1 || Current.RequiredBridgeProtocol != 2 || Current.Script == "" || Current.Style == "" || !strings.Contains(Panel, `name="teamcross-panel-revision" content="`+Current.Revision+`"`) {
 		t.Fatal("panel build and update bundle differ")
 	}
 	changed := ParseBundle(strings.Replace(Panel, "</script>", "\n// changed\n</script>", 1))

@@ -7,6 +7,7 @@ import {
 import { setHostedStorage, type StoredValues } from "../storage";
 import {
   setCurrentConversation,
+  setConversationPanel,
   type DeliveryState,
 } from "../currentConversation";
 
@@ -130,6 +131,7 @@ export async function initializeEnvironment(signal?: AbortSignal) {
       persist();
     };
     window.addEventListener("hashchange", routeChanged);
+    setConversationPanel(true);
     if (bridge.host?.hostCapabilities?.message) {
       setCurrentConversation({
         connectionStatus: true,
@@ -189,11 +191,13 @@ export async function initializeEnvironment(signal?: AbortSignal) {
       window.removeEventListener("pagehide", dispose);
       setHostedStorage();
       setCurrentConversation();
+      setConversationPanel(false);
       bridge.dispose();
     };
     window.addEventListener("pagehide", dispose, { once: true });
     return dispose;
   } catch (error) {
+    setConversationPanel(false);
     if ((error as { code?: string })?.code === "plugin_reload_required") {
       if (window.__teamcrossRuntime) showReloadNotice();
       else {

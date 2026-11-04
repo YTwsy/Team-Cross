@@ -17,7 +17,7 @@ func (a *App) agentsHTTP(w http.ResponseWriter, r *http.Request, path string) bo
 	if !strings.HasPrefix(path, "agent-") {
 		return false
 	}
-	if strings.HasPrefix(path, "agent-tools/") || path == "agent-receivers/poll" || path == "agent-current-connection" {
+	if strings.HasPrefix(path, "agent-tools/") || path == "agent-receivers/poll" || path == "agent-current-connection" || path == "agent-current-inflow" {
 		if r.Method != "POST" || r.Header.Get("Origin") != "" || subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+a.Token)) != 1 {
 			http.Error(w, "会话工具访问不可用", 403)
 			return true
@@ -33,6 +33,18 @@ func (a *App) agentsHTTP(w http.ResponseWriter, r *http.Request, path string) bo
 			}
 			if decode(w, r, &in) {
 				out, err := a.currentConnection(r.Context(), in.Caller, in.SpaceID)
+				respond(w, out, err)
+			}
+			return true
+		}
+		if path == "agent-current-inflow" {
+			var in struct {
+				Caller  mcp.CallerSource `json:"caller"`
+				SpaceID string           `json:"spaceId"`
+				Name    string           `json:"name,omitempty"`
+			}
+			if decodeInFlowConnection(w, r, &in) {
+				out, err := a.connectInFlow(r.Context(), in.SpaceID, in.Caller, in.Name)
 				respond(w, out, err)
 			}
 			return true

@@ -82,7 +82,7 @@ function route(message: any): unknown {
   const { path, body } = message.params.arguments;
   const value =
     path === "plugin/bootstrap"
-      ? { scope, bridgeProtocol: 1 }
+      ? { scope, bridgeProtocol: 2 }
       : path === "ui-language"
         ? { mode: "zh-CN", resolved: "zh-CN" }
         : path === "collaborations"
@@ -245,7 +245,7 @@ it("probes a historical bodyless bootstrap once without replaying business reque
       name: "teamcross_ui_read",
       arguments: {
         path: "plugin/bootstrap",
-        body: { requiredBridgeProtocol: 1 },
+        body: { requiredBridgeProtocol: 2 },
       },
     },
     { name: "teamcross_ui_read", arguments: { path: "plugin/bootstrap" } },

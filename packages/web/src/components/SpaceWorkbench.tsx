@@ -15,7 +15,6 @@ import { sameReference, type LibraryReference } from "../library";
 import type { Collaboration } from "../types";
 import type {
   BriefItem,
-  SpaceAssistant,
   SpaceBrief,
   SpaceReceiver,
   SpaceRequest,
@@ -32,6 +31,7 @@ import {
 import { Copy, ErrorBox, Icon, Loading, Modal } from "./ui";
 import { SpaceEvents } from "./SpaceEvents";
 import { InFlowControl, LeaveSpaceNote } from "./InFlow";
+import { InFlowConnections } from "./InFlowConnections";
 import type { AnnotationRequest } from "./Annotations";
 import { SpaceOverview } from "./SpaceOverview";
 import { SpaceReferencePicker } from "./SpaceReferencePicker";
@@ -260,18 +260,6 @@ export function WorkbenchReadingShortcut() {
   );
 }
 
-export function assistantLabel(a: SpaceAssistant) {
-  return a.state === "ready"
-    ? t("已接手")
-    : a.state === "initializing"
-      ? t("等待读取与接手确认")
-      : a.state === "paused"
-        ? t("已暂停")
-        : a.state === "failed"
-          ? t("接手未完成")
-          : t("未启用");
-}
-
 export function SpaceWorkbench({
   collaboration: c,
   children,
@@ -339,10 +327,6 @@ export function SpaceWorkbench({
     2500,
   );
   const [send, setSend] = useRefreshState<Send>(refreshKey + ":send");
-  const [assistant, setAssistant] = useRefreshState(
-    refreshKey + ":assistant",
-    false,
-  );
   const [selectedRequest, setSelectedRequest] = useRefreshState(
     refreshKey + ":selectedRequest",
     "",
@@ -411,7 +395,7 @@ export function SpaceWorkbench({
     { value: "brief", label: t("空间简报") },
     { value: "sessions", label: t("参与会话") },
   ];
-  const content = data.data?.assistant ? data.data : undefined;
+  const content = data.data?.brief ? data.data : undefined;
   const card = (request: SpaceRequest) => (
     <RequestCard
       key={request.id}
@@ -611,19 +595,6 @@ export function SpaceWorkbench({
               <Icon name="settings" size={17} />
               <span>{t("设置与连接")}</span>
             </a>
-            <button
-              className="text-button space-assistant-settings"
-              aria-label={`${t("专用会话")}${content ? ` · ${assistantLabel(content.assistant)}` : ""}`}
-              title={t("专用会话")}
-              onClick={() => setAssistant(true)}
-              disabled={!content}
-            >
-              <Icon name="settings" size={16} />
-              <span>
-                {t("专用会话")}
-                {content ? ` · ${assistantLabel(content.assistant)}` : ""}
-              </span>
-            </button>
             <div className="space-local-status">
               <span className={`dot ${disabled ? "" : "green-dot"}`} />
               <span>
@@ -833,24 +804,6 @@ export function SpaceWorkbench({
           {detail.data && content ? card(detail.data) : <Loading />}
         </Modal>
       )}
-      {assistant && content && (
-        <Modal title={t("可选的专用会话")} onClose={() => setAssistant(false)}>
-          <AssistantSetup
-            c={c}
-            view={content}
-            disabled={disabled}
-            onChanged={data.reload}
-            onSessions={() => {
-              setAssistant(false);
-              setTab("sessions");
-            }}
-            onRequest={(id) => {
-              setAssistant(false);
-              setSelectedRequest(id);
-            }}
-          />
-        </Modal>
-      )}
     </WorkbenchContext.Provider>
   );
 }
@@ -925,9 +878,6 @@ function RequestCard({
           })}
         </time>
       </div>
-      {r.bootstrap && (
-        <span className="workbench-tag">{t("专用会话接手")}</span>
-      )}
       <h3>{r.instruction}</h3>
       {!!r.references?.length && (
         <div className="workbench-request-sources">
@@ -1011,13 +961,6 @@ function RequestCard({
           <span>{tr`已报告结果：${formatDate(r.finishedAt)}`}</span>
         )}
       </div>
-      {r.bootstrap && (
-        <details>
-          <summary>{tr`启动简报 · 版本 ${r.bootstrap.brief.revision}`}</summary>
-          <p>{r.bootstrap.brief.topic || t("议题尚未填写")}</p>
-          <p className="small-text muted">{r.bootstrap.rules}</p>
-        </details>
-      )}
       <div className="workbench-request-actions">
         <button
           className="button small"
@@ -1740,6 +1683,7 @@ function SpaceSessions({
   useRefreshGuard(refreshKey, adding || !!creatingID);
   return (
     <div className="workbench-sessions">
+      <InFlowConnections key={c.id} spaceId={c.id} disabled={disabled} onChanged={onChanged} />
       <section className="panel workbench-session-list">
         <div className="workbench-section-heading">
           <div>
@@ -1769,9 +1713,6 @@ function SpaceSessions({
           {view.targets
             .filter((target) => !target.removed)
             .map((target) => {
-              const assistantBlocked =
-                view.assistant.targetId === target.id &&
-                !["ready", "disabled"].includes(view.assistant.state);
               return (
                 <article className="workbench-target" key={target.id}>
                   <span className="workbench-symbol neutral">
@@ -1785,18 +1726,14 @@ function SpaceSessions({
                     </p>
                     <span
                       className={
-                        target.available && !assistantBlocked
+                        target.available
                           ? "workbench-status available"
                           : "workbench-status"
                       }
                     >
-                      {assistantBlocked
-                        ? assistantLabel(view.assistant)
-                        : target.available
-                          ? t("可以接收")
-                          : t("暂不可接收")}
+                      {target.available ? t("可接收协作请求") : t("尚未接通协作请求")}
                     </span>
-                    {!assistantBlocked && !target.available && (
+                    {!target.available && (
                       <p className="muted small-text workbench-target-reason">
                         {serviceText(
                           target.reason,
@@ -1825,9 +1762,7 @@ function SpaceSessions({
                     />
                     <button
                       className="button small"
-                      disabled={
-                        disabled || !target.available || assistantBlocked
-                      }
+                      disabled={disabled || !target.available}
                       onClick={() => onSend(target.id)}
                     >
                       {t("发起协作请求")}
@@ -1852,7 +1787,7 @@ function SpaceSessions({
             <Icon name="people" />
             <h3>{t("连接会话，开始接力")}</h3>
             <p>
-              {t("还没有接收会话。先关联一个已配对会话，或创建独立接收会话。")}
+              {t("可先选择本机会话接收空间更新，也可添加会话接收协作请求。")}
             </p>
           </div>
         )}
@@ -1940,7 +1875,7 @@ function SpaceSessions({
           <section className="workbench-associate" hidden={method !== "new"}>
             <p>
               {t(
-                "新建一个只绑定本空间的原生 Codex 会话，使用独立工作目录。创建后可接收协作请求，也可被选为空间专用会话。",
+                "新建一个只绑定本空间的原生 Codex 会话，使用独立工作目录。创建后可接收协作请求。",
               )}
             </p>
             <p className="muted small-text">
@@ -2153,154 +2088,5 @@ function ReceiverCard({
       ))}
       <ErrorBox message={error || serviceText(r.clientError || r.error)} />
     </section>
-  );
-}
-
-function AssistantSetup({
-  c,
-  view,
-  disabled,
-  onChanged,
-  onSessions,
-  onRequest,
-}: {
-  c: Collaboration;
-  view: WorkbenchView;
-  disabled: boolean;
-  onChanged: () => void;
-  onSessions: () => void;
-  onRequest: (id: string) => void;
-}) {
-  const refreshKey = "AssistantSetup:v1:" + c.id;
-  const [target, setTarget] = useRefreshState(
-    refreshKey + ":target",
-    view.assistant.targetId || "",
-  );
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const assistant = view.assistant;
-  const selected = view.targets.find((t) => t.id === target);
-  async function change(state: string) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      await api(`collaborations/${c.id}/workbench/assistant`, {
-        state,
-        baseEpoch: assistant.epoch,
-        targetId: target,
-        requestId: crypto.randomUUID(),
-      });
-      onChanged();
-    } catch (e) {
-      setError(errorText(e));
-      onChanged();
-    } finally {
-      setBusy(false);
-    }
-  }
-  useRefreshGuard(refreshKey, target !== (view.assistant.targetId || ""));
-  return (
-    <div className="workbench-assistant">
-      <p>
-        {t(
-          "每个空间最多一个。专用会话帮助理解简报、组织材料和发起已授权的协作；其他会话仍可直接互相协作。",
-        )}
-      </p>
-      <p className="notice">
-        {assistantLabel(assistant)}
-        {assistant.targetId &&
-          ` · ${view.targets.find((t) => t.id === assistant.targetId)?.name || t("已移除的会话")}`}
-      </p>
-      <div className="workbench-bootstrap-preview">
-        <h3>{t("启动时会交给它的信息")}</h3>
-        <ul>
-          <li>{tr`当前议题与空间简报 · 版本 ${view.brief.revision}`}</li>
-          <li>{t("已发布材料目录与固定版本，不自动导入私人历史")}</li>
-          <li>{t("明确关联的接收会话、待处理请求和当前进展")}</li>
-          <li>{t("按需介入的规则：先读取并确认接手，再响应明确请求")}</li>
-        </ul>
-        <p>
-          {view.brief.topic || t("议题尚未填写；它会把缺失信息标记为未知。")}
-        </p>
-      </div>
-      {c.role === "owner" ? (
-        <>
-          <label>
-            {t("专用接收会话")}
-            <select
-              value={target}
-              disabled={busy || disabled}
-              onChange={(e) => setTarget(e.target.value)}
-            >
-              <option value="">{t("选择接收会话")}</option>
-              {view.targets
-                .filter((t) => !t.removed && !t.executionId)
-                .map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} · {t.member}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <button className="text-link" onClick={onSessions}>
-            {t("创建或关联独立接收会话")}
-          </button>
-          <div className="workbench-card-actions">
-            <button
-              className="button primary"
-              disabled={
-                disabled ||
-                busy ||
-                !selected?.available ||
-                (assistant.state === "initializing" &&
-                  target === assistant.targetId)
-              }
-              onClick={() => void change("initializing")}
-            >
-              {assistant.state === "disabled"
-                ? t("启用并发送启动简报")
-                : target !== assistant.targetId
-                  ? t("更换并请求接手")
-                  : t("重新读取简报并接手")}
-            </button>
-            {assistant.state !== "disabled" && (
-              <>
-                <button
-                  className="button"
-                  disabled={disabled || busy || assistant.state === "paused"}
-                  onClick={() => void change("paused")}
-                >
-                  {t("暂停介入")}
-                </button>
-                <button
-                  className="text-link"
-                  disabled={disabled || busy}
-                  onClick={() => void change("disabled")}
-                >
-                  {t("停用专用会话")}
-                </button>
-              </>
-            )}
-          </div>
-        </>
-      ) : (
-        <p>{t("由空间发起者启用、暂停或更换专用会话。")}</p>
-      )}
-      {assistant.bootstrapId && (
-        <button
-          className="text-link"
-          onClick={() => onRequest(assistant.bootstrapId!)}
-        >
-          {t("查看接手请求与回执")}
-        </button>
-      )}
-      <p className="small-text muted">
-        {t(
-          "暂停或停用后保留原生会话与已发生的结果；正在执行的输入需在原生会话中处理。",
-        )}
-      </p>
-      <ErrorBox message={error} />
-    </div>
   );
 }

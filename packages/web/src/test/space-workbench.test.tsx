@@ -70,7 +70,6 @@ beforeEach(() => {
       updatedBy: { memberId: "owner", name: "发起者", kind: "human" },
       updatedAt: new Date().toISOString(),
     },
-    assistant: { epoch: 0, revision: 0, state: "disabled" },
   };
   vi.stubGlobal(
     "fetch",
@@ -105,15 +104,6 @@ beforeEach(() => {
       else if (path.endsWith("/workbench/brief")) {
         view.brief = { ...body.brief, revision: body.baseRevision + 1 };
         out = view.brief;
-      } else if (path.endsWith("/workbench/assistant")) {
-        view.assistant = {
-          targetId: body.targetId,
-          state: body.state,
-          epoch: body.baseEpoch + 1,
-          bootstrapId: body.requestId,
-          revision: view.brief.revision,
-        };
-        out = view.assistant;
       }
       return { ok: true, json: async () => structuredClone(out) };
     }),
@@ -386,8 +376,9 @@ it("keeps chosen fixed sources and an unsaved brief while searching sources and 
   ).toEqual([briefRef, { ...briefRef, version: 2 }]);
 });
 
-it("shows a paused assistant as unavailable in the participating conversations", async () => {
-  view.assistant = { epoch: 1, revision: 3, state: "paused", targetId: "peer" };
+it("shows unavailable receivers in the participating conversations", async () => {
+  view.targets[0]!.available = false;
+  view.targets[0]!.reason = "接收端未连接";
   render(
     <SpaceWorkbench collaboration={c} onLocate={() => {}}>
       材料原文
@@ -395,7 +386,7 @@ it("shows a paused assistant as unavailable in the participating conversations",
   );
   await userEvent.click(screen.getByRole("tab", { name: "参与会话" }));
   const panel = await screen.findByRole("tabpanel", { name: "参与会话" });
-  expect(within(panel).getByText("已暂停")).toBeVisible();
+  expect(within(panel).getByText("接收端未连接")).toBeVisible();
   expect(
     within(panel).getByRole("button", { name: "发起协作请求" }),
   ).toBeDisabled();
@@ -411,7 +402,12 @@ it("keeps the reader mounted while tabs and keyboard navigation expose shared wo
       </div>
     </SpaceWorkbench>,
   );
-  await screen.findByRole("button", { name: "专用会话 · 未启用" });
+  await waitFor(() =>
+    expect(screen.getByRole("tab", { name: "协作请求" })).toHaveTextContent("0"),
+  );
+  expect(
+    screen.queryByRole("button", { name: /专用会话/ }),
+  ).not.toBeInTheDocument();
   const reader = screen.getByTestId("reader");
   const overview = screen.getByRole("tab", { name: "空间概览" });
   overview.focus();
@@ -600,36 +596,6 @@ it("keeps source progress nearby and proposes results without saving a decision 
     sources: [briefRef],
     requestId: request.id,
   });
-});
-
-it("reviews the bootstrap before explicit enable and does not call it ready at submission", async () => {
-  render(
-    <SpaceWorkbench collaboration={c} onLocate={() => {}}>
-      <p>reader</p>
-    </SpaceWorkbench>,
-  );
-  await userEvent.click(
-    await screen.findByRole("button", { name: "专用会话 · 未启用" }),
-  );
-  const dialog = screen.getByRole("dialog");
-  expect(within(dialog).getByText("启动时会交给它的信息")).toBeVisible();
-  expect(calls.filter((c) => c.body)).toHaveLength(0);
-  await userEvent.selectOptions(
-    within(dialog).getByRole("combobox", { name: "专用接收会话" }),
-    "peer",
-  );
-  await userEvent.click(
-    within(dialog).getByRole("button", { name: "启用并发送启动简报" }),
-  );
-  expect(await within(dialog).findByText(/等待读取与接手确认/)).toBeVisible();
-  const posted = calls.filter((c) => c.path.endsWith("/workbench/assistant"));
-  expect(posted).toHaveLength(1);
-  expect(posted[0]!.body).toMatchObject({
-    targetId: "peer",
-    state: "initializing",
-    baseEpoch: 0,
-  });
-  expect(screen.queryByText("已接手")).not.toBeInTheDocument();
 });
 
 it("keeps item identity, status and other progress while editing the brief", async () => {

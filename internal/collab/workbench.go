@@ -23,7 +23,6 @@ type WorkbenchRecord struct {
 	Brief         SpaceBrief                  `json:"brief"`
 	BriefHistory  map[int]SpaceBrief          `json:"briefHistory,omitempty"`
 	BriefCommands map[string]BriefCommand     `json:"briefCommands,omitempty"`
-	Assistant     SpaceAssistant              `json:"assistant"`
 }
 
 type SpaceActor = spacecontext.Actor
@@ -58,7 +57,6 @@ type SpaceRequest struct {
 	UpdatedAt       time.Time            `json:"updatedAt"`
 	ReceivedAt      *time.Time           `json:"receivedAt,omitempty"`
 	FinishedAt      *time.Time           `json:"finishedAt,omitempty"`
-	Bootstrap       *SpaceBootstrap      `json:"bootstrap,omitempty"`
 	Context         *SpaceRequestContext `json:"context,omitempty"`
 	BriefRevision   int                  `json:"briefRevision"`
 }
@@ -98,28 +96,6 @@ type SpaceBrief struct {
 	UpdatedAt time.Time   `json:"updatedAt"`
 }
 
-type SpaceAssistant struct {
-	TargetID    string `json:"targetId,omitempty"`
-	Epoch       int    `json:"epoch"`
-	State       string `json:"state"` // disabled, initializing, ready, paused, failed
-	BootstrapID string `json:"bootstrapId,omitempty"`
-	Revision    int    `json:"revision"`
-}
-
-type SpaceBootstrap struct {
-	SpaceID       string           `json:"spaceId"`
-	Title         string           `json:"title"`
-	Epoch         int              `json:"epoch"`
-	Brief         SpaceBrief       `json:"brief"`
-	Materials     []map[string]any `json:"materials"`
-	Targets       []SpaceTarget    `json:"targets"`
-	Pending       []string         `json:"pendingRequestIds"`
-	Rules         string           `json:"rules"`
-	MaterialCount int              `json:"materialCount"`
-	TargetCount   int              `json:"targetCount"`
-	PendingCount  int              `json:"pendingCount"`
-}
-
 // The local HTTP and MCP edges set Actor themselves; the space host supplies
 // MemberID from its authenticated grant, including for another member's Core.
 type workbenchInput struct {
@@ -143,7 +119,6 @@ type workbenchInput struct {
 	Summary         string               `json:"summary,omitempty"`
 	Error           string               `json:"error,omitempty"`
 	BaseRevision    int                  `json:"baseRevision,omitempty"`
-	BaseEpoch       int                  `json:"baseEpoch,omitempty"`
 	Brief           SpaceBrief           `json:"brief"`
 	Topic           *string              `json:"topic,omitempty"`
 	Changes         []BriefChange        `json:"changes,omitempty"`
@@ -155,16 +130,15 @@ type workbenchInput struct {
 }
 
 type WorkbenchView struct {
-	InFlow    map[string]bool `json:"inFlow"`
-	Notes     []SpaceNote     `json:"notes"`
-	SpaceID   string          `json:"spaceId"`
-	SelfID    string          `json:"selfId"`
-	Targets   []SpaceTarget   `json:"targets"`
-	Requests  []SpaceRequest  `json:"requests"`
-	Total     int             `json:"total"`
-	Next      *int            `json:"nextOffset,omitempty"`
-	Brief     SpaceBrief      `json:"brief"`
-	Assistant SpaceAssistant  `json:"assistant"`
+	InFlow   map[string]bool `json:"inFlow"`
+	Notes    []SpaceNote     `json:"notes"`
+	SpaceID  string          `json:"spaceId"`
+	SelfID   string          `json:"selfId"`
+	Targets  []SpaceTarget   `json:"targets"`
+	Requests []SpaceRequest  `json:"requests"`
+	Total    int             `json:"total"`
+	Next     *int            `json:"nextOffset,omitempty"`
+	Brief    SpaceBrief      `json:"brief"`
 }
 
 type targetPresence struct {
@@ -173,7 +147,7 @@ type targetPresence struct {
 }
 
 func newWorkbench() *WorkbenchRecord {
-	return &WorkbenchRecord{Targets: map[string]SpaceTarget{}, Requests: map[string]SpaceRequest{}, Assistant: SpaceAssistant{State: "disabled"}, Brief: SpaceBrief{Decisions: []BriefItem{}, Questions: []BriefItem{}}}
+	return &WorkbenchRecord{Targets: map[string]SpaceTarget{}, Requests: map[string]SpaceRequest{}, Brief: SpaceBrief{Decisions: []BriefItem{}, Questions: []BriefItem{}}}
 }
 
 func (s *Session) workbenchActor(ctx context.Context, actor SpaceActor) SpaceActor {
@@ -247,7 +221,7 @@ func (s *Session) spaceTargetLocked(t SpaceTarget) SpaceTarget {
 
 func (s *Session) workbenchViewLocked(ctx context.Context, offset int) WorkbenchView {
 	b := s.record.Workbench
-	out := WorkbenchView{SpaceID: s.record.ID, SelfID: sharing.MemberID(ctx), Targets: []SpaceTarget{}, Requests: []SpaceRequest{}, Brief: b.Brief, Assistant: b.Assistant, Total: len(b.Requests)}
+	out := WorkbenchView{SpaceID: s.record.ID, SelfID: sharing.MemberID(ctx), Targets: []SpaceTarget{}, Requests: []SpaceRequest{}, Brief: b.Brief, Total: len(b.Requests)}
 	out.InFlow = map[string]bool{}
 	for key, pref := range b.InFlow {
 		out.InFlow[key] = pref.Enabled
@@ -341,9 +315,6 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 		if r.State == "queued" && (now.Sub(r.CreatedAt) > 30*time.Second || s.record.State == "ended") {
 			r.State, r.Error, r.UpdatedAt = "failed", "接收端未及时接手或空间已关闭；请核对后明确新建请求", now
 			b.Requests[id], changed = r, true
-			if b.Assistant.BootstrapID == id && b.Assistant.State == "initializing" {
-				b.Assistant.State = "failed"
-			}
 		}
 	}
 	request, exists = b.Requests[in.RequestID]
@@ -431,10 +402,6 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 				b.Requests[id] = r
 			}
 		}
-		if b.Assistant.TargetID == target.ID {
-			b.Assistant.State = "paused"
-			b.Assistant.Epoch++
-		}
 		return target, nil
 	case "poll":
 		if s.workbenchPresence == nil {
@@ -477,9 +444,6 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 			}
 			return request, nil
 		}
-		if active := b.Targets[b.Assistant.TargetID]; actor.Kind == "session" && active.MemberID == member && active.Session != "" && active.Session == actor.Session && b.Assistant.State != "ready" && b.Assistant.State != "disabled" {
-			return nil, fmt.Errorf("专用会话尚未接手或已暂停，不能发起新的协作")
-		}
 		if len(b.Requests) >= 4096 {
 			return nil, fmt.Errorf("空间请求记录已达上限，请建立后续空间")
 		}
@@ -488,9 +452,6 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 		}
 		if target.ExecutionID != "" && !s.executionWriterLocked(target.ExecutionID, member) {
 			return nil, fmt.Errorf("向共同执行会话投递需要有效空间成员资格和该会话当前输入权")
-		}
-		if b.Assistant.TargetID == target.ID && b.Assistant.State != "ready" && b.Assistant.State != "disabled" {
-			return nil, fmt.Errorf("专用会话尚未接手或已暂停")
 		}
 		if err = s.workbenchRefsLocked(in.References); err != nil {
 			return nil, err
@@ -521,7 +482,7 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 		request = SpaceRequest{ID: in.RequestID, TargetID: target.ID, Actor: actor, ParentRequestID: in.ParentRequestID, References: in.References, Instruction: in.Instruction, Intent: in.Intent, State: "queued", CreatedAt: now, UpdatedAt: now, BriefRevision: b.Brief.Revision, Context: &SpaceRequestContext{Brief: libraryClone(b.Brief)}}
 		var previous time.Time
 		for _, r := range b.Requests {
-			if r.TargetID == target.ID && r.ReceivedAt != nil && r.ReceivedAt.After(previous) && (r.Context != nil || r.Bootstrap != nil) {
+			if r.TargetID == target.ID && r.ReceivedAt != nil && r.ReceivedAt.After(previous) && r.Context != nil {
 				previous = *r.ReceivedAt
 				revision := r.BriefRevision
 				request.Context.PreviousBriefRevision = &revision
@@ -593,14 +554,6 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 		}
 		request.UpdatedAt = now
 		b.Requests[request.ID], changed = request, true
-		if request.Bootstrap != nil && b.Assistant.BootstrapID == request.ID && b.Assistant.Epoch == request.Bootstrap.Epoch && b.Assistant.State == "initializing" {
-			if request.State == "completed" {
-				b.Assistant.State = "ready"
-			}
-			if request.State == "failed" {
-				b.Assistant.State = "failed"
-			}
-		}
 		return request, nil
 	case "cancel":
 		if !exists || (request.Actor.MemberID != member && !owner) || request.State != "queued" {
@@ -608,90 +561,12 @@ func (s *Session) workbenchOperation(ctx context.Context, op string, in workbenc
 		}
 		request.State, request.UpdatedAt = "cancelled", now
 		b.Requests[request.ID], changed = request, true
-		if b.Assistant.BootstrapID == request.ID && b.Assistant.State == "initializing" {
-			b.Assistant.State = "failed"
-		}
 		return request, nil
 	case "brief":
 		var mutation bool
 		out, mutation, err = s.updateBriefLocked(in, actor, now, true)
 		changed = changed || mutation
 		return out, err
-	case "assistant":
-		if !owner {
-			return nil, fmt.Errorf("专用会话由空间发起者启用或调整")
-		}
-		if in.BaseEpoch != b.Assistant.Epoch {
-			return nil, fmt.Errorf("专用会话已变化，请刷新后再操作")
-		}
-		if in.State == "paused" || in.State == "disabled" {
-			old := b.Assistant.TargetID
-			b.Assistant.State, b.Assistant.Epoch = in.State, b.Assistant.Epoch+1
-			if in.State == "disabled" {
-				b.Assistant.TargetID, b.Assistant.BootstrapID = "", ""
-			}
-			for id, r := range b.Requests {
-				if r.TargetID == old && r.State == "queued" {
-					r.State, r.Error, r.UpdatedAt = "cancelled", "专用会话已暂停或停用", now
-					b.Requests[id] = r
-				}
-			}
-			changed = true
-			return b.Assistant, nil
-		}
-		if in.State != "initializing" || target.ID == "" || !s.spaceTargetLocked(target).Available {
-			return nil, fmt.Errorf("请选择已就绪的空间接收会话")
-		}
-		if target.ExecutionID != "" {
-			return nil, fmt.Errorf("专用会话应与共同执行会话分开，请创建独立接收会话")
-		}
-		if _, e := uuid.Parse(in.RequestID); e != nil || exists {
-			return nil, fmt.Errorf("初始化需要新的请求标识")
-		}
-		if len(b.Requests) >= 4096 {
-			return nil, fmt.Errorf("空间请求记录已达上限")
-		}
-		// Replacement never destroys the former native conversation. Late
-		// completions retain their original request and cannot seize this role.
-		for id, r := range b.Requests {
-			if r.TargetID == b.Assistant.TargetID && r.State == "queued" {
-				r.State, r.Error = "cancelled", "专用会话已更换"
-				r.UpdatedAt = now
-				b.Requests[id] = r
-			}
-		}
-		b.Assistant = SpaceAssistant{TargetID: target.ID, Epoch: b.Assistant.Epoch + 1, State: "initializing", BootstrapID: in.RequestID, Revision: b.Brief.Revision}
-		boot := SpaceBootstrap{SpaceID: s.record.ID, Title: s.record.Title, Epoch: b.Assistant.Epoch, Brief: b.Brief, Materials: s.materialDirectoryLocked(), Targets: []SpaceTarget{}, Pending: []string{}, Rules: "你是本空间可选的协作助手。先读取这份启动简报和条目状态，确认接手当前工作；未知事项保持未知。按当前任务需要直接咨询相关成员或会话、补问缺失事实、跟进结果和更新空间简报，无需逐次询问普通协作许可。使用稳定请求 ID，先核对已有工作与结果，再安排后续；根据新信息继续原任务。区分已确认事实、建议和争议，保留准确公开来源及适用条件，避免重复提问。简报并发修改时读取最新版本并合并；真正需要成员作选择时提出具体问题。公开材料按固定版本按需读取。完成本次接手后用 finish_agent_request 回报你理解的议题、缺失信息和可协助事项。"}
-		for _, t := range b.Targets {
-			if !t.Removed {
-				boot.Targets = append(boot.Targets, s.spaceTargetLocked(t))
-			}
-		}
-		for id, r := range b.Requests {
-			if r.State == "queued" || r.State == "submitted" || r.State == "received" || r.State == "unknown" {
-				boot.Pending = append(boot.Pending, id)
-			}
-		}
-		boot.MaterialCount, boot.TargetCount, boot.PendingCount = len(boot.Materials), len(boot.Targets), len(boot.Pending)
-		// Startup is a bounded orientation, with live directories available via
-		// the normal tools. Keep only the latest fixed version in this index.
-		boot.Materials = boot.Materials[:min(16, len(boot.Materials))]
-		for _, m := range boot.Materials {
-			versions, _ := m["versions"].([]map[string]any)
-			if len(versions) > 0 {
-				latest := versions[len(versions)-1]
-				m["versions"] = []map[string]any{{"version": latest["version"], "title": latest["title"]}}
-			}
-		}
-		boot.Targets = boot.Targets[:min(16, len(boot.Targets))]
-		boot.Pending = boot.Pending[:min(32, len(boot.Pending))]
-		boot.Rules += "启动目录最多含 16 份材料的最新固定版本、16 个目标和 32 个待办 ID；需要完整目录时使用 list_materials、list_space_targets、list_space_requests。"
-		request = SpaceRequest{ID: in.RequestID, TargetID: target.ID, Actor: actor, References: []LibraryReference{}, Instruction: "请读取空间启动简报，确认当前范围与介入规则，然后明确确认接手。", Intent: "analyze", State: "queued", CreatedAt: now, UpdatedAt: now, Bootstrap: &boot, BriefRevision: b.Brief.Revision}
-		if readview.WireSize(request) > readview.MaxBytes-16<<10 {
-			return nil, fmt.Errorf("启动上下文过长，请精简空间简报后重试")
-		}
-		b.Requests[request.ID], changed = request, true
-		return b.Assistant, nil
 	}
 	return nil, fmt.Errorf("未知的空间工作台操作")
 }

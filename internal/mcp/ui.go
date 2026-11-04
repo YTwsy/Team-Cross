@@ -22,7 +22,7 @@ const legacyUIResourceURI = "ui://teamcross/workspace-v1.html"
 
 // Cumulative UI route/semantics contract implemented by this MCP process.
 // Core and plugin files can update while this executable remains resident.
-const UIBridgeProtocol = 1
+const UIBridgeProtocol = 2
 
 func checkUIBridgeRequirement(body any) error {
 	if body == nil {
@@ -195,7 +195,7 @@ func ServeUI(ctx context.Context, dataDir string, input io.Reader, output io.Wri
 
 func checkPanelCoreVersion(s service.Status, path string) error {
 	base, _, _ := strings.Cut(path, "?")
-	if s.UpdatePending && (base == "plugin/current-connection" || base == "plugin/panel-version" || base == "plugin/panel-bundle") {
+	if s.UpdatePending && (base == "plugin/current-connection" || base == "plugin/current-inflow" || base == "plugin/panel-version" || base == "plugin/panel-bundle") {
 		return problem.New("core_update_pending", "Team Cross 服务尚未完成更新", "服务正在切换到已安装构建，请稍后重新读取；已提交的请求不会自动重发")
 	}
 	return nil
@@ -318,7 +318,7 @@ func uiRoute(path string, body any, write bool) (string, error) {
 			allowed = true
 		}
 		switch u.Path {
-		case "ui-language", "settings", "mcp/setup", "mcp/probe", "preview", "spaces", "collaborations", "join", "invitations/preview", "plugin/connection",
+		case "ui-language", "settings", "mcp/setup", "mcp/probe", "preview", "spaces", "collaborations", "join", "invitations/preview", "plugin/connection", "plugin/current-inflow",
 			"publications/source", "publications/preview", "library/state", "library/bundles", "agent-pairings", "agent-requests", "event-access":
 			allowed = true
 		}
@@ -341,7 +341,7 @@ func uiRoute(path string, body any, write bool) (string, error) {
 		}
 		if len(parts) == 4 && parts[0] == "collaborations" && parts[2] == "workbench" {
 			switch parts[3] {
-			case "register", "send", "brief", "assistant", "cancel", "remove", "create-receiver", "inflow-config", "inflow-note", "inflow-note-read":
+			case "register", "send", "brief", "cancel", "remove", "create-receiver", "inflow-connect", "inflow-config", "inflow-note", "inflow-note-read":
 				allowed = true
 			}
 		}
@@ -383,12 +383,33 @@ func (b Backend) uiRequest(ctx context.Context, path string, body any, write boo
 		return nil, err
 	}
 	u, _ := url.Parse(path)
+	if u.Path == "plugin/current-inflow" {
+		args, ok := body.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("需要明确的空间 ID")
+		}
+		schema := tool("current_inflow", "", map[string]any{"spaceId": str(""), "name": str("")}, []string{"spaceId"}, false)
+		if err := validateToolArgs(schema, args); err != nil {
+			return nil, err
+		}
+		space, _ := args["spaceId"].(string)
+		if strings.TrimSpace(space) == "" {
+			return nil, fmt.Errorf("需要明确的空间 ID")
+		}
+		caller, _ := ctx.Value(callerSourceKey{}).(CallerSource)
+		_, idErr := uuid.Parse(caller.SourceID)
+		if !ChatGPTConversation(caller) && (caller.Provider != "codex" || idErr != nil) {
+			return nil, fmt.Errorf("宿主未提供当前会话身份，请从本机会话列表选择")
+		}
+		name, _ := args["name"].(string)
+		return b.Call(ctx, "POST", "agent-current-inflow", map[string]any{"caller": caller, "spaceId": space, "name": name})
+	}
 	if u.Path == "plugin/current-connection" {
 		if u.Query().Get("spaceId") == "" {
 			return nil, fmt.Errorf("需要明确的空间 ID")
 		}
 		// Panel reads may have a thread ID without an active model turn. This
-		// identity is for a read-only status lookup, never for connection/writes.
+		// path remains read-only; passive setup has a separate explicit UI action.
 		caller, _ := ctx.Value(callerSourceKey{}).(CallerSource)
 		_, idErr := uuid.Parse(caller.SourceID)
 		if !ChatGPTConversation(caller) && (caller.Provider != "codex" || idErr != nil) {

@@ -216,7 +216,6 @@ it("lets a space member read a new session and request input without another gra
           requests: [],
           total: 0,
           brief: { revision: 0, topic: "", decisions: [], questions: [] },
-          assistant: { epoch: 0, state: "disabled" },
         });
       if (input.includes("space-receivers") || input.endsWith("agent-pairings"))
         return json([]);

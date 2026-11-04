@@ -540,24 +540,6 @@
   background: var(--space-hover);
   color: var(--text);
 }
-.space-assistant-settings {
-  width: 100%;
-  min-width: 0;
-  padding: 8px 11px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 11px;
-  color: var(--muted);
-  text-align: left;
-}
-.space-assistant-settings:hover:not(:disabled) {
-  background: var(--space-hover);
-  color: var(--text);
-}
 .space-local-status {
   display: flex;
   align-items: center;
@@ -1192,7 +1174,6 @@
 .space-nav-collapsed .space-material-group,
 .space-nav-collapsed .space-material-summary,
 .space-nav-collapsed .space-material-empty,
-.space-nav-collapsed .space-assistant-settings > span,
 .space-nav-collapsed .space-context-navigation span:not(.space-avatar),
 .space-nav-collapsed .space-footer-link > span,
 .space-nav-collapsed .space-local-status {
@@ -1210,7 +1191,6 @@
 }
 .space-nav-collapsed .workbench-tabs > button,
 .space-nav-collapsed .space-material-row,
-.space-nav-collapsed .space-assistant-settings,
 .space-nav-collapsed .space-footer-link {
   justify-content: center;
   padding-inline: 4px;
@@ -2234,4 +2214,29 @@
 }
 .inflow-notes p {
   white-space: pre-wrap;
+}
+.inflow-connections > h3 {
+  margin-top: 0;
+}
+.inflow-setup-help {
+  margin-top: 16px;
+}
+.inflow-setup-help li + li {
+  margin-top: 8px;
+}
+.inflow-source-fields {
+  border: 0;
+  padding: 0;
+  margin: 0 0 16px;
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+.inflow-source-fields .source-list {
+  min-height: 128px;
+  max-height: 320px;
+  overflow: auto;
+}
+.inflow-source-fields .row-meta {
+  overflow-wrap: anywhere;
 }

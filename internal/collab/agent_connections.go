@@ -236,5 +236,5 @@ func (a *App) currentConnection(ctx context.Context, caller mcp.CallerSource, sp
 		return nil, err
 	}
 	target := workbenchDecode[SpaceTarget](raw)
-	return map[string]any{"known": true, "linked": target.ID != "", "receiving": target.ID != "" && target.Available, "targetId": target.ID, "name": target.Name}, nil
+	return map[string]any{"known": true, "linked": target.ID != "", "receiving": target.ID != "" && target.Available, "inFlow": target.InFlow, "targetId": target.ID, "name": target.Name}, nil
 }

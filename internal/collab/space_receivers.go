@@ -204,7 +204,7 @@ func (a *App) initializeSpaceReceiver(ctx context.Context, s *Session) (any, err
 		return fail(fmt.Errorf("无法核对新建原生会话，请查看原生运行时"))
 	}
 	// The exact session is created and verified here, so no copy/paste challenge
-	// is needed. Read/finish of the bootstrap still proves model-level receipt.
+	// is needed. Reading and finishing a request still prove model-level receipt.
 	p := AgentPairing{ID: r.RequestID, Name: r.Title, Provider: "codex", SessionID: started.Thread.ID, SpaceID: spaceID, RuntimeID: r.ID, Transport: "native", State: "paired", CreatedAt: time.Now(), Links: map[string]string{}}
 	a.agentMu.Lock()
 	next := libraryClone(a.agents)

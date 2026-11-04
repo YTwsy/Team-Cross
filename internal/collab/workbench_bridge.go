@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"teamcross/internal/mcp"
 )
 
 func workbenchDecode[T any](v any) T {
@@ -120,6 +121,18 @@ func (a *App) workbenchHTTP(w http.ResponseWriter, r *http.Request, path string)
 		http.NotFound(w, r)
 		return true
 	}
+	if op == "inflow-connect" {
+		var in inFlowSourceInput
+		if decodeInFlowConnection(w, r, &in) {
+			if in.Provider != "codex" && in.Provider != "claude" {
+				respond(w, nil, fmt.Errorf("请选择 Codex 或 Claude 本机会话"))
+			} else {
+				out, err := a.connectInFlow(r.Context(), id, mcp.CallerSource{Provider: in.Provider, SourceID: in.SourceID}, in.Name)
+				respond(w, out, err)
+			}
+		}
+		return true
+	}
 	var in workbenchInput
 	if !decode(w, r, &in) {
 		return true
@@ -130,7 +143,7 @@ func (a *App) workbenchHTTP(w http.ResponseWriter, r *http.Request, path string)
 	switch op {
 	case "register":
 		out, err = a.registerSpacePairing(r.Context(), id, in.PairingID)
-	case "send", "brief", "brief-update", "brief-read", "assistant", "cancel", "remove", "inflow-config", "inflow-note", "inflow-note-read":
+	case "send", "brief", "brief-update", "brief-read", "cancel", "remove", "inflow-config", "inflow-note", "inflow-note-read":
 		out, err = a.workbenchCall(r.Context(), id, op, in)
 	case "create-receiver":
 		out, err = a.createSpaceReceiver(r.Context(), id, in.RequestID, in.Name)

@@ -70,12 +70,12 @@ def run(args):
                 receiver=replacement.api('space-receivers/'+receiver_id+'/action',{'action':'retry'})
                 assert receiver['id']==receiver_id and receiver['online'] and receiver['sessionId']
                 return replacement,receiver
-            b,rb=restore_failed(1,b,jb,'Space coordinator fixture')
+            b,rb=restore_failed(1,b,jb,'Member analysis fixture')
             c,rc=restore_failed(2,c,jc,'Peer analysis fixture')
             report['failedReceiversReloadedBeforeFirstDelivery']=True
             n.emit('failed_receivers_reloaded_before_first_delivery')
         else:
-            rb = b.api('collaborations/'+jb+'/workbench/create-receiver',{'requestId':str(uuid.uuid4()),'name':'Space coordinator fixture'})
+            rb = b.api('collaborations/'+jb+'/workbench/create-receiver',{'requestId':str(uuid.uuid4()),'name':'Member analysis fixture'})
             rc = c.api('collaborations/'+jc+'/workbench/create-receiver',{'requestId':str(uuid.uuid4()),'name':'Peer analysis fixture'})
         receivers.extend([(b,rb),(c,rc)])
         assert not host.api('collaborations/'+sid)['hasExecution']
@@ -88,10 +88,7 @@ def run(args):
         view = n.wait_until(ready_targets,30)
         tb = next(t for t in view['targets'] if t['name']==rb['name'])
         tc = next(t for t in view['targets'] if t['name']==rc['name'])
-        host.api(endpoint+'brief',{'baseRevision':0,'brief':{'topic':'Verify independent session collaboration. No repository execution.','decisions':[{'text':'Only published space material is in scope.','sources':[]}],'questions':[{'text':'Can a receiving conversation explicitly dispatch to its peer?','sources':[]}]}})
-        boot_id = str(uuid.uuid4()); request_ids.add(boot_id)
-        host.api(endpoint+'assistant',{'state':'initializing','targetId':tb['id'],'requestId':boot_id,'baseEpoch':0})
-
+        host.api(endpoint+'brief',{'requestId':str(uuid.uuid4()),'baseRevision':0,'brief':{'topic':'Verify independent session collaboration. No repository execution.','decisions':[{'text':'Only published space material is in scope.','sources':[]}],'questions':[{'text':'Can a receiving conversation explicitly dispatch to its peer?','sources':[]}]}})
         def approvals():
             for core,receiver in receivers:
                 events = core.api('space-receivers/'+receiver['id']+'/events')
@@ -105,17 +102,6 @@ def run(args):
                         approved.add(key)
                 (root/'evidence'/(core.label+'-events.json')).write_text(json.dumps(events,ensure_ascii=False,indent=2)+'\n')
 
-        def accepted():
-            approvals()
-            view = host.api(endpoint+'view')
-            if view['assistant']['state']=='failed': raise RuntimeError('bootstrap failed: '+json.dumps(view['requests'],ensure_ascii=False))
-            return view if view['assistant']['state']=='ready' else None
-        view = n.wait_until(accepted,180)
-        boot = next(r for r in view['requests'] if r['id']==boot_id)
-        assert boot['state']=='completed' and boot['receivedAt'] and boot['bootstrap']['brief']['revision']==1
-        report['bootstrapReadAndAccepted'] = True
-        n.wait_until(lambda:not b.api('space-receivers?spaceId='+jb)[0]['busy'],60)
-        n.wait_until(ready_targets,30)
         outer,peer = str(uuid.uuid4()),str(uuid.uuid4()); request_ids.update((outer,peer))
         instruction = ('This is an explicit fixture authorization to send exactly one space request to peer target '+tc['id']+'. '
             'Use send_space_request with requestId '+peer+', targetId '+tc['id']+', parentRequestId '+outer+', references [], intent analyze, '
@@ -138,16 +124,15 @@ def run(args):
         assert requests[peer]['parentRequestId']==outer
         assert requests[peer]['summary']=='PEER_WORKBENCH_DONE'
         assert requests[outer]['summary']=='DISPATCH_WORKBENCH_DONE'
+        outer_request=host.api(endpoint+'request?requestId='+outer)
+        assert outer_request['receivedAt'] and outer_request['context']['brief']['revision']==1
+        report['requestBriefSnapshotRead']=True
         for core,alias in ((b,jb),(c,jc)):
             member_view=core.api('collaborations/'+alias+'/workbench/view')
-            assert len(member_view['requests'])==3 and all(r['state']=='completed' for r in member_view['requests'])
+            assert len(member_view['requests'])==2 and all(r['state']=='completed' for r in member_view['requests'])
         assert not host.api('collaborations/'+sid)['hasExecution']
-        host.api(endpoint+'assistant',{'state':'paused','baseEpoch':view['assistant']['epoch']})
-        paused=host.api(endpoint+'view'); assert paused['assistant']['state']=='paused'
-        host.api(endpoint+'assistant',{'state':'disabled','baseEpoch':paused['assistant']['epoch']})
-        assert len(host.api(endpoint+'view')['requests'])==3
         assert b.api('space-receivers?spaceId='+jb)[0]['sessionId']==rb['sessionId']
-        report.update({'genericPeerDispatch':True,'threeMembersSeeSameProgress':True,'duplicateDidNotReplay':True,'assistantOptionalAndNoExecution':True,'pauseDisablePreserveHistory':True,'scopedToolApprovals':len(approved),'requests':list(requests.values())})
+        report.update({'genericPeerDispatch':True,'threeMembersSeeSameProgress':True,'duplicateDidNotReplay':True,'peerRequestsWithoutExecution':True,'scopedToolApprovals':len(approved),'requests':list(requests.values())})
         if args.reload_failed_receivers:
             for core,_ in receivers:
                 status=json.loads(subprocess.check_output([n.BINARY,'status','--json','--data-dir',str(core.data)],env=env,text=True,timeout=5))

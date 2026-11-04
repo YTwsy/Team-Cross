@@ -108,7 +108,7 @@ func (a *App) spaceEventRead(ctx context.Context, id, name string, args map[stri
 			return nil, err
 		}
 		view := workbenchDecode[WorkbenchView](raw)
-		return map[string]any{"spaceId": id, "brief": view.Brief, "assistant": view.Assistant}, nil
+		return map[string]any{"spaceId": id, "brief": view.Brief}, nil
 	case "get_space_request":
 		requestID, _ := args["requestId"].(string)
 		return a.workbenchCall(ctx, id, "request", workbenchInput{RequestID: requestID})
