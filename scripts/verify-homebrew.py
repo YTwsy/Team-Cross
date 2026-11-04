@@ -2,11 +2,19 @@
 """Install/uninstall local Formula and Cask in an isolated Homebrew checkout."""
 import argparse, functools, http.server, json, os, pathlib, re, shutil, signal, subprocess, tempfile, threading
 from homebrew_release import load_bundle
-p=argparse.ArgumentParser();p.add_argument('release');p.add_argument('--brew',default='/opt/homebrew/bin/brew');p.add_argument('--public',action='store_true',help='Install from the public URLs instead of the local fixture server');a=p.parse_args();release=pathlib.Path(a.release).resolve()
+p=argparse.ArgumentParser();p.add_argument('release');p.add_argument('--brew',default='/opt/homebrew/bin/brew');p.add_argument('--public',action='store_true',help='Install from the public URLs instead of the local fixture server')
+p.add_argument('--temp-root',type=pathlib.Path,default=pathlib.Path.home(),help='Existing directory outside system temporary paths, without whitespace, for the isolated Homebrew checkout')
+a=p.parse_args();release=pathlib.Path(a.release).resolve()
+temp_root=a.temp_root.resolve()
+if not temp_root.is_dir() or any(c.isspace() for c in str(temp_root)): p.error('--temp-root must be an existing directory without whitespace')
+if str(temp_root) in ('/private/tmp','/private/var/tmp') or any(str(temp_root).startswith(prefix) for prefix in ('/private/tmp/','/private/var/tmp/','/private/var/folders/')): p.error('--temp-root must be outside macOS system temporary paths')
 manifest=json.loads((release/'release.json').read_text());metadata,channel=load_bundle(release/'homebrew-teamcross')
 assert manifest.get('version')==metadata.get('version'), 'Release and Homebrew bundle versions differ'
 source=pathlib.Path(subprocess.check_output([a.brew,'--repository'],text=True).strip())
-with tempfile.TemporaryDirectory(prefix='teamcross-brew-') as temp:
+# Homebrew permits writes throughout macOS system temporary directories. Keep
+# its isolated checkout outside those paths so its inherited-sandbox check can
+# still prove that the brew executable is protected from build subprocesses.
+with tempfile.TemporaryDirectory(prefix='teamcross-brew-',dir=temp_root) as temp:
     root=pathlib.Path(temp).resolve();prefix=root/'brew';apps=root/'Applications';apps.mkdir();data=root/'collaboration-data';data.mkdir();(data/'preserved.txt').write_text('retain')
     subprocess.run(['git','clone','--quiet','--local','--shared',str(source),str(prefix)],check=True)
     rubySource=source/'Library/Homebrew/vendor/portable-ruby';rubyTarget=prefix/'Library/Homebrew/vendor/portable-ruby'

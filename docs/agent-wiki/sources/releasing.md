@@ -51,6 +51,8 @@ python3 scripts/build-release.py --version X.Y.Z --sign-identity 'Developer ID A
 
 构建和安装检查入口：[构建脚本](../../../scripts/build-release.py)、[产物验证](../../../scripts/verify-release.py)、[Homebrew 验证](../../../scripts/verify-homebrew.py)。自动化入口：[CI](../../../.github/workflows/ci.yml)、[Release](../../../.github/workflows/release-unsigned.yml)、[Homebrew 发布](../../../.github/workflows/homebrew-publish.yml)。
 
+Homebrew 验证在用户家目录下创建自动清理的隔离前缀，不修改已安装的 Homebrew。其沙箱允许写入 macOS 系统临时目录，且当前不正确处理带空格的前缀，因此测试前缀须在系统临时目录之外且不含空白；家目录不满足时通过 `--temp-root` 指定现有目录，不关闭 Homebrew 沙箱。
+
 ## 结果与证据
 
 Release 发布完成后，默认通过 GitHub API 查看发布状态、资产清单、来源提交和已有 CI 结果，不再额外下载公开产物做一轮复核。用户明确要求下载排查时再执行。构建阶段使用本地产物的校验、安装，以及流水线内现有的渠道安装验证按各自流程执行。
