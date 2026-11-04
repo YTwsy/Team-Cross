@@ -179,7 +179,7 @@ Resuming reads the collaboration session's latest persisted settings. **Technica
 
 ### Local ChatGPT for Mac plugin
 
-This section uses the development build with plugin connection management. See [local plugin development (中文)](agent-wiki/sources/development.md#本机-chatgpt-插件) for building it.
+The current stable release includes local plugin connection management. Install Team Cross using the [README instructions](../README.en.md#install), then enable the connection in a Work/Codex host that supports local plugins.
 
 1. Open Team Cross and go to **Settings and Connections**, or choose **ChatGPT plugin…** from the menu bar.
 2. Click **Install in ChatGPT**. For an existing plugin, click **Connect and enable automatic sync**. If it uses another data directory, click **Connect to current data**.
@@ -299,15 +299,17 @@ When every selected item belongs to the same space, you can also choose **Send t
 
 Left-click the menu bar icon to open the collaboration quick view, or press `Control + Option + T` when the shortcut is available. Switch between **Current spaces** and **Resources**. The first shows ongoing collaborations and their state; click to open details. The second shares the browser's selection and supports search, favorites, and read-entry generation. Switching views preserves resource filters and selections. You can pin the quick view as a small floating window; full material and long discussions open in the WebGUI. Lists scroll with the page. **Service and Settings** appears on the filter row, and right-clicking the menu bar icon also opens the service menu for settings, CLI management, and quitting.
 
-## Local digital shadows (current development build)
+## Local digital shadows
 
 Open **Local digital shadows** in a space and choose **Create my shadow**. Enter a name and a local working directory, then choose a model and reasoning effort from local Codex. Current settings are prefilled. Choose once: chats, new segments, background tasks and restarts keep that selection, with no per-message selector. The first version uses local Codex with its sign-in, permissions, hooks, plugins, MCP and native memory. Existing personal chats are not imported. The owner's Mac must keep Core running; all space members share the same conversation.
 
-Ask questions and follow up naturally without choosing a topic or session. Delegate longer work in the background and continue chatting. **Memories and tasks** shows progress, personal ownership and unconfirmed memory candidates. Ask the shadow to remember, correct or forget information. Forgetting stops using it as active memory; the original conversation and native history remain.
+The shadow group in the sidebar can collapse and expand. Chat keeps its title and composer fixed while only the message list scrolls; switching shadows preserves drafts and reading positions. The **Tasks**, **Memory**, and **Runtime** panel sits beside chat on wide screens and opens in a drawer on narrow screens.
+
+Ask questions and follow up naturally without choosing a topic or session. Delegate longer work in the background and continue chatting. **Tasks** and **Memory** show progress, personal ownership and unconfirmed memory candidates. Ask the shadow to remember, correct or forget information. Forgetting stops using it as active memory; the original conversation and native history remain.
 
 **Delivered** means the shadow's Mac has durably saved the message, not that the work is complete. After an offline or failed attempt, **Resend** reuses that message's ID. Reconnection does not automatically resend it. Native approval requests are handled only on the shadow's Mac. **Pause reception** lets work already started finish; **Check native state** reconciles uncertain outcomes without automatically repeating actions.
 
-This feature is separate from shared execution and its input handoff. See the [contract](agent-wiki/sources/decisions/local-shadows.md) and [verification record](agent-wiki/tasks/2026-10-21-local-shadow-design/implementation.md) for versions and tested environments. This development feature is not implied to exist in the current stable installer.
+This feature is separate from shared execution and its input handoff. See the [contract](agent-wiki/sources/decisions/local-shadows.md) and [verification record](agent-wiki/tasks/2026-10-21-local-shadow-design/implementation.md) for versions and tested environments. `v0.4.1` includes this shadow workspace; see the [release notes](https://github.com/YTwsy/Team-Cross/releases/tag/v0.4.1).
 
 ## End and resume sharing
 

@@ -4,6 +4,20 @@
 
 本页维护源码开发环境、启动和调试步骤，以及前端与本机插件的开发约束。产品行为由 [产品流程](product-flows.md) 维护，发布操作见 [构建与发布](releasing.md)，检查要求和已知结果分别见 [验证门槛](validation/test-gates.md) 与 [证据入口](validation/evidence-map.md)。
 
+## 开发分支
+
+`Meta` 是日常开发分支。新功能与修复以最新的 `origin/Meta` 为基线，完成验证后合入 `Meta`；本地日常 checkout 使用 `Meta` 并跟踪 `origin/Meta`。`main` 汇入已发布版本及其文档更新，发布来源仍由版本标签确定。
+
+已有仓库在工作区干净时更新开发基线：
+
+```sh
+git fetch origin
+git switch Meta
+git pull --ff-only origin Meta
+```
+
+使用独立功能分支时，从更新后的 `Meta` 创建 `codex/<任务名>`。准备版本时从 `Meta` 建立 `codex/release-vX.Y.Z`；发布完成后将同一发布分支合入 `main` 和 `Meta`，具体顺序及来源校验见[构建与发布](releasing.md)。
+
 ## 环境与启动
 
 从源码开发需要 Go 1.27.1+、Node 24+ 和 pnpm，版本要求见 [go.mod](../../../go.mod) 与 [package.json](../../../package.json)。构建 App 还需要 macOS Command Line Tools / Swift。以下命令均在仓库根目录运行。

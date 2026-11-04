@@ -8,6 +8,8 @@ Keep using your familiar terminal and native clients, with an optional WebGUI fo
 
 [Interactive demo](https://teamcross.pages.dev/en) · [Download v0.4.1](https://github.com/YTwsy/Team-Cross/releases/tag/v0.4.1) · [User guide](docs/user-guide.en.md) · [Engineering docs (中文)](docs/agent-wiki/wiki/index.md)
 
+**v0.4.1 is available.** Local digital shadows now have a collapsible sidebar, a fixed chat layout, and a panel for parallel tasks. Keep collaborating in shared chat while longer work runs in the background. This release also improves reading across sessions, member activity, and plugin upgrade recovery. See the [release notes](docs/releases/v0.4.1.md).
+
 <img width="2400" height="1500" alt="Team Cross: share session context, discuss with teammates, and hand over input when needed" src="docs/images/concept-en.png" />
 
 ## Start with work already in progress
@@ -89,9 +91,9 @@ Closing or resetting an invitation link does not remove existing members. The ho
 
 ## Bring your own agent
 
-The development build also provides a [local ChatGPT for Mac plugin](docs/user-guide.en.md#local-chatgpt-for-mac-plugin). It opens the complete existing WebGUI in local Work/Codex, sharing its spaces, library, annotation and pairing pages, and brings explicit material selections into the current conversation. It connects to local Core through stdio; each build needs desktop product validation before formal distribution.
+The stable release includes a [local ChatGPT for Mac plugin](docs/user-guide.en.md#local-chatgpt-for-mac-plugin). It opens the complete WebGUI in Work/Codex hosts that support local plugins, sharing its spaces, library, annotation and pairing pages, and brings explicit material selections into the current conversation. It connects to local Core through stdio; enable the connection in settings before first use.
 
-Development builds now include [local digital shadows](docs/user-guide.en.md#local-digital-shadows-current-development-build). Members can select their local Codex and a working directory for one continuous conversation shared with the whole space. Core stores shared memories, manages context segments, and brings independent background task results back to the current conversation. The [implementation report](docs/agent-wiki/tasks/2026-10-21-local-shadow-design/implementation.md) records the first native acceptance on one Mac.
+`v0.4.1` includes [local digital shadows](docs/user-guide.en.md#local-digital-shadows). Members can select a model from local Codex and a working directory for one continuous conversation shared with the whole space. Longer work can continue in the background, while the panel beside chat shows tasks, memory, and runtime details. Shadows run on their owner's Mac; shared chat and input handoff for shared execution are managed separately.
 
 The WebGUI is optional. Your personal Codex TUI/Desktop or Claude Code TUI can use Team Cross MCP to publish material, read context, and participate in discussions when you ask. Equivalent CLI entry points are also available.
 
@@ -149,9 +151,12 @@ We are also exploring ways for the agent on the host machine to invite a person 
 
 ## Development and documentation
 
+Use **`Meta`** for ongoing development and as the base for feature and fix branches. Published releases are merged into `main`. See the [branch workflow (中文)](docs/agent-wiki/sources/development.md#开发分支).
+
 Building from source requires Go 1.27.1+, Node 24+, and pnpm. Building the app also requires macOS Command Line Tools and Swift.
 
 ```sh
+git switch Meta
 pnpm install
 make build
 ./bin/teamcross serve

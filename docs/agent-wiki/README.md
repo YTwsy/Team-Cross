@@ -52,7 +52,7 @@ docs/agent-wiki/
 
 原生平台能力、Team Cross 已接入路径和特定环境验收结果分别判断。回答“支持吗、可用吗、是否通过验收”时，先确定目标会话、客户端及传输路径，再核对契约、实现和对应执行记录；测试代码存在、构建成功或模拟协议通过不能补成真实客户端已通过。旧记录须核对后续相关改动，未找到证据时明确区分未检索到、未覆盖与尚未实现。
 
-当前内容以 main 的 Codex 原生协作为基准；旧 Thread、Round、Evidence、managed Bridge、旧 Claude Bridge 和旧传输方案属于历史实现。实验性 Claude 原生 TUI 以 [当前接入契约](sources/decisions/claude-native-tui.md) 为准。需要追溯旧现场时，查看 [迁移记录](../../IMPLEMENTATION.md) 指向的归档提交。
+当前内容以 `Meta` 的 Codex 原生协作为基准，分支职责见[开发分支约定](sources/development.md#开发分支)；旧 Thread、Round、Evidence、managed Bridge、旧 Claude Bridge 和旧传输方案属于历史实现。实验性 Claude 原生 TUI 以 [当前接入契约](sources/decisions/claude-native-tui.md) 为准。需要追溯旧现场时，查看 [迁移记录](../../IMPLEMENTATION.md) 指向的归档提交。
 
 ## 更新流程
 
