@@ -1,0 +1,7 @@
+=== RUN   TestNativeShadowTaskUnderstanding
+    task_understanding_native_test.go:100: native worker saved the exact question wait
+    task_understanding_native_test.go:129: native worker reconciled the answer and completed the same task
+--- PASS: TestNativeShadowTaskUnderstanding (67.50s)
+PASS
+ok  	teamcross/internal/shadow	67.797s
+Native acceptance report: /private/tmp/teamcross-native-task-understanding-20261024-a032d196/report.json

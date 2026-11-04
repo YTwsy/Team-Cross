@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useRefreshState } from "../refreshState";
+import { useEffect, useState } from "react";
+import type { ActivitySource } from "../activity";
 import { api, errorText } from "../api";
 import { collaborationAddress } from "../execution";
 import { serviceText, t, tr } from "../i18n";
@@ -21,6 +23,8 @@ import {
   useSpaceWorkbench,
 } from "./SpaceWorkbench";
 import { SpaceAvatar } from "./SpaceIdentity";
+import { InFlowControl } from "./InFlow";
+import { MemberFollow } from "./MemberFollow";
 
 // A visited pane remains mounted when selecting a sibling. Its comment drafts,
 // history cursor, file path and reading state belong to this execution alone.
@@ -30,21 +34,38 @@ export function ExecutionPanel({
   reload,
   active,
   onLocateMaterial,
+  activitySource,
 }: {
   space: Collaboration;
   session: Collaboration;
   reload: () => void;
   active: boolean;
   onLocateMaterial?: (reference: MaterialReference) => void;
+  activitySource?: ActivitySource;
 }) {
+  const refreshKey = "ExecutionPanel:v1:" + (space.id + ":" + c.id);
   const [request, setRequest] = useState<AnnotationRequest>();
   const [location, setLocation] = useState<AnnotationRequest>();
-  const [modal, setModal] = useState<"clients" | "assist" | "end" | null>(null);
+  const [modal, setModal] = useRefreshState<
+    "clients" | "assist" | "end" | null
+  >(refreshKey + ":modal", null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [personalNote, setPersonalNote] = useState("");
+  const [personalNote, setPersonalNote] = useRefreshState(
+    refreshKey + ":personalNote",
+    "",
+  );
   const workbench = useSpaceWorkbench();
-  const [inputOpen, setInputOpen] = useState(false);
+  useEffect(() => {
+    if (!activitySource || activitySource.executionId !== c.id) return;
+    workbench?.show("reading");
+    if (activitySource.annotationId) {setRequest({annotationId:activitySource.annotationId,replyId:activitySource.replyId,serial:Date.now()});workbench?.openComments();}
+    if (activitySource.turnId) setLocation({target:{kind:"history",turnId:activitySource.turnId,itemId:activitySource.itemIds?.[0],quote:""},serial:Date.now()});
+  }, [activitySource]);
+  const [inputOpen, setInputOpen] = useRefreshState(
+    refreshKey + ":inputOpen",
+    false,
+  );
   const id = collaborationAddress({ ...c, spaceId: space.id });
   const owner = space.role === "owner";
   const closed = ["ended", "left", "expired"].includes(space.state);
@@ -111,6 +132,7 @@ export function ExecutionPanel({
           <div className="space-material-header">
             <h2>{c.title}</h2>
             <div className="space-reader-header-actions">
+              <MemberFollow spaceId={space.id} subject={{kind:"execution",id:c.id}} disabled={!accessible}/>
               <SpaceCommentsButton />
               <details
                 className="space-material-more"
@@ -276,6 +298,16 @@ export function ExecutionPanel({
         />
       </div>
       <SpaceSessionComments active={active}>
+        {c.executionId && workbench?.view && (
+          <InFlowControl
+            spaceId={space.id}
+            executionId={c.executionId}
+            enabled={!!workbench.view.inFlow?.[`execution:${c.executionId}`]}
+            canConfigure={owner}
+            disabled={closed}
+            onChanged={workbench.reload}
+          />
+        )}
         <p className="space-comment-scope">
           {c.title} · {t("全体成员可读")}
         </p>

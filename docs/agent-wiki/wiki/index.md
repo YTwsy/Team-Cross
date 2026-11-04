@@ -24,7 +24,10 @@
 | 修改会话配对与交给 Agent | [配对契约](../sources/decisions/agent-pairing.md) | [Core](../../../internal/collab/agents.go)、[MCP](../../../internal/mcp/agents.go)、[界面](../../../packages/web/src/components/AgentPairings.tsx) |
 | 修改 ChatGPT 本机 WebGUI 插件或宿主消息桥 | [本机插件](../sources/decisions/chatgpt-local-plugin.md) | [UI MCP](../../../internal/mcp/ui.go)、[包管理](../../../internal/pluginpack/plugin.go)、[共同入口](../../../packages/web/src/main.tsx)、[插件环境](../../../packages/web/src/plugin/environment.ts) |
 | 修改空间请求、简报或可选专用会话 | [空间工作台契约](../sources/decisions/space-workbench.md) | [空间业务](../../../internal/collab/workbench.go)、[接收会话](../../../internal/collab/space_receivers.go)、[工作台](../../../packages/web/src/components/SpaceWorkbench.tsx) |
+| 修改本机分身、连续聊天、分段、记忆或后台任务 | [分身契约](../sources/decisions/local-shadows.md) | [运行引擎](../../../internal/shadow/)、[空间桥](../../../internal/collab/shadows.go)、[聊天界面](../../../packages/web/src/components/SpaceShadows.tsx) |
+| 修改成员关注、@、回复提醒或已读同步 | [成员动态](../sources/decisions/member-activity.md) | [Core](../../../internal/collab/member_activity.go)、[动态界面](../../../packages/web/src/components/MemberActivity.tsx)、[个人 MCP](../../../internal/mcp/member_activity.go) |
 | 修改持续关注、Cloud 事件或订阅回执 | [空间事件契约](../sources/decisions/space-events.md) | [MCP Events](../../../internal/mcpevents/)、[Core](../../../internal/collab/space_events.go)、[隔离网关](../../../cmd/teamcross/events.go) |
+| 修改正常交互中的附带更新、评论感知或定向留言 | [顺流感知](../sources/decisions/in-flow-awareness.md) | [分发](../../../internal/collab/inflow.go)、[MCP 与 Hook](../../../internal/mcp/inflow.go)、[界面](../../../packages/web/src/components/InFlow.tsx) |
 | 选择测试与通过标准 | [验证门槛](../sources/validation/test-gates.md) | 页内按改动范围选择自动化、客户端与网络入口 |
 | 判断支持范围与实际验收结论 | [验证范围与证据入口](../sources/validation/evidence-map.md) | 先确定具体路径，再核对契约、实现和对应报告 |
 | 安装、App 外壳与首次体验 | [分发与首次体验](../sources/distribution-and-onboarding.md) | [公共启动器](../../../internal/service/service.go)、[App](../../../apps/macos/TeamCross.swift)、[构建](../../../scripts/build-release.py) |

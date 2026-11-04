@@ -1,0 +1,74 @@
+{
+  "version": "0.2.6-dev.shadow-model.20261022",
+  "sourceCommit": "7752b75151a0746eb96df7033ee3bdc6f7511b1a",
+  "buildNumber": "185",
+  "architecture": "arm64",
+  "minimumMacOS": "14.0",
+  "sourceDirty": false,
+  "developerIDSigned": false,
+  "notarized": false,
+  "dmgSHA256": "bd71180e0d39aa4ecc34d84927381115e8b1ed8e3b7b36793d37c499ff29f76f",
+  "releaseChecks": [
+    {
+      "singleInstance": true,
+      "canonicalPath": true,
+      "defaultPortFallback": true,
+      "explicitPortConflict": true,
+      "authenticatedStop": true,
+      "mcpLazyStart": true,
+      "unresponsiveCoreNoRespawn": true,
+      "crashRecovery": true,
+      "dataPreserved": true
+    },
+    {
+      "concurrentAppCopies": true,
+      "canonicalDataDirectory": true,
+      "homeForwarded": true,
+      "invitationBatchesForwardedOnce": true,
+      "receiptRetryDeduplicated": true,
+      "invalidRequestsRejected": true,
+      "unresponsiveOwnerRecovery": true,
+      "reopenExistingApp": true,
+      "independentDataDirectories": true,
+      "secondaryExitPreservesCore": true,
+      "shellCrashRecovery": true,
+      "explicitQuitStopsCore": true,
+      "dataPreserved": true,
+      "pluginOptInRequired": true,
+      "pluginStartupSync": false,
+      "pluginFollowsAppCore": false,
+      "realCodexOrLAN": false
+    },
+    {
+      "checksums": true,
+      "dmgInstall": true,
+      "appIcon": true,
+      "appSignatureIntegrity": true,
+      "cliAppVersionParity": true,
+      "appSingleInstance": true,
+      "appCLIInstallAndRemove": true,
+      "existingCommandPreserved": true,
+      "compatibleCoreReuse": true,
+      "publicInstallation": false
+    }
+  ],
+  "homebrewChecks": [
+    {
+      "channel": "development",
+      "isolatedPrefix": true,
+      "formulaInstallAndTest": true,
+      "caskInstall": true,
+      "mutualExclusionBothOrders": true,
+      "caskCommandLinksBundledCLI": true,
+      "helperBytesMatch": true,
+      "stableMCPPath": true,
+      "formulaUpgradeReusesRunningCore": true,
+      "caskUpgradeKeepsCommand": true,
+      "caskFirstLaunch": "requires-system-approval",
+      "uninstallPreservesData": true,
+      "publicTap": false
+    }
+  ],
+  "publicRelease": false,
+  "testClientsClosed": true
+}

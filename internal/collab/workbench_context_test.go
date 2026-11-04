@@ -44,11 +44,11 @@ func TestRequestKeepsBriefAndPredecessorSnapshot(t *testing.T) {
 			t.Fatal("list repeated full snapshots")
 		}
 	}
-	if _, err := a.workbenchCall(context.Background(), s.record.ID, "brief", workbenchInput{Brief: brief, BaseRevision: 1}); err == nil {
-		t.Fatal("stale draft overwrote confirmed brief")
+	if out, err := a.workbenchCall(context.Background(), s.record.ID, "brief", workbenchInput{RequestID: uuid.NewString(), Brief: brief, BaseRevision: 1}); err != nil || workbenchDecode[BriefResult](out).State != "conflict" {
+		t.Fatal("stale draft did not preserve the latest brief", out, err)
 	}
 	brief.Decisions[1].RequestID = second.ID
-	if _, err := a.workbenchCall(context.Background(), s.record.ID, "brief", workbenchInput{Brief: brief, BaseRevision: 2}); err == nil {
+	if _, err := a.workbenchCall(context.Background(), s.record.ID, "brief", workbenchInput{RequestID: uuid.NewString(), Brief: brief, BaseRevision: 2}); err == nil {
 		t.Fatal("unfinished request became a cited result")
 	}
 }

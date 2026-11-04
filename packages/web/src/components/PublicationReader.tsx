@@ -1,3 +1,4 @@
+import { useReaderFollow } from "../reader-follow";
 import { t, tr } from "../i18n";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, errorText } from "../api";
@@ -8,7 +9,7 @@ import {
   readingTitle,
 } from "../reading";
 import type { PublicationDraftPage, PublicationDraftSummary } from "../types";
-import { ReaderMessage, ReadingLayout } from "./Reading";
+import { ReaderMessage, ReaderSequence, ReadingLayout } from "./Reading";
 import { ErrorBox, Loading } from "./ui";
 
 export type PublicationScope = {
@@ -58,6 +59,7 @@ export function PublicationReader({
   const abort = useRef<AbortController | undefined>(undefined);
   const panel = useRef<HTMLDivElement>(null);
   const scrollTo = useRef<string | undefined>(undefined);
+  useReaderFollow(panel, draft.id, false, !!scrollTo.current);
   const scopeStart = draft.turns.findIndex((t) => t.id === scope?.start);
   const scopeEnd = draft.turns.findIndex((t) => t.id === scope?.end);
   const selected = (index: number) =>
@@ -243,12 +245,23 @@ export function PublicationReader({
                   </div>
                 )}
               </header>
-              {segments
-                .filter((s) => s.turnId === turn.id)
-                .map((segment) => (
+              <ReaderSequence
+                segments={segments.filter((s) => s.turnId === turn.id)}
+              >
+                {(segment) => (
                   <ReaderMessage
                     key={`${segment.itemId}:${segment.startOffset}`}
                     source={segment.text}
+                    images={segment.attachments}
+                    mediaResource={{
+                      path: "publications/read-draft",
+                      body: {
+                        draftId: draft.id,
+                        turnId: segment.turnId,
+                        itemId: segment.itemId,
+                      },
+                    }}
+                    itemType={segment.type}
                     label={
                       segment.collapsed
                         ? tr`${itemLabel(segment.type)} · 已读 ${segment.endOffset} / ${segment.length} 字`
@@ -283,7 +296,8 @@ export function PublicationReader({
                     )}
                     shownLength={segment.endOffset}
                   />
-                ))}
+                )}
+              </ReaderSequence>
             </section>
           );
         })}

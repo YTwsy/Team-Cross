@@ -26,13 +26,13 @@ type Host = {
 };
 declare global {
   interface Window {
+    __teamcrossRequestId?: number;
     openai?: {
       widgetState?: unknown;
       setWidgetState?: (state: unknown) => void;
     };
   }
 }
-let nextRequest = 0;
 
 export class MessageDeliveryError extends Error {
   constructor(
@@ -44,6 +44,13 @@ export class MessageDeliveryError extends Error {
 }
 
 export class HostBridge {
+  protocol = 0;
+  private writes = 0;
+  reconnecting = false;
+  private disposed = false;
+  get hasPendingWrites() {
+    return this.writes > 0;
+  }
   private pending = new Map<
     number,
     {
@@ -78,11 +85,17 @@ export class HostBridge {
     params: unknown,
     signal?: AbortSignal,
   ): Promise<T> {
-    if (signal?.aborted)
+    if (this.disposed || signal?.aborted)
       return Promise.reject(new DOMException("Aborted", "AbortError"));
+    const changing =
+      method === "ui/message" ||
+      (method === "tools/call" &&
+        (params as { name?: string })?.name === "teamcross_ui_write");
+    if (changing) this.writes++;
     return new Promise<T>((resolve, reject) => {
       // A late acknowledgement from a disposed bridge cannot match a new one.
-      const id = ++nextRequest;
+      const id = (window.__teamcrossRequestId || 0) + 1;
+      window.__teamcrossRequestId = id;
       const abort = () => {
         const request = this.pending.get(id);
         if (request) {
@@ -110,14 +123,21 @@ export class HostBridge {
       });
       signal?.addEventListener("abort", abort, { once: true });
       window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+    }).finally(() => {
+      if (changing) this.writes--;
     });
   }
-  async initialize() {
-    this.host = await this.request<Host>("ui/initialize", {
-      appInfo: { name: "teamcross", version: "1.0.0" },
-      appCapabilities: { availableDisplayModes: ["fullscreen"] },
-      protocolVersion: "2026-01-26",
-    });
+  async initialize(signal?: AbortSignal) {
+    this.host = await this.request<Host>(
+      "ui/initialize",
+      {
+        appInfo: { name: "teamcross", version: "1.0.0" },
+        appCapabilities: { availableDisplayModes: ["fullscreen"] },
+        protocolVersion: "2026-01-26",
+      },
+      signal,
+    );
+    signal?.throwIfAborted();
     this.onContext?.(this.host.hostContext || {});
     window.parent.postMessage(
       { jsonrpc: "2.0", method: "ui/notifications/initialized", params: {} },
@@ -142,6 +162,38 @@ export class HostBridge {
   }
 
   async call<T>(name: string, args: unknown, signal?: AbortSignal): Promise<T> {
+    const deadline = Date.now() + 20000;
+    for (;;) {
+      try {
+        const value = await this.callOnce<T>(name, args, signal);
+        this.reconnecting = false;
+        return value;
+      } catch (error) {
+        const updating =
+          error instanceof APIError &&
+          ["core_updating", "core_update_pending"].includes(error.code);
+        if (updating) this.reconnecting = true;
+        // Only declared reads can retry. Writes and host messages always keep
+        // their original uncertain outcome and request identity.
+        if (
+          !updating ||
+          name !== "teamcross_ui_read" ||
+          this.disposed ||
+          signal?.aborted ||
+          Date.now() >= deadline
+        )
+          throw error;
+        await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+        if (this.disposed || signal?.aborted) throw error;
+      }
+    }
+  }
+
+  private async callOnce<T>(
+    name: string,
+    args: unknown,
+    signal?: AbortSignal,
+  ): Promise<T> {
     const result = await this.request<ToolResult>(
       "tools/call",
       { name, arguments: args },
@@ -220,6 +272,8 @@ export class HostBridge {
     }
   }
   dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
     window.removeEventListener("message", this.listener);
     for (const request of this.pending.values()) {
       clearTimeout(request.timer);
@@ -233,6 +287,8 @@ export class HostBridge {
 
 export function restoreState<T>(): Partial<T> {
   try {
+    if (window.__teamcrossPrivateState)
+      return window.__teamcrossPrivateState as Partial<T>;
     const snapshot = window.openai?.widgetState as
       | { privateContent?: unknown }
       | undefined;
@@ -246,6 +302,7 @@ export function restoreState<T>(): Partial<T> {
   }
 }
 export function saveState(value: unknown) {
+  window.__teamcrossPrivateState = value;
   try {
     // Drafts and UI-only references are not automatically model-visible context.
     window.openai?.setWidgetState?.({ privateContent: value });

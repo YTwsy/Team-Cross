@@ -1,0 +1,16 @@
+[
+  {
+    "check": "go-test",
+    "command": [
+      "go",
+      "test",
+      "-p",
+      "2",
+      "./...",
+      "-count=1",
+      "-timeout=240s"
+    ],
+    "exitCode": 1,
+    "seconds": 111.616
+  }
+]

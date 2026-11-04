@@ -1,0 +1,48 @@
+{
+  "oldBuild": {
+    "commit": "ae66ff6906fada7fb480c9fa47873103ddc21768",
+    "protocol": 1,
+    "version": "0.2.6-dev.upgrade-check"
+  },
+  "newBuild": {
+    "commit": "acc12e4d65b2e251beeb396599a55e3adb22695c",
+    "protocol": 1,
+    "version": "0.2.6-dev.upgrade-check"
+  },
+  "nextBuild": {
+    "commit": "849ba25ab8480d777d2123c3dd8186ad9355e103",
+    "protocol": 1,
+    "version": "0.2.6-dev.upgrade-check"
+  },
+  "legacyCodexError": "Codex 路径不可用",
+  "recoveredCodexVersion": "codex-cli 0.163.0-alpha.11",
+  "sameVersionDifferentCommit": true,
+  "legacyPluginFirst": true,
+  "concurrentUpgrade": true,
+  "sameBrowserAddress": true,
+  "residentLegacyMCP": true,
+  "oldCoreResurrectionPrevented": true,
+  "futureAppReplacementWithoutPluginSync": true,
+  "residentMCPUsesDiskBuild": true,
+  "missingInstallationFailsClosed": true,
+  "outstandingDeliveryBoundedUpgrade": true,
+  "graceCannotBeRenewed": true,
+  "newWritesRejectedDuringUpgrade": true,
+  "requestPreservedWithoutReplay": true,
+  "busyUpgradeElapsedSeconds": 10.454389332999998,
+  "coreDetectsInstalledReplacement": true,
+  "watchUpgradeElapsedSeconds": 2.0415730409999995,
+  "legacyBusyCoreMigrated": true,
+  "legacyBusyBuild": {
+    "commit": "08105e67915ab0e54e4bfd5ab4c068318eddad60",
+    "protocol": 1,
+    "version": "0.2.6-dev.upgrade-check"
+  },
+  "legacyMigrationElapsedSeconds": 10.224873459000001,
+  "unknownReceiptDoesNotBlockUpgrade": true,
+  "unknownReceiptPreserved": true,
+  "dataPreserved": true,
+  "startupOptionsPreserved": true,
+  "upgradeIdentityAndAuth": true,
+  "modelInvoked": false
+}

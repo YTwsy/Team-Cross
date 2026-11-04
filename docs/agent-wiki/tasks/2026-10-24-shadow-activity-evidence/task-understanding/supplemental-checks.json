@@ -1,0 +1,32 @@
+[
+  {
+    "name": "understanding-unit",
+    "command": [
+      "go",
+      "test",
+      "./internal/shadow",
+      "-run",
+      "^TestTaskUnderstanding",
+      "-v",
+      "-count=1",
+      "-timeout=60s"
+    ],
+    "exitCode": 0,
+    "seconds": 2.096
+  },
+  {
+    "name": "understanding-race",
+    "command": [
+      "go",
+      "test",
+      "-race",
+      "./internal/shadow",
+      "-run",
+      "^TestTaskUnderstanding",
+      "-count=1",
+      "-timeout=60s"
+    ],
+    "exitCode": 0,
+    "seconds": 4.307
+  }
+]

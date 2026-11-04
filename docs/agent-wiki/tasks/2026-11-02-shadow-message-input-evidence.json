@@ -1,0 +1,352 @@
+{
+  "date": "2026-11-02",
+  "branch": "codex/shadow-activity",
+  "baseCommit": "40b606a67f5d650456cf9b6c82750a1cc5866017",
+  "testedState": "base commit plus pre-existing and this implementation uncommitted changes; final Go/race/vet/native/three-Core acceptance ran on this source snapshot; documentation edits only afterward",
+  "environment": {
+    "os": "macOS",
+    "architecture": "arm64",
+    "go": "go1.27.1",
+    "node": "v24.18.0",
+    "codex": "0.166.0-alpha.5.1",
+    "model": "gpt-5.6-luna",
+    "reasoningEffort": "low",
+    "isolation": "fresh fixtures, homes and repositories, synthetic conversation content"
+  },
+  "checks": [
+    {
+      "command": "go test ./...",
+      "passed": true,
+      "logFile": "go-test-final.log",
+      "logSHA256": "5890eff3b6712d6d6fb2075516b51a75c3aede864ba77c5aeb06e5a70d7262e9"
+    },
+    {
+      "command": "go vet ./...",
+      "passed": true,
+      "logFile": "go-vet-final.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "go test -race ./internal/shadow ./internal/collab ./internal/mcp ./internal/nativecodex",
+      "passed": true,
+      "logFile": "race-final.log",
+      "logSHA256": "c8f49b015f9eac9694bcf197f040eefa7539ffc17255354b4cc788d87b45508b"
+    },
+    {
+      "command": "pnpm --filter @teamcross/web check",
+      "passed": true,
+      "logFile": "web-check-node24.log",
+      "logSHA256": "8fe2f27be8cb708091799d150b54b5e62e0f60b1bafd83b3b204981acd8a589b"
+    },
+    {
+      "command": "pnpm --filter @teamcross/web test",
+      "passed": true,
+      "logFile": "web-test-node24.log",
+      "logSHA256": "e1ff3a5a12dba6d1ddc934945773b2fb5bdd8276ba0895cfb7765c5cff4ee508"
+    },
+    {
+      "command": "pnpm --filter @teamcross/web build",
+      "passed": true,
+      "logFile": "web-build-node24.log",
+      "logSHA256": "cba484a6df6d515ca809c5fed682df2f43b2a9306c8e6d2d7a417db70398a79a"
+    },
+    {
+      "command": "python3 scripts/verify-shadow-native.py --message-inputs (fresh isolated fixture/home/repo)",
+      "passed": true,
+      "logFile": "native-input-v4.log",
+      "logSHA256": "ae8b71a2ea55d52bd423938e37892d0bd79dc5f7fe72e9f91f7f2c515db12b28"
+    },
+    {
+      "command": "python3 scripts/verify-local-shadow.py --message-inputs (fresh three-Core TLS fixture)",
+      "passed": true,
+      "logFile": "three-core-input-v3.log",
+      "logSHA256": "1e9985004968da6a10ccc2adb5b3922b7775be536a6b6f7ae9edd5d9f90bca9f"
+    },
+    {
+      "command": "go test ./internal/shadow -run ^TestWorkReport -count=1",
+      "passed": true,
+      "logFile": "report-attempts.log",
+      "logSHA256": "d3060f280c0c64127990f9c16ccf75d341c00283812b81178542a8139402747a"
+    }
+  ],
+  "native": {
+    "passed": true,
+    "scope": "single Mac native Luna, synthetic members and gated local tools; no cross-Mac or UI claim",
+    "rawReportSHA256": "448dba38ea435a6e990af6fb8a16e5ca15492ba3b6012c058734336e9d3ee046",
+    "runCounts": {
+      "main": 3,
+      "job": 1
+    },
+    "inputBatches": [
+      {
+        "method": "turn/start",
+        "state": "accepted",
+        "inputCount": 2
+      },
+      {
+        "method": "turn/steer",
+        "state": "accepted",
+        "inputCount": 1
+      },
+      {
+        "method": "turn/start",
+        "state": "accepted",
+        "inputCount": 1
+      },
+      {
+        "method": "turn/start",
+        "state": "accepted",
+        "inputCount": 1
+      }
+    ],
+    "rpcSamples": [
+      {
+        "method": "thread/start",
+        "durationMs": 5099
+      },
+      {
+        "method": "turn/start",
+        "durationMs": 12
+      },
+      {
+        "method": "turn/steer",
+        "durationMs": 1
+      },
+      {
+        "method": "turn/start",
+        "durationMs": 11
+      },
+      {
+        "method": "thread/start",
+        "durationMs": 5011
+      },
+      {
+        "method": "turn/start",
+        "durationMs": 2
+      },
+      {
+        "method": "turn/start",
+        "durationMs": 10
+      }
+    ],
+    "taskOperations": [
+      {
+        "method": "shadow_task",
+        "operation": "start",
+        "state": null,
+        "suppliedId": null,
+        "suppliedVersion": null
+      },
+      {
+        "method": "shadow_task",
+        "operation": "report",
+        "state": "continue",
+        "suppliedId": null,
+        "suppliedVersion": null
+      },
+      {
+        "method": "shadow_task",
+        "operation": "report",
+        "state": "complete",
+        "suppliedId": null,
+        "suppliedVersion": null
+      }
+    ],
+    "replyLatencySamples": [
+      {
+        "marker": "A_REPLY_913",
+        "secondsFromInputToSavedReply": 57.764,
+        "hasExactReplyTarget": true
+      },
+      {
+        "marker": "C_REPLY_527",
+        "secondsFromInputToSavedReply": 19.694,
+        "hasExactReplyTarget": true
+      },
+      {
+        "marker": "B_REPLY_284",
+        "secondsFromInputToSavedReply": 57.86,
+        "hasExactReplyTarget": true
+      },
+      {
+        "marker": "ACK_WORK_648",
+        "secondsFromInputToSavedReply": 15.818,
+        "hasExactReplyTarget": true
+      },
+      {
+        "marker": "WORK_PROGRESS_190",
+        "secondsFromInputToSavedReply": 34.765,
+        "hasExactReplyTarget": true
+      },
+      {
+        "marker": "QUICK_REPLY_486",
+        "secondsFromInputToSavedReply": 6.109,
+        "hasExactReplyTarget": true
+      },
+      {
+        "marker": "INPUT_WORK_EVIDENCE_7351",
+        "secondsFromInputToSavedReply": 53.146,
+        "hasExactReplyTarget": true
+      }
+    ],
+    "actualTaskResults": 1,
+    "createdWorkCount": 1,
+    "mainSessionResultRewriteTurns": 0
+  },
+  "threeCore": {
+    "scope": "one Mac, three Cores, TLS member transport, new native Codex shadow",
+    "model": "gpt-5.6-luna",
+    "allMembersShareAuthoredHistory": true,
+    "durableReceiptAndSameIdDeduplication": true,
+    "multiMemberNativeSteer": true,
+    "exactAuthorsAndReplyTargets": true,
+    "chatRepliedBeforeWorkGateRelease": true,
+    "directProgressAndCompletion": true,
+    "noMainResultRewrite": true,
+    "launchSettingsSurviveChangedDefaultsAndCoreRestart": true,
+    "offlineManualRetryOnly": true,
+    "exactNativeThreadAndMemoryAfterCoreRestart": true,
+    "stdioMCPSharedRead": true
+  },
+  "threeCoreAcceptedBatchCount": 3,
+  "threeCoreRawReportSHA256": "8563708e6fb9b4a6a57e5a67ae9b8c371dd39ba340d669fc15d89e8c4ab19f42",
+  "threeCoreReplyLatencySamples": [
+    {
+      "marker": "CORE_PIPELINE_OK",
+      "secondsFromInputToSavedReply": 47.458,
+      "hasExactReplyTarget": true
+    },
+    {
+      "marker": "CORE_C_725",
+      "secondsFromInputToSavedReply": 18.176,
+      "hasExactReplyTarget": true
+    },
+    {
+      "marker": "CORE_B_364",
+      "secondsFromInputToSavedReply": 18.211,
+      "hasExactReplyTarget": true
+    },
+    {
+      "marker": "CORE_A_291",
+      "secondsFromInputToSavedReply": 35.776,
+      "hasExactReplyTarget": true
+    },
+    {
+      "marker": "CORE_WORK_ACK_860",
+      "secondsFromInputToSavedReply": 12.491,
+      "hasExactReplyTarget": true
+    },
+    {
+      "marker": "CORE_WORK_PROGRESS_649",
+      "secondsFromInputToSavedReply": 25.009,
+      "hasExactReplyTarget": true
+    },
+    {
+      "marker": "CORE_QUICK_483",
+      "secondsFromInputToSavedReply": 6.053,
+      "hasExactReplyTarget": true
+    },
+    {
+      "marker": "CORE_WORK_EVIDENCE_782",
+      "secondsFromInputToSavedReply": 49.25,
+      "hasExactReplyTarget": true
+    },
+    {
+      "marker": "RESUMED_PIPELINE_OK",
+      "secondsFromInputToSavedReply": 18.554,
+      "hasExactReplyTarget": true
+    }
+  ],
+  "latencyLimits": "One run only, with intentional local tool gates. Samples are input-to-saved-reply or native RPC timings, not browser rendering or a latency benchmark.",
+  "regressionScope": [
+    "same-discussion multi-author origins and mixed C1/D1 inputs",
+    "native known rejection versus unknown receipts and restart",
+    "storage failures before start/steer and reports",
+    "long input previews and exact source pagination",
+    "wait with real dependencies; completion independent of understanding JSON",
+    "cancelled and superseded Work protection",
+    "saved discussion action reuse; lost report receipt recovery",
+    "same-version resumed attempt with identical result text retains independent result and original evidence"
+  ],
+  "cleanup": {
+    "allCreatedCoresExitedZero": true,
+    "nativeEngineClosedBeforeReport": true,
+    "exactTestPIDsAndChildrenRemaining": 0,
+    "browserCreated": false,
+    "personalSessionsModified": false
+  },
+  "notCovered": [
+    "two Macs",
+    "browser or ChatGPT plugin host UI",
+    "complete real-model default mention to Work to original personal-session return chain",
+    "updated real-model tests for advanced legacy ask/contexts/understand schema"
+  ],
+  "preexistingFilesUnchanged": [
+    "internal/collab/shadow_return_outbox.go",
+    "internal/collab/shadows.go",
+    "internal/inflow/inflow.go",
+    "internal/shadow/attention_dispatch.go",
+    "internal/shadow/store.go",
+    "internal/shadow/task_results.go",
+    "internal/shadow/waiting.go",
+    "internal/collab/shadow_question_returns.go",
+    "internal/shadow/question_returns.go"
+  ],
+  "preexistingFilesExtended": [
+    "internal/shadow/task_lifecycle.go",
+    "internal/shadow/task_question_relations.go",
+    "internal/shadow/types.go"
+  ],
+  "sourceSHA256": {
+    "internal/collab/shadow_question_returns.go": "0e6ce6ad30a0c0dc3ca98a952a3fa2d422b6ed18046afb94ff98d3b735c12a18",
+    "internal/collab/shadow_return_outbox.go": "f5950558205dbff628b7d52233ef3649d6f84d9951473d6fbd8d6ae26586c78b",
+    "internal/collab/shadows.go": "67622ba3b06b7b2c724a9d7482ab99b59ba9dbd28cf75d1f5499e4f5ec7b8488",
+    "internal/inflow/inflow.go": "0308f48be26acc29724342c4406655a4146ed6d31460c46527863b7a088215e0",
+    "internal/nativecodex/process.go": "e79c52d1de6e688f1e6607e40d77f4def405cb6f2a6b689f072d2d8cd939f74f",
+    "internal/shadow/attention_batches.go": "8ffc0eeee4bfde28077f522c62a5fc61d5c4f75c1289033961d6e8f556fea3d1",
+    "internal/shadow/attention_continuations.go": "97b2d5e10fd9f0997ba6a32b1dae2d85c8f20fd37bbdd070f26b27c1c62e1c9e",
+    "internal/shadow/attention_dispatch.go": "6080fa349125ea1a0632f8536c7e14be7978320622be7c1943940e803039934c",
+    "internal/shadow/attention_dispatch_test.go": "87d203780b30a1d36eb7dbfb5ec75e4db5acbaa56baec319eaabf7c16419a999",
+    "internal/shadow/attention_engine.go": "54e43ac676bd46c56b65baccd8d48dff5349d8b66270cd08a5c646ebce7d38b3",
+    "internal/shadow/collaboration_tools.go": "fce9d3d9b61cddb33f9c77b98176f964e5873ce9935ddb1e88c81c0ebdc2c7a8",
+    "internal/shadow/context.go": "bb11fed01f8e411991005f4ff34d29bf76c8e085f59d1c8c34b00ea4dcdc32b2",
+    "internal/shadow/engine.go": "d6e6f994109f9ee81beffe0b4a00a7bf7ae1d6621c0ebc73633cce5bf160b522",
+    "internal/shadow/engine_test.go": "459b18206bf1e8700c28b343c53054ae64d7d9e5afc1559613921fc00722d39b",
+    "internal/shadow/input.go": "52e47932dc4969f05a42b02e1089fb663ccefd0680013201724190eca8a2341c",
+    "internal/shadow/input_continuations.go": "09320eb3b6311761f74bb76d7612f605e31d364ca12fe927626050b2bb56ade6",
+    "internal/shadow/input_native_test.go": "e10430e71ab3bdfba4886ec284acce83561c5614c771db3607fb0c2ce0c6a073",
+    "internal/shadow/input_test.go": "d751e110ce76fcdc105ede45fe97639999e81938a761083c48a871a6736920f6",
+    "internal/shadow/native.go": "99efa4cf8d41ec2ff54e2d3678cd4ae485f4c185e293ff8c47547359fecb37f3",
+    "internal/shadow/question_handling.go": "672b0e39ad10eef4121499319b56626e8b563e1dcce638a5eb193f8f0e041bf7",
+    "internal/shadow/question_returns.go": "26b80b51aab3756caac3551fded385e309caf963dd41e33b8b2f3203adb03b14",
+    "internal/shadow/store.go": "cfede50a5871b6cc9f105ce9b3422002faea645a7ac2363e0b191ecde6baf213",
+    "internal/shadow/task_contexts_test.go": "238348b9e23f7243da2ecb60223e8723547af556bb427c6716f8061a1ee9478a",
+    "internal/shadow/task_dependencies.go": "779de29d7e026ac6db00cca41682251f92ce5bd9f0ac80feb4cd427de728ecc2",
+    "internal/shadow/task_lifecycle.go": "68f0543d5dfd54873630e9c6c3e40d67ef40f7dc1a7e1c77429283367e393e84",
+    "internal/shadow/task_lifecycle_test.go": "1a18a5d1ba02d361ca7c9f7f021c36a93c2dd2c202599c4b0ec48198528b96c6",
+    "internal/shadow/task_origins.go": "228b140196ac32193be9495af626c6b74a29c40b1f0da241bfbb578e1d4111be",
+    "internal/shadow/task_question_relations.go": "141692a3bd6d370cade4f861367433360e72eba9ac4ede6aa56f5da86407f59d",
+    "internal/shadow/task_questions.go": "d8c6475f7bdd87dc99ba336ee78722e9616c559d3bc01adf1c51bcfbce8287ac",
+    "internal/shadow/task_questions_test.go": "1a6461e3612cddf5b07ea3d10990bf78c905f73c1a06806286029cabc5ece3e6",
+    "internal/shadow/task_reports.go": "10653d483e75828d082a67829250bf5be4b1be139830ad4bc919c6217d505537",
+    "internal/shadow/task_reports_test.go": "7477cb0480ae37436cce6be3f616306d7fa862375aaf4a714c4091c5f28d1c57",
+    "internal/shadow/task_results.go": "862e430b62d15b9dc191fd81412ef14d2a86acf9357b2a95eb091b7f5235f37b",
+    "internal/shadow/task_sources_test.go": "5af0299daeaafb088f849b289443f74bf2cdfd09e98cbe2345893e1af4304733",
+    "internal/shadow/task_understanding_test.go": "ed3952e8ac73938fcb75caca7216a73ba533ca4bfc70926365cd38639f351dc5",
+    "internal/shadow/tool_dispatch.go": "0ec313db633e45e9912d4841b3bf51b2a55828444eb45085e7578d3e8a9348f9",
+    "internal/shadow/tools.go": "59d3c5e7f9441fedb550272875d766806c5d11c5ef09e8238c3c77f653b98915",
+    "internal/shadow/toolsets.go": "9158abadbebc895991e42ae2498674d329ae20737775382d0a1a61d10a851518",
+    "internal/shadow/types.go": "0ca81aeccfd07d03f7219eac5c259408e66b8d7fb4fca3f60fecd513e1a47690",
+    "internal/shadow/waiting.go": "104ea2efd1ccece3fe6a9a22782abab165a1b42de5356cc4c16634e2e78d0c40",
+    "internal/shadow/watch.go": "775b2a0c8e7fdc1a2d97446048d1246e9bd4223400778a62a8b85a43f041339f",
+    "scripts/verify-local-shadow.py": "abcec13287d371c3ac059f3f47fe1c0f0ff73d6b073d1d458326d3f84277bbaa",
+    "scripts/verify-shadow-native.py": "f46ba17a541f907d120a978e4bd444d444f6465b6000e61e4584ab09fd7d0ed0"
+  },
+  "sourceSetSHA256": "a2eb52c6ced8e96f856b6f3b9ccce2a89ebc6dab98df72b2f565a8e529f58d09",
+  "coreBinarySHA256": "175d62add13a588f40191cc2154ae33837b8c5dc342334ebdde81ecdbf12f03c",
+  "localRawArtifacts": {
+    "logs": "/private/tmp/teamcross-shadow-input-20261102",
+    "nativeReport": "/private/tmp/teamcross-shadow-native-input-20261102-v4/report.json",
+    "threeCoreReport": "/private/tmp/teamcross-shadow-three-core-input-20261102-v3/evidence/report.json"
+  }
+}

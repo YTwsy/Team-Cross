@@ -1,0 +1,110 @@
+{
+  "recordedAt": "2026-10-24T05:38:18.562723+08:00",
+  "checks": [
+    {
+      "command": "go test -p 2 ./... -count=1 -timeout=180s",
+      "exitCode": 0,
+      "log": "go-test.log"
+    },
+    {
+      "command": "go test -p 1 -race ./internal/shadow ./internal/collab -run 'Test(Task|Background|Attention|Watch|ShadowDependency)' -count=1 -timeout=180s",
+      "exitCode": 0,
+      "log": "race.log"
+    },
+    {
+      "command": "go vet ./...",
+      "exitCode": 0,
+      "log": "go-vet.log"
+    },
+    {
+      "command": "go build -o /private/tmp/teamcross-shadow-task-question-build-20261024/teamcross ./cmd/teamcross",
+      "exitCode": 0,
+      "log": "go-build.log"
+    },
+    {
+      "command": "pnpm --filter @teamcross/web check",
+      "exitCode": 0,
+      "log": "web-check.log"
+    },
+    {
+      "command": "pnpm --filter @teamcross/web test",
+      "exitCode": 0,
+      "log": "web-test.log"
+    },
+    {
+      "command": "pnpm --filter @teamcross/web build",
+      "exitCode": 0,
+      "log": "web-build.log"
+    },
+    {
+      "command": "python3 scripts/verify-shadow-native.py --task-question --fixture-dir /private/tmp/teamcross-shadow-task-question-native-20261024-b --codex-bin <installed-cli> --codex-auth <auth-symlink-source>",
+      "exitCode": 0,
+      "log": "native.log"
+    }
+  ],
+  "node": {
+    "version": "v24.19.0",
+    "binary": "/Users/wsy/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+  },
+  "pnpm": "11.19.0",
+  "codexCLI": "0.163.0-alpha.11.2",
+  "goCache": "/private/tmp/teamcross-shadow-activity-gocache",
+  "native": {
+    "model": "gpt-5.6-luna",
+    "reasoningEffort": "low",
+    "threadStarts": 2,
+    "exactResumes": 1,
+    "dynamicToolCalls": 4,
+    "questionWrites": 1,
+    "dependencyReads": 24,
+    "scope": "single Mac, isolated discussion callbacks; actual authenticated Core business lookup covered separately by collab tests"
+  },
+  "build": {
+    "path": "/private/tmp/teamcross-shadow-task-question-build-20261024/teamcross",
+    "sha256": "0d86b247000af506a0ad8d0ca435e854fd730d364866a9e48b85ed970057dc12"
+  },
+  "web": {
+    "testFiles": 25,
+    "tests": 238,
+    "translationMessages": 1265,
+    "embeddedAssetsChanged": false,
+    "browserVerification": false
+  },
+  "cleanup": {
+    "enginesClosed": true,
+    "exactFixtureProcessMatches": 0,
+    "fixtures": [
+      {
+        "suffix": "a",
+        "lsofExitCode": 1,
+        "openHandles": 0
+      },
+      {
+        "suffix": "b",
+        "lsofExitCode": 1,
+        "openHandles": 0
+      }
+    ]
+  },
+  "priorChecks": [
+    {
+      "log": "go-test-initial.log",
+      "exitCode": 1,
+      "reason": "service TestEnsureUsesInstalledBuildAndPrioritizesUpgrade/active reported installation_unavailable at the 3-second installed-build probe; service source was unchanged. Targeted recheck and final complete run with package concurrency 2 passed; precise environmental cause not established."
+    },
+    {
+      "log": "service-recheck.log",
+      "exitCode": 0
+    },
+    {
+      "log": "native-initial.log",
+      "exitCode": 0,
+      "source": "native-initial-source-state.json",
+      "reason": "final bookkeeping subsequently records existing task modifications on the actual run; final native test rerun against source-state.json"
+    },
+    {
+      "log": "race-initial.log",
+      "exitCode": 0
+    }
+  ]
+}

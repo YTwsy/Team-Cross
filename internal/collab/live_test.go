@@ -19,6 +19,19 @@ import (
 const liveModel = "gpt-5.6-luna"
 
 func TestLiveCodex(t *testing.T) {
+	runLiveCodex(t, false)
+}
+
+func TestLiveMemberActivity(t *testing.T) {
+	root := os.Getenv("TEAMCROSS_ACTIVITY_LIVE_DIR")
+	if root == "" {
+		t.Skip("set TEAMCROSS_ACTIVITY_LIVE_DIR to an empty dedicated test directory")
+	}
+	t.Setenv("TEAMCROSS_LIVE_DIR", root)
+	runLiveCodex(t, true)
+}
+
+func runLiveCodex(t *testing.T, activityOnly bool) {
 	root := os.Getenv("TEAMCROSS_LIVE_DIR")
 	if root == "" {
 		t.Skip("set TEAMCROSS_LIVE_DIR to an empty dedicated test directory")
@@ -135,6 +148,9 @@ func TestLiveCodex(t *testing.T) {
 			t.Fatal("wrong workspace", string(data))
 		}
 		text := "Use your file or command tools to create a file named " + mode + "-proof.txt in the current working directory, with exactly TEAMCROSS_" + strings.ToUpper(mode) + "_OK as its contents. Do not change any other file. Then reply with the absolute file path. This is an authorized integration test in a dedicated fixture."
+		if activityOnly {
+			text = "This is a dedicated member activity integration test. Reply exactly TEAMCROSS_ACTIVITY_" + strings.ToUpper(mode) + "_OK. Do not call tools or modify files."
+		}
 		_, e = s.RPC(ctx, "owner", "turn/start", map[string]any{"model": liveModel, "effort": "low", "input": []any{map[string]any{"type": "text", "text": text}}}, "live-file-"+mode)
 		if e != nil {
 			t.Fatal(e)
@@ -157,15 +173,39 @@ func TestLiveCodex(t *testing.T) {
 			case <-time.After(time.Second):
 			}
 		}
-		proof, e := os.ReadFile(filepath.Join(s.record.ExecutionCwd, mode+"-proof.txt"))
-		if e != nil || strings.TrimSpace(string(proof)) != "TEAMCROSS_"+strings.ToUpper(mode)+"_OK" {
-			t.Fatalf("execution proof missing: %q %v", proof, e)
+		if !activityOnly {
+			proof, e := os.ReadFile(filepath.Join(s.record.ExecutionCwd, mode+"-proof.txt"))
+			if e != nil || strings.TrimSpace(string(proof)) != "TEAMCROSS_"+strings.ToUpper(mode)+"_OK" {
+				t.Fatalf("execution proof missing: %q %v", proof, e)
+			}
 		}
 		if s.record.Model != liveModel || s.record.ReasoningEffort == nil || *s.record.ReasoningEffort != "low" {
 			t.Fatal("client model settings not observed")
 		}
-		t.Log("file execution confirmed", mode)
-		verifyLiveRelease(t, ctx, s)
+		if !activityOnly {
+			t.Log("file execution confirmed", mode)
+		}
+		activity := activityTestPage(t, s.activityRoot())
+		if activity.Unread == 0 || len(activity.Groups) != 1 || activity.Groups[0].Latest.Source.ExecutionID != s.record.ID || activity.Groups[0].Latest.Source.TurnID == "" || !strings.Contains(strings.Join(activity.Groups[0].Latest.Reasons, ","), "own_turn_result") {
+			t.Fatalf("native result did not retain the accepted input member: %+v", activity)
+		}
+		t.Log("member activity result confirmed", mode, activity.Groups[0].Latest.Source.TurnID)
+		if activityOnly {
+			if activity.Groups[0].Latest.Preview != "TEAMCROSS_ACTIVITY_"+strings.ToUpper(mode)+"_OK" {
+				t.Fatal("final answer not reflected in member activity")
+			}
+			if _, err := s.activityRoot().activityOperation(ctx, "read", ActivityInput{EventIDs: []string{activity.Groups[0].Latest.ID}}); err != nil {
+				t.Fatal(err)
+			}
+			if activityTestPage(t, s.activityRoot()).Unread != 0 {
+				t.Fatal("native result read acknowledgment not persisted")
+			}
+		} else {
+			verifyLiveRelease(t, ctx, s)
+		}
+	}
+	if !activityOnly {
+		verifyLiveNativeWorkspace(t, ctx, a, source, a.executions[ids["existing"]])
 	}
 	result := map[string]any{"root": root, "repo": repo, "dataDir": a.Config.DataDir, "codexHome": home, "sourceId": source, "collaborations": ids, "model": liveModel, "createdAt": time.Now()}
 	if e = writeJSONFile(filepath.Join(root, "fixture.json"), result); e != nil {

@@ -1,0 +1,51 @@
+[
+  {
+    "name": "go-test",
+    "command": [
+      "go",
+      "test",
+      "-p",
+      "2",
+      "./...",
+      "-count=1",
+      "-timeout=180s"
+    ],
+    "startedAt": "2026-10-23T23:01:38.140838+00:00",
+    "seconds": 88.998,
+    "exitCode": 0,
+    "sourcesUnchanged": true
+  },
+  {
+    "name": "go-vet",
+    "command": [
+      "go",
+      "vet",
+      "./..."
+    ],
+    "startedAt": "2026-10-23T23:03:07.149608+00:00",
+    "seconds": 2.665,
+    "exitCode": 0,
+    "sourcesUnchanged": true
+  },
+  {
+    "name": "race",
+    "command": [
+      "go",
+      "test",
+      "-race",
+      "-p",
+      "2",
+      "./internal/shadow",
+      "./internal/collab",
+      "./internal/mcp",
+      "-run",
+      "Test(ActivityStatus|ActivityProcessing|ShadowRouteLocalUI|ShadowHandling|Attention|MemberActivity|ActivityConsumer|ShadowWaiting|UIQuestionHandling)",
+      "-count=1",
+      "-timeout=180s"
+    ],
+    "startedAt": "2026-10-23T23:03:09.823741+00:00",
+    "seconds": 44.378,
+    "exitCode": 0,
+    "sourcesUnchanged": true
+  }
+]

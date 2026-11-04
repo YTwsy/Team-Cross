@@ -6,7 +6,9 @@ Team Cross 是 macOS 上围绕 Coding Agent 会话展开的开源本地协作工
 
 继续使用熟悉的终端和原生客户端，也可以打开 WebGUI 查看共同上下文。协作空间与共享执行托管在发起者的 Mac，个人 Agent 通过 MCP 按需参与，各自保留自己的会话、模型与本地上下文。
 
-[交互演示](https://teamcross.pages.dev/) · [下载 v0.2.6 正式版](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.6) · [使用指南](docs/user-guide.md) · [工程文档](docs/agent-wiki/wiki/index.md)
+[交互演示](https://teamcross.pages.dev/) · [下载 v0.4.1 正式版](https://github.com/YTwsy/Team-Cross/releases/tag/v0.4.1) · [使用指南](docs/user-guide.md) · [工程文档](docs/agent-wiki/wiki/index.md)
+
+**v0.4.1 已发布。** 本机数字分身拥有可折叠侧栏、固定聊天布局和并行任务面板，可在共享聊天中持续协作，并让较长工作在后台执行。本版还改进了多会话阅读、成员动态和插件升级恢复，详见[版本变化](docs/releases/v0.4.1.md)。
 
 <img width="2400" height="1500" alt="Team Cross" src="https://github.com/user-attachments/assets/ca8316f5-f7a3-441f-a2a9-317822355187" />
 
@@ -29,11 +31,11 @@ Team Cross 是 macOS 上围绕 Coding Agent 会话展开的开源本地协作工
 
 ## 安装
 
-当前正式版本为 **`v0.2.6`**。以下方式选择一种：
+当前正式版本为 **`v0.4.1`**。以下方式选择一种：
 
 | 方式 | 安装与打开 |
 | --- | --- |
-| 下载 App | 下载 [Apple Silicon DMG](https://github.com/YTwsy/Team-Cross/releases/download/v0.2.6/Team-Cross-0.2.6-arm64.dmg)，将 `Team Cross.app` 拖入“应用程序”并打开 |
+| 下载 App | 下载 [Apple Silicon DMG](https://github.com/YTwsy/Team-Cross/releases/download/v0.4.1/Team-Cross-0.4.1-arm64.dmg)，将 `Team Cross.app` 拖入“应用程序”并打开 |
 | Homebrew App | `brew install --cask YTwsy/teamcross/team-cross`，打开 App 或运行 `teamcross` |
 | Homebrew CLI | `brew install YTwsy/teamcross/teamcross`，然后运行 `teamcross` |
 
@@ -41,9 +43,9 @@ Team Cross 是 macOS 上围绕 Coding Agent 会话展开的开源本地协作工
 
 当前安装包使用 ad-hoc 签名，未经 Developer ID 签名或 Apple 公证。首次打开若受到系统提示，先尝试打开 App，再按 [Apple 的说明](https://support.apple.com/zh-cn/102445) 在“系统设置 → 隐私与安全性”中允许打开。
 
-升级前退出正在运行的 Team Cross，通过原渠道更新。安装程序保留协作数据与工作目录，但 **`v0.2.6` 不加载或迁移旧 `schema:2` 材料，旧数据仍保留在磁盘**。稳定版与 RC Homebrew 渠道分别维护，普通升级不会自动切换渠道；更换安装方式前应先卸载原渠道。
+升级前退出正在运行的 Team Cross，通过原渠道更新。安装程序保留协作数据与工作目录，但 **`v0.4.1` 不加载或迁移旧 `schema:2` 材料，旧数据仍保留在磁盘**。稳定版与 RC Homebrew 渠道分别维护，普通升级不会自动切换渠道；更换安装方式前应先卸载原渠道。
 
-完整的切换步骤见 [安装与升级](docs/user-guide.md#安装与升级)，版本变化、CLI 下载、校验值和来源信息见 [Release](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.6)。
+完整的切换步骤见 [安装与升级](docs/user-guide.md#安装与升级)，版本变化、CLI 下载、校验值和来源信息见 [Release](https://github.com/YTwsy/Team-Cross/releases/tag/v0.4.1)。
 
 ## 开始使用
 
@@ -89,7 +91,9 @@ teamcross join '收到的邀请码或完整邀请链接'
 
 ## 让自己的 Agent 参与
 
-开发构建还提供 [ChatGPT for Mac 本机插件](docs/user-guide.md#chatgpt-for-mac-本机插件)：在本机 Work/Codex 中打开完整的现有 WebGUI；空间、资源库、批注和会话配对共用同一套页面，并可将明确选定的材料带回当前会话。插件经 stdio 接入本机 Core；正式分发前需完成对应版本的桌面成品验收。
+[ChatGPT for Mac 本机插件](docs/user-guide.md#chatgpt-for-mac-本机插件)已随正式版提供：在支持本机插件的 Work/Codex 中打开完整 WebGUI；空间、资源库、批注和会话配对共用同一套页面，并可将明确选定的材料带回当前会话。插件经 stdio 接入本机 Core，首次使用需在设置中启用连接。
+
+`v0.4.1` 提供[本机数字分身](docs/user-guide.md#本机数字分身)：空间成员可以选择本机 Codex 的模型和工作目录，让全体成员在同一窗口持续交流。较长工作可以在后台继续；聊天旁的面板展示任务、记忆和运行状态。分身运行在创建者的 Mac，共享聊天与共同执行的输入交接分别管理。
 
 WebGUI 是可选入口。个人 Codex TUI/Desktop 或 Claude Code TUI 可以通过 Team Cross MCP，按你的指令发布材料、读取上下文并参与讨论；终端也提供对应 CLI 入口。
 
@@ -147,9 +151,12 @@ WebGUI 是可选入口。个人 Codex TUI/Desktop 或 Claude Code TUI 可以通�
 
 ## 开发与文档
 
+日常开发使用 **`Meta`**，功能和修复分支以它为基线；`main` 汇入已发布版本。完整流程见[开发分支约定](docs/agent-wiki/sources/development.md#开发分支)。
+
 从源码开发需要 Go 1.27.1+、Node 24+ 和 pnpm；构建 App 还需要 macOS Command Line Tools / Swift。
 
 ```sh
+git switch Meta
 pnpm install
 make build
 ./bin/teamcross serve

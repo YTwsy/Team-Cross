@@ -1,0 +1,134 @@
+{
+  "date": "2026-11-02",
+  "branch": "codex/shadow-activity",
+  "implementationCommit": "bd6f7fbf4296aa70a1706a12de996d364c249ccd",
+  "mergedMetaCommit": "956a13d7b8b545c240bf0310ed76273055c79730",
+  "sourceCommit": "2f237150f35873a3a6d16eb4a632840303892cd2",
+  "release": {
+    "version": "0.2.6-dev.shadow-activity.20261102",
+    "commit": "2f237150f35873a3a6d16eb4a632840303892cd2",
+    "buildNumber": "210",
+    "dirty": false,
+    "architecture": "arm64",
+    "minimumMacOS": "14.0",
+    "developerIDSigned": false,
+    "notarized": false,
+    "artifacts": {
+      "teamcross-0.2.6-dev.shadow-activity.20261102-darwin-arm64.tar.gz": "eda1f0c45a9f65d982407f82524b99b4409ef9f637949cb44768585603c790cd",
+      "Team-Cross-0.2.6-dev.shadow-activity.20261102-arm64.dmg": "54ffa8a7392ea2f295bc0b7b87a5e61a28c9639559342b45dcd220daaf9b166d"
+    }
+  },
+  "mergeResolution": {
+    "historicalDocuments": "kept branch-specific implementation links",
+    "embeddedAssets": "rebuilt from combined source",
+    "productSourceConflicts": false,
+    "acceptanceScreenshotsRetainedLocally": 87
+  },
+  "engineering": {
+    "goTest": true,
+    "goVet": true,
+    "racePackages": [
+      "shadow",
+      "collab",
+      "mcp",
+      "nativecodex",
+      "service",
+      "cliinstall",
+      "mcpassets",
+      "materialstore",
+      "pluginpack"
+    ],
+    "webTestFiles": 29,
+    "webTests": 257,
+    "translatedMessages": 1366,
+    "webBuild": true
+  },
+  "browser": {
+    "browser": "Codex in-app browser",
+    "fixtureHistory": "synthetic",
+    "cssWidths": [
+      1440,
+      1024,
+      768
+    ],
+    "checks": [
+      "Chinese light table and wrap controls",
+      "gallery next, zoom and reset",
+      "English dark reader",
+      "local shadow entry at 768 CSS px",
+      "no body search entry",
+      "no horizontal page overflow",
+      "no browser console errors"
+    ],
+    "screenshotDirectory": "output/acceptance/2026-11-02-shadow-meta-install/screenshots",
+    "createdTabClosed": true
+  },
+  "nativeProduct": {
+    "scope": "one Mac, three Cores, TLS member transport, new native Codex shadow",
+    "model": "gpt-5.6-luna",
+    "allMembersShareAuthoredHistory": true,
+    "durableReceiptAndSameIdDeduplication": true,
+    "multiMemberNativeSteer": true,
+    "exactAuthorsAndReplyTargets": true,
+    "chatRepliedBeforeWorkGateRelease": true,
+    "directProgressAndCompletion": true,
+    "noMainResultRewrite": true,
+    "launchSettingsSurviveChangedDefaultsAndCoreRestart": true,
+    "offlineManualRetryOnly": true,
+    "exactNativeThreadAndMemoryAfterCoreRestart": true,
+    "stdioMCPSharedRead": true
+  },
+  "nativeAcceptedBatchCount": 3,
+  "installation": {
+    "app": "/Applications/Team Cross.app",
+    "cli": "/opt/homebrew/bin/teamcross",
+    "appCLIAndRunningCoreSameCommit": true,
+    "version": "0.2.6-dev.shadow-activity.20261102",
+    "commit": "2f237150f35873a3a6d16eb4a632840303892cd2",
+    "buildNumber": "210",
+    "menuBarRestarted": true,
+    "coreRunning": true,
+    "oldVersion": "0.2.6-dev.member-activity.20261023",
+    "oldCommit": "c7612dbb46bb0557ab178ca277cfd36e53d9cec1",
+    "previousAppBackup": ".local-backups/install/2026-11-02-shadow-meta/original-installed.app",
+    "existingCollaboration": "was idle before upgrade; same execution and native session retained, paused after Core restart; no input replay"
+  },
+  "artifactVerification": {
+    "checksums": true,
+    "dmgInstall": true,
+    "appIcon": true,
+    "appSignatureIntegrity": true,
+    "cliAppVersionParity": true,
+    "singleInstance": true,
+    "authenticatedLifecycle": true
+  },
+  "cleanup": {
+    "testCorePIDsRemaining": [],
+    "previousCorePIDsRemaining": [],
+    "browserFixtureStopped": true,
+    "testBrowserTabClosed": true,
+    "installedAppAndCoreLeftRunning": true
+  },
+  "limits": [
+    "single Mac only, not two-Mac verification",
+    "browser uses synthetic native history",
+    "no real-model default mention to Work to original personal-session chain",
+    "ad-hoc signature; no Developer ID or Apple notarization",
+    "no remote push, tag, GitHub Release or Homebrew publication"
+  ],
+  "localRawDirectory": "/private/tmp/teamcross-shadow-meta-install-20261102",
+  "logSHA256": {
+    "go-test.log": "1caa21d12495fedc2282fcb217caf92d77afb65a57e49d97d19eec63bcb31eee",
+    "go-vet.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "race.log": "572e4aeb9ed7ed8aed8fd03d0d8bfa72f844e4890b9097ce32ebdcec2afea1bb",
+    "web-check.log": "266e6762b30fb9697922e766e1303077c23c8a2f8d97c26737002768bde4332c",
+    "web-test.log": "3c8e7515ee9b26790bb9ed47cf36bce389b7e8c4c885b83995ab7fde47606687",
+    "web-build.log": "44e0f7b3fb1521b2155547e10113926b089be1895a16ce06db69dfe741f8a4c1",
+    "build-release.log": "94e9aa0bc01503f69bbe585a4ca1803bb449f16497480d9c812a749d242d7832",
+    "verify-release.log": "db038844d22cb1011f623a3bd2b8c20f00b2e906a88375755af6974bac0afe82",
+    "three-core-release.log": "247f95017be27967d4e59207beb6739a34d4a57189951658c2f9a473b5883f69",
+    "reader-fixture.log": "e6ebd8fb7bb1ed4fcfd655abfd043dd13985c0614e115c92a1914383cf28a99d"
+  },
+  "nativeReportSHA256": "eeecb4d3351269fb70bafd60876f395b2f46ce2197d759b88e0930ddcab7c3e1",
+  "installedCLISHA256": "2ebd27378543a5207f4c5db3e58d94c88887cc0347f848ec37742bfe3f7456f9"
+}

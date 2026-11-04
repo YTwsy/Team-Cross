@@ -48,9 +48,15 @@ func historyReadFromURL(u *url.URL) HistoryRead {
 		b := value != "false"
 		quote = &b
 	}
+	var search *readerSearchRequest
+	if u.Query().Get("search") != "" {
+		search = &readerSearchRequest{Query: u.Query().Get("search"), IncludeTools: u.Query().Get("includeTools") == "true", Cursor: u.Query().Get("searchCursor")}
+	}
 	return HistoryRead{
-		Options:      readview.Options{View: u.Query().Get("view"), ToolOutputs: u.Query().Get("toolOutputs"), TurnLimit: integer("turnLimit"), MaxBytes: integer("maxBytes")},
-		AnnotationID: u.Query().Get("annotationId"), Compact: u.Query().Get("compact") == "true", Offset: integer("offset"), IncludeQuote: quote,
+		ReaderRequest: ReaderRequest{AttachmentID: u.Query().Get("attachmentId"), AttachmentOffset: integer("attachmentOffset"), Search: search},
+		Options:       readview.Options{View: u.Query().Get("view"), ToolOutputs: u.Query().Get("toolOutputs"), TurnLimit: integer("turnLimit"), MaxBytes: integer("maxBytes")},
+		AnnotationID:  u.Query().Get("annotationId"), Compact: u.Query().Get("compact") == "true", Offset: integer("offset"), IncludeQuote: quote,
+		ReplyID: u.Query().Get("replyId"), SourceOnly: u.Query().Get("sourceOnly") == "true",
 		Cursor: u.Query().Get("cursor"), TurnID: u.Query().Get("turnId"),
 		ItemID: u.Query().Get("itemId"), StartOffset: start,
 	}
@@ -90,11 +96,17 @@ func (a *App) View(ctx context.Context, id string) (map[string]any, error) {
 }
 func (s *Session) annotate(in Annotation, author string, contexts ...context.Context) (Annotation, error) {
 	text := strings.TrimSpace(in.Text)
-	if text == "" || len([]rune(text)) > 4000 {
+	if text == "" || len([]rune(text)) > 4000 || (len(in.Mentions) > 0 && len([]rune(in.Text)) > 4000) {
 		return Annotation{}, fmt.Errorf("请输入 1–4000 字的批注")
 	}
 	if len(in.Reference) > 1000 {
 		return Annotation{}, fmt.Errorf("引用过长")
+	}
+	if len(in.Mentions) > 0 {
+		text = in.Text
+	}
+	if len(in.RequestID) > 200 {
+		return Annotation{}, fmt.Errorf("批注 requestId 过长")
 	}
 	if in.Target != nil {
 		// Own this value before normalization or binding it to the shared fork.
@@ -118,6 +130,11 @@ func (s *Session) annotate(in Annotation, author string, contexts ...context.Con
 	if len(contexts) > 0 && !s.callerValidLocked(contexts[0]) {
 		return Annotation{}, fmt.Errorf("共享已结束")
 	}
+	ctx := context.Background()
+	if len(contexts) > 0 {
+		ctx = contexts[0]
+	}
+	in.Actor = s.activityAuthorLocked(ctx, author)
 	if s.space != nil {
 		if (in.ExecutionID != "" && in.ExecutionID != s.record.ID) || (len(contexts) > 0 && !sharing.ExecutionAuthorized(contexts[0], s.sharedRuntime(), s.record.ID)) {
 			return Annotation{}, fmt.Errorf("批注不属于可访问的协作会话")
@@ -145,6 +162,22 @@ func (s *Session) annotate(in Annotation, author string, contexts ...context.Con
 		}
 		in.Target.SessionID = s.record.SessionID
 		in.Target.ExecutionID = s.record.ID
+	}
+	if in.RequestID != "" {
+		for _, old := range s.record.Annotations {
+			if old.RequestID == in.RequestID && old.AuthorID == in.AuthorID {
+				if (old.Actor.Kind == "shadow" || in.Actor.Kind == "shadow") && old.Actor != in.Actor {
+					return Annotation{}, fmt.Errorf("requestId 已属于其他实际作者")
+				}
+				if old.Text != in.Text || contentHash(old.Mentions) != contentHash(in.Mentions) || contentHash(old.Target) != contentHash(in.Target) || contentHash(old.Materials) != contentHash(in.Materials) || old.Reference != in.Reference {
+					return Annotation{}, fmt.Errorf("requestId 已用于不同批注")
+				}
+				return old, nil
+			}
+		}
+	}
+	if err := s.validateMentionsLocked(in.Text, in.Mentions); err != nil {
+		return Annotation{}, err
 	}
 	previousUpdatedAt := s.record.UpdatedAt
 	s.record.Annotations = append(s.record.Annotations, in)
@@ -217,6 +250,9 @@ func (a *App) Handler(web http.Handler) http.Handler {
 func (a *App) http(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/")
 	ctx := r.Context()
+	if a.pluginUpdateHTTP(w, r, path) {
+		return
+	}
 	if strings.HasPrefix(path, "runtime-annotations/") {
 		a.runtimeAnnotationsHTTP(w, r, strings.TrimPrefix(path, "runtime-annotations/"))
 		return
@@ -233,10 +269,10 @@ func (a *App) http(w http.ResponseWriter, r *http.Request) {
 	if a.libraryHTTP(w, r, path) {
 		return
 	}
-	if a.agentsHTTP(w, r, path) {
+	if a.inFlowHTTP(w, r, path) || a.agentsHTTP(w, r, path) {
 		return
 	}
-	if a.workbenchHTTP(w, r, path) || a.receiversHTTP(w, r, path) || a.spaceEventsHTTP(w, r, path) {
+	if a.activityHTTP(w, r, path) || a.shadowHandlingHTTP(w, r, path) || a.workbenchHTTP(w, r, path) || a.receiversHTTP(w, r, path) || a.spaceEventsHTTP(w, r, path) || a.shadowsHTTP(w, r, path) {
 		return
 	}
 	switch path {
@@ -616,7 +652,7 @@ func decodeAnnotationReply(w http.ResponseWriter, r *http.Request, out *Annotati
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(out); err != nil {
-		respond(w, nil, fmt.Errorf("回复仅接受 annotationId、text 和 requestId: %w", err))
+		respond(w, nil, fmt.Errorf("回复参数无效（支持 annotationId、text、requestId、materials、mentions、replyTo）: %w", err))
 		return false
 	}
 	return true

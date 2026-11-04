@@ -1,0 +1,703 @@
+{
+  "brief": {
+    "revision": 3,
+    "topic": "",
+    "decisions": [
+      {
+        "itemId": "protocol",
+        "text": "OIDC。超时后请求可能已经写入，必须先核对原请求结果再决定是否重试。",
+        "status": "confirmed",
+        "sources": [
+          {
+            "spaceId": "091efbd0-fbf9-4003-beb3-493732d8324c",
+            "annotationId": "0cb61fe2-21a6-4229-a87d-839d6091422a",
+            "replyId": "4b6dfebb-32c8-48bf-88bd-d8826a2a6d34"
+          }
+        ],
+        "updatedBy": {
+          "memberId": "8929ff22-8a83-4ab7-b4d2-b94ac39035be",
+          "name": "活动分身",
+          "kind": "shadow",
+          "shadowId": "3d6e56be-c6ec-46ea-a60d-452cec1dcb8c"
+        },
+        "updatedAt": "2026-10-24T10:58:50.200265+08:00"
+      }
+    ],
+    "questions": [
+      {
+        "itemId": "owner-question",
+        "text": "KEEP_OWNER_QUESTION：另行确认客户端支持期限。",
+        "status": "open",
+        "sources": [],
+        "updatedBy": {
+          "memberId": "owner",
+          "name": "发起者",
+          "kind": "human"
+        },
+        "updatedAt": "2026-10-24T10:57:58.993544+08:00"
+      }
+    ],
+    "progress": [
+      {
+        "itemId": "peer-progress",
+        "text": "KEEP_PEER_PROGRESS：同事已开始核对客户端。",
+        "status": "in_progress",
+        "sources": [],
+        "updatedBy": {
+          "memberId": "owner",
+          "name": "发起者",
+          "kind": "human"
+        },
+        "updatedAt": "2026-10-24T10:58:36.57063+08:00"
+      }
+    ],
+    "updatedBy": {
+      "memberId": "8929ff22-8a83-4ab7-b4d2-b94ac39035be",
+      "name": "活动分身",
+      "kind": "shadow",
+      "shadowId": "3d6e56be-c6ec-46ea-a60d-452cec1dcb8c"
+    },
+    "updatedAt": "2026-10-24T10:58:50.200265+08:00"
+  },
+  "calls": [
+    {
+      "arguments": {},
+      "result": {
+        "assistant": {
+          "epoch": 0,
+          "revision": 0,
+          "state": "disabled"
+        },
+        "brief": {
+          "decisions": [
+            {
+              "itemId": "protocol",
+              "sources": [],
+              "status": "proposed",
+              "text": "ORIGINAL_PROTOCOL：超时后是否写入尚待核对。",
+              "updatedAt": "2026-10-24T10:57:58.993544+08:00",
+              "updatedBy": {
+                "kind": "human",
+                "memberId": "owner",
+                "name": "发起者"
+              }
+            }
+          ],
+          "progress": [],
+          "questions": [
+            {
+              "itemId": "owner-question",
+              "sources": [],
+              "status": "open",
+              "text": "KEEP_OWNER_QUESTION：另行确认客户端支持期限。",
+              "updatedAt": "2026-10-24T10:57:58.993544+08:00",
+              "updatedBy": {
+                "kind": "human",
+                "memberId": "owner",
+                "name": "发起者"
+              }
+            }
+          ],
+          "revision": 1,
+          "topic": "",
+          "updatedAt": "2026-10-24T10:57:58.993544+08:00",
+          "updatedBy": {
+            "kind": "human",
+            "memberId": "owner",
+            "name": "发起者"
+          }
+        },
+        "revision": 1,
+        "source": {
+          "briefRevision": 1,
+          "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+        },
+        "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+      },
+      "tool": "read_space_brief"
+    },
+    {
+      "arguments": {
+        "annotationId": "0cb61fe2-21a6-4229-a87d-839d6091422a",
+        "replyId": "4b6dfebb-32c8-48bf-88bd-d8826a2a6d34",
+        "sourceOnly": true
+      },
+      "result": {
+        "annotations": [
+          {
+            "actor": {
+              "kind": "human",
+              "memberId": "owner",
+              "name": "Owner"
+            },
+            "author": "Owner",
+            "authorId": "owner",
+            "createdAt": "2026-10-24T10:57:58.93115+08:00",
+            "id": "0cb61fe2-21a6-4229-a87d-839d6091422a",
+            "text": "Which client versions should we support?"
+          }
+        ],
+        "reply": {
+          "actor": {
+            "kind": "human",
+            "memberId": "owner",
+            "name": "Owner"
+          },
+          "author": "Owner",
+          "authorId": "owner",
+          "createdAt": "2026-10-24T10:57:59.040236+08:00",
+          "id": "4b6dfebb-32c8-48bf-88bd-d8826a2a6d34",
+          "replyTo": {
+            "id": "0cb61fe2-21a6-4229-a87d-839d6091422a",
+            "kind": "annotation"
+          },
+          "requestId": "ce828238-b190-40a8-83cb-ae1b0935a78b",
+          "text": "ACTUAL_DISCUSSION：接口仍使用 OIDC。超时后请求可能已经写入，必须先核对原请求结果再决定是否重试。这是已核对的接口事实。"
+        },
+        "replyCount": 1,
+        "sourceOnly": true,
+        "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93",
+        "total": 1
+      },
+      "tool": "read_annotations"
+    },
+    {
+      "arguments": {
+        "baseRevision": 1,
+        "changes": [
+          {
+            "item": {
+              "itemId": "protocol",
+              "sources": [
+                {
+                  "annotationId": "0cb61fe2-21a6-4229-a87d-839d6091422a",
+                  "replyId": "4b6dfebb-32c8-48bf-88bd-d8826a2a6d34",
+                  "requestId": "ce828238-b190-40a8-83cb-ae1b0935a78b",
+                  "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+                }
+              ],
+              "status": "confirmed",
+              "text": "OIDC。超时后请求可能已经写入，必须先核对原请求结果再决定是否重试。"
+            },
+            "itemId": "protocol",
+            "operation": "upsert",
+            "section": "decisions"
+          }
+        ],
+        "requestId": "f1e4c4da-3b1c-4d96-b4d7-8c0aa3f2d8d0"
+      },
+      "result": {
+        "brief": {
+          "decisions": [
+            {
+              "itemId": "protocol",
+              "sources": [],
+              "status": "proposed",
+              "text": "ORIGINAL_PROTOCOL：超时后是否写入尚待核对。",
+              "updatedAt": "2026-10-24T10:57:58.993544+08:00",
+              "updatedBy": {
+                "kind": "human",
+                "memberId": "owner",
+                "name": "发起者"
+              }
+            }
+          ],
+          "progress": [
+            {
+              "itemId": "peer-progress",
+              "sources": [],
+              "status": "in_progress",
+              "text": "KEEP_PEER_PROGRESS：同事已开始核对客户端。",
+              "updatedAt": "2026-10-24T10:58:36.57063+08:00",
+              "updatedBy": {
+                "kind": "human",
+                "memberId": "owner",
+                "name": "发起者"
+              }
+            }
+          ],
+          "questions": [
+            {
+              "itemId": "owner-question",
+              "sources": [],
+              "status": "open",
+              "text": "KEEP_OWNER_QUESTION：另行确认客户端支持期限。",
+              "updatedAt": "2026-10-24T10:57:58.993544+08:00",
+              "updatedBy": {
+                "kind": "human",
+                "memberId": "owner",
+                "name": "发起者"
+              }
+            }
+          ],
+          "revision": 2,
+          "topic": "",
+          "updatedAt": "2026-10-24T10:58:36.57063+08:00",
+          "updatedBy": {
+            "kind": "human",
+            "memberId": "owner",
+            "name": "发起者"
+          }
+        },
+        "revision": 2,
+        "source": {
+          "briefRevision": 2,
+          "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+        },
+        "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93",
+        "state": "conflict"
+      },
+      "tool": "update_space_brief"
+    },
+    {
+      "arguments": {
+        "baseRevision": 2,
+        "changes": [
+          {
+            "item": {
+              "itemId": "protocol",
+              "sources": [
+                {
+                  "annotationId": "0cb61fe2-21a6-4229-a87d-839d6091422a",
+                  "replyId": "4b6dfebb-32c8-48bf-88bd-d8826a2a6d34",
+                  "requestId": "ce828238-b190-40a8-83cb-ae1b0935a78b",
+                  "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+                }
+              ],
+              "status": "confirmed",
+              "text": "OIDC。超时后请求可能已经写入，必须先核对原请求结果再决定是否重试。"
+            },
+            "itemId": "protocol",
+            "operation": "upsert",
+            "section": "decisions"
+          }
+        ],
+        "requestId": "b5d7d1d5-4c17-41d1-92b2-6f5b3558c8b1"
+      },
+      "error": "upsert 需要完整 item",
+      "result": null,
+      "tool": "update_space_brief"
+    },
+    {
+      "arguments": {},
+      "result": {
+        "assistant": {
+          "epoch": 0,
+          "revision": 0,
+          "state": "disabled"
+        },
+        "brief": {
+          "decisions": [
+            {
+              "itemId": "protocol",
+              "sources": [],
+              "status": "proposed",
+              "text": "ORIGINAL_PROTOCOL：超时后是否写入尚待核对。",
+              "updatedAt": "2026-10-24T10:57:58.993544+08:00",
+              "updatedBy": {
+                "kind": "human",
+                "memberId": "owner",
+                "name": "发起者"
+              }
+            }
+          ],
+          "progress": [
+            {
+              "itemId": "peer-progress",
+              "sources": [],
+              "status": "in_progress",
+              "text": "KEEP_PEER_PROGRESS：同事已开始核对客户端。",
+              "updatedAt": "2026-10-24T10:58:36.57063+08:00",
+              "updatedBy": {
+                "kind": "human",
+                "memberId": "owner",
+                "name": "发起者"
+              }
+            }
+          ],
+          "questions": [
+            {
+              "itemId": "owner-question",
+              "sources": [],
+              "status": "open",
+              "text": "KEEP_OWNER_QUESTION：另行确认客户端支持期限。",
+              "updatedAt": "2026-10-24T10:57:58.993544+08:00",
+              "updatedBy": {
+                "kind": "human",
+                "memberId": "owner",
+                "name": "发起者"
+              }
+            }
+          ],
+          "revision": 2,
+          "topic": "",
+          "updatedAt": "2026-10-24T10:58:36.57063+08:00",
+          "updatedBy": {
+            "kind": "human",
+            "memberId": "owner",
+            "name": "发起者"
+          }
+        },
+        "revision": 2,
+        "source": {
+          "briefRevision": 2,
+          "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+        },
+        "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+      },
+      "tool": "read_space_brief"
+    },
+    {
+      "arguments": {
+        "baseRevision": 2,
+        "changes": [
+          {
+            "item": {
+              "itemId": "protocol",
+              "sources": [
+                {
+                  "annotationId": "0cb61fe2-21a6-4229-a87d-839d6091422a",
+                  "replyId": "4b6dfebb-32c8-48bf-88bd-d8826a2a6d34",
+                  "requestId": "ce828238-b190-40a8-83cb-ae1b0935a78b",
+                  "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+                }
+              ],
+              "status": "confirmed",
+              "text": "OIDC。超时后请求可能已经写入，必须先核对原请求结果再决定是否重试。"
+            },
+            "operation": "upsert",
+            "section": "decisions"
+          }
+        ],
+        "requestId": "c9b1d6cb-0fc6-4bd0-9f55-15302a1e2a0b"
+      },
+      "error": "简报来源不能混合不同对象",
+      "result": null,
+      "tool": "update_space_brief"
+    },
+    {
+      "arguments": {
+        "baseRevision": 2,
+        "changes": [
+          {
+            "item": {
+              "itemId": "protocol",
+              "sources": [
+                {
+                  "annotationId": "0cb61fe2-21a6-4229-a87d-839d6091422a",
+                  "replyId": "4b6dfebb-32c8-48bf-88bd-d8826a2a6d34",
+                  "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+                }
+              ],
+              "status": "confirmed",
+              "text": "OIDC。超时后请求可能已经写入，必须先核对原请求结果再决定是否重试。"
+            },
+            "operation": "upsert",
+            "section": "decisions"
+          }
+        ],
+        "requestId": "8b44d0a0-0089-4c06-bc4a-84546f5acf6d"
+      },
+      "result": {
+        "assistant": {
+          "epoch": 0,
+          "revision": 0,
+          "state": "disabled"
+        },
+        "brief": {
+          "decisions": [
+            {
+              "itemId": "protocol",
+              "sources": [
+                {
+                  "annotationId": "0cb61fe2-21a6-4229-a87d-839d6091422a",
+                  "replyId": "4b6dfebb-32c8-48bf-88bd-d8826a2a6d34",
+                  "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+                }
+              ],
+              "status": "confirmed",
+              "text": "OIDC。超时后请求可能已经写入，必须先核对原请求结果再决定是否重试。",
+              "updatedAt": "2026-10-24T10:58:50.200265+08:00",
+              "updatedBy": {
+                "kind": "shadow",
+                "memberId": "8929ff22-8a83-4ab7-b4d2-b94ac39035be",
+                "name": "活动分身",
+                "shadowId": "3d6e56be-c6ec-46ea-a60d-452cec1dcb8c"
+              }
+            }
+          ],
+          "progress": [
+            {
+              "itemId": "peer-progress",
+              "sources": [],
+              "status": "in_progress",
+              "text": "KEEP_PEER_PROGRESS：同事已开始核对客户端。",
+              "updatedAt": "2026-10-24T10:58:36.57063+08:00",
+              "updatedBy": {
+                "kind": "human",
+                "memberId": "owner",
+                "name": "发起者"
+              }
+            }
+          ],
+          "questions": [
+            {
+              "itemId": "owner-question",
+              "sources": [],
+              "status": "open",
+              "text": "KEEP_OWNER_QUESTION：另行确认客户端支持期限。",
+              "updatedAt": "2026-10-24T10:57:58.993544+08:00",
+              "updatedBy": {
+                "kind": "human",
+                "memberId": "owner",
+                "name": "发起者"
+              }
+            }
+          ],
+          "revision": 3,
+          "topic": "",
+          "updatedAt": "2026-10-24T10:58:50.200265+08:00",
+          "updatedBy": {
+            "kind": "shadow",
+            "memberId": "8929ff22-8a83-4ab7-b4d2-b94ac39035be",
+            "name": "活动分身",
+            "shadowId": "3d6e56be-c6ec-46ea-a60d-452cec1dcb8c"
+          }
+        },
+        "readBack": {
+          "requestId": "8b44d0a0-0089-4c06-bc4a-84546f5acf6d",
+          "tool": "read_space_brief"
+        },
+        "requestId": "8b44d0a0-0089-4c06-bc4a-84546f5acf6d",
+        "revision": 3,
+        "source": {
+          "briefRevision": 3,
+          "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+        },
+        "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93",
+        "state": "saved"
+      },
+      "tool": "update_space_brief"
+    },
+    {
+      "arguments": {
+        "requestId": "8b44d0a0-0089-4c06-bc4a-84546f5acf6d"
+      },
+      "result": {
+        "assistant": {
+          "epoch": 0,
+          "revision": 0,
+          "state": "disabled"
+        },
+        "brief": {
+          "decisions": [
+            {
+              "itemId": "protocol",
+              "sources": [
+                {
+                  "annotationId": "0cb61fe2-21a6-4229-a87d-839d6091422a",
+                  "replyId": "4b6dfebb-32c8-48bf-88bd-d8826a2a6d34",
+                  "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+                }
+              ],
+              "status": "confirmed",
+              "text": "OIDC。超时后请求可能已经写入，必须先核对原请求结果再决定是否重试。",
+              "updatedAt": "2026-10-24T10:58:50.200265+08:00",
+              "updatedBy": {
+                "kind": "shadow",
+                "memberId": "8929ff22-8a83-4ab7-b4d2-b94ac39035be",
+                "name": "活动分身",
+                "shadowId": "3d6e56be-c6ec-46ea-a60d-452cec1dcb8c"
+              }
+            }
+          ],
+          "progress": [
+            {
+              "itemId": "peer-progress",
+              "sources": [],
+              "status": "in_progress",
+              "text": "KEEP_PEER_PROGRESS：同事已开始核对客户端。",
+              "updatedAt": "2026-10-24T10:58:36.57063+08:00",
+              "updatedBy": {
+                "kind": "human",
+                "memberId": "owner",
+                "name": "发起者"
+              }
+            }
+          ],
+          "questions": [
+            {
+              "itemId": "owner-question",
+              "sources": [],
+              "status": "open",
+              "text": "KEEP_OWNER_QUESTION：另行确认客户端支持期限。",
+              "updatedAt": "2026-10-24T10:57:58.993544+08:00",
+              "updatedBy": {
+                "kind": "human",
+                "memberId": "owner",
+                "name": "发起者"
+              }
+            }
+          ],
+          "revision": 3,
+          "topic": "",
+          "updatedAt": "2026-10-24T10:58:50.200265+08:00",
+          "updatedBy": {
+            "kind": "shadow",
+            "memberId": "8929ff22-8a83-4ab7-b4d2-b94ac39035be",
+            "name": "活动分身",
+            "shadowId": "3d6e56be-c6ec-46ea-a60d-452cec1dcb8c"
+          }
+        },
+        "readBack": {
+          "requestId": "8b44d0a0-0089-4c06-bc4a-84546f5acf6d",
+          "tool": "read_space_brief"
+        },
+        "requestId": "8b44d0a0-0089-4c06-bc4a-84546f5acf6d",
+        "revision": 3,
+        "source": {
+          "briefRevision": 3,
+          "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+        },
+        "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93",
+        "state": "saved"
+      },
+      "tool": "read_space_brief"
+    },
+    {
+      "arguments": {
+        "itemId": "protocol",
+        "revision": 1
+      },
+      "result": {
+        "assistant": {
+          "epoch": 0,
+          "revision": 0,
+          "state": "disabled"
+        },
+        "item": {
+          "itemId": "protocol",
+          "sources": [],
+          "status": "proposed",
+          "text": "ORIGINAL_PROTOCOL：超时后是否写入尚待核对。",
+          "updatedAt": "2026-10-24T10:57:58.993544+08:00",
+          "updatedBy": {
+            "kind": "human",
+            "memberId": "owner",
+            "name": "发起者"
+          }
+        },
+        "revision": 1,
+        "section": "decisions",
+        "source": {
+          "briefItemId": "protocol",
+          "briefRevision": 1,
+          "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+        },
+        "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93"
+      },
+      "tool": "read_space_brief"
+    }
+  ],
+  "commands": {
+    "65e85e63-708b-4cf5-a573-8320802b79d5": {
+      "fingerprint": "3a544a59730865e6152d8dd00e2304756f2c8612f54ed0153de5675283a90a68",
+      "actor": {
+        "memberId": "owner",
+        "name": "发起者",
+        "kind": "human"
+      },
+      "revision": 2
+    },
+    "8b44d0a0-0089-4c06-bc4a-84546f5acf6d": {
+      "fingerprint": "5456d45383c40814dfb0a1ed6c1e134e46e516bb9ae01dd9760a3cbe9150d0f2",
+      "actor": {
+        "memberId": "8929ff22-8a83-4ab7-b4d2-b94ac39035be",
+        "name": "活动分身",
+        "kind": "shadow",
+        "shadowId": "3d6e56be-c6ec-46ea-a60d-452cec1dcb8c"
+      },
+      "revision": 3
+    },
+    "cbd2fc41-7c1c-4a09-bc05-4e338eecf3bb": {
+      "fingerprint": "27ddfa24c3b143b55be605536eb50c3427a68e7b2150565b4c563369d1786e0e",
+      "actor": {
+        "memberId": "owner",
+        "name": "发起者",
+        "kind": "human"
+      },
+      "revision": 1
+    }
+  },
+  "concurrentWriteInjected": true,
+  "passed": true,
+  "scope": "One Mac, two authenticated Core endpoints, one dedicated Luna shadow, actual public discussion and brief operations.",
+  "view": {
+    "settings": {
+      "model": "gpt-5.6-luna",
+      "modelProvider": "openai",
+      "reasoningEffort": "low"
+    },
+    "model": "gpt-5.6-luna",
+    "modelProvider": "openai",
+    "reasoningEffort": "low",
+    "id": "3d6e56be-c6ec-46ea-a60d-452cec1dcb8c",
+    "spaceId": "joined-057a4b87-53b8-4354-ac0f-ac78398e1d93",
+    "name": "活动分身",
+    "owner": {
+      "id": "8929ff22-8a83-4ab7-b4d2-b94ac39035be",
+      "name": "wangsiyangdeMacBook-Pro.local"
+    },
+    "createdAt": "2026-10-24T10:57:59.087757+08:00",
+    "revision": 51,
+    "enabled": true,
+    "online": false,
+    "busy": false,
+    "current": "01a16bd7-fc00-7202-a3e6-34a7bfd173b7",
+    "segments": [
+      {
+        "id": "01a16bd7-fc00-7202-a3e6-34a7bfd173b7",
+        "number": 1,
+        "createdAt": "2026-10-24T10:58:04.314258+08:00",
+        "memoryRevision": 0,
+        "inputTokens": 24671,
+        "usageValid": true,
+        "contextWindow": 258400,
+        "compactions": 0,
+        "lastCheckTokens": 0
+      }
+    ],
+    "messages": [
+      {
+        "id": "1389daf6-2e2b-4b62-88f8-26a2d9b5f7a0",
+        "actor": {
+          "id": "8929ff22-8a83-4ab7-b4d2-b94ac39035be",
+          "name": "wangsiyangdeMacBook-Pro.local"
+        },
+        "role": "user",
+        "text": "这是专用空间简报验证。直接完成本轮，不另建后台任务。先用 read_space_brief 取得当前版本，再用 read_annotations 读取讨论 0cb61fe2-21a6-4229-a87d-839d6091422a 的具体回复 4b6dfebb-32c8-48bf-88bd-d8826a2a6d34（sourceOnly=true）。依据 ACTUAL_DISCUSSION，只更新 decisions 的 protocol 条目：写明 OIDC、超时可能已经写入、先核对原请求结果再决定重试，状态 confirmed，并引用实际回复的准确 source。可通过读取返回的 spaceId 组织来源。保留其他人的全部条目与状态。实际会有同事并发更新：update_space_brief 返回 state=conflict 时尚未写入，重读并合并，使用新 requestId 和新 baseRevision；不询问发送许可。成功后按保存回执 readBack 调用 read_space_brief(requestId) 核对，并用 read_space_brief revision=1、itemId=protocol 核对旧版本仍保留 ORIGINAL_PROTOCOL。确认当前版本同时保留 KEEP_OWNER_QUESTION 和 KEEP_PEER_PROGRESS。最后简短回复 BRIEF_MERGED，说明新版本与旧版本分别是什么。",
+        "state": "completed",
+        "segmentId": "01a16bd7-fc00-7202-a3e6-34a7bfd173b7",
+        "turnId": "01a16bd8-0fae-7043-bcdd-df6f1ddc3983",
+        "createdAt": "2026-10-24T10:57:59.099828+08:00",
+        "receivedAt": "2026-10-24T10:57:59.099828+08:00"
+      },
+      {
+        "id": "reply-fbe5db56-7f1a-4643-bcf0-a1dcd1b088c3",
+        "actor": {
+          "id": "3d6e56be-c6ec-46ea-a60d-452cec1dcb8c",
+          "name": "活动分身"
+        },
+        "role": "assistant",
+        "text": "BRIEF_MERGED：已保存并复核。当前版本为 3，旧版本为 1；已保留 `KEEP_OWNER_QUESTION`、`KEEP_PEER_PROGRESS`，旧版仍保留 `ORIGINAL_PROTOCOL`。 INHERITED_CONFIG_MARKER",
+        "state": "completed",
+        "replyTo": "1389daf6-2e2b-4b62-88f8-26a2d9b5f7a0",
+        "segmentId": "01a16bd7-fc00-7202-a3e6-34a7bfd173b7",
+        "turnId": "01a16bd8-0fae-7043-bcdd-df6f1ddc3983",
+        "createdAt": "2026-10-24T10:58:54.702507+08:00"
+      }
+    ],
+    "memories": [],
+    "jobs": []
+  }
+}

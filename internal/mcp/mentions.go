@@ -222,7 +222,7 @@ func uiResources(dataDir string) func(context.Context, string, json.RawMessage) 
 		var p struct {
 			URI string `json:"uri"`
 		}
-		if method != "resources/read" || json.Unmarshal(params, &p) != nil || p.URI == UIResourceURI {
+		if method != "resources/read" || json.Unmarshal(params, &p) != nil || isUIResourceURI(p.URI) {
 			return uiResource(method, params)
 		}
 		scope, err := mentionScope(dataDir)

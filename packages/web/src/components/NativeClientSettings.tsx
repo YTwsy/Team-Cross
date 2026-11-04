@@ -1,3 +1,8 @@
+import {
+  useRefreshState,
+  useRefreshGuard,
+  wasRefreshRestored,
+} from "../refreshState";
 import { useEffect, useRef, useState } from "react";
 import { api, errorText } from "../api";
 import { serviceText, t } from "../i18n";
@@ -19,11 +24,17 @@ export function NativeClientSettings({
   disabled: boolean;
   onBusyChange: (busy: boolean) => void;
 }) {
-  const initialized = useRef(false);
-  const [binary, setBinary] = useState("");
-  const [desktop, setDesktop] = useState("");
-  const [claudeBinary, setClaudeBinary] = useState("");
-  const [manual, setManual] = useState(false);
+  const refreshKey = "NativeClientSettings:v1:" + "settings";
+  const initialized = useRef(
+    wasRefreshRestored("NativeClientSettings:v1:settings:binary"),
+  );
+  const [binary, setBinary] = useRefreshState(refreshKey + ":binary", "");
+  const [desktop, setDesktop] = useRefreshState(refreshKey + ":desktop", "");
+  const [claudeBinary, setClaudeBinary] = useRefreshState(
+    refreshKey + ":claudeBinary",
+    "",
+  );
+  const [manual, setManual] = useRefreshState(refreshKey + ":manual", false);
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -105,6 +116,7 @@ export function NativeClientSettings({
     setError("");
     setSaved(false);
   }
+  useRefreshGuard(refreshKey, !!info && dirty);
   return (
     <section className="panel settings-section">
       <div className="panel-heading">

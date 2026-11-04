@@ -6,7 +6,9 @@ Team Cross is an open source collaboration tool for coding agent sessions on mac
 
 Keep using your familiar terminal and native clients, with an optional WebGUI for shared context. Collaboration spaces and shared execution are hosted on the initiator's Mac. Each person's agent participates through MCP on request, keeping its own session, model, and local context.
 
-[Interactive demo](https://teamcross.pages.dev/en) · [Download v0.2.6](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.6) · [User guide](docs/user-guide.en.md) · [Engineering docs (中文)](docs/agent-wiki/wiki/index.md)
+[Interactive demo](https://teamcross.pages.dev/en) · [Download v0.4.1](https://github.com/YTwsy/Team-Cross/releases/tag/v0.4.1) · [User guide](docs/user-guide.en.md) · [Engineering docs (中文)](docs/agent-wiki/wiki/index.md)
+
+**v0.4.1 is available.** Local digital shadows now have a collapsible sidebar, a fixed chat layout, and a panel for parallel tasks. Keep collaborating in shared chat while longer work runs in the background. This release also improves reading across sessions, member activity, and plugin upgrade recovery. See the [release notes](docs/releases/v0.4.1.md).
 
 <img width="2400" height="1500" alt="Team Cross: share session context, discuss with teammates, and hand over input when needed" src="docs/images/concept-en.png" />
 
@@ -29,11 +31,11 @@ The same approach helps when a product colleague builds a small feature with AI 
 
 ## Install
 
-The current stable release is **`v0.2.6`**. Choose one installation method:
+The current stable release is **`v0.4.1`**. Choose one installation method:
 
 | Method | Install and open |
 | --- | --- |
-| Download the app | Download the [Apple Silicon DMG](https://github.com/YTwsy/Team-Cross/releases/download/v0.2.6/Team-Cross-0.2.6-arm64.dmg), drag `Team Cross.app` into Applications, and open it |
+| Download the app | Download the [Apple Silicon DMG](https://github.com/YTwsy/Team-Cross/releases/download/v0.4.1/Team-Cross-0.4.1-arm64.dmg), drag `Team Cross.app` into Applications, and open it |
 | Homebrew app | Run `brew install --cask YTwsy/teamcross/team-cross`, then open the app or run `teamcross` |
 | Homebrew CLI | Run `brew install YTwsy/teamcross/teamcross`, then run `teamcross` |
 
@@ -41,9 +43,9 @@ You do not need Go, Node, or pnpm to run an installed release. The app bundles t
 
 The current package is ad-hoc signed, without a Developer ID signature or Apple notarization. If macOS blocks the first launch, try opening the app, then follow [Apple's instructions](https://support.apple.com/en-us/102445) to allow it in **System Settings → Privacy & Security**.
 
-Quit Team Cross before upgrading, then update through the same installation channel. Installation preserves collaboration data and working directories, but **`v0.2.6` does not load or migrate old `schema:2` material; that data remains on disk**. Stable and RC Homebrew channels are maintained separately, and ordinary upgrades do not switch channels. Uninstall the previous channel before changing installation methods.
+Quit Team Cross before upgrading, then update through the same installation channel. Installation preserves collaboration data and working directories, but **`v0.4.1` does not load or migrate old `schema:2` material; that data remains on disk**. Stable and RC Homebrew channels are maintained separately, and ordinary upgrades do not switch channels. Uninstall the previous channel before changing installation methods.
 
-See [installation and upgrades](docs/user-guide.en.md#install-and-upgrade) for channel-switching steps, and the [release](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.6) for changes, CLI downloads, checksums, and provenance.
+See [installation and upgrades](docs/user-guide.en.md#install-and-upgrade) for channel-switching steps, and the [release](https://github.com/YTwsy/Team-Cross/releases/tag/v0.4.1) for changes, CLI downloads, checksums, and provenance.
 
 ## Get started
 
@@ -89,7 +91,9 @@ Closing or resetting an invitation link does not remove existing members. The ho
 
 ## Bring your own agent
 
-The development build also provides a [local ChatGPT for Mac plugin](docs/user-guide.en.md#local-chatgpt-for-mac-plugin). It opens the complete existing WebGUI in local Work/Codex, sharing its spaces, library, annotation and pairing pages, and brings explicit material selections into the current conversation. It connects to local Core through stdio; each build needs desktop product validation before formal distribution.
+The stable release includes a [local ChatGPT for Mac plugin](docs/user-guide.en.md#local-chatgpt-for-mac-plugin). It opens the complete WebGUI in Work/Codex hosts that support local plugins, sharing its spaces, library, annotation and pairing pages, and brings explicit material selections into the current conversation. It connects to local Core through stdio; enable the connection in settings before first use.
+
+`v0.4.1` includes [local digital shadows](docs/user-guide.en.md#local-digital-shadows). Members can select a model from local Codex and a working directory for one continuous conversation shared with the whole space. Longer work can continue in the background, while the panel beside chat shows tasks, memory, and runtime details. Shadows run on their owner's Mac; shared chat and input handoff for shared execution are managed separately.
 
 The WebGUI is optional. Your personal Codex TUI/Desktop or Claude Code TUI can use Team Cross MCP to publish material, read context, and participate in discussions when you ask. Equivalent CLI entry points are also available.
 
@@ -147,9 +151,12 @@ We are also exploring ways for the agent on the host machine to invite a person 
 
 ## Development and documentation
 
+Use **`Meta`** for ongoing development and as the base for feature and fix branches. Published releases are merged into `main`. See the [branch workflow (中文)](docs/agent-wiki/sources/development.md#开发分支).
+
 Building from source requires Go 1.27.1+, Node 24+, and pnpm. Building the app also requires macOS Command Line Tools and Swift.
 
 ```sh
+git switch Meta
 pnpm install
 make build
 ./bin/teamcross serve

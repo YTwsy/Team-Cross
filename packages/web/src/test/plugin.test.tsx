@@ -14,6 +14,37 @@ import { HostBridge } from "../plugin/bridge";
 import { currentConversation } from "../currentConversation";
 import { localStorage as preferences } from "../storage";
 import type { LibraryBundle, LibraryResource } from "../library";
+import { clearReloadNotice } from "../plugin/compatibility";
+
+it("cancels an unfinished panel handshake and ignores its late acknowledgement", async () => {
+  const post = vi.mocked(window.parent.postMessage);
+  post.mockImplementation((message) => {
+    messages.push(message);
+  });
+  const controller = new AbortController();
+  const pending = initializeEnvironment(controller.signal).catch(
+    (error) => error,
+  );
+  const initialize = messages.find(
+    (message) => message.method === "ui/initialize",
+  )!;
+  controller.abort();
+  expect((await pending).name).toBe("AbortError");
+  window.dispatchEvent(
+    new MessageEvent("message", {
+      source: window.parent,
+      data: {
+        jsonrpc: "2.0",
+        id: initialize.id,
+        result: { hostCapabilities: {} },
+      },
+    }),
+  );
+  await Promise.resolve();
+  expect(messages.filter((message) => message.method === "tools/call")).toEqual(
+    [],
+  );
+});
 
 const resource: LibraryResource = {
   key: "material-v1",
@@ -51,7 +82,7 @@ function route(message: any): unknown {
   const { path, body } = message.params.arguments;
   const value =
     path === "plugin/bootstrap"
-      ? { scope }
+      ? { scope, bridgeProtocol: 1 }
       : path === "ui-language"
         ? { mode: "zh-CN", resolved: "zh-CN" }
         : path === "collaborations"
@@ -79,6 +110,8 @@ beforeEach(() => {
   messages = [];
   scope = "fixture";
   widget = undefined;
+  delete window.__teamcrossPrivateState;
+  delete window.__teamcrossCheckpoint;
   capabilities = { message: {}, updateModelContext: {} };
   handler = route;
   location.hash = "";
@@ -119,10 +152,104 @@ beforeEach(() => {
   );
 });
 afterEach(() => {
+  clearReloadNotice();
+  delete window.__teamcrossRuntime;
+  delete window.__teamcrossCheckpoint;
   window.dispatchEvent(new Event("pagehide"));
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   delete window.openai;
+});
+
+it("blocks a resident legacy bridge before business reads and keeps the old editor checkpoint", async () => {
+  const previous = { dispose: vi.fn(), mount: vi.fn(async () => {}) };
+  window.__teamcrossRuntime = previous;
+  const checkpoint = {
+    scope: "fixture",
+    scrollY: 0,
+    values: { draft: { value: "unsent" } },
+  };
+  window.__teamcrossCheckpoint = checkpoint;
+  handler = (message) =>
+    message.params?.arguments?.path === "plugin/bootstrap"
+      ? {
+          structuredContent: {
+            scope,
+            language: { mode: "zh-CN", resolved: "zh-CN" },
+          },
+        }
+      : route(message);
+  await expect(initializeEnvironment()).rejects.toMatchObject({
+    code: "plugin_reload_required",
+  });
+  expect(
+    messages
+      .filter((m) => m.method === "tools/call")
+      .map((m) => m.params.arguments.path),
+  ).toEqual(["plugin/bootstrap"]);
+  expect(window.__teamcrossRuntime).toBe(previous);
+  expect(window.__teamcrossCheckpoint).toBe(checkpoint);
+  expect(previous.dispose).not.toHaveBeenCalled();
+  expect(screen.getByText("插件连接需要重新加载")).toBeInTheDocument();
+  expect(window.fetch).not.toHaveBeenCalled();
+});
+
+it("removes the reload notice after a new bridge successfully bootstraps", async () => {
+  const original = handler;
+  window.__teamcrossRuntime = {
+    dispose: vi.fn(),
+    mount: vi.fn(async () => {}),
+  };
+  handler = (message) =>
+    message.params?.arguments?.path === "plugin/bootstrap"
+      ? { structuredContent: { scope } }
+      : route(message);
+  await expect(initializeEnvironment()).rejects.toMatchObject({
+    code: "plugin_reload_required",
+  });
+  handler = original;
+  await initializeEnvironment();
+  expect(document.getElementById("teamcross-bridge-reload")).toBeNull();
+  expect(
+    messages.filter((m) => m.params?.name === "teamcross_ui_write"),
+  ).toEqual([]);
+});
+
+it("probes a historical bodyless bootstrap once without replaying business requests", async () => {
+  handler = (message) => {
+    if (message.method === "ui/initialize")
+      return { hostCapabilities: capabilities, hostContext: { theme: "dark" } };
+    const args = message.params?.arguments;
+    if (args?.path === "plugin/bootstrap")
+      return args.body
+        ? {
+            isError: true,
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({ error: "WebGUI route is not allowed" }),
+              },
+            ],
+          }
+        : { structuredContent: { scope } };
+    return route(message);
+  };
+  await expect(initializeEnvironment()).rejects.toMatchObject({
+    code: "plugin_reload_required",
+  });
+  expect(document.documentElement.dataset.theme).toBe("dark");
+  expect(
+    messages.filter((m) => m.method === "tools/call").map((m) => m.params),
+  ).toEqual([
+    {
+      name: "teamcross_ui_read",
+      arguments: {
+        path: "plugin/bootstrap",
+        body: { requiredBridgeProtocol: 1 },
+      },
+    },
+    { name: "teamcross_ui_read", arguments: { path: "plugin/bootstrap" } },
+  ]);
 });
 
 it("connects only after an explicit host message and does not replay a lost acknowledgement", async () => {
@@ -329,4 +456,38 @@ it("submits the existing React form once in a restricted host and keeps native v
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "valid" } });
   fireEvent.click(screen.getByRole("button", { name: "Save form" }));
   expect(submit).toHaveBeenCalledTimes(1);
+});
+
+it("retries only reads during Core replacement and never resends a write", async () => {
+  const bridge = new HostBridge();
+  let reads = 0,
+    writes = 0;
+  const updating = {
+    isError: true,
+    structuredContent: {
+      code: "core_updating",
+      error: "本机服务正在更新",
+    },
+  };
+  handler = (m) => {
+    if (m.params.name === "teamcross_ui_read")
+      return ++reads === 1 ? updating : { structuredContent: { ready: true } };
+    writes++;
+    return updating;
+  };
+  try {
+    const reading = bridge.call("teamcross_ui_read", { path: "info" });
+    await waitFor(() => expect(bridge.reconnecting).toBe(true));
+    await expect(reading).resolves.toEqual({ ready: true });
+    expect(reads).toBe(2);
+    await expect(
+      bridge.call("teamcross_ui_write", {
+        path: "collaborations/space/workbench/notes",
+        body: { requestId: "same-id", text: "keep" },
+      }),
+    ).rejects.toMatchObject({ code: "core_updating" });
+    expect(writes).toBe(1);
+  } finally {
+    bridge.dispose();
+  }
 });

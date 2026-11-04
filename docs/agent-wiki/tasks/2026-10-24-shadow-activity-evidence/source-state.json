@@ -1,0 +1,199 @@
+{
+  "baseCommit": "616ff795f6e7b2eec0e41b2943070e3f707db60c",
+  "branch": "codex/shadow-activity",
+  "capturedAtUtc": "2026-10-23T18:49:01.450426+00:00",
+  "changedSources": [
+    {
+      "path": "internal/collab/agent_annotations.go",
+      "sha256": "4b16c0a8710855c6ea0ff7398074c578cb79a59a06b93e0e10eeb87f7af8b340"
+    },
+    {
+      "path": "internal/collab/annotation.go",
+      "sha256": "aa288b2e728accc613545e3eaa6747355dd816bd6a843107266992496d90866a"
+    },
+    {
+      "path": "internal/collab/history_projection.go",
+      "sha256": "b1f41fff54b58223bbb134a6a1bfa19ba4f734d4e5d165d18db28e84075eb568"
+    },
+    {
+      "path": "internal/collab/http.go",
+      "sha256": "b230bba21bfc446d66aa2895136f53aa80f9fff0e1a6be7c2477ac1b19f98ca0"
+    },
+    {
+      "path": "internal/collab/member_activity.go",
+      "sha256": "a8b0344a133aef7cc68fd604f8e0ccb4ef8e0185972abb3f35be58de78e8407d"
+    },
+    {
+      "path": "internal/collab/member_activity_api.go",
+      "sha256": "6d69d8be30fa89d1b0b5c6b770253f77e951dfda83a3ad82a08be9e2ca547dd8"
+    },
+    {
+      "path": "internal/collab/member_activity_consumer.go",
+      "sha256": "991d0557f3ee8ae8139cdbbbbb620a41d28567f4c67c709cc52bc3074e144453"
+    },
+    {
+      "path": "internal/collab/member_activity_consumer_test.go",
+      "sha256": "ffdc8e7fb24e609d59971a6549c14ac23258747806e4d9c83c11df8079b4ba26"
+    },
+    {
+      "path": "internal/collab/network.go",
+      "sha256": "afb0274846071591e262c8964eaa9273cb0fad95a80dba31a3ddc656123873d7"
+    },
+    {
+      "path": "internal/collab/rpc.go",
+      "sha256": "b298be03e5df229238c081f7b4ef29d082847a238e155112de4e204b141fdae5"
+    },
+    {
+      "path": "internal/collab/shadow_attention.go",
+      "sha256": "b62062e628e9af78ba854a05b754d3da1d61ed9999fdfdd128541926150558dd"
+    },
+    {
+      "path": "internal/collab/shadow_attention_test.go",
+      "sha256": "d16fd6fa4f8a0389851ed6477caed5c2b687ab8310a2398d5c9dff2410c10069"
+    },
+    {
+      "path": "internal/collab/shadow_dependencies.go",
+      "sha256": "5eda9b11346ce550d352dc852e9a244ebe45b2336da10bd74e8e27dd04ea1198"
+    },
+    {
+      "path": "internal/collab/shadow_dependencies_test.go",
+      "sha256": "89a8f78cd8b9fe1f9d6146c50f6e23bf79713edbf4944bcca5387e090bf0620f"
+    },
+    {
+      "path": "internal/collab/shadow_sources.go",
+      "sha256": "15a2006d8d14d26ce8a50bcb73832418f1932a87c7474a04c995528586166e10"
+    },
+    {
+      "path": "internal/collab/shadow_sources_test.go",
+      "sha256": "b833cce563e67d1675489cdb16f4ee8bafbedc5cf65c1d8b9c91fc75835ee136"
+    },
+    {
+      "path": "internal/collab/shadow_tools.go",
+      "sha256": "2aec10d7e7a66c63f45f75dd0db5940662c6664de84cbf3bad3a8e6fd112fba8"
+    },
+    {
+      "path": "internal/collab/shadow_tools_test.go",
+      "sha256": "8096a9de64d0ad6d5b96eb6142ac5192dc1695516e604051d1d40c50182e7a55"
+    },
+    {
+      "path": "internal/collab/shadows.go",
+      "sha256": "e2500038272079f5ebc745ec740ca0d0c9d2e452d589a1a4ba0d94868ff250ce"
+    },
+    {
+      "path": "internal/collab/types.go",
+      "sha256": "ca9b04bcaa00cf50f23bcd269e6e96b90636b1bbfe3d1f47aaaca1c9d36a54d8"
+    },
+    {
+      "path": "internal/collab/workbench.go",
+      "sha256": "6cf1deb8304a4f7d1ecb16eab21730923b867ae271353aaa94ff7ba611bcf1d0"
+    },
+    {
+      "path": "internal/collab/workbench_mcp.go",
+      "sha256": "3c0c02957d735acc73f42a58441ac352e790bf2c880d96f863f39449afadc190"
+    },
+    {
+      "path": "internal/mcp/read.go",
+      "sha256": "fe8195aaf496e02d2c142027f54891a89d71a0d8554cee962c00f4442b59ce14"
+    },
+    {
+      "path": "internal/mcp/server.go",
+      "sha256": "87b07d7b213c2bfce8339b5e0ef80bffaf455a905ef3041e81c385f5b36f18b1"
+    },
+    {
+      "path": "internal/mcp/shadow.go",
+      "sha256": "9f0fc2ccf649372258abba6958f9a1d8ea8f8955013cc3e709af21a786c1e2db"
+    },
+    {
+      "path": "internal/mcp/workbench.go",
+      "sha256": "bb2767b09c9ed3b720488ea8e17dfd93e98b6c80c4bde724127c9fe8b4624388"
+    },
+    {
+      "path": "internal/shadow/attention_batches.go",
+      "sha256": "29f80e31da33e6d1a541c9103d624597a10d68ba5d88bf6555a2acdaac951331"
+    },
+    {
+      "path": "internal/shadow/attention_batches_test.go",
+      "sha256": "ea227834f866d2234fb91bc6e4105648ac5ab5616babd6ed636e65764964ea75"
+    },
+    {
+      "path": "internal/shadow/attention_continuations.go",
+      "sha256": "f65c9a7668c50c6590549e35d0489fc18824e96d1121c74f2defb8c6d0da5c48"
+    },
+    {
+      "path": "internal/shadow/attention_continuations_test.go",
+      "sha256": "de586853ee0cec3c7128db801b8dfef5054ac0f67ddb85f6dafa98ec133eafa6"
+    },
+    {
+      "path": "internal/shadow/attention_engine.go",
+      "sha256": "3f00fc06c1b31121150e289f85441ffbf2d52fdcbc35798facbbdc62b9fbe6d8"
+    },
+    {
+      "path": "internal/shadow/attention_engine_test.go",
+      "sha256": "7d0232fc8fceddb0d16980ee99e9ce6178d543237c3fca3099bca9fc6d4ae90a"
+    },
+    {
+      "path": "internal/shadow/attention_store.go",
+      "sha256": "e2ce492532adb25d433d2514f6d343f21b94fbf1c0174583cdfa7fc07725e26c"
+    },
+    {
+      "path": "internal/shadow/attention_store_test.go",
+      "sha256": "1a71a793f5bcb98f043cbbc7e2dcca2bd88be1081eed75d0b64e28357efb36c6"
+    },
+    {
+      "path": "internal/shadow/collaboration_tools.go",
+      "sha256": "2fd3a444e79632478712408c7a0a3e1afccb6c58c6afc909d0cd6c22e09afc54"
+    },
+    {
+      "path": "internal/shadow/collaboration_tools_test.go",
+      "sha256": "bd9aa8ff54aa632e19b36c94ac5ee98bd3a4f60703c8bebe3d9c5a6ab792864f"
+    },
+    {
+      "path": "internal/shadow/context.go",
+      "sha256": "6f0b87d483dc03d357e4ff308f5e720eae1de0ee8b1d7b7719c33f12b73dc97c"
+    },
+    {
+      "path": "internal/shadow/engine.go",
+      "sha256": "60b3af3d423ec757c73d2b5d2cf713b4fd4524eccb7c13fd4bfa6944838e8012"
+    },
+    {
+      "path": "internal/shadow/engine_test.go",
+      "sha256": "a385372225d4eca3400c76bb3c75fa0c81e8a66a24ae020c2d2c62cb2ec61fb3"
+    },
+    {
+      "path": "internal/shadow/native.go",
+      "sha256": "888ab70de147769f847a6c1418b6d2401d6e3ea6edcf1a95fa9f6728a7e535cd"
+    },
+    {
+      "path": "internal/shadow/store.go",
+      "sha256": "1ad3f96630d505006e033f20842c4b75c8397b29c87b075b55dd64a2e79dced6"
+    },
+    {
+      "path": "internal/shadow/task_dependencies.go",
+      "sha256": "481a4ed841a659bff72d3109e04a3cb06690f8fef418f5e4e865aac66dd5fd11"
+    },
+    {
+      "path": "internal/shadow/task_lifecycle.go",
+      "sha256": "8a2bc7a3ea4b8c33f77094d7063887f6a0bdd33b7ea25caeedf0766678cea211"
+    },
+    {
+      "path": "internal/shadow/task_lifecycle_test.go",
+      "sha256": "b8e815ef742988f94cf2a987b7d685431bb0ae80e30127857c58f7ca6b6d032d"
+    },
+    {
+      "path": "internal/shadow/task_origins.go",
+      "sha256": "4b59574732f7154d48eb98619d286f3636eed3ed7a15ccc9f8df24e9dc03cb0a"
+    },
+    {
+      "path": "internal/shadow/tools.go",
+      "sha256": "d68d1f7047c4a2f2ae4adc0835ac2cd2550a7c87da62d1aed3607adbfbbc77b8"
+    },
+    {
+      "path": "internal/shadow/types.go",
+      "sha256": "52c4ab9ef6bbca8e76a57c405a02972b66414828e6d48b16c72db33a8f7defc7"
+    },
+    {
+      "path": "internal/spacecontext/types.go",
+      "sha256": "7442fe25129fff5caece8b5c21dc658ad12f4c6dd78da27b83fdc88e49995a25"
+    }
+  ]
+}

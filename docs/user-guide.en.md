@@ -16,13 +16,13 @@ In this guide, **A** means the host and their Mac, and **B** means one invited p
 
 ## Install and upgrade
 
-Team Cross supports Apple Silicon Macs running macOS 14 or later. See [Install](../README.en.md#install) for the current stable `v0.2.6` DMG, CLI, and Homebrew options. Installed releases do not require Go, Node, or pnpm.
+Team Cross supports Apple Silicon Macs running macOS 14 or later. See [Install](../README.en.md#install) for the current stable `v0.4.1` DMG, CLI, and Homebrew options. Installed releases do not require Go, Node, or pnpm.
 
 The app bundles the full CLI and Core service and does not require Homebrew. The Cask installs both the app and the `teamcross` command; the Formula provides the standalone CLI. The app and CLI packages, including stable and RC Homebrew definitions, occupy the same app or command paths, so choose one installation method. RC packages must be installed explicitly; an ordinary `brew upgrade` does not switch a stable channel to RC.
 
 After installing from a DMG, choose **Command Line Tool…** in the menu bar to install `teamcross`. The default command path is `/usr/local/bin/teamcross`, with system authorization requested when needed. Existing commands installed by Homebrew or another source are not overwritten. Updating the app at the same location makes the command use its new bundled CLI. Removing the command does not prevent you from using the app. If you use a custom shell, make sure the command directory is in your `PATH`.
 
-Quit Team Cross before upgrading or switching channels, then update or uninstall through the original channel. Installation preserves collaboration data and working directories, but `v0.2.6` does not load or migrate old `schema:2` material; that data remains on disk. See the [release notes](https://github.com/YTwsy/Team-Cross/releases/tag/v0.2.6) for details.
+Quit Team Cross before upgrading or switching channels, then update or uninstall through the original channel. Installation preserves collaboration data and working directories, but `v0.4.1` does not load or migrate old `schema:2` material; that data remains on disk. See the [release notes](https://github.com/YTwsy/Team-Cross/releases/tag/v0.4.1) for details.
 
 To switch from the Formula to the app, stop the service and run either `brew uninstall --formula --force teamcross` or `brew uninstall --formula --force teamcross-rc`, depending on the installed channel, then install the Cask. To switch in the other direction, use `brew uninstall --cask team-cross` or `brew uninstall --cask team-cross@rc`. DMG users should remove the command through the app's menu before removing the app. These uninstall operations preserve collaboration data and working directories.
 
@@ -119,7 +119,9 @@ After a Codex collaboration is created, the host can choose **Open in personal C
 
 ## Multiple collaboration sessions in one space
 
-Choose **Add collaboration session** in the sidebar to create another native fork with its own source, directory, and fixed restricted or trusted mode. Different worktrees can run concurrently. Managed runtimes using the same worktree are mutually exclusive; pause the existing session and wait for release, or select a new worktree.
+Choose **Add collaboration session** in the sidebar to create another native fork with its own source, directory, and fixed restricted or trusted mode. Multiple sessions can use the same original directory or worktree. After creation, the agent handles branches, worktrees, and command locations according to your instructions, repository rules, and native permissions.
+
+The path already shown in **Session actions** reflects the Codex native session's last confirmed working directory. File and changes views use the same directory. Native session directory changes are reflected there, and recovery uses its latest directory. Running an individual command elsewhere does not change the displayed path.
 
 Every member can read all published materials and collaboration sessions. Use **Input handoff** in the selected session to choose its input holder. Pausing waits for accepted work to finish. Ending shared execution also returns input to the host; reading and discussion remain available, and sibling sessions continue independently.
 
@@ -177,7 +179,7 @@ Resuming reads the collaboration session's latest persisted settings. **Technica
 
 ### Local ChatGPT for Mac plugin
 
-This section uses the development build with plugin connection management. See [local plugin development (中文)](agent-wiki/sources/development.md#本机-chatgpt-插件) for building it.
+The current stable release includes local plugin connection management. Install Team Cross using the [README instructions](../README.en.md#install), then enable the connection in a Work/Codex host that supports local plugins.
 
 1. Open Team Cross and go to **Settings and Connections**, or choose **ChatGPT plugin…** from the menu bar.
 2. Click **Install in ChatGPT**. For an existing plugin, click **Connect and enable automatic sync**. If it uses another data directory, click **Connect to current data**.
@@ -296,6 +298,18 @@ Each read entry fixes the selection at the time it is generated. Material is pin
 When every selected item belongs to the same space, you can also choose **Send to shared session**. Review the target, references, and instructions before confirming. The page sends through the existing input channel. The target must have execution enabled, be online and idle, and have you as its input holder. Cross-space selections or a pending approval prevent sending. Acceptance does not mean execution has finished; inspect the target session if the result is uncertain.
 
 Left-click the menu bar icon to open the collaboration quick view, or press `Control + Option + T` when the shortcut is available. Switch between **Current spaces** and **Resources**. The first shows ongoing collaborations and their state; click to open details. The second shares the browser's selection and supports search, favorites, and read-entry generation. Switching views preserves resource filters and selections. You can pin the quick view as a small floating window; full material and long discussions open in the WebGUI. Lists scroll with the page. **Service and Settings** appears on the filter row, and right-clicking the menu bar icon also opens the service menu for settings, CLI management, and quitting.
+
+## Local digital shadows
+
+Open **Local digital shadows** in a space and choose **Create my shadow**. Enter a name and a local working directory, then choose a model and reasoning effort from local Codex. Current settings are prefilled. Choose once: chats, new segments, background tasks and restarts keep that selection, with no per-message selector. The first version uses local Codex with its sign-in, permissions, hooks, plugins, MCP and native memory. Existing personal chats are not imported. The owner's Mac must keep Core running; all space members share the same conversation.
+
+The shadow group in the sidebar can collapse and expand. Chat keeps its title and composer fixed while only the message list scrolls; switching shadows preserves drafts and reading positions. The **Tasks**, **Memory**, and **Runtime** panel sits beside chat on wide screens and opens in a drawer on narrow screens.
+
+Ask questions and follow up naturally without choosing a topic or session. Delegate longer work in the background and continue chatting. **Tasks** and **Memory** show progress, personal ownership and unconfirmed memory candidates. Ask the shadow to remember, correct or forget information. Forgetting stops using it as active memory; the original conversation and native history remain.
+
+**Delivered** means the shadow's Mac has durably saved the message, not that the work is complete. After an offline or failed attempt, **Resend** reuses that message's ID. Reconnection does not automatically resend it. Native approval requests are handled only on the shadow's Mac. **Pause reception** lets work already started finish; **Check native state** reconciles uncertain outcomes without automatically repeating actions.
+
+This feature is separate from shared execution and its input handoff. See the [contract](agent-wiki/sources/decisions/local-shadows.md) and [verification record](agent-wiki/tasks/2026-10-21-local-shadow-design/implementation.md) for versions and tested environments. `v0.4.1` includes this shadow workspace; see the [release notes](https://github.com/YTwsy/Team-Cross/releases/tag/v0.4.1).
 
 ## End and resume sharing
 

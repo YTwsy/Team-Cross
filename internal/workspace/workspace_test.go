@@ -96,13 +96,23 @@ func TestWorkspaceModesPreserveSource(t *testing.T) {
 }
 func TestReadFileCannotEscape(t *testing.T) {
 	root := t.TempDir()
+	alias := filepath.Join(t.TempDir(), "native-cwd")
+	if err := os.Symlink(root, alias); err != nil {
+		t.Fatal(err)
+	}
 	outside := filepath.Join(t.TempDir(), "outside")
 	os.WriteFile(outside, []byte("outside"), 0600)
 	os.Symlink(outside, filepath.Join(root, "escape"))
-	if _, e := ReadFile(root, "escape"); e == nil {
-		t.Fatal("symlink escaped")
-	}
-	if _, e := ReadFile(root, outside); e == nil {
-		t.Fatal("absolute path allowed")
+	os.WriteFile(filepath.Join(root, "inside"), []byte("inside"), 0600)
+	for _, cwd := range []string{root, alias} {
+		if text, err := ReadFile(cwd, "inside"); err != nil || text != "inside" {
+			t.Fatal("native cwd alias cannot read its file", text, err)
+		}
+		if _, e := ReadFile(cwd, "escape"); e == nil {
+			t.Fatal("symlink escaped")
+		}
+		if _, e := ReadFile(cwd, outside); e == nil {
+			t.Fatal("absolute path allowed")
+		}
 	}
 }

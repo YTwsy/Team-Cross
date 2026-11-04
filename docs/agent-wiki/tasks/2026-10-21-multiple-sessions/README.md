@@ -1,5 +1,7 @@
 # 一个空间多个协作会话
 
+> 截图仅本地保存，路径相对本文，不随 Git 分发；保存与引用方式见[验收截图约定](../../README.md#验收截图)。
+
 2026-10-21；`Meta`，基线 `f49b2a1547490e4ef90eb41b08f695aef2737158` 加本任务改动。环境：macOS 14.8.5 / 23J423，arm64，单台 Mac。先完成多会话实现与本地试用 DMG，随后按用户反馈简化为全体成员共同阅读并调整阅读界面，随本次提交收录。没有推送、公开发布或替换用户安装。
 
 **阶段说明：下文“实现范围”至“本地多会话试用 DMG”记录最初版本。其逐会话阅读授权方案已由[后续调整](#后续调整全体成员共同阅读与统一阅读界面)取代；旧截图、源码快照和 DMG 保留用于追溯，不作为最终权限和界面的证据。**
@@ -59,10 +61,10 @@ Tailcat 的传输层和协作层显式联网检查均通过，见 [传输结果]
 
 使用最终 production 嵌入资源、真实 Core/HTTP/存储、三成员合成 fixture。完成了每会话评论与文件草稿隔离、空间简报草稿切换保留、材料返回、B/C 相反授权范围、折叠导航的可访问名称及概览统计复核。1440/1024/768 宽度、中英文、浅深主题均检查；窄屏上下文标签可以横向滚动，整页没有横向溢出。
 
-- [1440 会话详情](screenshots/owner-session-1440.png)
-- [1440 空间概览](screenshots/owner-overview-1440.png)
-- [1024 未授权会话](screenshots/bob-restricted-1024.png)
-- [768 英文深色会话](screenshots/carol-768-dark-en.png)
+- 1440 会话详情（`screenshots/owner-session-1440.png`）
+- 1440 空间概览（`screenshots/owner-overview-1440.png`）
+- 1024 未授权会话（`screenshots/bob-restricted-1024.png`）
+- 768 英文深色会话（`screenshots/carol-768-dark-en.png`）
 
 浏览器期间修正了空间标题被共享详情控件挤压、折叠会话缺少可访问名称、会话统计藏在管理折叠区的问题。最终统计与跳转有交互回归；截图只展示合成内容，不能证明真实 Provider 执行。
 
@@ -108,13 +110,13 @@ Go 增补覆盖既有/新成员对既有/新增会话共同可读、无输入权
 
 真实浏览器使用最终生产资源、真实 Core/HTTP/存储和合成历史，核对共同阅读、会话/材料切换、独立评论草稿、非输入者的申请入口、宽屏默认评论与手动关闭保持、1024/768 窄屏及英文深色。截图仅证明界面，不证明模型执行：
 
-- [1440 会话与评论](screenshots/shared-reading-owner-1440.png)
-- [1440 材料阅读对照](screenshots/shared-reading-material-1440.png)
-- [1440 成员阅读与输入申请](screenshots/shared-reading-member-1440.png)
-- [1024 会话布局](screenshots/shared-reading-owner-1024.png)
-- [768 折叠侧栏与紧凑输入交接](screenshots/shared-reading-owner-768-sidebar.png)
-- [768 标题区建议阅读起点](screenshots/shared-reading-material-768.png)
-- [768 英文深色](screenshots/shared-reading-member-768-dark-en.png)
+- 1440 会话与评论（`screenshots/shared-reading-owner-1440.png`）
+- 1440 材料阅读对照（`screenshots/shared-reading-material-1440.png`）
+- 1440 成员阅读与输入申请（`screenshots/shared-reading-member-1440.png`）
+- 1024 会话布局（`screenshots/shared-reading-owner-1024.png`）
+- 768 折叠侧栏与紧凑输入交接（`screenshots/shared-reading-owner-768-sidebar.png`）
+- 768 标题区建议阅读起点（`screenshots/shared-reading-material-768.png`）
+- 768 英文深色（`screenshots/shared-reading-member-768-dark-en.png`）
 
 本阶段没有重新验证 Tailcat 数据面、专用/个人 Desktop 全组合、Claude 原生多会话或跨 Mac 网络；前一阶段 Tailcat 成功和 Claude 阻塞继续按各自范围报告。仅改变原生工具说明后追加 MCP 检查；最后的 CSS 修正重新构建两套嵌入资源并复核浏览器，没有因此重复真实模型回合。
 

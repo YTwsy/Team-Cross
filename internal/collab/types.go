@@ -13,6 +13,7 @@ import (
 	"teamcross/internal/nativeclaude"
 	"teamcross/internal/nativecodex"
 	"teamcross/internal/runtimeconfig"
+	"teamcross/internal/shadow"
 	"teamcross/internal/sharing"
 	"teamcross/internal/workspace"
 )
@@ -72,6 +73,9 @@ type Preview struct {
 	Hash              string             `json:"previewHash"`
 }
 type Annotation struct {
+	RequestID   string              `json:"requestId,omitempty"`
+	Mentions    []MemberMention     `json:"mentions,omitempty"`
+	Actor       SpaceActor          `json:"actor"`
 	ExecutionID string              `json:"executionId,omitempty"`
 	Materials   []MaterialReference `json:"materials,omitempty"`
 	ID          string              `json:"id"`
@@ -84,8 +88,11 @@ type Annotation struct {
 	Replies     []AnnotationReply   `json:"replies,omitempty"`
 }
 
-// Replies belong to a root annotation, never to another reply or source range.
+// Replies retain a root discussion and identify the exact message they answer.
 type AnnotationReply struct {
+	Mentions  []MemberMention     `json:"mentions,omitempty"`
+	ReplyTo   *ReplyTarget        `json:"replyTo,omitempty"`
+	Actor     SpaceActor          `json:"actor"`
 	Materials []MaterialReference `json:"materials,omitempty"`
 	ID        string              `json:"id"`
 	RequestID string              `json:"requestId"`
@@ -96,6 +103,8 @@ type AnnotationReply struct {
 }
 
 type AnnotationReplyInput struct {
+	Mentions     []MemberMention     `json:"mentions,omitempty"`
+	ReplyTo      *ReplyTarget        `json:"replyTo,omitempty"`
 	Materials    []MaterialReference `json:"materials,omitempty"`
 	AnnotationID string              `json:"annotationId"`
 	Text         string              `json:"text"`
@@ -167,10 +176,12 @@ type ExecutionRecord struct {
 	Commands            map[string]Command `json:"commands,omitempty"`
 }
 type Record struct {
-	SpaceID          string           `json:"spaceId,omitempty"`
-	Workbench        *WorkbenchRecord `json:"workbench,omitempty"`
-	Materials        []Material       `json:"materials"`
-	Schema           int              `json:"schema"`
+	Activity         *ActivitySourceState    `json:"memberActivity,omitempty"`
+	Shadows          map[string]ShadowShared `json:"shadows,omitempty"`
+	SpaceID          string                  `json:"spaceId,omitempty"`
+	Workbench        *WorkbenchRecord        `json:"workbench,omitempty"`
+	Materials        []Material              `json:"materials"`
+	Schema           int                     `json:"schema"`
 	*ExecutionRecord `json:"execution,omitempty"`
 	ID               string       `json:"id"`
 	Title            string       `json:"title"`
@@ -197,6 +208,11 @@ func (d *direct) close() { d.once.Do(func() { close(d.done) }) }
 // Space and its executions share a short-lived state lock. Provider calls never
 // hold it; runtime state, writers, command ledgers and clients remain independent.
 type Session struct {
+	activitySeen      map[string]bool
+	activityLog       *ActivityLog
+	activityError     string
+	activityLastSync  time.Time
+	inFlowLeases      map[string]inFlowLease
 	space             *Session
 	executions        map[string]*Session
 	workbenchPresence map[string]targetPresence
@@ -206,6 +222,7 @@ type Session struct {
 	receiverPaused    bool
 	mu                *sync.Mutex
 	materialUploadMu  sync.Mutex
+	nativeStateMu     sync.Mutex
 	record            Record
 	app               *App
 	materialStore     *materialstore.Store
@@ -275,6 +292,13 @@ type Settings struct {
 	UILanguage   string `json:"uiLanguage,omitempty"`
 }
 type App struct {
+	activitySyncMu  sync.Mutex
+	shadows         map[string]*shadow.Engine
+	shadowAttention map[string]*shadow.AttentionStore
+	attentionMu     sync.Mutex
+	shadowCancel    context.CancelFunc
+	shadowWG        sync.WaitGroup
+	shadowCreateMu  sync.Mutex
 	events          *mcpevents.Manager
 	eventsCancel    context.CancelFunc
 	eventsWG        sync.WaitGroup
@@ -305,12 +329,11 @@ type App struct {
 	settings        Settings
 	claudeClients   map[string]*nativeclaude.Client
 	reader          Runtime
+	readerHome      string
 	readerMu        sync.Mutex
 	sessions        map[string]*Session
 	executions      map[string]*Session
 	creationMu      sync.Mutex
-	directoryMu     sync.Mutex
-	directoryOwners map[string]string
 	joined          map[string]*Joined
 	closed          bool
 	pending         map[string]pendingInvite

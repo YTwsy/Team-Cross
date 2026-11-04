@@ -108,9 +108,12 @@ func requiredBlobBytes(manifest materialstore.Manifest, required []string) int64
 	var total int64
 	for _, turn := range manifest.Turns {
 		for _, item := range turn.Items {
-			if item.Body.Kind == materialstore.BodyBlob && wanted[item.Body.Hash] && !seen[item.Body.Hash] {
-				seen[item.Body.Hash] = true
-				total += int64(item.Body.ByteLength)
+			for _, body := range item.Bodies() {
+				if body.Kind == materialstore.BodyBlob && wanted[body.Hash] && !seen[body.Hash] {
+					seen[body.Hash] = true
+					total += int64(body.ByteLength)
+				}
+
 			}
 		}
 	}
@@ -146,12 +149,15 @@ func manifestBlobHashes(manifest materialstore.Manifest) ([]string, int64) {
 	var bytes int64
 	for _, turn := range manifest.Turns {
 		for _, item := range turn.Items {
-			if item.Body.Kind != materialstore.BodyBlob || seen[item.Body.Hash] {
-				continue
+			for _, body := range item.Bodies() {
+				if body.Kind != materialstore.BodyBlob || seen[body.Hash] {
+					continue
+				}
+				seen[body.Hash] = true
+				hashes = append(hashes, body.Hash)
+				bytes += int64(body.ByteLength)
+
 			}
-			seen[item.Body.Hash] = true
-			hashes = append(hashes, item.Body.Hash)
-			bytes += int64(item.Body.ByteLength)
 		}
 	}
 	return hashes, bytes
@@ -371,17 +377,20 @@ func (s *Session) commitPublicationUpload(ctx context.Context, id string) (any, 
 	}
 	for _, turn := range record.Manifest.Turns {
 		for _, item := range turn.Items {
-			if !required[item.Body.Hash] {
-				continue
+			for _, body := range item.Bodies() {
+				if !required[body.Hash] {
+					continue
+				}
+				if _, exists := bundle.Blobs[body.Hash]; exists {
+					continue
+				}
+				text, readErr := payload.ReadBody(materialstore.Item{Body: body})
+				if readErr != nil {
+					return nil, readErr
+				}
+				bundle.Blobs[body.Hash] = text
+
 			}
-			if _, exists := bundle.Blobs[item.Body.Hash]; exists {
-				continue
-			}
-			text, readErr := payload.ReadBody(item)
-			if readErr != nil {
-				return nil, readErr
-			}
-			bundle.Blobs[item.Body.Hash] = text
 		}
 	}
 	upload := publicationUpload{Bundle: bundle, RequestID: record.RequestID, MaterialID: record.MaterialID, BaseVersion: record.BaseVersion}

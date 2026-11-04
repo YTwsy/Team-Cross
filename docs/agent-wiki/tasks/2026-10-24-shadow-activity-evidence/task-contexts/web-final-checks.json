@@ -1,0 +1,35 @@
+[
+  {
+    "name": "web-final-check",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@teamcross/web",
+      "check"
+    ],
+    "exitCode": 0,
+    "seconds": 4.195
+  },
+  {
+    "name": "web-final-test",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@teamcross/web",
+      "test"
+    ],
+    "exitCode": 0,
+    "seconds": 9.382
+  },
+  {
+    "name": "web-final-build",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@teamcross/web",
+      "build"
+    ],
+    "exitCode": 0,
+    "seconds": 8.727
+  }
+]

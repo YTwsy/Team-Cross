@@ -1,0 +1,299 @@
+<main id="shadow-runtime-design">
+  <header class="rd-header">
+    <div class="text-small text-muted">TEAM CROSS · 分身收敛方案与三方对比 · 2026-10-28 · 设计留档，尚未实施</div>
+    <h1>新消息持续进入会话，普通聊天就是聊天</h1>
+    <p>修订版：消息按原生能力注入当前 S；明确的后台交付才创建 W。Core 负责传输与归属，模型理解并回复。</p>
+    <nav class="rd-nav" aria-label="方案目录">
+      <a href="#rd-compare">三方对比</a><a href="#rd-schedule">连续提问怎么处理</a><a href="#rd-context">Session 里装什么</a><a href="#rd-tools">工具怎么收敛</a><a href="#rd-finish">完成与回报</a><a href="#rd-scope">本次范围</a>
+    </nav>
+  </header>
+
+  <section class="rd-section" id="rd-compare">
+    <div class="rd-heading"><h2>同一个补问，三种处理方式</h2><span class="text-small text-muted">以最新方案为目标；附件用于检查迁移风险</span></div>
+    <div class="rd-compare-flow">
+      <div><strong>本次方案</strong><small>普通聊天减少产品承诺</small></div><div>发出普通问题</div><span class="rd-arrow">→</span><div>答复作为新消息进入 S</div><span class="rd-arrow">→</span><div>模型继续回答<small>不创建任务，不执行结案</small></div>
+      <div><strong>10 月 25 日附件</strong><small>缩短工具协议，保留任务模型</small></div><div>回复附 awaitReply</div><span class="rd-arrow">→</span><div>Core 隐式创建 coordination</div><span class="rd-arrow">→</span><div>等答复与条件满足后结案<small>普通补问仍有业务完成状态</small></div>
+      <div><strong>DS-Bot 私聊派活</strong><small>普通群内 @ 不走这条路径</small></div><div>message_bot 发出委托</div><span class="rd-arrow">→</span><div>宿主持久保存 work 关系</div><span class="rd-arrow">→</span><div>等待返回并继续上游<small>它自身也保留任务和等待状态</small></div>
+    </div>
+    <div class="rd-footnote text-small">对照：附件第 4、5 节；<a href="https://github.com/Fei2411/DS-Bot/blob/4a7b55069ad300eae8be42a74f31bc170b40ead7/docs/plans/2026-10-16-bot-handoffs.md#L51-L89">DS-Bot 私聊派活关系</a>。DS-Bot 基于 2026-10-27 的 4a7b550，区别于附件引用的旧版本 1bebe82。</div>
+    <table class="table rd-comparison">
+      <thead><tr><th scope="col">比较点</th><th scope="col">本次方案</th><th scope="col">10 月 25 日附件</th><th scope="col">DS-Bot 参考与边界</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">连续输入</th><td>一个有序输入流；S 空闲时 start，运行时 steer。各条作者与回复关系独立保留。</td><td>收件箱按对象合并；尚未明确活动 S 的原生追加方式。</td><td>now / queue 控制读取时机；未读合并限制同一发件人与工作关系。<a href="https://github.com/Fei2411/DS-Bot/blob/4a7b55069ad300eae8be42a74f31bc170b40ead7/ds-bot/src/host/tools.js#L215-L256">合并与派活实现</a></td></tr>
+        <tr><th scope="row">长工作释放主通道</th><td>S 明确派发 W 后简短收尾；主会话继续接收输入，W 独立运行。</td><td>同样保留 S / W 分工。</td><td>实际工作工具触发宿主 15 秒计时，释放群聊发言位置；原群 Session 继续。不是 Worker Prompt，也不强停。<a href="https://github.com/Fei2411/DS-Bot/blob/4a7b55069ad300eae8be42a74f31bc170b40ead7/ds-bot/src/host/groups.js#L288-L375">宿主计时</a></td></tr>
+        <tr><th scope="row">边做边回报</th><td>W 可直接发公开消息或 report(continue)；不必等工作完成或 S 改写。</td><td>report 合并进展、等待、结果，并保存待回传意图。</td><td>执行中可转发进展；短间隔内容合并，最终结果由派活成员接话。<a href="https://github.com/Fei2411/DS-Bot/blob/4a7b55069ad300eae8be42a74f31bc170b40ead7/ds-bot/src/host/groups.js#L854-L899">进展转发</a></td></tr>
+        <tr><th scope="row">等待和完成</th><td>严格等待与完成条件只属于显式 Work；普通聊天只有消息事实。</td><td>普通协调也自动结案；后台 Work 显式提交结果。</td><td>私聊 work 等下游返回，在轮次收尾时回上游；不能当作代码交付验收。<a href="https://github.com/Fei2411/DS-Bot/blob/4a7b55069ad300eae8be42a74f31bc170b40ead7/ds-bot/src/host/turns.js#L608-L622">等待与回传</a></td></tr>
+        <tr><th scope="row">认识整理</th><td>解除认识更新对直接回复、等待与完成的阻塞。</td><td>沿用该判断；这是两版共同的减法。</td><td>已核对的群聊与派活主路径无 Team Cross 式尾部认识 JSON 门槛。</td></tr>
+        <tr><th scope="row">可靠收发</th><td>保留跨 Core、准确来源、去重、Outbox；批量输入还须保住个人记忆归属。</td><td>保留现有底座，继续围绕 Job 路由普通答复。</td><td>同机宿主 inbox + 持久 work，不能直接替代跨 Core 送达。<a href="https://github.com/Fei2411/DS-Bot/blob/4a7b55069ad300eae8be42a74f31bc170b40ead7/ds-bot/src/host/handoffs.js#L93-L127">work 持久关系</a></td></tr>
+        <tr><th scope="row">落地代价</th><td>最终结构更小，但需调整一轮多来源、普通回复路由和待答视图。</td><td>保留普通 Job，局部收窄工具协议的迁移较小。</td><td>借鉴消息与执行模式；不照搬派活树、上游消息限制和宿主调度。</td></tr>
+        <tr><th scope="row">本次排除</th><td>侧边问答、独立观察流水线、递归派活树和超时自动搬迁。</td><td>其实施步骤作为历史建议，不在这次留档中执行。</td><td>/side 是额外能力；用户已明确本轮不跟进。<a href="https://github.com/Fei2411/DS-Bot/blob/4a7b55069ad300eae8be42a74f31bc170b40ead7/docs/plans/2026-10-21-btw.md">侧边会话设计</a></td></tr>
+      </tbody>
+    </table>
+    <div class="rd-clarify"><strong>真正的取舍：</strong>普通补问不再提供逐问题的条件验收、待办闭环和自动结案。如果仍要求这些保证，就仍需要任务关系。当前一轮只绑定一个来源，新增 steer 之前必须核对多条消息的作者、回传对象与个人记忆权限。完整设计、代码入口和待验收清单见随附设计文档。</div>
+  </section>
+
+  <section class="rd-section" id="rd-mechanism">
+    <h2>统一消息入口：空闲时开始，运行时追加</h2>
+    <div class="rd-flow-row">
+      <div class="rd-flow-label">当前 S 空闲</div>
+      <div class="rd-flow-step">收集尚未投递的新消息<small>保留作者、原文、来源与顺序</small></div><span class="rd-arrow">→</span>
+      <div class="rd-flow-step">turn/start<small>一批输入开始一轮</small></div><span class="rd-arrow">→</span>
+      <div class="rd-flow-step">在同一 S 理解并回复<small>不为每条消息建立任务</small></div>
+    </div>
+    <div class="rd-flow-row">
+      <div class="rd-flow-label">当前 S 正在运行</div>
+      <div class="rd-flow-step">把新增消息合成下一批<small>不把独立问题语义合并或丢弃</small></div><span class="rd-arrow">→</span>
+      <div class="rd-flow-step">turn/steer<small>绑定真实的当前 turn ID</small></div><span class="rd-arrow">→</span>
+      <div class="rd-flow-step">原生会话接收补充输入<small>何时消费由原生执行流程决定</small></div>
+    </div>
+    <div class="rd-responsibility">
+      <div><h3>模型 / Prompt</h3><p>理解新消息、按来源回复、保留尚未完成的要求。需要时补问；长工作才派 W。</p></div>
+      <div><h3>Core / 原生事件</h3><p>保存原文、去重、确定性路由和投递。普通消息不维护条件、依赖满足与自动结案。</p></div>
+      <div><h3>能力边界</h3><p>可追加输入不等于立即回答。工具、审批、压缩和切段可能延迟处理；原生未接收的输入留在可靠收件箱。</p></div>
+    </div>
+    <div class="rd-footnote text-small">Claude Channels 的官方行为是忙时排队、下一轮一起处理。这里借鉴其消息流模式；Codex 采用自己的 start / steer 协议，并不使用 Claude 的通知协议。</div>
+  </section>
+
+  <section class="rd-section" id="rd-schedule">
+    <div class="rd-heading"><h2>连续提问：看 S 与 W 同时在做什么</h2><span class="text-small text-muted">示意先后顺序，不表示耗时或响应承诺</span></div>
+    <div class="viz-controls" aria-label="选择协作场景">
+      <button class="btn" type="button" data-scene="work" aria-pressed="true">连续消息注入 S</button>
+      <button class="btn" type="button" data-scene="ask" aria-pressed="false">普通补问就是聊天</button>
+      <button class="btn" type="button" data-scene="busy" aria-pressed="false">输入已接收，尚未处理</button>
+    </div>
+    <div class="rd-time-head"><span>同一段协作</span><span>① 接收</span><span>② 开始处理</span><span>③ 新输入</span><span>④ 中间结果</span><span>⑤ 继续</span><span>⑥ 收尾</span></div>
+    <div id="rd-lanes" class="rd-lanes" aria-live="polite"></div>
+    <div class="rd-scene-note" id="rd-scene-note" aria-live="polite"></div>
+    <div class="rd-queue">
+      <div><h3>一条有序输入流</h3><p>新问题、普通答复、需要模型判断的结果都按到达顺序投递。取消按业务类型轮换的额外调度队列。</p></div>
+      <div><h3>只保留必要归属</h3><p>每条输入保留作者、消息 ID 和回复来源；明确属于 W 的答复路由到 W，普通消息进入当前 S。</p></div>
+      <div><h3>合批控制体积</h3><p>不逐条开启完整 turn，不等消息“都到齐”才投递。长正文留来源入口，原文保留；自身已发布消息的回声去重。</p></div>
+    </div>
+    <div class="rd-footnote text-small">注入的是与该分身有关的新信息，不复制全部空间历史或 W 工具日志。原生明确拒绝过期 turn 时重新定位；发送结果未知时先核对，不盲目重发。取消仍走明确控制入口。</div>
+  </section>
+
+  <section class="rd-section" id="rd-context">
+    <div class="rd-heading"><h2>Session 内容条带：只装本轮需要的上下文</h2><span class="text-small text-muted">条块表示内容类别，不表示 token 占比</span></div>
+    <div class="rd-legend text-small"><span><i class="rd-swatch rd-role"></i>稳定规则</span><span><i class="rd-swatch rd-fact"></i>相关事实</span><span><i class="rd-swatch rd-input"></i>新输入</span><span><i class="rd-swatch rd-history"></i>原生历史</span></div>
+    <article class="rd-session">
+      <div class="rd-session-head"><h3>S · 当前主会话</h3><span>首次需要行动的输入到来时创建；换话题、连续提问、普通补问都复用当前 S。</span></div>
+      <div class="rd-context-band">
+        <div class="rd-segment rd-role"><strong>角色与工具</strong><span>短答 / 补问 / 派活规则<br>稳定工具说明</span><small>原生配置 + 固定角色提示</small></div>
+        <div class="rd-segment rd-fact"><strong>必要的持久事实</strong><span>有效记忆、任务索引<br>换段时的交接摘要</span><small>从 F1 选取相关内容</small></div>
+        <div class="rd-segment rd-input"><strong>持续追加的输入</strong><span>每条消息的作者与 ID<br>原问题、补充或新答复</span><small>F1 / F2 增量，经 start / steer</small></div>
+        <div class="rd-segment rd-fact"><strong>准确来源入口</strong><span>原讨论与材料引用<br>相关 Work / 问题 ID</span><small>F1 / F5，正文按需读取</small></div>
+        <div class="rd-segment rd-history"><strong>本会话历史</strong><span>先前问答与工具结果<br>原生压缩后的历史</span><small>F3，不复制 W 全部日志</small></div>
+      </div>
+      <div class="rd-session-tail">输出：直接答复、公开补问、start(W)。仅在需要综合判断时处理 W 的结果；每条进展不必回 S 改写。</div>
+    </article>
+    <article class="rd-session">
+      <div class="rd-session-head"><h3>W · 后台工作会话</h3><span>先保存 Job，轮到执行时创建 W；等待后在同一 W 接续，S 换段不影响它。</span></div>
+      <div class="rd-context-band">
+        <div class="rd-segment rd-role"><strong>工作角色与工具</strong><span>执行、提问、报告规则<br>继承原生能力与配置</span><small>稳定规则，不注入全部动态</small></div>
+        <div class="rd-segment rd-fact"><strong>本项工作的目标</strong><span>用户原话、约束<br>已有完成条件、当前版本</span><small>F1 · 当前 Job 的事实</small></div>
+        <div class="rd-segment rd-fact"><strong>相关材料与文件</strong><span>讨论摘录、代码入口<br>证据与已有交付物</span><small>F4 / F5，按需工具读取</small></div>
+        <div class="rd-segment rd-input"><strong>本次接续增量</strong><span>新答复、明确补充<br>检查点与下一步</span><small>F1 / F2 · 精确关联本工作</small></div>
+        <div class="rd-segment rd-history"><strong>自己的执行历史</strong><span>调查、修改、测试<br>本 W 的工具调用与返回</span><small>F3 · 不污染 S 的完整历史</small></div>
+      </div>
+      <div class="rd-session-tail">输出：普通工具行动、公开消息、report(continue / wait / complete / fail)。只有明确 Work 管理等待与完成；普通聊天不带业务等待参数。</div>
+    </article>
+    <article class="rd-session rd-small-session">
+      <div class="rd-session-head"><h3>S2 · S 的下一段</h3><span>只有现有换段机制决定 switch 时新建；compact 仍用原 S。</span></div>
+      <div class="rd-context-band"><div class="rd-segment rd-role"><strong>同一角色 / 配置</strong></div><div class="rd-segment rd-fact"><strong>交接笔记 + 当前有效事实</strong></div><div class="rd-segment rd-input"><strong>未投递原消息 / 回复来源</strong></div><div class="rd-segment rd-history"><strong>从此段开始积累历史</strong></div></div>
+      <div class="rd-session-tail">主会话待答回到当前 S2；后台工作答复仍回原 W。P0 是外部已有个人会话，发生委托时才绑定回传，不自动导入其历史。</div>
+    </article>
+    <div class="rd-heading rd-maintenance-heading"><h3>维护会话沿用现有机制</h3><span class="text-small text-muted">本次不扩展；不处于每条消息的必经路径</span></div>
+    <div class="rd-maintenance-row"><div>CM · 预算条件触发</div><div class="rd-mini rd-role">维护规则</div><div class="rd-mini rd-fact">用量 / 当前段事实</div><div class="rd-mini rd-input">近期上下文摘要</div><div class="rd-mini rd-history">compact / switch 建议</div></div>
+    <div class="rd-maintenance-row"><div>M · 空闲增量触发</div><div class="rd-mini rd-role">记忆候选规则</div><div class="rd-mini rd-fact">已有记忆 / 水位</div><div class="rd-mini rd-input">本批新增消息</div><div class="rd-mini rd-history">候选记忆供确认</div></div>
+
+    <div class="rd-heading rd-storage-heading"><h3>持久文件与模型上下文分别承担什么</h3><span class="text-small text-muted">沿用现有存储，避免再建一套任务文件格式</span></div>
+    <table class="table rd-storage"><thead><tr><th>位置</th><th>持久保存</th><th>进入 Session 的方式</th></tr></thead><tbody>
+      <tr><td>F1 · <code>shadows/&lt;id&gt;/shadow.json</code></td><td>消息、当前 S、Job、问题、动作、结果、Outbox、原生运行锚点</td><td>相关摘要 / 增量；详情按需读取</td></tr>
+      <tr><td>F2 · <code>shadow-activity/&lt;key&gt;/attention.json</code></td><td>来源事件、分身消费水位、未处理输入与派生摘要</td><td>确定性路由；普通关注不例行创建观察 Session</td></tr>
+      <tr><td>F3 · 原生会话存储 + <code>history/&lt;threadId&gt;.jsonl</code> 副本</td><td>各自的原生历史、工具过程、恢复与检索依据</td><td>原生 resume / compact；历史副本不替代原生存储</td></tr>
+      <tr><td>F4 · 分身配置的工作目录</td><td>真实代码、文档、测试输出、交付文件</td><td>原生工具按需读写</td></tr>
+      <tr><td>F5 · 空间存储 / 发起 Core</td><td>原讨论与材料、准确委托关系、回传路线及回执</td><td>按准确来源读取 / 回传；不猜最近个人会话</td></tr>
+    </tbody></table>
+    <div class="rd-footnote text-small">路径以 Core DataDir 为根；F3 的 history 位于对应分身目录。原生历史也落盘，“文件”和“Session”并非互斥分类。稳定角色和工具说明放前缀，动态事实走后续输入。</div>
+  </section>
+
+  <section class="rd-section" id="rd-tools">
+    <h2>模型只表达业务意图，Core 补齐运行关系</h2>
+    <div class="rd-tool-routes">
+      <div><h3>直接答复</h3><p>主聊天直接回答；讨论使用现有回复工具。</p><code>reply_to_annotation(text)</code><div class="text-small text-muted">不创建后台 W；不调用 shadow_task。</div></div>
+      <div><h3>普通补问</h3><p>发出一条普通问题；对方答复作为新消息回来。</p><code>reply_to_annotation(text)</code><div class="text-small text-muted">不加 awaitReply，不创建 coordination Job，不走结案协议。</div></div>
+      <div><h3>真正的后台工作</h3><p>主会话派活；W 在需要时报告。</p><code>shadow_task(start / report)</code><div class="text-small text-muted">日常主路径两种操作；管理操作仍按需保留。</div></div>
+    </div>
+    <table class="table rd-tool-table"><thead><tr><th>操作</th><th>模型主要提供</th><th>Core 负责</th></tr></thead><tbody>
+      <tr><td><code>start</code></td><td>工作要求、标题；必要时列明完成条件</td><td>绑定原请求与回传路线，保存 Job，调度 W；立即返回派发回执</td></tr>
+      <tr><td><code>report: continue</code></td><td>已确认的进展 / 可公开的阶段答案；可选检查点</td><td>持久化进展与待发送正文，送回绑定来源；W 可继续工具调用</td></tr>
+      <tr><td><code>report: wait</code></td><td>缺少什么、已登记的等待对象、收到后的下一步</td><td>保存等待关系；原生轮次结束后释放工作槽，真实答复到达后接续</td></tr>
+      <tr><td><code>report: complete / fail</code></td><td>结果与依据；已有完成条件的核对</td><td>核对归属 / 版本 / 阻塞依赖，同次保存业务结果与 Outbox</td></tr>
+      <tr><td><code>status / update / cancel / resume</code></td><td>仅在查看、改目标、取消、恢复时调用</td><td>沿用单套任务记录；版本和真实执行状态由宿主核对</td></tr>
+    </tbody></table>
+    <div class="rd-footnote text-small">W 内 task ID 与版本从当前 Run 绑定，模型不搬运 baseVersion / baseRevision。按操作收窄参数；不再要求 understand、replan、contextReviews 或直接回复后的 Observation JSON。</div>
+    <div class="rd-clarify"><strong>本次真正删除的复杂度：</strong>普通问答没有任务完成状态，只保留已发送、收到新回复等消息事实；理解、追问和继续回答交给模型。严格的等待对象、业务完成判断只属于显式 Work。不是把这些规则藏进另一套“轻量任务”。</div>
+  </section>
+
+  <section class="rd-section" id="rd-finish">
+    <h2>一次报告，保存后按原路线送达</h2>
+    <div class="rd-finish-path">
+      <div class="rd-flow-step">W 调用 report<small>正文、结果与依据</small></div><span class="rd-arrow">→</span>
+      <div class="rd-flow-step">Core 核对并落盘<small>任务事实 + 固定结果 / 进展 + Outbox</small></div><span class="rd-arrow">→</span>
+      <div class="rd-flow-step">发送到绑定来源<small>主聊天 / 原讨论 / 原委托路线</small></div>
+    </div>
+    <div class="rd-example"><span>可以先出现</span><strong>“已确认超时可能重复写入，正在验证幂等键方案。”</strong><span class="rd-example-state">工作：继续执行</span></div>
+    <div class="rd-example"><span>之后再出现</span><strong>“兼容性修改与测试已完成，结果和依据如下……”</strong><span class="rd-example-state">工作：完成；送达另计</span></div>
+    <div class="rd-responsibility">
+      <div><h3>业务事实</h3><p>完成后不因网络送达失败而退回未完成。原生 final 只代表回合结束，不代替业务完成提交。</p></div>
+      <div><h3>发送事实</h3><p>阶段回报可直接送达；需要综合决策才叫 S。公开工具已经发过的正文按回执关联，避免再发一份。</p></div>
+      <div><h3>摘要整理</h3><p>异步更新相关认识，不挡回复、等待或完成；失败只留下待整理记录。</p></div>
+    </div>
+    <div class="rd-footnote text-small">“直接”表示无需再跑 S 模型改写。跨 Core 仍按原 Outbox 送达；个人发起会话仍经既有 MCP / Hook 通道，不新增自动启动接收模型的机制。发送结果未知先核对，不盲目重发。</div>
+  </section>
+
+  <section class="rd-section" id="rd-scope">
+    <h2>本次推进边界</h2>
+    <div class="rd-scope-grid">
+      <div><h3>保留底座</h3><ul><li>当前 S、独立 W、现有换段与记忆维护</li><li>一套 Job / 问题 / 动作记录</li><li>准确来源、版本校验、去重与 Outbox</li><li>原生权限、审批与明确取消 / 恢复</li><li>本人接回具体问题的处理归属</li></ul></div>
+      <div><h3>本次做减法</h3><ul><li>移除认识更新对回复 / 完成的硬阻塞</li><li>普通补问不创建业务等待任务</li><li>日常后台工作围绕 start / report</li><li>统一消息流；空闲 start、运行中 steer</li><li>普通关注只收件，按需 / 按备注处理</li></ul></div>
+      <div><h3>本次不跟进</h3><ul><li>侧边问答 / side / btw</li><li>普通关注的独立观察流水线</li><li>多级派活树与自动递归委派</li><li>复杂 watch 目标和多认识联动</li><li>15 秒强停、自动搬迁在途原生回合</li></ul></div>
+    </div>
+    <div class="rd-heading rd-accept-heading"><h3>推进顺序与验收重点</h3><span class="text-small text-muted">以下为待执行验证，不代表已经通过</span></div>
+    <ol class="rd-steps"><li><strong>先验证输入：</strong>同一 S 运行中接受多条新增消息；保留每条作者与准确回复目标，不把一轮结束当成每条问题均已答复。</li><li><strong>再退出普通任务化：</strong>普通回复 / 补问直接走消息，移除条件、等待与结案前置；真实来源路由继续有效。</li><li><strong>收敛 Work：</strong>start / report、阶段回报直达；完成独立于送达与摘要整理。</li><li><strong>验证边界：</strong>连续输入、审批等待、turn 切换竞争、重启与回执丢失下不串作者、不丢消息、不重复执行。</li></ol>
+  </section>
+
+  <footer class="rd-footer text-small">
+    <div>新增依据：Claude Channels 消息投递语义、Codex App Server start / steer 协议（2026-10-28 核对）；Team Cross 当前 shadow 尚未接入 steer。</div>
+    <div class="rd-source-links"><a href="https://code.claude.com/docs/en/channels-reference#notification-format">Claude Channels 官方投递语义</a><a href="https://learn.chatgpt.com/docs/app-server#steer-an-active-turn">Codex App Server 官方接口</a></div>
+    <div class="rd-source-links"><a href="https://github.com/Fei2411/DS-Bot/blob/4a7b55069ad300eae8be42a74f31bc170b40ead7/ds-bot/src/host/groups.js#L288-L375">DS-Bot 宿主计时与让出</a><a href="https://github.com/Fei2411/DS-Bot/blob/4a7b55069ad300eae8be42a74f31bc170b40ead7/ds-bot/src/host/groups.js#L854-L899">执行中发布进展</a><a href="https://github.com/Fei2411/DS-Bot/blob/4a7b55069ad300eae8be42a74f31bc170b40ead7/docs/plans/2026-10-16-bot-handoffs.md#L51-L89">未读合并与派活关系</a></div>
+    <div>本页取代上一版 awaitReply 与普通 coordination 建议。新消息注入、普通聊天去任务化、统一 report 等均待实施；本轮未改产品代码，未运行真实模型验证。设计文档、可编辑源文件与旧方案基线保存在同一目录。</div>
+  </footer>
+</main>
+
+<style>
+#shadow-runtime-design { width:1240px; margin:32px auto 56px; color:var(--foreground); --font-size-base:16px; }
+#shadow-runtime-design h1,#shadow-runtime-design h2,#shadow-runtime-design h3,#shadow-runtime-design strong { font-weight:500; }
+#shadow-runtime-design h1 { margin:12px 0; }
+#shadow-runtime-design h2,#shadow-runtime-design h3 { margin:0; }
+#shadow-runtime-design p { margin:10px 0; }
+#shadow-runtime-design .rd-nav { display:flex; gap:30px; padding:16px 0 24px; border-bottom:1px solid var(--border); }
+#shadow-runtime-design .rd-compare-flow { display:grid; grid-template-columns:200px 225px 24px 310px 24px 1fr; gap:16px; align-items:center; margin-top:24px; }
+#shadow-runtime-design .rd-compare-flow > div { padding:14px 0; }
+#shadow-runtime-design .rd-compare-flow small { display:block; margin-top:8px; color:var(--muted-foreground); }
+#shadow-runtime-design .rd-comparison { margin-top:24px; table-layout:fixed; }
+#shadow-runtime-design .rd-comparison th:first-child { width:150px; }
+#shadow-runtime-design .rd-section { margin-top:36px; scroll-margin-top:24px; }
+#shadow-runtime-design .rd-heading { display:flex; align-items:baseline; justify-content:space-between; gap:20px; margin-bottom:20px; }
+#shadow-runtime-design .rd-flow-row { display:grid; grid-template-columns:220px 280px 34px 280px 34px 1fr; gap:10px; align-items:center; margin-top:18px; }
+#shadow-runtime-design .rd-flow-label { font-weight:500; }
+#shadow-runtime-design .rd-flow-step { background:var(--muted); padding:16px; }
+#shadow-runtime-design .rd-flow-step small { display:block; color:var(--muted-foreground); margin-top:6px; }
+#shadow-runtime-design .rd-arrow { text-align:center; color:var(--muted-foreground); }
+#shadow-runtime-design .rd-responsibility,#shadow-runtime-design .rd-queue,#shadow-runtime-design .rd-tool-routes,#shadow-runtime-design .rd-scope-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:28px; margin-top:22px; }
+#shadow-runtime-design .rd-responsibility p,#shadow-runtime-design .rd-queue p { color:var(--muted-foreground); }
+#shadow-runtime-design .rd-time-head { display:grid; grid-template-columns:160px repeat(6,1fr); gap:8px; margin-top:22px; padding-bottom:12px; border-bottom:1px solid var(--border); color:var(--muted-foreground); }
+#shadow-runtime-design .rd-lane { display:grid; grid-template-columns:160px repeat(6,1fr); gap:8px; align-items:stretch; padding:12px 0; border-bottom:1px solid var(--border); }
+#shadow-runtime-design .rd-lane-label { padding:14px 0; font-weight:500; }
+#shadow-runtime-design .rd-cell { padding:14px 10px; min-height:78px; background:var(--muted); }
+#shadow-runtime-design .rd-cell small { display:block; color:var(--muted-foreground); margin-top:7px; }
+#shadow-runtime-design .rd-cell-main { background:color-mix(in srgb,var(--viz-series-1) 13%,var(--background)); }
+#shadow-runtime-design .rd-cell-work { background:color-mix(in srgb,var(--viz-series-2) 13%,var(--background)); }
+#shadow-runtime-design .rd-cell-send { background:color-mix(in srgb,var(--viz-series-3) 13%,var(--background)); }
+#shadow-runtime-design .rd-cell-idle { background:transparent; color:var(--muted-foreground); }
+#shadow-runtime-design .rd-cell-wide { grid-column:2 / 8; min-height:52px; }
+#shadow-runtime-design .rd-scene-note { margin-top:16px; font-weight:500; }
+#shadow-runtime-design .rd-footnote { margin-top:16px; color:var(--muted-foreground); }
+#shadow-runtime-design .rd-legend { display:flex; gap:30px; margin-bottom:20px; }
+#shadow-runtime-design .rd-legend span { display:inline-flex; align-items:center; gap:8px; }
+#shadow-runtime-design .rd-swatch { display:inline-block; width:13px; height:13px; }
+#shadow-runtime-design .rd-role { background:var(--muted); }
+#shadow-runtime-design .rd-fact { background:color-mix(in srgb,var(--viz-series-1) 13%,var(--background)); }
+#shadow-runtime-design .rd-input { background:color-mix(in srgb,var(--viz-series-2) 15%,var(--background)); }
+#shadow-runtime-design .rd-history { background:color-mix(in srgb,var(--viz-series-3) 14%,var(--background)); }
+#shadow-runtime-design .rd-session { margin-top:22px; padding-bottom:22px; border-bottom:1px solid var(--border); }
+#shadow-runtime-design .rd-session-head { display:grid; grid-template-columns:220px 1fr; gap:20px; align-items:baseline; margin-bottom:14px; }
+#shadow-runtime-design .rd-session-head span { color:var(--muted-foreground); }
+#shadow-runtime-design .rd-context-band { display:flex; gap:4px; }
+#shadow-runtime-design .rd-segment { flex:1; min-width:0; padding:16px; }
+#shadow-runtime-design .rd-segment span { display:block; margin:10px 0; }
+#shadow-runtime-design .rd-segment small { display:block; color:var(--muted-foreground); }
+#shadow-runtime-design .rd-session-tail { margin-top:12px; color:var(--muted-foreground); }
+#shadow-runtime-design .rd-maintenance-heading,#shadow-runtime-design .rd-storage-heading,#shadow-runtime-design .rd-accept-heading { margin-top:28px; }
+#shadow-runtime-design .rd-maintenance-row { display:grid; grid-template-columns:220px repeat(4,1fr); gap:4px; align-items:stretch; margin-top:8px; }
+#shadow-runtime-design .rd-maintenance-row > div { padding:12px; }
+#shadow-runtime-design .rd-maintenance-row > div:first-child { padding-left:0; }
+#shadow-runtime-design .rd-storage th:first-child { width:390px; }
+#shadow-runtime-design .rd-storage th:nth-child(2) { width:440px; }
+#shadow-runtime-design .rd-storage code { overflow-wrap:anywhere; }
+#shadow-runtime-design .rd-tool-routes { padding:0 0 24px; border-bottom:1px solid var(--border); }
+#shadow-runtime-design .rd-tool-routes .text-small { margin-top:10px; }
+#shadow-runtime-design .rd-tool-table { margin-top:20px; }
+#shadow-runtime-design .rd-tool-table th:first-child { width:245px; }
+#shadow-runtime-design .rd-tool-table th:nth-child(2) { width:395px; }
+#shadow-runtime-design .rd-clarify { margin-top:20px; padding:16px 0; border-top:1px solid var(--border); }
+#shadow-runtime-design .rd-finish-path { display:grid; grid-template-columns:300px 40px 410px 40px 1fr; gap:14px; align-items:center; margin-top:20px; }
+#shadow-runtime-design .rd-example { display:grid; grid-template-columns:150px 1fr 240px; gap:20px; padding:18px 0; border-bottom:1px solid var(--border); }
+#shadow-runtime-design .rd-example-state { color:var(--muted-foreground); }
+#shadow-runtime-design .rd-scope-grid ul { margin:12px 0 0; padding-left:22px; }
+#shadow-runtime-design .rd-scope-grid li,#shadow-runtime-design .rd-steps li { margin-bottom:10px; }
+#shadow-runtime-design .rd-steps { padding-left:24px; }
+#shadow-runtime-design .rd-footer { margin-top:36px; padding-top:22px; border-top:1px solid var(--border); color:var(--muted-foreground); }
+#shadow-runtime-design .rd-source-links { display:flex; gap:24px; margin:12px 0; }
+</style>
+
+<script>
+(() => {
+  const root = document.getElementById('shadow-runtime-design');
+  const lanes = root.querySelector('#rd-lanes');
+  const note = root.querySelector('#rd-scene-note');
+  const scenes = {
+    work: {
+      note: '同一个 S 持续接收新消息：空闲时 start，运行时 steer。W 的阶段回报仍可独立送达。',
+      rows: [
+        {name:'用户 / 成员',type:'idle',cells:[['查接口迁移风险','长工作请求'],['已收到派发说明','不是完成结果'],['重试为何会重复？','独立的短问题'],['看到阶段发现','任务仍在进行'],['继续提问 / 补充','每条原文保留'],['收到最终结果','带依据与交付物']]},
+        {name:'S · 当前主会话',type:'main',cells:[['理解并派发 W','后台任务 start'],['简短说明后结束','保留同一个 S'],['本批新消息进入 S','原生 turn/start'],['处理中收到新补充','原生 turn/steer'],['按来源继续回复','不逐条新建业务任务'],['必要时综合结果','简单结果不再改写']]},
+        {name:'W · 后台工作',type:'work',cells:[['等待调度','Job 已保存'],['创建 W 并调查','独立工具循环'],['继续调查','与 S 的轮次分开'],['report(continue)','已核实的阶段发现'],['继续修改 / 验证','进展报告不结束 W'],['report(complete)','明确完成并提交依据']]},
+        {name:'Core · 接收与送达',type:'send',cells:[['保存作者与原消息','返回接收回执'],['绑定 Job / W / 来源','派发不等工作结果'],['空闲：批量 start','不逐条开启完整轮次'],['在跑：新增输入 steer','同时直接发送 W 进展'],['保留每条回复关联','接受不等于回答完毕'],['保存结果 + Outbox','送达独立推进']]}
+      ]
+    },
+    ask: {
+      note: '普通补问就是一条消息；收到答复继续聊天。Core 不判断答案充分性，也不为这段聊天创建和完成任务。',
+      rows: [
+        {name:'用户 / 同事',type:'idle',cells:[['问迁移是否安全','需要一个外部事实'],['看到向同事的补问','普通公开问题'],['顺便问另一个问题','继续正常对话'],['同事在原问题下答复','准确来源可关联'],['看到基于答案的判断','可能追问，也可能答复'],['收到明确回复','只有消息，没有结案动作']]},
+        {name:'S · 当前主会话',type:'main',cells:[['判断缺少的事实','不凭空猜答案'],['调用普通回复工具','直接向同事提问'],['继续处理其他消息','不登记业务等待状态'],['收到新的答复输入','附原问题与回复关系'],['结合上下文理解','有缺口就继续问'],['回复原提问者','不调用完成工具']]},
+        {name:'W · 后台工作',type:'idle',wide:['本场景不创建 W，也不创建 coordination Job','沿用消息 / 动作记录保存来源和回执，不再另造轻量任务。']},
+        {name:'Core · 接收与送达',type:'send',cells:[['保存准确触发来源','定位当前 S'],['保存发送动作与回执','记住该消息由谁发出'],['正常收发其他消息','不运行待答模型轮询'],['按回复关系定位当前 S','原生 start 或 steer'],['保存新增消息原文','不做语义充分性验收'],['记录已实际发送','不标记业务任务完成']]}
+      ]
+    },
+    busy: {
+      note: '输入可以先被原生会话接收，实际读取和回答仍受工具 / 审批影响。图中示例不代表已验证的延迟保证。',
+      rows: [
+        {name:'用户 / 成员',type:'idle',cells:[['提出一个短问题','预计可直接处理'],['等待当前回答','S 的工具尚未返回'],['又发两条问题','Core 先确认收到'],['看到输入已投递','不冒充已经回答'],['工具 / 审批结束','原生继续消费输入'],['收到后续回答','按原问题关联']]},
+        {name:'S · 当前主会话',type:'main',cells:[['开始本轮','一次原生执行流程'],['等待工具 / 审批','真实忙碌状态'],['原生接收 steer','具体受理受当前状态约束'],['新增输入等待消费','不并行启动第二轮'],['原生继续处理输入','无需独立分类会话'],['分别处理问题','长工作再派 W']]},
+        {name:'W · 后台工作',type:'idle',wide:['是否存在 W，不改变 S 的单轮约束','其他 W 可以继续执行或报告；这不会把当前 S 的在途工具自动搬到 W。']},
+        {name:'Core · 接收与送达',type:'send',cells:[['持久保存输入','保留准确作者'],['显示真实等待原因','审批仍遵循原生规则'],['对当前 turn 追加输入','若未受理则保留待投递'],['依据真实回执更新','不把接收当成已处理'],['继续投递剩余增量','不无限重塞全部历史'],['按各自来源送达','不宣称零延迟']]}
+      ]
+    }
+  };
+  function render(key) {
+    const scene = scenes[key];
+    if (!scene) return;
+    lanes.replaceChildren();
+    scene.rows.forEach(row => {
+      const lane = document.createElement('div'); lane.className = 'rd-lane';
+      const label = document.createElement('div'); label.className = 'rd-lane-label'; label.textContent = row.name; lane.append(label);
+      (row.wide ? [row.wide] : row.cells).forEach(cell => {
+        const el = document.createElement('div'); el.className = 'rd-cell rd-cell-' + row.type + (row.wide ? ' rd-cell-wide' : '');
+        const title = document.createElement('div'); title.textContent = cell[0];
+        const detail = document.createElement('small'); detail.textContent = cell[1]; el.append(title,detail); lane.append(el);
+      });
+      lanes.append(lane);
+    });
+    note.textContent = scene.note;
+    root.querySelectorAll('[data-scene]').forEach(button => button.setAttribute('aria-pressed',String(button.dataset.scene === key)));
+  }
+  root.querySelectorAll('[data-scene]').forEach(button => button.addEventListener('click',() => render(button.dataset.scene)));
+  render('work');
+})();
+</script>

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - Meta
   pull_request:
     branches:
       - main
@@ -74,6 +75,7 @@ jobs:
       - name: Run concurrency regressions
         run: >-
           go test -race
+          ./internal/shadow
           ./internal/collab
           ./internal/mcp
           ./internal/mcpevents

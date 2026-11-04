@@ -1,0 +1,101 @@
+{
+  "assistant": {
+    "epoch": 0,
+    "revision": 0,
+    "state": "disabled"
+  },
+  "brief": {
+    "decisions": [
+      {
+        "itemId": "publication",
+        "sources": [
+          {
+            "materialId": "bb1d8497-68bd-447a-8f15-9b65b87a4038",
+            "spaceId": "29cb8e1b-9446-4017-b667-c05f2a961fb8",
+            "version": 1
+          }
+        ],
+        "status": "confirmed",
+        "text": "当前范围已增加并发验证；继续引用原固定材料版本。",
+        "updatedAt": "2026-10-24T11:10:42.029036+08:00",
+        "updatedBy": {
+          "kind": "human",
+          "memberId": "owner",
+          "name": "发起者"
+        }
+      },
+      {
+        "itemId": "retry-proposal",
+        "sources": [
+          {
+            "annotationId": "7b23c24a-494e-4c8f-a4d2-3a0c003e6f80",
+            "spaceId": "29cb8e1b-9446-4017-b667-c05f2a961fb8"
+          }
+        ],
+        "status": "proposed",
+        "text": "建议先核对原请求状态，再决定是否重试；还需补充分支验证。",
+        "updatedAt": "2026-10-24T11:10:42.001514+08:00",
+        "updatedBy": {
+          "kind": "shadow",
+          "memberId": "8ba49d1f-3033-49e0-8b6a-907a11648d3b",
+          "name": "活动分身",
+          "shadowId": "51861182-1ec7-4bdd-a433-5413bf33fb59"
+        }
+      }
+    ],
+    "progress": [
+      {
+        "itemId": "review-progress",
+        "sources": [
+          {
+            "briefItemId": "publication",
+            "briefRevision": 1,
+            "spaceId": "29cb8e1b-9446-4017-b667-c05f2a961fb8"
+          }
+        ],
+        "status": "in_progress",
+        "text": "已核对原简报的固定材料范围，继续整理并发和断线验证。",
+        "updatedAt": "2026-10-24T11:10:42.001514+08:00",
+        "updatedBy": {
+          "kind": "shadow",
+          "memberId": "8ba49d1f-3033-49e0-8b6a-907a11648d3b",
+          "name": "活动分身",
+          "shadowId": "51861182-1ec7-4bdd-a433-5413bf33fb59"
+        }
+      }
+    ],
+    "questions": [
+      {
+        "itemId": "7b1a600f-ccbe-4c2f-a086-dc19c769f977",
+        "sources": [
+          {
+            "annotationId": "7b23c24a-494e-4c8f-a4d2-3a0c003e6f80",
+            "spaceId": "29cb8e1b-9446-4017-b667-c05f2a961fb8"
+          }
+        ],
+        "status": "open",
+        "text": "投递结果不明时，怎样避免启动第二轮输入？",
+        "updatedAt": "2026-10-24T11:10:41.946797+08:00",
+        "updatedBy": {
+          "kind": "human",
+          "memberId": "owner",
+          "name": "发起者"
+        }
+      }
+    ],
+    "revision": 3,
+    "topic": "确认重试、断线与并发场景中的协作行为，再决定是否进入共同执行。",
+    "updatedAt": "2026-10-24T11:10:42.029036+08:00",
+    "updatedBy": {
+      "kind": "human",
+      "memberId": "owner",
+      "name": "发起者"
+    }
+  },
+  "revision": 3,
+  "source": {
+    "briefRevision": 3,
+    "spaceId": "29cb8e1b-9446-4017-b667-c05f2a961fb8"
+  },
+  "spaceId": "29cb8e1b-9446-4017-b667-c05f2a961fb8"
+}

@@ -18,6 +18,7 @@ import { Icon } from "./components/ui";
 import { LibraryProvider } from "./library";
 import { Library, SelectionTray } from "./components/Library";
 import { QuickLook } from "./components/QuickLook";
+import { MemberActivity, ActivityBadge } from "./components/MemberActivity";
 export default function App() {
   return (
     <LibraryProvider>
@@ -88,13 +89,13 @@ function AppShell() {
   }, [route]);
   const libraryRoute = route.split("?")[0];
   const quick = libraryRoute === "/library/quick";
-  const detailMatch = route.match(
+  const detailMatch = route.split("?")[0]!.match(
     /^\/collaborations\/([^/]+)(?:\/sessions\/([^/]+))?$/,
   );
   const detailId = detailMatch?.[1];
   const executionId = detailMatch?.[2];
   const page =
-    libraryRoute === "/library" ? (
+    route === "/activity" ? <MemberActivity /> : libraryRoute === "/library" ? (
       <Library
         initialKey={
           new URLSearchParams(route.split("?")[1]).get("item") || undefined
@@ -116,7 +117,7 @@ function AppShell() {
         onLanguageChange={adoptLanguage}
       />
     ) : detailId ? (
-      <Detail key={detailId} id={detailId} executionId={executionId} />
+      <Detail key={detailId} id={detailId} executionId={executionId} activitySource={new URLSearchParams(route.split("?")[1]).get("activity") || undefined} />
     ) : (
       <Home />
     );
@@ -150,7 +151,7 @@ function AppShell() {
         <nav aria-label={t("主导航")}>
           <a
             className={
-              route !== "/settings" && libraryRoute !== "/library"
+              route !== "/settings" && route !== "/activity" && libraryRoute !== "/library"
                 ? "active"
                 : ""
             }
@@ -161,6 +162,9 @@ function AppShell() {
           >
             <Icon name="grid" />
             <span>{t("协作空间")}</span>
+          </a>
+          <a className={route === "/activity" ? "active" : ""} href="#/activity" aria-current={route === "/activity" ? "page" : undefined}>
+            <Icon name="comment"/><span>{t("我的动态")}</span><ActivityBadge/>
           </a>
           <a
             className={libraryRoute === "/library" ? "active" : ""}

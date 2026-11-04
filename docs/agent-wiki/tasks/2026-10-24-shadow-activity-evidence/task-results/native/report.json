@@ -1,0 +1,350 @@
+{
+  "brief": {
+    "revision": 1,
+    "topic": "",
+    "decisions": [
+      {
+        "itemId": "historical-compatibility",
+        "text": "旧客户端仍需适配层。",
+        "status": "confirmed",
+        "sources": [
+          {
+            "spaceId": "e5853b91-4748-4c11-9925-55d1fa1222dd",
+            "shadowId": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319",
+            "shadowResultId": "result-compatibility-v1"
+          },
+          {
+            "spaceId": "e5853b91-4748-4c11-9925-55d1fa1222dd",
+            "shadowId": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319",
+            "shadowMessageId": "reply-historical"
+          }
+        ],
+        "updatedBy": {
+          "memberId": "6ea3f6eb-173a-45b1-b0c9-fd892c9256de",
+          "name": "活动分身",
+          "kind": "shadow",
+          "shadowId": "6e730694-59fe-449b-afde-2a9d7a652211"
+        },
+        "updatedAt": "2026-10-24T11:55:18.315562+08:00"
+      }
+    ],
+    "questions": [],
+    "progress": [],
+    "updatedBy": {
+      "memberId": "6ea3f6eb-173a-45b1-b0c9-fd892c9256de",
+      "name": "活动分身",
+      "kind": "shadow",
+      "shadowId": "6e730694-59fe-449b-afde-2a9d7a652211"
+    },
+    "updatedAt": "2026-10-24T11:55:18.315562+08:00"
+  },
+  "calls": [
+    {
+      "arguments": {
+        "resultId": "result-compatibility-v1",
+        "shadowId": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319"
+      },
+      "result": {
+        "result": {
+          "completionChecks": [
+            "OLD_CLIENT_CHECKED"
+          ],
+          "completionCriteria": [
+            "核对旧客户端"
+          ],
+          "createdAt": "2026-10-24T11:54:35.932683+08:00",
+          "id": "result-compatibility-v1",
+          "outcome": "completed",
+          "sourceId": "fixture-request",
+          "state": "completed",
+          "taskId": "compatibility-task",
+          "taskVersion": 1,
+          "text": "HISTORICAL_RESULT_V1：旧客户端必须保留适配层。",
+          "title": "旧版本兼容性"
+        },
+        "source": {
+          "shadowId": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319",
+          "shadowResultId": "result-compatibility-v1",
+          "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2"
+        }
+      },
+      "tool": "read_space_shadow"
+    },
+    {
+      "arguments": {
+        "messageId": "reply-historical",
+        "shadowId": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319"
+      },
+      "result": {
+        "message": {
+          "actor": {
+            "id": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319",
+            "name": "活动分身"
+          },
+          "createdAt": "2026-10-24T11:54:35.932684+08:00",
+          "id": "reply-historical",
+          "role": "assistant",
+          "state": "completed",
+          "text": "HISTORICAL_MESSAGE：这项原答复仅讨论旧客户端。"
+        },
+        "source": {
+          "shadowId": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319",
+          "shadowMessageId": "reply-historical",
+          "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2"
+        }
+      },
+      "tool": "read_space_shadow"
+    },
+    {
+      "arguments": {},
+      "result": {
+        "assistant": {
+          "epoch": 0,
+          "revision": 0,
+          "state": "disabled"
+        },
+        "brief": {
+          "decisions": [],
+          "progress": [],
+          "questions": [],
+          "revision": 0,
+          "topic": "",
+          "updatedAt": "0001-01-01T00:00:00Z",
+          "updatedBy": {
+            "kind": "",
+            "memberId": "",
+            "name": ""
+          }
+        },
+        "revision": 0,
+        "source": {
+          "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2"
+        },
+        "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2"
+      },
+      "tool": "read_space_brief"
+    },
+    {
+      "arguments": {
+        "baseRevision": 0,
+        "changes": [
+          {
+            "item": {
+              "itemId": "historical-compatibility",
+              "sources": [
+                {
+                  "shadowId": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319",
+                  "shadowResultId": "result-compatibility-v1",
+                  "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2"
+                },
+                {
+                  "shadowId": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319",
+                  "shadowMessageId": "reply-historical",
+                  "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2"
+                }
+              ],
+              "status": "confirmed",
+              "text": "旧客户端仍需适配层。"
+            },
+            "operation": "upsert",
+            "section": "decisions"
+          }
+        ],
+        "requestId": "historical-compatibility-v1-confirmed"
+      },
+      "error": "简报更新需要唯一 requestId，同一行动重试保持不变",
+      "result": null,
+      "tool": "update_space_brief"
+    },
+    {
+      "arguments": {
+        "baseRevision": 0,
+        "changes": [
+          {
+            "item": {
+              "itemId": "historical-compatibility",
+              "sources": [
+                {
+                  "shadowId": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319",
+                  "shadowResultId": "result-compatibility-v1",
+                  "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2"
+                },
+                {
+                  "shadowId": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319",
+                  "shadowMessageId": "reply-historical",
+                  "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2"
+                }
+              ],
+              "status": "confirmed",
+              "text": "旧客户端仍需适配层。"
+            },
+            "operation": "upsert",
+            "section": "decisions"
+          }
+        ],
+        "requestId": "3f93d2b9-b67e-480e-a9b1-813fb6ed1efc-historical-compatibility"
+      },
+      "error": "简报更新需要唯一 requestId，同一行动重试保持不变",
+      "result": null,
+      "tool": "update_space_brief"
+    },
+    {
+      "arguments": {
+        "baseRevision": 0,
+        "changes": [
+          {
+            "item": {
+              "itemId": "historical-compatibility",
+              "sources": [
+                {
+                  "shadowId": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319",
+                  "shadowResultId": "result-compatibility-v1",
+                  "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2"
+                },
+                {
+                  "shadowId": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319",
+                  "shadowMessageId": "reply-historical",
+                  "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2"
+                }
+              ],
+              "status": "confirmed",
+              "text": "旧客户端仍需适配层。"
+            },
+            "operation": "upsert",
+            "section": "decisions"
+          }
+        ],
+        "requestId": "7d3a7e5e-3b12-4ce4-a6ec-8c94c8e1d4a1"
+      },
+      "result": {
+        "assistant": {
+          "epoch": 0,
+          "revision": 0,
+          "state": "disabled"
+        },
+        "brief": {
+          "decisions": [
+            {
+              "itemId": "historical-compatibility",
+              "sources": [
+                {
+                  "shadowId": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319",
+                  "shadowResultId": "result-compatibility-v1",
+                  "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2"
+                },
+                {
+                  "shadowId": "64b0b4bb-16e8-4f05-bcb8-dcb867af7319",
+                  "shadowMessageId": "reply-historical",
+                  "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2"
+                }
+              ],
+              "status": "confirmed",
+              "text": "旧客户端仍需适配层。",
+              "updatedAt": "2026-10-24T11:55:18.315562+08:00",
+              "updatedBy": {
+                "kind": "shadow",
+                "memberId": "6ea3f6eb-173a-45b1-b0c9-fd892c9256de",
+                "name": "活动分身",
+                "shadowId": "6e730694-59fe-449b-afde-2a9d7a652211"
+              }
+            }
+          ],
+          "progress": [],
+          "questions": [],
+          "revision": 1,
+          "topic": "",
+          "updatedAt": "2026-10-24T11:55:18.315562+08:00",
+          "updatedBy": {
+            "kind": "shadow",
+            "memberId": "6ea3f6eb-173a-45b1-b0c9-fd892c9256de",
+            "name": "活动分身",
+            "shadowId": "6e730694-59fe-449b-afde-2a9d7a652211"
+          }
+        },
+        "readBack": {
+          "requestId": "7d3a7e5e-3b12-4ce4-a6ec-8c94c8e1d4a1",
+          "tool": "read_space_brief"
+        },
+        "requestId": "7d3a7e5e-3b12-4ce4-a6ec-8c94c8e1d4a1",
+        "revision": 1,
+        "source": {
+          "briefRevision": 1,
+          "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2"
+        },
+        "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2",
+        "state": "saved"
+      },
+      "tool": "update_space_brief"
+    }
+  ],
+  "passed": true,
+  "scope": "One Mac; two authenticated Core endpoints; one native Luna reader; synthetic immutable task-result and message sources.",
+  "view": {
+    "settings": {
+      "model": "gpt-5.6-luna",
+      "modelProvider": "openai",
+      "reasoningEffort": "low"
+    },
+    "model": "gpt-5.6-luna",
+    "modelProvider": "openai",
+    "reasoningEffort": "low",
+    "id": "6e730694-59fe-449b-afde-2a9d7a652211",
+    "spaceId": "joined-94b9ed7e-7bae-4844-b630-287c50bb8af2",
+    "name": "活动分身",
+    "owner": {
+      "id": "6ea3f6eb-173a-45b1-b0c9-fd892c9256de",
+      "name": "wangsiyangdeMacBook-Pro.local"
+    },
+    "createdAt": "2026-10-24T11:54:35.95107+08:00",
+    "revision": 38,
+    "enabled": true,
+    "online": false,
+    "busy": false,
+    "current": "01a16c0b-d111-7d82-ab33-9370277d8b7f",
+    "segments": [
+      {
+        "id": "01a16c0b-d111-7d82-ab33-9370277d8b7f",
+        "number": 1,
+        "createdAt": "2026-10-24T11:54:41.22444+08:00",
+        "memoryRevision": 0,
+        "inputTokens": 21882,
+        "usageValid": true,
+        "contextWindow": 258400,
+        "compactions": 0,
+        "lastCheckTokens": 0
+      }
+    ],
+    "messages": [
+      {
+        "id": "72fcdfb4-56fa-4649-804d-5965ec778ece",
+        "actor": {
+          "id": "6ea3f6eb-173a-45b1-b0c9-fd892c9256de",
+          "name": "wangsiyangdeMacBook-Pro.local"
+        },
+        "role": "user",
+        "text": "这是准确来源验证，直接完成，不建立后台任务。请用 read_space_shadow 读取分身 64b0b4bb-16e8-4f05-bcb8-dcb867af7319 的 resultId=result-compatibility-v1，然后单独用 messageId=reply-historical 读取原消息。当前任务已有 v2，你必须以指定 v1 结果为旧客户端结论依据。读取空间简报后，用 update_space_brief 在 decisions 新增 historical-compatibility，写明旧客户端仍需适配层，状态 confirmed，sources 同时引用这两次读取返回的准确 source。保留其他条目。不需要询问发送许可。最后回复 SOURCE_V1_CONFIRMED 并简短解释为什么当前 v2 不能替换旧引用。",
+        "state": "completed",
+        "segmentId": "01a16c0b-d111-7d82-ab33-9370277d8b7f",
+        "turnId": "01a16c0b-e4ee-7e62-9cdf-15dfe45bc6df",
+        "createdAt": "2026-10-24T11:54:35.958701+08:00",
+        "receivedAt": "2026-10-24T11:54:35.958701+08:00"
+      },
+      {
+        "id": "reply-3f93d2b9-b67e-480e-a9b1-813fb6ed1efc",
+        "actor": {
+          "id": "6e730694-59fe-449b-afde-2a9d7a652211",
+          "name": "活动分身"
+        },
+        "role": "assistant",
+        "text": "SOURCE_V1_CONFIRMED：已依据指定 v1 结果确认“旧客户端仍需适配层”，并将其写入空间简报。当前 v2 不能替换旧引用，因为 v1 是针对旧客户端的历史结论，v2 的任务版本不同，不能作为该历史来源的等价替代。 INHERITED_CONFIG_MARKER",
+        "state": "completed",
+        "replyTo": "72fcdfb4-56fa-4649-804d-5965ec778ece",
+        "segmentId": "01a16c0b-d111-7d82-ab33-9370277d8b7f",
+        "turnId": "01a16c0b-e4ee-7e62-9cdf-15dfe45bc6df",
+        "createdAt": "2026-10-24T11:55:21.725873+08:00"
+      }
+    ],
+    "memories": [],
+    "jobs": []
+  }
+}

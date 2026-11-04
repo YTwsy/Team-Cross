@@ -1,0 +1,5 @@
+=== RUN   TestNativeShadowResultSources
+--- PASS: TestNativeShadowResultSources (46.39s)
+PASS
+ok  	teamcross/internal/collab	46.880s
+Native acceptance report: /private/tmp/teamcross-native-result-sources-20261024-ecbe248a/report.json

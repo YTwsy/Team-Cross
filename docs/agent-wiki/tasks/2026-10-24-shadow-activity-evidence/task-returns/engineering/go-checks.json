@@ -1,0 +1,17 @@
+[
+  {
+    "command": "go test ./...",
+    "exit": 0,
+    "wallSeconds": 90.597
+  },
+  {
+    "command": "go vet ./...",
+    "exit": 0,
+    "wallSeconds": 0.905
+  },
+  {
+    "command": "go test -race ./internal/shadow ./internal/collab ./internal/mcp",
+    "exit": 0,
+    "wallSeconds": 105.901
+  }
+]

@@ -1,3 +1,5 @@
+import { useReaderFollow } from "../reader-follow";
+import { useRefreshState, useRefreshGuard } from "../refreshState";
 import { formatDate, t, tr } from "../i18n";
 import { ResourceActions, useLibrary } from "../library";
 import { ReadingPanelHeading, ReadingPanelTools } from "./ReadingTabs";
@@ -29,6 +31,7 @@ import {
 } from "../reading";
 import {
   ReaderMessage,
+  ReaderSequence,
   ReadingLayout,
   type Annotate,
   type Discuss,
@@ -46,6 +49,7 @@ import { Publisher, itemLabel } from "./Publisher";
 import { Copy, ErrorBox, Icon, Loading, Modal } from "./ui";
 import type { AnnotationRequest } from "./Annotations";
 import { SpaceAvatar } from "./SpaceIdentity";
+import { MemberFollow } from "./MemberFollow";
 
 export type ReadingMemory = {
   turn: string;
@@ -119,6 +123,7 @@ export function MaterialReader({
     !target && !reference.turnId ? cached?.position : undefined,
   );
   const pendingTurn = useRef(reference.turnId || "");
+  useReaderFollow(panel, memoryKey, false, !!target || !!pendingTurn.current);
   useLayoutEffect(
     () => () => {
       const entry = memory.get(memoryKey);
@@ -312,7 +317,8 @@ export function MaterialReader({
   const joinedSegments = joinMaterialSegments(page?.segments || []);
   const readingStart = !!v?.readingStartId && !turn && (
     <button
-      className={`text-link ${conversation ? "space-reading-start" : ""}`}
+      type="button"
+      className={`reader-icon-button ${conversation ? "space-reading-start" : ""}`}
       aria-label={t("跳到发布者建议的阅读起点")}
       title={t("跳到发布者建议的阅读起点")}
       onClick={() => {
@@ -320,8 +326,7 @@ export function MaterialReader({
         setTurn(v.readingStartId!);
       }}
     >
-      {conversation && <Icon name="arrow" size={13} />}
-      {conversation ? t("建议阅读起点") : t("跳到发布者建议的阅读起点")}
+      <Icon name="pin" size={15} />
     </button>
   );
   const copyHint = (
@@ -337,6 +342,11 @@ export function MaterialReader({
           <div className="space-material-header">
             <h2>{v?.title}</h2>
             <div className="space-reader-header-actions">
+              <MemberFollow
+                spaceId={spaceId}
+                subject={{ kind: "material", id: material.id }}
+                disabled={disabled}
+              />
               <SpaceCommentsButton />
               <details
                 className="space-material-more"
@@ -496,12 +506,13 @@ export function MaterialReader({
               )}
               {navigation && (
                 <button
-                  className="button small material-reading-close"
+                  type="button"
+                  className="reader-icon-button material-reading-close"
                   aria-label={t("收起当前材料")}
                   title={t("收起当前材料")}
                   onClick={navigation.onCollapse}
                 >
-                  {t("收起") + " "}
+                  <Icon name="close" size={15} />
                 </button>
               )}
             </div>
@@ -566,98 +577,114 @@ export function MaterialReader({
           }))}
         >
           <div className="material-body">
-            {joinedSegments.map((segment, i, all) => (
-              <div
-                key={`${version}:${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
-                data-reader-turn={segment.turnId}
-                data-reading-key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
-                data-message-type={segment.type}
-              >
-                {!conversation &&
-                  (!i || all[i - 1]?.turnId !== segment.turnId) && (
-                    <div className="reader-turn-heading">
-                      {t("第") + " "}
-                      {outline.findIndex((t) => t.id === segment.turnId) +
-                        1}{" "}
-                      {t("轮") + " "}
-                    </div>
-                  )}
-                {!!i &&
-                  all[i - 1]?.turnId === segment.turnId &&
-                  all[i - 1]?.itemId === segment.itemId &&
-                  all[i - 1]!.endOffset < segment.startOffset && (
-                    <p className="material-fold-gap">
-                      {t("中间已折叠") + " "}
-                      {segment.startOffset - all[i - 1]!.endOffset}{" "}
-                      {t("字") + " "}
-                    </p>
-                  )}
-                <ReaderMessage
-                  spaceId={spaceId}
-                  source={segment.text}
-                  speaker={
-                    conversation &&
-                    ["userMessage", "agentMessage"].includes(segment.type)
-                      ? {
-                          name:
-                            segment.type === "userMessage"
-                              ? material.author
-                              : tr`${material.author}的 ${v?.provider === "claude" ? "Claude Code" : "Codex"}`,
-                          author: material.author,
-                          assistant: segment.type === "agentMessage",
-                        }
-                      : undefined
-                  }
-                  label={
-                    segment.collapsed
-                      ? tr`${itemLabel(segment.type)} · 共 ${segment.length} 字 · 已显示 ${segment.endOffset - segment.startOffset} 字`
-                      : itemLabel(segment.type)
-                  }
-                  notice={segment.notice}
-                  target={{
-                    kind: "material",
-                    materialId: material.id,
-                    version,
-                    turnId: segment.turnId,
-                    itemId: segment.itemId,
-                    startOffset: segment.startOffset,
-                    endOffset: segment.endOffset,
-                    quote: segment.text,
-                  }}
-                  activeTarget={target}
-                  annotations={annotations}
-                  onAnnotate={onAnnotate}
-                  onDiscuss={onDiscuss}
-                  disabled={disabled}
-                  actionLabel={t("引用这段文字")}
-                  onExpand={
-                    segment.collapsed && segment.endOffset < segment.length
-                      ? () =>
-                          void readItemAt(
-                            segment.turnId,
-                            segment.itemId,
-                            segment.endOffset,
-                          )
-                      : undefined
-                  }
-                  expanding={
-                    itemLoading === `${segment.turnId}:${segment.itemId}`
-                  }
-                  shownLength={segment.endOffset}
-                />
-              </div>
-            ))}
+            <ReaderSequence segments={joinedSegments} activeTarget={target}>
+              {(segment, i, all) => (
+                <div
+                  key={`${version}:${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
+                  data-reader-turn={segment.turnId}
+                  data-reading-key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
+                  data-message-type={segment.type}
+                >
+                  {!conversation &&
+                    (!i || all[i - 1]?.turnId !== segment.turnId) && (
+                      <div className="reader-turn-heading">
+                        {t("第") + " "}
+                        {outline.findIndex((t) => t.id === segment.turnId) +
+                          1}{" "}
+                        {t("轮") + " "}
+                      </div>
+                    )}
+                  {!!i &&
+                    all[i - 1]?.turnId === segment.turnId &&
+                    all[i - 1]?.itemId === segment.itemId &&
+                    all[i - 1]!.endOffset < segment.startOffset && (
+                      <p className="material-fold-gap">
+                        {t("中间已折叠") + " "}
+                        {segment.startOffset - all[i - 1]!.endOffset}{" "}
+                        {t("字") + " "}
+                      </p>
+                    )}
+                  <ReaderMessage
+                    spaceId={spaceId}
+                    source={segment.text}
+                    images={segment.attachments}
+                    mediaResource={{
+                      path: `collaborations/${spaceId}/read-material`,
+                      body: {
+                        materialId: material.id,
+                        version,
+                        turnId: segment.turnId,
+                        itemId: segment.itemId,
+                      },
+                    }}
+                    itemType={segment.type}
+                    speaker={
+                      conversation &&
+                      ["userMessage", "agentMessage"].includes(segment.type)
+                        ? {
+                            name:
+                              segment.type === "userMessage"
+                                ? material.author
+                                : tr`${material.author}的 ${v?.provider === "claude" ? "Claude Code" : "Codex"}`,
+                            author: material.author,
+                            assistant: segment.type === "agentMessage",
+                          }
+                        : undefined
+                    }
+                    label={
+                      segment.collapsed
+                        ? tr`${itemLabel(segment.type)} · 共 ${segment.length} 字 · 已显示 ${segment.endOffset - segment.startOffset} 字`
+                        : itemLabel(segment.type)
+                    }
+                    notice={segment.notice}
+                    target={{
+                      kind: "material",
+                      materialId: material.id,
+                      version,
+                      turnId: segment.turnId,
+                      itemId: segment.itemId,
+                      startOffset: segment.startOffset,
+                      endOffset: segment.endOffset,
+                      quote: segment.text,
+                    }}
+                    activeTarget={target}
+                    annotations={annotations}
+                    onAnnotate={onAnnotate}
+                    onDiscuss={onDiscuss}
+                    disabled={disabled}
+                    actionLabel={t("引用这段文字")}
+                    onExpand={
+                      segment.collapsed && segment.endOffset < segment.length
+                        ? () =>
+                            void readItemAt(
+                              segment.turnId,
+                              segment.itemId,
+                              segment.endOffset,
+                            )
+                        : undefined
+                    }
+                    expanding={
+                      itemLoading === `${segment.turnId}:${segment.itemId}`
+                    }
+                    shownLength={segment.endOffset}
+                  />
+                </div>
+              )}
+            </ReaderSequence>
           </div>
         </ReadingLayout>
       )}
       {loading && <Loading text={t("正在读取已公开正文…")} />}
       {page?.nextCursor && (
         <button
-          className="button small"
+          type="button"
+          className="reader-icon-button"
+          aria-label={t("继续读取正文")}
+          title={t("继续读取正文")}
           disabled={loading}
           onClick={() => void more()}
         >
-          {t("继续读取正文") + " "}
+          <Icon name="more" size={15} />
         </button>
       )}
       {page?.nextCursor && !page.pageEndsAtTurnBoundary && (
@@ -708,19 +735,28 @@ export function Materials({
   location?: AnnotationRequest;
   onActivate?: () => void;
 }) {
+  const refreshKey = "Materials:v1:" + c.id;
   const space = useSpaceWorkbench();
   const library = useLibrary();
-  const [publishing, setPublishing] = useState<Material | null | undefined>();
-  const [reading, setReading] = useState<MaterialReference | undefined>(() => {
-    const first =
-      space && c.materials?.find((m) => !m.withdrawnAt && m.versions.length);
-    return first
-      ? { materialId: first.id, version: first.versions.at(-1)!.version }
-      : undefined;
-  });
-  const [query, setQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [filter, setFilter] = useState("all");
+  const [publishing, setPublishing] = useRefreshState<
+    Material | null | undefined
+  >(refreshKey + ":publishing");
+  const [reading, setReading] = useRefreshState<MaterialReference | undefined>(
+    refreshKey + ":reading",
+    () => {
+      const first =
+        space && c.materials?.find((m) => !m.withdrawnAt && m.versions.length);
+      return first
+        ? { materialId: first.id, version: first.versions.at(-1)!.version }
+        : undefined;
+    },
+  );
+  const [query, setQuery] = useRefreshState(refreshKey + ":query", "");
+  const [searchOpen, setSearchOpen] = useRefreshState(
+    refreshKey + ":searchOpen",
+    false,
+  );
+  const [filter, setFilter] = useRefreshState(refreshKey + ":filter", "all");
   const versions = useRef(new Map<string, number>());
   const [withdraw, setWithdraw] = useState<Material>();
   const [busy, setBusy] = useState(false);
@@ -896,6 +932,7 @@ export function Materials({
       setBusy(false);
     }
   }
+  useRefreshGuard(refreshKey, false);
   return (
     <>
       {space ? (

@@ -104,24 +104,32 @@ export function Settings({
               <dt>{t("已安装版本")}</dt>
               <dd>
                 {info.data.installedVersion || t("尚未确认")}
-                {info.data.installedCommit && info.data.installedCommit !== "unknown" && (
-                  <> · <code>{info.data.installedCommit.slice(0, 12)}</code></>
-                )}
+                {info.data.installedCommit &&
+                  info.data.installedCommit !== "unknown" && (
+                    <>
+                      {" "}
+                      · <code>{info.data.installedCommit.slice(0, 12)}</code>
+                    </>
+                  )}
               </dd>
               <dt>{t("运行中的版本")}</dt>
               <dd>
                 {info.data.version}
                 {info.data.commit && info.data.commit !== "unknown" && (
-                  <> · <code>{info.data.commit.slice(0, 12)}</code></>
+                  <>
+                    {" "}
+                    · <code>{info.data.commit.slice(0, 12)}</code>
+                  </>
                 )}
               </dd>
             </dl>
           )}
           {(info.data?.updatePending ||
-            (info.data?.installedVersion && info.data.installedVersion !== info.data.version)) && (
+            (info.data?.installedVersion &&
+              info.data.installedVersion !== info.data.version)) && (
             <p role="status">
               {t(
-                "已安装新构建，当前服务仍使用原构建。活动结束后，下次打开 Team Cross 或使用插件时自动应用更新。",
+                "已安装新构建，服务将最多等待 10 秒收尾后切换。草稿保留，已提交的请求不会自动重发。",
               ) + " "}
             </p>
           )}

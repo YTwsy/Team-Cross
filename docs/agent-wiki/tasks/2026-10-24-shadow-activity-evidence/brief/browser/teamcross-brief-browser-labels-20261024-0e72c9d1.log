@@ -1,0 +1,5 @@
+=== RUN   TestWorkbenchBrowserFixture
+    workbench_browser_test.go:129: workbench browser fixture ready /private/tmp/teamcross-brief-browser-labels-20261024-0e72c9d1
+--- PASS: TestWorkbenchBrowserFixture (100.82s)
+PASS
+ok  	teamcross/internal/collab	101.277s

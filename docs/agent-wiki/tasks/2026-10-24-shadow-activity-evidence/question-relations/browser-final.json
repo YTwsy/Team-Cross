@@ -1,0 +1,54 @@
+{
+  "fixture": "teamcross-question-relations-browser-20261024b",
+  "metrics": [
+    {
+      "height": 909,
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "height": 818,
+      "scrollWidth": 1023,
+      "width": 1023
+    },
+    {
+      "height": 818,
+      "scrollWidth": 1023,
+      "width": 1023
+    },
+    {
+      "height": 818,
+      "scrollWidth": 1024,
+      "width": 1024
+    },
+    {
+      "height": 818,
+      "scrollWidth": 768,
+      "width": 768
+    },
+    {
+      "height": 909,
+      "scrollWidth": 1440,
+      "width": 1440
+    }
+  ],
+  "observed": {
+    "separateTaskConditions": true,
+    "sentSourceMatches": true,
+    "originalReplyMatches": true,
+    "tabFocusToSentQuestion": true,
+    "escapeReturnsToDetails": true,
+    "escapeRestoresListFocus": true,
+    "chineseLight": true,
+    "englishDark": true
+  },
+  "readBefore": {
+    "unread": 1,
+    "readRevision": 2
+  },
+  "readAfterSources": {
+    "unread": 1,
+    "readRevision": 2
+  },
+  "note": "Ordinary material reading happened before the baseline; processing source readers left it unchanged."
+}

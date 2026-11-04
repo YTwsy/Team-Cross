@@ -101,6 +101,10 @@ func buildMaterialBundle(content MaterialContent) (materialstore.Bundle, Materia
 			text, sourceLength, omitted := truncateMaterialText(item.Text)
 			item.Text = text
 			if omitted > 0 {
+				if len(item.Attachments) > 0 {
+					item.Attachments = nil
+					item.Notice = appendMaterialNotice(item.Notice, "图片未包含：消息正文已截断")
+				}
 				item.SourceUTF16Length = sourceLength
 				item.OmittedUTF16Length = omitted
 				item.Notice = appendMaterialNotice(item.Notice, fmt.Sprintf("原始内容过长，发布时省略 %d 个 UTF-16 字符；保留头尾", omitted))
@@ -114,7 +118,16 @@ func buildMaterialBundle(content MaterialContent) (materialstore.Bundle, Materia
 				body = materialstore.BlobBody(text)
 				bundle.Blobs[body.Hash] = text
 			}
-			turn.Items = append(turn.Items, materialstore.Item{ID: item.ID, Type: item.Type, Phase: item.Phase, Label: item.Label, Notice: item.Notice, Body: body, SourceUTF16Length: item.SourceUTF16Length, OmittedUTF16Length: item.OmittedUTF16Length})
+			attachments := []materialstore.Attachment{}
+			for _, image := range item.Attachments {
+				if err := materialstore.ValidateImage(image.MIME, image.Data); err != nil {
+					return materialstore.Bundle{}, MaterialContent{}, "", err
+				}
+				imageBody := materialstore.BlobBody(image.Data)
+				bundle.Blobs[imageBody.Hash] = image.Data
+				attachments = append(attachments, materialstore.Attachment{StartOffset: image.StartOffset, EndOffset: image.EndOffset, ID: image.ID, Name: image.Name, MIME: image.MIME, Body: imageBody})
+			}
+			turn.Items = append(turn.Items, materialstore.Item{Attachments: attachments, ID: item.ID, Type: item.Type, Phase: item.Phase, Label: item.Label, Notice: item.Notice, Body: body, SourceUTF16Length: item.SourceUTF16Length, OmittedUTF16Length: item.OmittedUTF16Length})
 			normalizedTurn.Items[itemIndex] = item
 		}
 		normalized.Turns[turnIndex] = normalizedTurn
@@ -125,6 +138,9 @@ func buildMaterialBundle(content MaterialContent) (materialstore.Bundle, Materia
 		return materialstore.Bundle{}, MaterialContent{}, "", err
 	}
 	bundle.Manifest = manifest
+	if _, size := manifestBlobHashes(manifest); size > materialVersionBlobLimit {
+		return materialstore.Bundle{}, MaterialContent{}, "", fmt.Errorf("一个材料版本引用的唯一 blob 不能超过 32 MiB")
+	}
 	return bundle, normalized, hash, nil
 }
 
@@ -137,7 +153,15 @@ func materializeManifest(store *materialstore.Store, manifest materialstore.Mani
 			if err != nil {
 				return MaterialContent{}, err
 			}
-			turn.Items = append(turn.Items, MaterialItem{ID: storedItem.ID, Type: storedItem.Type, Phase: storedItem.Phase, Label: storedItem.Label, Text: text, Notice: storedItem.Notice, SourceUTF16Length: storedItem.SourceUTF16Length, OmittedUTF16Length: storedItem.OmittedUTF16Length})
+			attachments := []MaterialImage{}
+			for _, image := range storedItem.Attachments {
+				data, err := store.ReadBody(materialstore.Item{Body: image.Body})
+				if err != nil {
+					return MaterialContent{}, err
+				}
+				attachments = append(attachments, MaterialImage{StartOffset: image.StartOffset, EndOffset: image.EndOffset, ID: image.ID, Name: image.Name, MIME: image.MIME, Data: data})
+			}
+			turn.Items = append(turn.Items, MaterialItem{Attachments: attachments, ID: storedItem.ID, Type: storedItem.Type, Phase: storedItem.Phase, Label: storedItem.Label, Text: text, Notice: storedItem.Notice, SourceUTF16Length: storedItem.SourceUTF16Length, OmittedUTF16Length: storedItem.OmittedUTF16Length})
 		}
 		content.Turns = append(content.Turns, turn)
 	}

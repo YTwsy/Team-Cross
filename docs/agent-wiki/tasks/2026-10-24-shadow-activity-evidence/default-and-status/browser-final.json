@@ -1,0 +1,61 @@
+{
+  "environment": "one Mac, three test Cores, real HTTP/TLS, synthetic member messages and paused shadow task/action records, no native model",
+  "initialRead": {
+    "unread": 2,
+    "revision": 0
+  },
+  "afterProcessingAndSourceRead": {
+    "unread": 2,
+    "revision": 0
+  },
+  "ordinaryMaterialReadBeforeSelection": {
+    "unread": 1,
+    "revision": 1
+  },
+  "afterDefaultSelection": {
+    "unread": 1,
+    "revision": 1
+  },
+  "routeBefore": {
+    "shadowId": "8626239b-eadb-4069-9d63-7562348106c4",
+    "revision": 1,
+    "enabled": true,
+    "through": 11,
+    "initialRemaining": 0
+  },
+  "routeAfter": {
+    "shadowId": "5dcf4699-5542-4e43-b506-1e3111cf8a99",
+    "revision": 2,
+    "enabled": true,
+    "through": 11,
+    "initialRemaining": 0
+  },
+  "verified": [
+    "direct default selection without second confirmation",
+    "started tasks retain original shadow while pending events use new route",
+    "self-authored shadow updates do not display fictitious pending receipt",
+    "processing detail and actual source preserve human read state",
+    "English and Chinese labels",
+    "desktop and narrow layout without horizontal overflow"
+  ],
+  "viewport": {
+    "desktopCSSWidth": 1150,
+    "narrowRequestedWidth": 768,
+    "narrowMeasuredCSSWidth": 684,
+    "narrowScrollWidth": 684,
+    "overrideReset": true
+  },
+  "screenshots": [
+    "default-zh.jpg",
+    "activity-zh.jpg",
+    "source-zh.jpg",
+    "activity-en.jpg",
+    "activity-en-narrow.jpg",
+    "default-en-narrow.jpg"
+  ],
+  "notValidated": [
+    "real model question/answer product closure",
+    "two Macs",
+    "final downstream delivery reconciliation"
+  ]
+}

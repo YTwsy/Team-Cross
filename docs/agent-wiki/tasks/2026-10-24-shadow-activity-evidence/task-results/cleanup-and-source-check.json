@@ -1,0 +1,10 @@
+{
+  "fixture": "/private/tmp/teamcross-native-result-sources-20261024-ecbe248a",
+  "nativeExit": 0,
+  "lsofExit": 1,
+  "openHandles": [],
+  "lsofError": "",
+  "model": "gpt-5.6-luna",
+  "modelProvider": "openai",
+  "sourceChangesAfterGateStart": []
+}

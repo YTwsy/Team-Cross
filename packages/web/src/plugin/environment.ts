@@ -11,6 +11,17 @@ import {
 } from "../currentConversation";
 
 import { bindSandboxForms } from "./forms";
+import { beginRefreshState, endRefreshState } from "../refreshState";
+import { watchPanelUpdates } from "./update";
+import { requiredBridgeProtocol } from "./protocol";
+import {
+  clearReloadNotice,
+  reloadRequiredError,
+  showReloadNotice,
+  supportsBridge,
+} from "./compatibility";
+import { setLanguageInfo, type LanguageInfo } from "../i18n";
+import { APIError } from "../api";
 
 type Snapshot = {
   version: 2;
@@ -19,14 +30,48 @@ type Snapshot = {
   storage: StoredValues;
   deliveries: Record<string, DeliveryState>;
 };
-export async function initializeEnvironment() {
+export async function initializeEnvironment(signal?: AbortSignal) {
   const bridge = new HostBridge();
+  const abort = () => bridge.dispose();
+  signal?.addEventListener("abort", abort, { once: true });
   try {
-    await bridge.initialize();
-    const { scope } = await bridge.call<{ scope: string }>(
-      "teamcross_ui_read",
-      { path: "plugin/bootstrap" },
-    );
+    await bridge.initialize(signal);
+    type Bootstrap = {
+      scope: string;
+      bridgeProtocol?: number;
+      language?: LanguageInfo;
+    };
+    let bootstrap: Bootstrap;
+    try {
+      bootstrap = await bridge.call<Bootstrap>(
+        "teamcross_ui_read",
+        {
+          path: "plugin/bootstrap",
+          body: { requiredBridgeProtocol },
+        },
+        signal,
+      );
+    } catch (error) {
+      // Historical MCPs allow bootstrap only without a body. Probe that exact
+      // read once; never fall back or replay a business read/write this way.
+      if (
+        !(error instanceof APIError) ||
+        error.message !== "WebGUI route is not allowed"
+      )
+        throw error;
+      bootstrap = await bridge.call<Bootstrap>(
+        "teamcross_ui_read",
+        { path: "plugin/bootstrap" },
+        signal,
+      );
+    }
+    signal?.throwIfAborted();
+    if (bootstrap.language) setLanguageInfo(bootstrap.language);
+    if (!supportsBridge(requiredBridgeProtocol, bootstrap.bridgeProtocol))
+      throw reloadRequiredError();
+    bridge.protocol = bootstrap.bridgeProtocol!;
+    clearReloadNotice();
+    const { scope } = bootstrap;
     const saved = restoreState<Snapshot>();
     const state: Snapshot = {
       version: 2,
@@ -55,6 +100,28 @@ export async function initializeEnvironment() {
       }
     }
     const unbindForms = bindSandboxForms();
+    beginRefreshState(scope, window.__teamcrossCheckpoint);
+    const restoredPosition =
+      window.__teamcrossCheckpoint?.scope === scope
+        ? window.__teamcrossCheckpoint.scrollY
+        : undefined;
+    let positionAttempts = 0;
+    const restorePosition = setInterval(() => {
+      if (restoredPosition === undefined || ++positionAttempts > 50) {
+        clearInterval(restorePosition);
+        return;
+      }
+      if (
+        document.documentElement.scrollHeight >=
+        restoredPosition + innerHeight
+      ) {
+        window.scrollTo(0, restoredPosition);
+        clearInterval(restorePosition);
+      }
+    }, 100);
+    const cancelPosition = () => clearInterval(restorePosition);
+    window.addEventListener("pointerdown", cancelPosition, { once: true });
+    window.addEventListener("wheel", cancelPosition, { once: true });
     const persist = () => saveState(state);
     setHostedStorage(state.storage, persist);
     if (!location.hash && state.route) location.hash = state.route;
@@ -65,6 +132,7 @@ export async function initializeEnvironment() {
     window.addEventListener("hashchange", routeChanged);
     if (bridge.host?.hostCapabilities?.message) {
       setCurrentConversation({
+        connectionStatus: true,
         status: (code) => state.deliveries[code],
         allowConnectAgain(spaceId) {
           delete state.deliveries[`connect:${spaceId}`];
@@ -104,19 +172,43 @@ export async function initializeEnvironment() {
         },
       });
     }
-    window.addEventListener(
-      "pagehide",
-      () => {
-        routeChanged();
-        unbindForms();
-        window.removeEventListener("hashchange", routeChanged);
-        setHostedStorage();
-        setCurrentConversation();
-        bridge.dispose();
-      },
-      { once: true },
-    );
+    const stopUpdates = watchPanelUpdates(bridge, persist);
+    let disposed = false;
+    const dispose = () => {
+      if (disposed) return;
+      disposed = true;
+      signal?.removeEventListener("abort", abort);
+      routeChanged();
+      stopUpdates();
+      clearInterval(restorePosition);
+      window.removeEventListener("pointerdown", cancelPosition);
+      window.removeEventListener("wheel", cancelPosition);
+      endRefreshState();
+      unbindForms();
+      window.removeEventListener("hashchange", routeChanged);
+      window.removeEventListener("pagehide", dispose);
+      setHostedStorage();
+      setCurrentConversation();
+      bridge.dispose();
+    };
+    window.addEventListener("pagehide", dispose, { once: true });
+    return dispose;
   } catch (error) {
+    if ((error as { code?: string })?.code === "plugin_reload_required") {
+      if (window.__teamcrossRuntime) showReloadNotice();
+      else {
+        // App cannot mount on an incompatible bridge; keep its startup guidance
+        // legible in the host's theme without restoring another Core's state.
+        const theme = bridge.host?.hostContext?.theme;
+        document.documentElement.dataset.theme =
+          theme === "dark" || theme === "light"
+            ? theme
+            : matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+      }
+    }
+    signal?.removeEventListener("abort", abort);
     bridge.dispose();
     throw error;
   }

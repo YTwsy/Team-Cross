@@ -1,0 +1,10 @@
+### Result
+{
+  "focus": "空间简报 · 版本 1",
+  "width": 1440,
+  "overflow": false
+}
+### Ran Playwright code
+```js
+await page.evaluate('() => ({focus:document.activeElement?.textContent, width:innerWidth, overflow:document.documentElement.scrollWidth>innerWidth})');
+```

@@ -146,7 +146,7 @@ func Export(root, binary, dataDir, version string) (Package, error) {
 	if e != nil || !info.Mode().IsRegular() || info.Mode()&0111 == 0 {
 		return p, fmt.Errorf("Plugin binary must be executable")
 	}
-	for _, relative := range []string{marker, "runtime/teamcross", "plugins/teamcross/plugin.json", "plugins/teamcross/mcp.json", "plugins/teamcross/.codex-plugin/plugin.json", "plugins/teamcross/.mcp.json", ".agents/plugins/marketplace.json"} {
+	for _, relative := range []string{marker, "runtime/teamcross", "plugins/teamcross/plugin.json", "plugins/teamcross/mcp.json", "plugins/teamcross/.codex-plugin/plugin.json", "plugins/teamcross/.mcp.json", "plugins/teamcross/hooks/hooks.json", ".agents/plugins/marketplace.json"} {
 		if e = safePath(root, relative); e != nil {
 			return p, e
 		}
@@ -187,7 +187,10 @@ func Export(root, binary, dataDir, version string) (Package, error) {
 	// stdio component is not loaded. Never publish an apparently installed shell.
 	description := "Use the complete Team Cross WebGUI with your local Core. Mention published materials or annotations in the composer, or bring selected references into this conversation."
 	server := map[string]any{"command": runtime, "args": []string{"mcp", "--ui", "--data-dir", dataDir}}
+	quote := func(v string) string { return "'" + strings.ReplaceAll(v, "'", "'\"'\"'") + "'" }
+	hookCommand := quote(runtime) + " inflow-hook --provider codex --data-dir " + quote(dataDir)
 	files := map[string]any{
+		filepath.Join(plugin, "hooks", "hooks.json"):                  map[string]any{"hooks": map[string]any{"UserPromptSubmit": []any{map[string]any{"hooks": []any{map[string]any{"type": "command", "command": hookCommand, "timeout": 4}}}}}},
 		filepath.Join(plugin, ".codex-plugin", "plugin.json"):         map[string]any{"name": Name, "version": version, "description": description, "mcpServers": "./.mcp.json", "interface": interfaceInfo},
 		filepath.Join(plugin, ".mcp.json"):                            map[string]any{"mcpServers": map[string]any{"teamcross-ui": server}},
 		filepath.Join(root, ".agents", "plugins", "marketplace.json"): map[string]any{"name": Marketplace, "interface": map[string]any{"displayName": "Team Cross Local"}, "plugins": []any{map[string]any{"name": Name, "source": map[string]any{"source": "local", "path": "./plugins/teamcross"}, "policy": map[string]any{"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Developer Tools"}}},

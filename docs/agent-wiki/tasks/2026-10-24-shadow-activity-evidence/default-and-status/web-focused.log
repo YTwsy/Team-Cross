@@ -1,0 +1,10 @@
+$ vitest run src/test/activity-processing.test.tsx
+
+ RUN  v3.2.4 /Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/packages/web
+
+ ✓ src/test/activity-processing.test.tsx (5 tests) 182ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  06:55:06
+   Duration  1.89s (transform 465ms, setup 206ms, collect 893ms, tests 182ms, environment 377ms, prepare 60ms)

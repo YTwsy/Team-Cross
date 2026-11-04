@@ -1,0 +1,41 @@
+[
+  {
+    "name": "web-check",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@teamcross/web",
+      "check"
+    ],
+    "startedAt": "2026-10-23T23:01:38.114247+00:00",
+    "seconds": 4.99,
+    "exitCode": 0,
+    "sourcesUnchanged": true
+  },
+  {
+    "name": "web-test",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@teamcross/web",
+      "test"
+    ],
+    "startedAt": "2026-10-23T23:01:43.109274+00:00",
+    "seconds": 10.237,
+    "exitCode": 0,
+    "sourcesUnchanged": true
+  },
+  {
+    "name": "web-build",
+    "command": [
+      "pnpm",
+      "--filter",
+      "@teamcross/web",
+      "build"
+    ],
+    "startedAt": "2026-10-23T23:01:53.351226+00:00",
+    "seconds": 9.275,
+    "exitCode": 0,
+    "sourcesUnchanged": true
+  }
+]

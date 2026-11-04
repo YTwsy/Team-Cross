@@ -1,0 +1,20 @@
+{
+  "sourceState": "source-state.json",
+  "checks": [
+    {
+      "command": "go test ./... -count=1",
+      "exitCode": 0,
+      "log": "go-test.log"
+    },
+    {
+      "command": "go test -race ./internal/shadow ./internal/collab -run 'Test(Task|Attention|CollaborationAction|ShadowTools|ActivityConsumer|ShadowSource|ShadowDependency|ShadowRequestDependency|ExactAnnotation|ShadowThreeCores|ShadowPaused|BackgroundUpdate|UpgradeProtects)' -count=1",
+      "exitCode": 0,
+      "log": "race.log"
+    },
+    {
+      "command": "go vet ./...",
+      "exitCode": 0,
+      "log": "go-vet.log"
+    }
+  ]
+}

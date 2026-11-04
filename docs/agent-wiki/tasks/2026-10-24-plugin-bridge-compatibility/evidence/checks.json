@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-24",
+  "checks": [
+    {
+      "command": "go test ./...",
+      "exitCode": 0,
+      "logSHA256": "14bcd47294dcbea49bff3ce8f685c0b567322aabdd8a21d0684657a500fd72e7"
+    },
+    {
+      "command": "go vet ./...",
+      "exitCode": 0,
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "go test -race ./internal/mcp ./internal/collab ./internal/pluginpack ./internal/service ./internal/mcpassets",
+      "exitCode": 0,
+      "logSHA256": "f58f8836895ac634d98f8d8acc964114176bf1376f75d63e903508bb9239d165"
+    },
+    {
+      "command": "pnpm --dir packages/web check",
+      "exitCode": 0,
+      "logSHA256": "2c9843fc77e644ec45460b11b39b56a2eb04a59993f839a21e147755723a3f1f"
+    },
+    {
+      "command": "pnpm --dir packages/web test",
+      "exitCode": 0,
+      "logSHA256": "c7b7a641c2bd36c97c7c825b1955192ffcd4d0241f3574f6a9c787141f11fe99"
+    },
+    {
+      "command": "pnpm --dir packages/web build",
+      "exitCode": 0,
+      "logSHA256": "0fd3d4a79779237f7c7435a06afac924da5d490800753c383bf83578c7207134"
+    }
+  ],
+  "webTests": 238,
+  "webTestFiles": 25,
+  "translations": 1265,
+  "bothEmbeddedBundlesRebuilt": true
+}

@@ -1,0 +1,15 @@
+{
+  "fixture": "/private/tmp/teamcross-native-task-understanding-20261024-a032d196",
+  "binary": "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+  "command": [
+    "python3",
+    "scripts/verify-shadow-native.py",
+    "--task-understanding",
+    "--fixture-dir",
+    "/private/tmp/teamcross-native-task-understanding-20261024-a032d196",
+    "--codex-bin",
+    "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+    "--codex-auth",
+    "/Users/wsy/.codex/auth.json"
+  ]
+}

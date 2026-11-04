@@ -1,10 +1,18 @@
+import {
+  useRefreshState,
+  useRefreshGuard,
+  useRefreshRef,
+} from "../refreshState";
 import { localStorage } from "../storage";
 import { useEffect, useRef, useState } from "react";
 import { api, errorText, useResource } from "../api";
 import { formatDate, serviceText, t, tr } from "../i18n";
 import { sameReference, useLibrary, type LibraryReference } from "../library";
 import type { WorkbenchView } from "../workbench";
-import { currentConversation } from "../currentConversation";
+import {
+  currentConversation,
+  type CurrentConnection,
+} from "../currentConversation";
 import { Copy, ErrorBox, Icon, Loading, Modal } from "./ui";
 import { SpaceReferencePicker } from "./SpaceReferencePicker";
 
@@ -57,11 +65,28 @@ export function ConnectCurrentConversation({
   spaceId: string;
   disabled?: boolean;
 }) {
+  const refreshKey = "ConnectCurrentConversation:v1:" + spaceId;
   const current = currentConversation();
-  const [name, setName] = useState("");
+  const [name, setName] = useRefreshState(refreshKey + ":name", "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [requested, setRequested] = useRefreshState(
+    refreshKey + ":requested",
+    false,
+  );
   const [, redraw] = useState(0);
+  const connectionPath = current?.connectionStatus
+    ? `plugin/current-connection?spaceId=${encodeURIComponent(spaceId)}`
+    : null;
+  const connection = useResource<CurrentConnection>(connectionPath, 2000);
+  const verified =
+    connection.dataPath === connectionPath && !connection.error
+      ? connection.data
+      : undefined;
+  const linked = !!verified?.linked;
+  const unavailable = !!connection.error;
+  const checking = !!connectionPath && !verified && !unavailable;
+  useRefreshGuard(refreshKey, !!name && !linked);
   if (!current?.connect) return null;
   const state = current.status(`connect:${spaceId}`);
   return (
@@ -71,52 +96,81 @@ export function ConnectCurrentConversation({
           <Icon name="link" />
         </span>
         <div>
-          <h3>{t("连接当前会话")}</h3>
+          <h3>{linked ? t("当前会话已关联") : t("连接当前会话")}</h3>
           <p className="muted">
-            {t("在当前对话核对身份并关联这个空间，接收能力会单独确认。")}
+            {linked
+              ? verified?.name
+              : t("在当前对话核对身份并关联这个空间，接收能力会单独确认。")}
           </p>
+          {linked && (
+            <p className="muted">
+              {verified?.receiving ? t("可以接收") : t("已关联，尚未接通接收")}
+            </p>
+          )}
+          {verified && !verified.known && (
+            <p className="muted">
+              {t("宿主未提供当前会话身份，请在对话中核对是否已关联。")}
+            </p>
+          )}
         </div>
       </div>
-      <details className="workbench-connection-name">
-        <summary>{t("自定义会话名称（可选）")}</summary>
-        <label>
-          {t("接收会话名称")}
-          <input
-            maxLength={80}
-            value={name}
-            placeholder={t("当前会话")}
-            disabled={disabled || busy || !!state}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-      </details>
-      <button
-        className="button primary"
-        disabled={disabled || busy || !!state}
-        onClick={async () => {
-          if (busy) return;
-          setBusy(true);
-          setError("");
-          try {
-            await current.connect!(spaceId, name);
-          } catch (error) {
-            setError(errorText(error));
-          } finally {
-            setBusy(false);
-            redraw((v) => v + 1);
+      {!linked && (
+        <details className="workbench-connection-name">
+          <summary>{t("自定义会话名称（可选）")}</summary>
+          <label>
+            {t("接收会话名称")}
+            <input
+              maxLength={80}
+              value={name}
+              placeholder={t("当前会话")}
+              disabled={disabled || busy || !!state}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+        </details>
+      )}
+      {(!linked || !verified?.receiving) && (
+        <button
+          className="button primary"
+          disabled={
+            disabled || busy || checking || unavailable || (!linked && !!state)
           }
-        }}
-      >
-        {busy ? t("正在提交，请勿重复发送…") : t("连接当前会话")}
-      </button>
-      {state && (
+          onClick={async () => {
+            if (busy) return;
+            setBusy(true);
+            setRequested(true);
+            setError("");
+            try {
+              if (linked) current.allowConnectAgain?.(spaceId);
+              await current.connect!(spaceId, linked ? "" : name);
+            } catch (error) {
+              setError(errorText(error));
+            } finally {
+              setBusy(false);
+              redraw((v) => v + 1);
+              connection.reload();
+            }
+          }}
+        >
+          {busy
+            ? t("正在提交，请勿重复发送…")
+            : checking
+              ? t("正在核对连接状态…")
+              : unavailable
+                ? t("连接状态暂不可用")
+                : linked
+                  ? t("重新检查接收连接")
+                  : t("连接当前会话")}
+        </button>
+      )}
+      {state && (!linked || requested) && (
         <p className="notice" role="status">
           {state === "sent"
             ? t("连接要求已带回当前对话，请查看身份与接收能力的确认结果。")
             : t("连接要求的发送结果需要核对，请查看当前对话。")}
         </p>
       )}
-      {state && current.allowConnectAgain && (
+      {state && !linked && current.allowConnectAgain && (
         <button
           className="text-link"
           disabled={busy || disabled}
@@ -129,7 +183,17 @@ export function ConnectCurrentConversation({
           {t("已核对对话，准备重新连接")}
         </button>
       )}
-      <ErrorBox message={error} />
+      <ErrorBox
+        message={
+          error ||
+          (connection.error === "404 page not found"
+            ? t(
+                "Team Cross 服务尚未完成更新，请从菜单栏退出并重新打开 Team Cross 后重试。",
+              )
+            : connection.error)
+        }
+        retry={connection.error ? connection.reload : undefined}
+      />
     </section>
   );
 }
@@ -142,11 +206,12 @@ export function PairConversation({
 }: {
   onPaired: (id: string) => void;
 }) {
-  const [name, setName] = useState("");
-  const [created, setCreated] = useState<{
+  const refreshKey = "PairConversation:v1:" + location.hash;
+  const [name, setName] = useRefreshState(refreshKey + ":name", "");
+  const [created, setCreated] = useRefreshState<{
     pairing: AgentPairing;
     code: string;
-  }>();
+  }>(refreshKey + ":created");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const pairs = useResource<AgentPairing[]>(
@@ -155,7 +220,7 @@ export function PairConversation({
   );
   const current =
     pairs.data?.find((p) => p.id === created?.pairing.id) || created?.pairing;
-  const delivered = useRef("");
+  const delivered = useRefreshRef(refreshKey + ":delivered", "");
   useEffect(() => {
     if (current?.state === "paired" && delivered.current !== current.id) {
       delivered.current = current.id;
@@ -176,6 +241,7 @@ export function PairConversation({
       setBusy(false);
     }
   }
+  useRefreshGuard(refreshKey, !!name && !created);
   return (
     <div className="agent-pair-flow">
       <p>
@@ -247,9 +313,10 @@ export function PairConversation({
 }
 
 export function AgentPairings() {
+  const refreshKey = "AgentPairings:v1:" + location.hash;
   const pairs = useResource<AgentPairing[]>("agent-pairings", 3000);
   const requests = useResource<AgentRequest[]>("agent-requests", 3000);
-  const [pairing, setPairing] = useState(false);
+  const [pairing, setPairing] = useRefreshState(refreshKey + ":pairing", false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   async function remove(id: string) {
@@ -264,6 +331,7 @@ export function AgentPairings() {
       setBusy("");
     }
   }
+  useRefreshGuard(refreshKey, false);
   return (
     <section className="panel settings-section">
       <div className="panel-heading">
@@ -385,7 +453,18 @@ export function SendToAgent({
   initialInstruction?: string;
   collaboration?: import("../types").Collaboration;
 }) {
-  const [references, setReferences] = useState(initialReferences);
+  const refreshKey =
+    "SendToAgent:v1:" +
+    JSON.stringify([
+      spaceId,
+      initialTargetId,
+      parentRequestId,
+      initialReferences,
+    ]);
+  const [references, setReferences] = useRefreshState(
+    refreshKey + ":references",
+    initialReferences,
+  );
   const library = useLibrary();
   const pairs = useResource<AgentPairing[]>(
     spaceId ? null : "agent-pairings",
@@ -413,20 +492,30 @@ export function SendToAgent({
           expiresAt: "",
         }))
     : pairs.data;
-  const [selected, setSelected] = useState(
+  const [selected, setSelected] = useRefreshState(
+    refreshKey + ":selected",
     () =>
       initialTargetId ||
       (spaceId ? "" : localStorage.getItem("teamcross.agent-target.v1") || ""),
   );
-  const [pairing, setPairing] = useState(false);
-  const [instruction, setInstruction] = useState(
+  const [pairing, setPairing] = useRefreshState(refreshKey + ":pairing", false);
+  const [instruction, setInstruction] = useRefreshState(
+    refreshKey + ":instruction",
     initialInstruction || t("请读取所选内容，核对原文后分析。"),
   );
-  const [intent, setIntent] = useState("analyze");
+  const [intent, setIntent] = useRefreshState(
+    refreshKey + ":intent",
+    "analyze",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [request, setRequest] = useState<AgentRequest>();
-  const [unknownID, setUnknownID] = useState("");
+  const [request, setRequest] = useRefreshState<AgentRequest>(
+    refreshKey + ":request",
+  );
+  const [unknownID, setUnknownID] = useRefreshState(
+    refreshKey + ":unknownID",
+    "",
+  );
   const sending = useRef(false);
   const status = useResource<AgentRequest>(
     request || unknownID
@@ -512,6 +601,7 @@ export function SendToAgent({
       sending.current = false;
     }
   }
+  useRefreshGuard(refreshKey, !request && (!!instruction || !!unknownID));
   return (
     <div
       className={`send-to-agent ${collaboration ? "space-request-composer" : ""}`}
@@ -535,6 +625,7 @@ export function SendToAgent({
       </label>
       {collaboration ? (
         <SpaceReferencePicker
+          refreshId={refreshKey}
           collaboration={collaboration}
           value={references}
           disabled={locked}

@@ -1,0 +1,58 @@
+[
+  {
+    "check": "go-test",
+    "command": [
+      "go",
+      "test",
+      "-p",
+      "2",
+      "./...",
+      "-count=1",
+      "-timeout=180s"
+    ],
+    "exitCode": 0,
+    "seconds": 92.853
+  },
+  {
+    "check": "race",
+    "command": [
+      "go",
+      "test",
+      "-p",
+      "1",
+      "-race",
+      "./internal/shadow",
+      "./internal/collab",
+      "-run",
+      "Test(Task|Background|Attention|Watch|QuestionHandling|Waiting|ShadowHandling|ShadowDependency)",
+      "-count=1",
+      "-timeout=180s"
+    ],
+    "exitCode": 0,
+    "seconds": 77.7
+  },
+  {
+    "check": "go-vet",
+    "command": [
+      "go",
+      "vet",
+      "-p",
+      "2",
+      "./..."
+    ],
+    "exitCode": 0,
+    "seconds": 1.327
+  },
+  {
+    "check": "go-build",
+    "command": [
+      "go",
+      "build",
+      "-o",
+      "/private/tmp/teamcross-question-handling-core-20261024",
+      "./cmd/teamcross"
+    ],
+    "exitCode": 0,
+    "seconds": 5.712
+  }
+]

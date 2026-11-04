@@ -1,0 +1,14 @@
+{
+  "version": "0.2.6-dev.sidebar-recovery.20261022",
+  "commit": "1f8859985b54fed42707ae6e481135de7f0bbbab",
+  "buildNumber": "193",
+  "dirty": false,
+  "architecture": "arm64",
+  "minimumMacOS": "14.0",
+  "developerIDSigned": false,
+  "notarized": false,
+  "artifacts": {
+    "teamcross-0.2.6-dev.sidebar-recovery.20261022-darwin-arm64.tar.gz": "e2dc521add4c744a6717f75a2451704bc8ec0d96dda2b49a57bfa128860bb727",
+    "Team-Cross-0.2.6-dev.sidebar-recovery.20261022-arm64.dmg": "24e1e1ceea7663d99276c1f4d8363c647abf6994016b3a6815f51e4765ded1f9"
+  }
+}

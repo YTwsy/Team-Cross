@@ -1,0 +1,22 @@
+ok  	teamcross/cmd/teamcross	0.551s
+?   	teamcross/internal/buildinfo	[no test files]
+ok  	teamcross/internal/cliinstall	1.782s
+ok  	teamcross/internal/collab	54.570s
+?   	teamcross/internal/inflow	[no test files]
+ok  	teamcross/internal/materialstore	0.357s
+ok  	teamcross/internal/mcp	0.639s
+ok  	teamcross/internal/mcpassets	0.338s
+ok  	teamcross/internal/mcpevents	0.604s
+ok  	teamcross/internal/nativeclaude	5.951s
+ok  	teamcross/internal/nativecodex	1.004s
+ok  	teamcross/internal/pluginpack	5.535s
+?   	teamcross/internal/problem	[no test files]
+?   	teamcross/internal/readview	[no test files]
+?   	teamcross/internal/runtimeconfig	[no test files]
+ok  	teamcross/internal/service	2.983s
+ok  	teamcross/internal/shadow	63.125s
+ok  	teamcross/internal/sharing	0.333s
+?   	teamcross/internal/spacecontext	[no test files]
+ok  	teamcross/internal/uilanguage	0.314s
+?   	teamcross/internal/webassets	[no test files]
+ok  	teamcross/internal/workspace	0.597s

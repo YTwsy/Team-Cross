@@ -1,0 +1,140 @@
+### Page
+- Page URL: http://127.0.0.1:61281/#/collaborations/29cb8e1b-9446-4017-b667-c05f2a961fb8
+- Page Title: Team Cross
+### Snapshot
+```yaml
+- generic [ref=e3]:
+  - link "Skip to main content" [ref=e686] [cursor=pointer]:
+    - /url: "#main-content"
+  - main [ref=e5]:
+    - generic [ref=e732]:
+      - generic [ref=e733]:
+        - link "Return to collaboration space" [ref=e734] [cursor=pointer]:
+          - /url: "#/"
+        - heading "接口超时调查 · 协作空间" [level=1] [ref=e739]
+        - group [ref=e740]:
+          - generic "View sharing status details" [ref=e741] [cursor=pointer]: Sharing
+        - button "Space members" [ref=e744] [cursor=pointer]:
+          - generic [aria-hidden] [ref=e745]: 工
+          - generic [aria-hidden] [ref=e746]: 同
+        - button "Invite members" [ref=e747] [cursor=pointer]
+      - generic [ref=e751]:
+        - complementary "Space tools and materials" [ref=e752]:
+          - generic [ref=e753]:
+            - link "Team Cross Home Page" [ref=e754] [cursor=pointer]:
+              - /url: "#/"
+              - generic [ref=e761]: Team Cross
+            - button "Collapse space sidebar" [expanded] [ref=e762] [cursor=pointer]
+          - generic [ref=e766]:
+            - button "Publish session materials" [ref=e768] [cursor=pointer]:
+              - generic [ref=e771]: Publish material
+            - tablist "Space workbench" [ref=e772]:
+              - tab "Space overview" [ref=e773] [cursor=pointer]
+              - tab "Local digital shadows" [ref=e780] [cursor=pointer]
+              - tab "Requests" [ref=e784] [cursor=pointer]:
+                - generic [ref=e910]: "2"
+              - tab "Space brief" [ref=e788] [cursor=pointer]
+              - tab "Conversations" [ref=e792] [cursor=pointer]
+            - navigation "Shared session" [ref=e798]:
+              - generic [ref=e799]:
+                - strong [ref=e800]: Shared session
+                - generic [ref=e801]: "0"
+              - paragraph [ref=e802]: No collaboration sessions yet
+              - button "New collaboration session" [ref=e803] [cursor=pointer]
+            - generic [ref=e807]:
+              - generic [ref=e808]:
+                - generic [ref=e809]: Published materials
+                - button "Search materials" [ref=e810] [cursor=pointer]
+              - group "Filter materials" [ref=e814]:
+                - button "All materials" [pressed] [ref=e815] [cursor=pointer]
+                - button "Recently published" [ref=e818] [cursor=pointer]
+                - button "With comments" [ref=e822] [cursor=pointer]
+                - button "Published by me" [ref=e825] [cursor=pointer]
+                - button "Favorites" [ref=e829] [cursor=pointer]
+              - generic [ref=e832]:
+                - generic [ref=e835]: 接口超时调查 · 协作空间
+                - generic [ref=e836]: "2"
+              - navigation "Switch materials" [ref=e837]:
+                - button "Read 并发与断线复核" [ref=e838] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=e839]: 发
+                  - generic [ref=e840]:
+                    - strong [ref=e841]: 并发与断线复核
+                    - generic [ref=e842]:
+                      - text: 发起者 · Codex
+                      - generic [ref=e843]: · v1
+                - button "Read 连接池等待与重试策略 · 复核版" [ref=e844] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=e845]: 发
+                  - generic [ref=e846]:
+                    - strong [ref=e847]: 连接池等待与重试策略 · 复核版
+                    - generic [ref=e848]:
+                      - text: 发起者 · Codex
+                      - generic [ref=e849]: · v2
+          - generic [ref=e850]:
+            - link "Library" [ref=e851] [cursor=pointer]:
+              - /url: "#/library"
+            - link "Settings and Connections" [ref=e855] [cursor=pointer]:
+              - /url: "#/settings"
+            - button "Space assistant · Not enabled" [ref=e911] [cursor=pointer]
+            - generic [ref=e867]: Share and review
+        - tabpanel "Read and discuss" [ref=e871]:
+          - region "Published session materials" [ref=e874]:
+            - generic [ref=e875]:
+              - generic [ref=e876]:
+                - generic [ref=e877]:
+                  - heading "并发与断线复核" [level=2] [ref=e878]
+                  - generic [ref=e879]:
+                    - generic [ref=e880]:
+                      - button "Following" [ref=e912] [cursor=pointer]
+                      - group [ref=e884]:
+                        - generic "Follow settings" [ref=e885] [cursor=pointer]
+                    - button "Comments 1" [ref=e888] [cursor=pointer]:
+                      - text: Comments
+                      - generic [ref=e891]: "1"
+                    - group [ref=e892]:
+                      - generic "Material actions" [ref=e893] [cursor=pointer]
+                - generic [ref=e898]:
+                  - generic [aria-hidden] [ref=e899]: 发
+                  - group [ref=e900]:
+                    - generic "发起者 · Codex · 1 conversation turns" [ref=e901] [cursor=pointer]
+                  - combobox "View fixed version" [ref=e902]:
+                    - option "v1 · Latest" [selected]
+              - button "Find in content" [ref=e904] [cursor=pointer]
+              - generic [ref=e916]:
+                - generic [ref=e918]:
+                  - generic [ref=e919]:
+                    - generic [ref=e920]:
+                      - generic [aria-hidden] [ref=e921]: 发
+                      - strong [ref=e922]: 发起者
+                    - generic [ref=e923]:
+                      - button "Show source" [ref=e924] [cursor=pointer]
+                      - button "Quote this text" [ref=e925] [cursor=pointer]
+                  - paragraph [ref=e930]: 请复核这次调查的处理范围。核对已确认的结论，以及高并发、断线恢复场景中仍需补充的验证，把结论和待确认项分开记录。
+                - generic [ref=e932]:
+                  - generic [ref=e933]:
+                    - strong [ref=e939]: 发起者’s Codex
+                    - generic [ref=e940]:
+                      - button "Show source" [ref=e941] [cursor=pointer]
+                      - button "Quote this text" [ref=e942] [cursor=pointer]
+                  - generic [ref=e946]:
+                    - heading "并发与断线复核" [level=2] [ref=e947]
+                    - paragraph [ref=e948]: 对照当前处理路径，需要补充三组验证：
+                    - list [ref=e949]:
+                      - listitem [ref=e950]: 同一请求并发提交，只接收一次输入。
+                      - listitem [ref=e951]: 请求送达后断线，查询原请求的状态。
+                      - listitem [ref=e952]: 新绑定生效后，隔离旧绑定晚到的结果。
+                    - paragraph [ref=e953]: 这些建议等待空间成员确认，尚未成为发布结论。
+              - paragraph [ref=e954]: Published conversation excerpt · Fixed version v1
+              - region "Request based on this material" [ref=e958]:
+                - generic [ref=e959]:
+                  - generic [ref=e960]: Requests
+                  - generic [ref=e963]: Send to a linked session
+                - textbox "Instructions for this material" [ref=e964]:
+                  - /placeholder: What would you like a collaborator to do with this material?
+                - generic [ref=e965]:
+                  - generic [ref=e966]:
+                    - button "Add references" [ref=e968] [cursor=pointer]
+                    - generic [ref=e972]:
+                      - generic "并发与断线复核 · v1" [ref=e975]
+                      - 'button "Remove reference: 并发与断线复核 · v1" [ref=e976] [cursor=pointer]'
+                  - button "Create request" [ref=e979] [cursor=pointer]
+```

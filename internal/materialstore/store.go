@@ -60,15 +60,33 @@ type Turn struct {
 	Items  []Item `json:"items"`
 }
 
+type Attachment struct {
+	StartOffset int    `json:"startOffset"`
+	EndOffset   int    `json:"endOffset"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	MIME        string `json:"mime"`
+	Body        Body   `json:"body"`
+}
+
+func (i Item) Bodies() []Body {
+	bodies := []Body{i.Body}
+	for _, a := range i.Attachments {
+		bodies = append(bodies, a.Body)
+	}
+	return bodies
+}
+
 type Item struct {
-	Phase              string `json:"phase,omitempty"`
-	Label              string `json:"label,omitempty"`
-	ID                 string `json:"id"`
-	Type               string `json:"type"`
-	Notice             string `json:"notice,omitempty"`
-	Body               Body   `json:"body"`
-	SourceUTF16Length  int    `json:"sourceUtf16Length,omitempty"`
-	OmittedUTF16Length int    `json:"omittedUtf16Length,omitempty"`
+	Attachments        []Attachment `json:"attachments,omitempty"`
+	Phase              string       `json:"phase,omitempty"`
+	Label              string       `json:"label,omitempty"`
+	ID                 string       `json:"id"`
+	Type               string       `json:"type"`
+	Notice             string       `json:"notice,omitempty"`
+	Body               Body         `json:"body"`
+	SourceUTF16Length  int          `json:"sourceUtf16Length,omitempty"`
+	OmittedUTF16Length int          `json:"omittedUtf16Length,omitempty"`
 }
 
 type Body struct {
@@ -214,18 +232,30 @@ func finalize(manifest Manifest) (Manifest, string, []byte, error) {
 			if item.SourceUTF16Length < 0 || item.OmittedUTF16Length < 0 {
 				return Manifest{}, "", nil, fmt.Errorf("材料省略信息无效")
 			}
-			if err := validateBody(item.Body); err != nil {
-				return Manifest{}, "", nil, err
+			if len(item.Attachments) > 32 {
+				return Manifest{}, "", nil, fmt.Errorf("单条消息图片超过 32 张")
 			}
-			if item.Body.Kind == BodyInline {
-				inlineBytes += item.Body.ByteLength
-				if inlineBytes > InlineManifestBytes {
-					return Manifest{}, "", nil, fmt.Errorf("材料内联正文超过 %d KiB", InlineManifestBytes>>10)
+			seenAttachments := map[string]bool{}
+			for _, attachment := range item.Attachments {
+				if attachment.StartOffset < 0 || attachment.EndOffset <= attachment.StartOffset || attachment.EndOffset > item.Body.UTF16Length || attachment.ID == "" || len(attachment.ID) > 100 || seenAttachments[attachment.ID] || len([]rune(attachment.Name)) > 160 || !utf8.ValidString(attachment.Name) || !SupportedImageMIME(attachment.MIME) || attachment.Body.Kind != BodyBlob {
+					return Manifest{}, "", nil, fmt.Errorf("图片附件元数据无效")
 				}
-			} else if previous, exists := blobBodies[item.Body.Hash]; exists && previous != item.Body {
-				return Manifest{}, "", nil, fmt.Errorf("同一 blob 的长度元数据不一致")
-			} else {
-				blobBodies[item.Body.Hash] = item.Body
+				seenAttachments[attachment.ID] = true
+			}
+			for _, body := range item.Bodies() {
+				if err := validateBody(body); err != nil {
+					return Manifest{}, "", nil, err
+				}
+				if body.Kind == BodyInline {
+					inlineBytes += body.ByteLength
+					if inlineBytes > InlineManifestBytes {
+						return Manifest{}, "", nil, fmt.Errorf("材料内联正文超过 %d KiB", InlineManifestBytes>>10)
+					}
+				} else if previous, exists := blobBodies[body.Hash]; exists && previous != body {
+					return Manifest{}, "", nil, fmt.Errorf("同一 blob 的长度元数据不一致")
+				} else {
+					blobBodies[body.Hash] = body
+				}
 			}
 		}
 		turnForHash := struct {
@@ -356,8 +386,10 @@ func (s *Store) PutBundle(bundle Bundle) (string, error) {
 	referenced := map[string]Body{}
 	for _, turn := range manifest.Turns {
 		for _, item := range turn.Items {
-			if item.Body.Kind == BodyBlob {
-				referenced[item.Body.Hash] = item.Body
+			for _, body := range item.Bodies() {
+				if body.Kind == BodyBlob {
+					referenced[body.Hash] = body
+				}
 			}
 		}
 	}
@@ -366,6 +398,7 @@ func (s *Store) PutBundle(bundle Bundle) (string, error) {
 			return "", fmt.Errorf("上传包含清单未引用的 blob")
 		}
 	}
+	resolved := map[string]string{}
 	for blobHash, body := range referenced {
 		blobPath, pathErr := s.blobPath(blobHash)
 		if pathErr != nil {
@@ -385,12 +418,28 @@ func (s *Store) PutBundle(bundle Bundle) (string, error) {
 		if err = validateBlob(body, text); err != nil {
 			return "", err
 		}
-		if supplied {
-			if err = writeImmutable(blobPath, []byte(text)); err != nil {
-				return "", err
+		resolved[blobHash] = text
+	}
+	// Validate the complete bundle before promoting any supplied image bytes.
+	for _, turn := range manifest.Turns {
+		for _, item := range turn.Items {
+			for _, attachment := range item.Attachments {
+				if err := ValidateImage(attachment.MIME, resolved[attachment.Body.Hash]); err != nil {
+					return "", err
+				}
 			}
 		}
 	}
+	for hash, text := range bundle.Blobs {
+		path, err := s.blobPath(hash)
+		if err != nil {
+			return "", err
+		}
+		if err := writeImmutable(path, []byte(text)); err != nil {
+			return "", err
+		}
+	}
+
 	manifestPath, err := s.manifestPath(hash)
 	if err != nil {
 		return "", err
@@ -495,17 +544,19 @@ func (s *Store) LoadBundle(hash string) (Bundle, error) {
 	bundle := Bundle{Manifest: manifest, Blobs: map[string]string{}}
 	for _, turn := range manifest.Turns {
 		for _, item := range turn.Items {
-			if item.Body.Kind != BodyBlob {
-				continue
+			for _, body := range item.Bodies() {
+				if body.Kind != BodyBlob {
+					continue
+				}
+				if _, ok := bundle.Blobs[body.Hash]; ok {
+					continue
+				}
+				text, err := s.ReadBody(Item{Body: body})
+				if err != nil {
+					return Bundle{}, err
+				}
+				bundle.Blobs[body.Hash] = text
 			}
-			if _, ok := bundle.Blobs[item.Body.Hash]; ok {
-				continue
-			}
-			text, readErr := s.ReadBody(item)
-			if readErr != nil {
-				return Bundle{}, readErr
-			}
-			bundle.Blobs[item.Body.Hash] = text
 		}
 	}
 	return bundle, nil

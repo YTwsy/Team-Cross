@@ -26,21 +26,45 @@ App 的菜单“ChatGPT 插件…”和 WebGUI“设置与连接”共用插件�
 
 市场名为 `teamcross-local`，插件 ID 为 `teamcross@teamcross-local`，MCP 服务名为 `teamcross-ui`。升级只接受原来源和这个精确 ID；当前 CLI 没有 `plugin upgrade` 子命令，Team Cross 通过核对后的 remove/add 刷新自身缓存。其他 MCP、插件和来源配置保留。已有非 Team Cross 目录、同名异源市场及包内符号链接会被拒绝。卸载移除自身插件及来源注册，保留包、本机 Core 数据和材料；不删除会话或协作目录。
 
-`upgrade` 更新磁盘上的包与安装缓存，不替换 ChatGPT 已运行的 stdio 进程或已打开的面板。更新后按[官方本机插件流程](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually)完全退出并重新打开 ChatGPT，再检查侧栏入口；新会话加载成功不能证明旧侧栏已经刷新。重启由用户在当前任务结束后进行，升级命令不结束 ChatGPT 或其他会话。
+`upgrade` 更新磁盘上的包与安装缓存，不替换 ChatGPT 已运行的 stdio 进程。已具备下述更新检查的面板可从当前 Core 加载兼容的新界面；旧面板首次获得该能力，或 MCP 工具声明、启动配置及更新协议发生不兼容变化时，仍须由宿主刷新/重新加载。必要时按[官方本机插件流程](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually)重新打开客户端。界面 bundle 更新不冒充新安装代号的 bootstrap 回执，也不证明每个面板均已更新；升级命令不结束 ChatGPT 或其他会话。
+
+界面与驻留 MCP 的兼容性独立于安装版本、Core 版本及 bundle 传输协议。`plugin/bootstrap` 由实际处理请求的 MCP 返回累计 `bridgeProtocol`，不能从 Core 或磁盘包推断；界面通过 `requiredBridgeProtocol` 声明最低要求。新增界面依赖的路由或语义时同步提升此要求及 MCP 能力，旧能力在高代协议中保留。要求不支持时，新 MCP 在启动 Core 或写入加载回执前拒绝 bootstrap；未声明能力的历史 MCP 按 0 处理。
+
+更新元数据及完整 bundle 都携带最低桥接要求，加载器在下载和替换前核对，失败不卸载编辑器、不重放业务写入。已经驻留的旧加载器无法获得这项预检，因此新界面自身也在 bootstrap 后、业务读取和 React 挂载前检查；不兼容时由原加载器恢复页面和检查点，独立提示保留在页面外层。旧页面曾热更新到不兼容界面时，只把确切的原始路由拒绝解释为重载提示，不隐藏其他错误。新进程完成兼容 bootstrap 后清除提示。
+
+需要重载时明确提示“先保存未发送的内容，再退出并重新打开 Codex 或 ChatGPT”；不把普通页面刷新当作 MCP 重载，不自动终止宿主或 Core。热更新回退的草稿保留只限当前 iframe，不能承诺退出宿主后保留未发送正文。
+
+Core 升级以已安装构建为准，保留插件按需启动。新 Core 自行检测安装变化，公共启动器在单一锁内切换；进入升级后最多给现有工作 10 秒收尾，后续请求不延长截止时间。空闲连接、历史未知回执不能无限阻塞，可能中断 Core 托管的模型执行；个人宿主保持运行。完整规则见[分发与生命周期](../distribution-and-onboarding.md#启动发现与退出)。首次迁移至该机制仍需要新版 App/helper 参与，不能要求尚未含有检测逻辑的旧 Core 自行获得新策略。
+
+服务切换期间原编辑器保持挂载，重连提示不清空草稿。仅明确的读取在 `core_updating` / `core_update_pending` 时短暂重试；写入、宿主消息和未知结果不自动重发。后台 Core 升级不受界面草稿阻塞；界面 bundle 更新继续遵循下面的草稿确认、检查点和失败回退规则。
 
 ## 一套 WebGUI，两种运行环境
 
 浏览器版与插件版都从 `packages/web/src/main.tsx` 启动，挂载相同的 `App`，加载相同的 `styles.css` 与 `library.css`。插件包含完整的导航、空间、创建与加入、材料阅读、原文批注、资源库、设置及接收会话配对页面，不维护另一套面板或插件专用布局。后续 WebGUI 页面与组件的修改同时进入两种构建；新增 API 需要同步检查宿主桥的路由声明。
 
+面板资源 URI 以嵌入 HTML 的内容摘要区分版本，工具描述和资源列表使用同一地址；宿主重新发现插件后，界面改动不会继续命中旧缓存键。
+
+保留旧固定资源地址，并将严格匹配 `ui://teamcross/workspace-<24 位小写十六进制摘要>.html` 的地址视为面板启动别名。宿主全局入口发现与各会话的 stdio 进程可独立更新，读取新旧面板地址都返回当前 MCP 内嵌的界面，随后沿用当前 Core 的 bundle 更新机制；不会因版本不相同把 UI 地址误当作材料引用而返回“不同 Core”。返回资源仍使用请求中的 URI；该地址用于宿主缓存分代，不承诺保存历史界面。静态资源读取不启动 Core、不读取用户材料，其他 scheme、authority、路径、查询及 fragment 仍拒绝，材料与批注的固定版本和 Core 隔离规则不变。首次获得此兼容能力需要宿主重新加载 MCP，磁盘更新不能改变已经运行的旧代码。新面板的资源缓存规则遵循 [官方 UI 资源缓存规则](https://developers.openai.com/plugins/build/chatgpt-ui)；已打开面板另由下述更新机制处理。
+
+可见面板约每 15 秒经 app-only MCP 读取当前 Core 的界面版本，回到前台时再次检查。无未保存内容且无待完成写入时自动刷新；有草稿时提示“保留草稿并刷新”，由用户点击后继续。输入法组字、业务写入和宿主消息尚未结束时暂缓替换，下载结束后再次核对。Core 重启或不可用时保留旧编辑器，恢复后继续检查。
+
+更新只取当前 Core 内嵌的完整脚本和样式，指定准确 revision 并校验 SHA-256；不从旧 stdio 可执行文件取资源，不依赖未声明的宿主 reload 接口或 iframe 直接联网。替换前保存当前面板的私有状态，关闭旧桥与监听器，在同一 iframe 挂载新界面。获取、校验或启动失败时保留/恢复旧界面和草稿，提示明确重试，不循环尝试同一个失败版本。更新本身只读，不发送留言、重试请求或唤醒模型。
+
+启动完成以宿主握手、Core bootstrap 和 React 首次提交后的 runtime 回执为准，不等待内联 module 不会自动触发的 `load`。新版入口同时发出旧加载器需要的兼容回执，使已具备 bundle 更新能力的旧面板可以在宿主不重启时直接迁移。启动失败只归因于本次脚本；超时回退前取消未完成的握手，避免迟到的启动覆盖已恢复的编辑器。失败 revision 跨面板重挂载保留，只有明确重试或另一个版本才再次尝试；本地诊断记录下载、校验、检查点或启动阶段，不含草稿正文。
+
 插件环境还将原有 React 表单的点击提交交给相同的 `onSubmit`，保留必填验证，避免依赖 iframe 的原生表单导航权限；不改表单布局与业务处理器。
 
-插件构建只替换 `environment.ts`：先完成 MCP Apps 握手，再通过 `setAPITransport` 把原来的 API 调用转成宿主 `tools/call`。Go 侧 `teamcross_ui_read` / `teamcross_ui_write` 只向 app 可见，按明确的 WebGUI 路由及读写类型访问本机 Core，原样返回 WebGUI 数据结构。Core 继续验证成员权限、输入归属和请求编号；业务写入由现有界面的明确操作触发。不会将 Core 控制、接收通道轮询、原生调用者身份或任意 URL 暴露为 UI 路由。面向模型的工具包含查询、材料/引用读取、批注回复，以及按传输身份核对的会话连接、请求读取/完成和明确发送空间请求。空间简报确认仍由人工界面保存；模型不能选择另一个调用者身份。
+插件构建只替换 `environment.ts`：先完成 MCP Apps 握手，再通过 `setAPITransport` 把原来的 API 调用转成宿主 `tools/call`。Go 侧 `teamcross_ui_read` / `teamcross_ui_write` 只向 app 可见，按明确的 WebGUI 路由及读写类型访问本机 Core，原样返回 WebGUI 数据结构。Core 继续验证成员权限、输入归属和请求编号；业务写入由现有界面的明确操作触发。不会将 Core 控制、接收通道轮询、原生调用者身份或任意 URL 暴露为 UI 路由。面向模型的工具包含查询、材料/引用读取、批注回复，以及按传输身份核对的会话连接、请求读取/完成和明确发送空间请求。空间简报可由界面保存或经身份核对的模型工具按条目更新，保留实际作者、状态与版本；模型不能选择另一个调用者身份。
 
 [空间工作台](space-workbench.md) 的请求、简报、参与会话和可选专用会话使用同一套页面。宿主桥明确声明这些页面所需的读写路由，包括本机独立接收会话的状态和人工审批；内部投递的 poll/claim、接收身份与任意原生 RPC 仍不开放。新增页面接口时须同步路由声明和读写隔离回归，避免普通 WebGUI 可用而插件报错。
 
 `open_teamcross` 声明 global / thread 入口，资源声明 fullscreen，以容纳完整 WebGUI。入口、显示模式、`ui/message` 和上下文能力遵循 [OpenAI MCP Extensions 规范](https://github.com/openai/mcp-extensions/blob/900032d8bd7c1566202d0cb1666986584f932043/docs/spec.md)，实际显示与投递仍需对应桌面版本验收。自包含 HTML 将页面脚本、样式和语法高亮一并打包；iframe 不请求 localhost，也不需要放宽 Core 的来源检查或向浏览器交付 Core token。
 
-语言继续来自 Core 的本机界面语言偏好。主题沿用 WebGUI 的系统、浅色、深色设置；浏览器保存在原 localStorage，插件沙盒通过薄存储适配保存在当前面板的 private widget state。页面路由与投递状态同样绑定 Core scope；它们不会自动成为模型上下文。无 widget state 时仅保留当前 iframe 的内存，不能承诺跨新会话或重载持久化。正文、批注草稿和回复逻辑沿用现有 WebGUI，不另设插件专用编辑器或草稿恢复契约。
+语言继续来自 Core 的本机界面语言偏好。主题沿用 WebGUI 的系统、浅色、深色设置；浏览器保存在原 localStorage，插件沙盒通过薄存储适配保存在当前面板的 private widget state。页面路由与投递状态同样绑定 Core scope；它们不会自动成为模型上下文。无 widget state 时仅保留当前 iframe 的内存，不能承诺跨新会话或宿主重载持久化。
+
+首次加载因桥接不兼容而无法挂载 App 时，恢复提示采用宿主提供的深浅主题（未提供时跟随系统），不先恢复未确认 Core scope 的私有设置。[驻留旧 MCP 验证](../../tasks/2026-10-24-plugin-bridge-compatibility/README.md)覆盖真实旧 stdio、Core 与生产界面，宿主封装为模拟；实际用户宿主的退出与重开仍由用户执行，不能把同 iframe 的草稿回退推广为跨宿主重载持久化。
+
+同一 iframe 的界面更新额外保留明确注册的批注、回复、定向留言、请求说明、简报、发布/创建表单、设置与未确认选择，以及对应请求 ID 和结果未知状态。沿用共享 WebGUI 编辑器，以 Core、空间/会话/材料等语义标识隔离；不按组件挂载顺序匹配，不恢复忙碌状态或自动重放写入。正文检查点只在当前 iframe 内存中传递，不进入模型上下文或磁盘。未来编辑器须在 `refreshState.ts` 注册可序列化字段与未保存判定，字段语义不兼容时更换版本键；无法完整保存时停止刷新并保留旧编辑器。本机制不承诺浏览器崩溃、手动重载或跨会话的草稿持久化。
 
 ## 带给当前个人 Agent
 

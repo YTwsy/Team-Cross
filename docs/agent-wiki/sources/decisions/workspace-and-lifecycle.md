@@ -13,15 +13,19 @@
 
 预览绑定来源、完成轮、模式、目录、HEAD 和分支。起点变化后重新确认，不把旧预览当作创建当前状态的授权。原目录中的未提交内容是实时现场，不宣称已经生成它的内容快照。
 
-创建、预览与读取不发送业务 prompt。恢复已有协作使用保存的 `sessionId` 和 `executionCwd`，不再次 fork 或创建 worktree。Claude 的零输入 fork、存活 worker 重新绑定与恢复参数限制见 [Claude 单一执行端](claude-native-tui.md#单一执行端)。
+创建、预览与读取不发送业务 prompt。恢复已有协作使用保存的 `sessionId`，不再次 fork 或创建 worktree；Codex 先读取该原生会话的最新目录和模型设置。Claude 的零输入 fork、存活 worker 重新绑定与恢复参数限制见 [Claude 单一执行端](claude-native-tui.md#单一执行端)。
 
 个人 MCP 分享当前 Session 时，工具调用属于正在进行的来源轮次，不能同步等这轮完成。采用“核对身份、预览、登记、工具返回、本轮结束后创建”的顺序，保留完整最后答复。预览锁定本轮及 Git/模式/传输；等待期间出现新轮次或起点变化即停止。等待请求可取消，创建开始后保留实际结果；Core 重启不自动重放。身份缺失回到明确选择来源，不把最近会话当作当前会话。字段和状态见 [当前 Session 与延后分享](../protocol.md#当前-session-与延后分享)。
 
-## 多会话与目录占用
+## 多会话与原生目录
 
 空间内可创建多个独立 fork，预览与幂等创建同时绑定 spaceId 和 executionId。每个会话保存自己的原生 ID、目录、模式和命令结果；空间不再承担单一运行时身份。
 
-一个 Core 内按实际 Git worktree 根目录维护可写占用，规范化符号链接并合并同 worktree 的子目录。独立接收实例也遵守该占用。不同 worktree 可并行；冲突时明确拒绝，不自动暂停其他实例。占用在原生进程实际关闭后才释放；不能用暂停请求已返回代替释放完成。此规则只协调 Team Cross 管理的实例，不控制外部终端或其他应用写入。
+多个协作会话或独立接收实例可以使用同一原目录、worktree 或其子目录。Team Cross 不维护目录独占，不因目录相同自动暂停或迁移会话。Agent 在原生权限范围内按用户要求、仓库规则与工作现场自行处理分支、worktree 和命令执行位置；每个会话的输入归属和原生会话写入锁仍独立有效。
+
+Codex 的 `executionCwd` 保存同一原生 `threadId` 最近确认的 `thread.cwd`。创建仍使用用户选择的目录；后续输入保留原生会话目录，不把客户端本机的 `cwd/runtimeWorkspaceRoots` 传入主机，也不反复写回创建目录。原生设置调用成功及轮次结束后读取确认，恢复前读取最新目录用于进程启动和会话恢复；失败、空值、相对路径或过期运行时响应不覆盖已知目录。
+
+现有“会话操作”菜单、文件读取和“工作目录改动”共用该目录，无需新增目录管理界面。`thread.cwd` 表示会话目录，不追踪某条命令的 `cd` 或 `workdir`；只有 Agent 在别处执行命令时，展示不会据此变化。创建时的 `workspaceMode/workspaceRoot/workspaceOwned` 保留原有资源归属，跟随原生目录不授予新目录的清理权。Claude 继续遵守原生 job 的目录和恢复契约，不从 transcript 推断目录迁移。
 
 “工作目录改动”读取当前 Git 现场，不表示差异全部由该会话产生。新 worktree 仍只从选定 HEAD 检出，继承对话不等于复制未提交代码。
 
@@ -41,6 +45,7 @@
 
 - [工作目录实现](../../../../internal/workspace/workspace.go) 与 [目录测试](../../../../internal/workspace/workspace_test.go)：原目录前后 Git 状态、四类未提交内容、子目录映射。
 - [创建与恢复](../../../../internal/collab/app.go) 与 [协作测试](../../../../internal/collab/collab_test.go)：新 fork、来源关联、无隐式 prompt、恢复同一 ID。
+- [原生状态同步](../../../../internal/collab/model.go) 与 [目录回归](../../../../internal/collab/native_workspace_test.go)：原生目录、继续输入、文件/改动、恢复与过期响应。
 - [延后分享](../../../../internal/collab/current_share.go) 与 [请求测试](../../../../internal/collab/current_share_test.go)：身份核对、当前轮完成、起点变化、取消、请求去重与重启不重放。
 - [生命周期与共享](../../../../internal/collab/network.go)、[空闲释放](../../../../internal/collab/lifecycle.go)：结束访问、重开运行时与旧连接隔离。
 

@@ -1,0 +1,11 @@
+=== RUN   TestNativeShadowToolsetUpgrade
+    toolsets_native_test.go:138: original main persisted
+    toolsets_native_test.go:148: original worker persisted a wait and ended its native turn
+    toolsets_native_test.go:179: upgraded main actually called the newly registered tool
+    toolsets_native_test.go:180: upgraded worker resolved its original dependency and finished
+    toolsets_native_test.go:184: result delivery settled
+    toolsets_native_test.go:200: restart reused the upgraded main and its tools
+--- PASS: TestNativeShadowToolsetUpgrade (74.72s)
+PASS
+ok  	teamcross/internal/shadow	74.988s
+Native acceptance report: /private/tmp/teamcross-shadow-toolset-native-20261024-a/report.json

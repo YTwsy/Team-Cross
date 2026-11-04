@@ -1,0 +1,44 @@
+[
+  {
+    "singleInstance": true,
+    "canonicalPath": true,
+    "defaultPortFallback": true,
+    "explicitPortConflict": true,
+    "authenticatedStop": true,
+    "mcpLazyStart": true,
+    "unresponsiveCoreNoRespawn": true,
+    "crashRecovery": true,
+    "dataPreserved": true
+  },
+  {
+    "concurrentAppCopies": true,
+    "canonicalDataDirectory": true,
+    "homeForwarded": true,
+    "invitationBatchesForwardedOnce": true,
+    "receiptRetryDeduplicated": true,
+    "invalidRequestsRejected": true,
+    "unresponsiveOwnerRecovery": true,
+    "reopenExistingApp": true,
+    "independentDataDirectories": true,
+    "secondaryExitPreservesCore": true,
+    "shellCrashRecovery": true,
+    "explicitQuitStopsCore": true,
+    "dataPreserved": true,
+    "pluginOptInRequired": true,
+    "pluginStartupSync": false,
+    "pluginFollowsAppCore": false,
+    "realCodexOrLAN": false
+  },
+  {
+    "checksums": true,
+    "dmgInstall": true,
+    "appIcon": true,
+    "appSignatureIntegrity": true,
+    "cliAppVersionParity": true,
+    "appSingleInstance": true,
+    "appCLIInstallAndRemove": true,
+    "existingCommandPreserved": true,
+    "compatibleCoreReuse": true,
+    "publicInstallation": false
+  }
+]

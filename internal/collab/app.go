@@ -99,11 +99,16 @@ func Open(cfg Config) (*App, error) {
 		a.Close()
 		return nil, err
 	}
+	if err = a.loadShadows(); err != nil {
+		a.Close()
+		return nil, err
+	}
 	a.startWorkbench()
 	if err := a.startSpaceEvents(); err != nil {
 		a.Close()
 		return nil, err
 	}
+	a.startShadows()
 	return a, nil
 }
 func readJSON(path string, out any) error {
@@ -157,12 +162,37 @@ func writeJSONFile(path string, value any) error {
 func (a *App) newSession(r Record) *Session {
 	root := filepath.Join(a.Config.DataDir, "collaborations", r.ID, "materials")
 	session := &Session{mu: &sync.Mutex{}, executions: map[string]*Session{}, app: a, record: r, materialStore: materialstore.New(root), writer: "owner", epoch: 1, presence: map[string]memberPresence{}, approvals: map[string]Approval{}}
+	session.activityBaselineLocked()
 	if r.Schema == 4 {
 		_, _, _ = session.cleanupAndMeasureUploads(time.Now(), "")
 	}
 	return session
 }
 func (s *Session) saveLocked() error {
+	if s.receiverSpace != "" {
+		return s.saveRecordLocked()
+	}
+	previous := s.record.Activity
+	s.record.Activity = activityClone(previous)
+	if err := s.prepareActivityLocked(); err != nil {
+		s.record.Activity = previous
+		return err
+	}
+	if data, err := json.Marshal(s.record.Activity); err != nil || len(data) > maxActivityStateBytes {
+		s.record.Activity = previous
+		return fmt.Errorf("成员动态状态已达存储上限，请先处理同步异常")
+	}
+	if err := s.saveRecordLocked(); err != nil {
+		s.record.Activity = previous
+		return err
+	}
+	s.activityBaselineLocked()
+	if err := s.drainActivityLocked(); err != nil {
+		s.activityRoot().activityError = err.Error()
+	}
+	return nil
+}
+func (s *Session) saveRecordLocked() error {
 	if s.receiverSpace != "" {
 		return writeJSONFile(filepath.Join(s.runtimeDirectory(), "receiver.json"), receiverRecord{SpaceID: s.receiverSpace, CreationStage: s.receiverCreation, ReceivingPaused: s.receiverPaused, Record: s.record})
 	}
@@ -197,6 +227,14 @@ func (a *App) startProcessWithMode(ctx context.Context, home, cwd, log string, m
 	return nativecodex.StartWithMode(ctx, binary, home, cwd, log, mode, overrides...)
 }
 func (a *App) readerCall(ctx context.Context, method string, params, out any) error {
+	home, err := nativecodex.Home()
+	if err != nil {
+		return err
+	}
+	return a.readerCallInHome(ctx, home, method, params, out)
+}
+
+func (a *App) readerCallInHome(ctx context.Context, home, method string, params, out any) error {
 	a.readerMu.Lock()
 	defer a.readerMu.Unlock()
 	a.mu.Lock()
@@ -205,19 +243,16 @@ func (a *App) readerCall(ctx context.Context, method string, params, out any) er
 	if closed {
 		return fmt.Errorf("Core 已退出")
 	}
-	if a.reader == nil || !a.reader.Alive() {
+	if a.reader == nil || !a.reader.Alive() || a.readerHome != home {
 		if a.reader != nil {
 			a.reader.Close()
-		}
-		home, e := nativecodex.Home()
-		if e != nil {
-			return e
 		}
 		p, e := a.startProcess(ctx, home, a.Config.Repo, filepath.Join(a.Config.DataDir, "reader.log"))
 		if e != nil {
 			return e
 		}
 		a.reader = p
+		a.readerHome = home
 	}
 	return a.reader.Call(ctx, method, params, out)
 }
@@ -567,15 +602,23 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 	if old != nil {
 		old.Close()
 	}
-	if err := s.acquireDirectory(r.ExecutionCwd); err != nil {
-		return err
-	}
-	keepLease := false
-	defer func() {
-		if !keepLease {
-			s.releaseDirectory()
+	var native Source
+	if resume && r.Provider != "claude" {
+		var read struct {
+			Thread Source `json:"thread"`
 		}
-	}()
+		if err := s.app.readerCallInHome(ctx, r.ProviderHome, "thread/read", map[string]any{"threadId": r.SessionID, "includeTurns": false}, &read); err != nil {
+			return err
+		}
+		if read.Thread.ID != r.SessionID {
+			return fmt.Errorf("原生会话身份不匹配")
+		}
+		native = read.Thread
+		s.mu.Lock()
+		s.nativeWorkspaceLocked(native)
+		r.ExecutionCwd = s.record.ExecutionCwd
+		s.mu.Unlock()
+	}
 	var p Runtime
 	var e error
 	if r.Provider == "claude" {
@@ -623,21 +666,14 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 	s.approvals = map[string]Approval{}
 	s.mu.Unlock()
 	if resume && r.SessionID != "" && r.Provider != "claude" {
-		var read struct {
-			Thread Source `json:"thread"`
-		}
-		if e = p.Call(ctx, "thread/read", map[string]any{"threadId": r.SessionID, "includeTurns": false}, &read); e != nil {
-			p.Close()
-			return e
-		}
 		params := nativecodex.SessionOverrides(r.SessionID, r.ExecutionCwd, r.RuntimeMode)
-		inheritModel(params, read.Thread)
+		inheritModel(params, native)
 		params["excludeTurns"] = true
 		if e = p.Call(ctx, "thread/resume", params, nil); e != nil {
 			p.Close()
 			return e
 		}
-		s.refreshModel(ctx, p)
+		s.refreshNativeState(ctx, p, true)
 	}
 	s.mu.Lock()
 	if s.process == p && !s.closed {
@@ -648,13 +684,14 @@ func (s *Session) start(ctx context.Context, resume bool) error {
 			p.Close()
 			return e
 		}
-		keepLease = true
 		started = true
 	}
 	s.mu.Unlock()
 	return nil
 }
 func (a *App) Close() {
+	a.shadowCreateMu.Lock()
+	defer a.shadowCreateMu.Unlock()
 	a.mu.Lock()
 	if a.closed {
 		a.mu.Unlock()
@@ -674,6 +711,13 @@ func (a *App) Close() {
 		clients = append(clients, c)
 	}
 	a.mu.Unlock()
+	if a.shadowCancel != nil {
+		a.shadowCancel()
+		a.shadowWG.Wait()
+	}
+	for _, e := range a.shadows {
+		e.Close()
+	}
 	if a.eventsCancel != nil {
 		a.eventsCancel()
 		a.eventsWG.Wait()
@@ -725,7 +769,6 @@ func (a *App) Close() {
 		}
 		if p != nil {
 			p.Close()
-			s.releaseDirectory()
 		}
 		if stopping != nil {
 			<-stopping

@@ -1,11 +1,30 @@
 package materialstore
 
 import (
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestStoreRejectsDisguisedImageBeforeWritingAnyBundleBlob(t *testing.T) {
+	store := New(t.TempDir())
+	bundle := testBundle(t)
+	text := base64.StdEncoding.EncodeToString([]byte("<svg onload='bad()'/>"))
+	body := BlobBody(text)
+	bundle.Manifest.Turns[0].Hash = ""
+	bundle.Manifest.Turns[0].Items[0].Attachments = []Attachment{{ID: "i", Name: "fake.png", MIME: "image/png", StartOffset: 0, EndOffset: 2, Body: body}}
+	bundle.Blobs[body.Hash] = text
+	if _, err := store.PutBundle(bundle); err == nil {
+		t.Fatal("disguised image accepted")
+	}
+	for hash := range bundle.Blobs {
+		if store.HasBlob(hash) {
+			t.Fatal("invalid bundle promoted a blob")
+		}
+	}
+}
 
 func testBundle(t *testing.T) Bundle {
 	t.Helper()

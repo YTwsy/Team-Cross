@@ -1,0 +1,128 @@
+.                                        | [WARN] Unsupported engine: wanted: {"node":">=24"} (current: {"node":"v23.10.0","pnpm":"11.19.0"})
+$ vitest run
+
+ RUN  v3.2.4 /Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/packages/web
+
+ ✓ src/test/reading.test.tsx (18 tests) 2455ms
+   ✓ keeps the highlighted code DOM and its selection stable when discussion state refreshes  434ms
+   ✓ places the narrow-screen editor directly after the selected paragraph and retains its draft when closed  353ms
+   ✓ keeps a paginated code block intact and reopens the same material from its in-page reading cache  307ms
+   ✓ folds consecutive material tools without hiding dialogue or crossing turns, and preserves open state on pagination  311ms
+ ✓ src/test/space-workbench.test.tsx (13 tests) 4850ms
+   ✓ drains a paused receiver before exposing Desktop continuation and same-session resume  674ms
+   ✓ adds an existing conversation only after selection and confirmation in the add dialog  550ms
+   ✓ keeps chosen fixed sources and an unsaved brief while searching sources and changing tabs  588ms
+   ✓ keeps the reader mounted while tabs and keyboard navigation expose shared work  322ms
+   ✓ preserves brief sources and submits the revision the member reviewed  804ms
+   ✓ submits the material and public annotation confirmed in the unified picker  342ms
+   ✓ keeps source progress nearby and proposes results without saving a decision automatically  420ms
+ ✓ src/test/publication.test.tsx (11 tests) 5327ms
+   ✓ keeps scope, the active reader tools, export notices and a single next action in the shared controls  833ms
+   ✓ reads compact private drafts, navigates independently of scope, and renders Markdown without annotation actions  451ms
+   ✓ keeps scope separate from the reading recommendation and resets only a recommendation outside new boundaries  369ms
+   ✓ confirms only the server-scoped preview, starts at its first turn, and retains the editor when returning  539ms
+   ✓ requires a refreshed confirmation after editing the title and keeps request identity after a lost publish response  1277ms
+   ✓ ignores delayed navigation responses and retries the requested turn without changing selection  302ms
+   ✓ reads tool pages separately and preserves their expansion across range changes and confirmation  356ms
+   ✓ waits for confirmation body before enabling publication and allows retry after a failed read  460ms
+ ✓ src/test/context-refresh.test.tsx (11 tests) 5319ms
+   ✓ 协作上下文刷新 > 回到最新补齐当前页，跟随更新；上滚后保留正在阅读的正文  868ms
+   ✓ 协作上下文刷新 > owner 的对话在状态刷新期间保留容器和阅读位置，并显示更新结果  362ms
+   ✓ 协作上下文刷新 > remote 的对话在状态刷新期间保留容器和阅读位置，并显示更新结果  341ms
+   ✓ 协作上下文刷新 > 手动刷新失败保留对话，重试后原位更新  536ms
+   ✓ 协作上下文刷新 > 切换标签和文件时清除前一个资源，不把旧内容当作新结果  432ms
+   ✓ 协作上下文刷新 > 在概览处切换上下文标签时保留当前页面位置  361ms
+   ✓ 协作上下文刷新 > 较早的刷新响应不会覆盖后来的对话  463ms
+   ✓ 协作上下文刷新 > 长工具输出可按 pageCursor 和 item 坐标继续读取  523ms
+   ✓ 协作对话目录导航 > 读取未加载的轮次后定位，已加载轮次直接跳转，继续分页和返回最近对话清除定位参数  886ms
+   ✓ 协作对话目录导航 > 目标轮次读取失败可以重试，完成后仍定位到所选轮次  313ms
+ ✓ src/test/annotations.test.tsx (10 tests) 6184ms
+   ✓ 原处批注 > 参与者、共享状态与技术信息各自归位，长讨论不改变信息结构  941ms
+   ✓ 原处批注 > 选中重复片段时保留准确消息与 UTF-16 范围，保存不发送模型输入  804ms
+   ✓ 原处批注 > 连续文件行自动引用，返回旧批注时不高亮已变化的同号行  1602ms
+   ✓ 原处批注 > 保存失败保留正文和引用，切换整体意见后可继续原草稿  1206ms
+   ✓ 原处批注 > 直接写整体意见无需按钮或弹窗，回复保持原批注数量和位置  850ms
+   ✓ 原处批注 > 回复失败或收起保留草稿，重试沿用 requestId  559ms
+ ✓ src/test/plugin.test.tsx (15 tests) 1781ms
+   ✓ mounts the entire existing App, including navigation, creation and pairing pages  344ms
+   ✓ retries only reads during Core replacement and never resends a write  1004ms
+stderr | src/test/plugin-update.test.tsx > preserves the editor and allows explicit retry after a failed update
+[Team Cross] Panel update failed {
+  revision: '800d193b47a2b7d8df418e279f4cf24f2e3cead7ee4e621a89c9996d9b7e2cec',
+  stage: 'download',
+  message: 'Core restarting',
+  at: '2026-10-23T20:58:03.925Z'
+}
+
+stderr | src/test/plugin-update.test.tsx > keeps a failed revision blocked after watcher recreation and records the failing stage
+[Team Cross] Panel update failed {
+  revision: '800d193b47a2b7d8df418e279f4cf24f2e3cead7ee4e621a89c9996d9b7e2cec',
+  stage: 'download',
+  message: 'download interrupted',
+  at: '2026-10-23T20:58:04.032Z'
+}
+
+stderr | src/test/plugin-update.test.tsx > clears a stale candidate when the Core returns to the currently mounted version
+[Team Cross] Panel update failed {
+  revision: '800d193b47a2b7d8df418e279f4cf24f2e3cead7ee4e621a89c9996d9b7e2cec',
+  stage: 'download',
+  message: 'temporary version unavailable',
+  at: '2026-10-23T20:58:04.067Z'
+}
+
+ ✓ src/test/plugin-update.test.tsx (15 tests) 553ms
+ ✓ src/test/reading-scroll.test.tsx (8 tests) 761ms
+ ✓ src/test/rich-reading.test.tsx (10 tests) 1048ms
+   ✓ pauses very large searches without reporting an incomplete count as final  463ms
+ ✓ src/test/flows.test.tsx (41 tests) 7746ms
+   ✓ 邀请者在个人 Codex 中打开协作 > 同事正在操作时不自动跳转，点击才打开已有 fork  514ms
+   ✓ 邀请者在个人 Codex 中打开协作 > 仅释放后提供继续入口：releasing / sharing=false  344ms
+   ✓ 邀请者在个人 Codex 中打开协作 > 打开失败可重试，不误报已打开或恢复运行时  397ms
+   ✓ 产品路径 > 加入后不会显示邀请码期限，离线成员仍保留身份  341ms
+   ✓ 产品路径 > 未使用的过期邀请可重新生成，不结束本地会话  528ms
+   ✓ 产品路径 > 会话释放后读取上下文不恢复运行时，明确操作才恢复  316ms
+   ✓ 多人成员与邀请 > 发起者明确交给 C，成员列表保留 B，已有人加入仍可继续邀请  551ms
+   ✓ 多人成员与邀请 > C 正在输入时 B 仍可申请输入，不能因同为受邀者而直接操作  309ms
+ ✓ src/test/materials.test.tsx (6 tests) 880ms
+   ✓ opens only the selected material by default, with navigation on the left and comments folded  349ms
+ ✓ src/test/library.test.tsx (21 tests) 8442ms
+   ✓ 个人资源库 > keeps rows and groups in place after visits, selection, favorites and background refreshes  877ms
+   ✓ 个人资源库 > offers one material selection action and selects the version currently being read  1821ms
+   ✓ 个人资源库 > can publish from the overview with retained library selections and a reading entry (execution: false)  1061ms
+   ✓ 个人资源库 > can publish from the overview with retained library selections and a reading entry (execution: true)  786ms
+   ✓ 个人资源库 > switches between material and session from the sidebar while retaining each reader  624ms
+   ✓ 个人资源库 > opens the matching reading tab when locating a material or live context annotation  591ms
+   ✓ 个人资源库 > separates reading from selection and preserves mixed selections through filters  470ms
+   ✓ 个人资源库 > generates an inline immutable entry while keeping browsing and selection usable  316ms
+ ✓ src/test/native-client-settings.test.tsx (7 tests) 536ms
+ ✓ src/test/space-reading.test.tsx (5 tests) 1751ms
+   ✓ discloses secondary comment actions and keeps the reply draft when dismissing them  328ms
+   ✓ retains each material's fixed version and cached reading when navigating and filtering  558ms
+   ✓ folds comments without losing an unsent draft or posting it  317ms
+   ✓ adds fixed references in the reading dock before opening a request, without sending input  348ms
+ ✓ src/test/shadows.test.tsx (6 tests) 1832ms
+   ✓ restores an uncertain creation with the same request id and only retries on click  749ms
+   ✓ uses per-model effort capabilities and invalidates the catalog when cwd changes  664ms
+ ✓ src/test/multiple-executions.test.tsx (5 tests) 1794ms
+   ✓ keeps each session's comment and file draft while the URL selects an exact session  767ms
+   ✓ a late save stays bound to its original session and leaving clears cached content  419ms
+   ✓ opens the right-hand comments on wide screens and keeps manual choices across sessions and sizes  426ms
+ ✓ src/test/inflow.test.tsx (6 tests) 486ms
+ ✓ src/test/space-lifecycle.test.tsx (5 tests) 1600ms
+   ✓ closes an empty read-only space, including sharing=false, and can reopen it  550ms
+   ✓ closes an empty read-only space, including sharing=true, and can reopen it  320ms
+   ✓ keeps one reusable invitation and separates link rotation and closure from ending the space  337ms
+ ✓ src/test/plugin-connection.test.tsx (4 tests) 270ms
+ ✓ src/test/agent-pairings.test.tsx (4 tests) 406ms
+ ✓ src/test/plugin-runtime.test.ts (5 tests) 153ms
+ ✓ src/test/space-events.test.tsx (1 test) 122ms
+ ✓ src/test/i18n.test.tsx (1 test) 163ms
+ ✓ src/test/member-activity.test.tsx (4 tests) 4312ms
+   ✓ clears loaded source content when access revalidation fails  4033ms
+ ✓ src/test/current-connection.test.tsx (6 tests) 4184ms
+   ✓ reconciles a submitted message against Core and observes removal  4013ms
+
+ Test Files  25 passed (25)
+      Tests  238 passed (238)
+   Start at  04:57:53
+   Duration  18.09s (transform 3.34s, setup 7.18s, collect 15.75s, tests 62.96s, environment 13.53s, prepare 3.66s)

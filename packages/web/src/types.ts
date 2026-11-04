@@ -32,6 +32,8 @@ export type AnnotationTarget = {
   baseRevision?: string;
 };
 export type Annotation = {
+	mentions?: MemberMention[];
+	requestId?: string;
   executionId?: string;
   materials?: MaterialReference[];
   authorId?: string;
@@ -44,6 +46,8 @@ export type Annotation = {
   replies?: AnnotationReply[];
 };
 export type AnnotationReply = {
+	mentions?: MemberMention[];
+	replyTo?: ReplyTarget;
   materials?: MaterialReference[];
   authorId?: string;
   id: string;
@@ -52,6 +56,8 @@ export type AnnotationReply = {
   author: string;
   createdAt: string;
 };
+export type MemberMention = { memberId: string; startOffset: number; endOffset: number; label: string };
+export type ReplyTarget = { kind: "annotation" | "reply"; id: string };
 export type Collaboration = {
   spaceId?: string;
   executionId?: string;
@@ -365,6 +371,8 @@ export type MaterialPage = {
   pageEndsAtTurnBoundary: boolean;
   turns?: { id: string; label: string }[];
   segments: {
+    attachments?: import("./components/ReaderMedia").ReaderImage[];
+    status?: string;
     turnId: string;
     itemId: string;
     type: string;

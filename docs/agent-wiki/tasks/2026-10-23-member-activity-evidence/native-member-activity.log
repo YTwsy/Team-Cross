@@ -1,0 +1,9 @@
+=== RUN   TestLiveMemberActivity
+    live_test.go:119: source completed with gpt-5.6-luna 01a16919-8e22-7982-a90a-8b271cd589fe
+    live_test.go:138: created existing 01a16919-c6b9-7e82-a724-4416685cf927 /private/tmp/teamcross-member-activity-live-scope-20261023/repo/src
+    live_test.go:192: member activity result confirmed existing 01a16919-c937-7833-94b0-638b6f906f59
+    live_test.go:138: created worktree 01a1691a-0101-7722-b85b-4058f7bdc25c /private/tmp/teamcross-member-activity-live-scope-20261023/data/collaborations/e5dd857d-9cb4-5147-b19c-edfd6aedb4fc/sessions/1a575fda-54e0-4179-90f6-238972fd6339/worktree/src
+    live_test.go:192: member activity result confirmed worktree 01a1691a-0170-7f51-8872-99cb0e67bb5d
+--- PASS: TestLiveMemberActivity (52.25s)
+PASS
+ok  	teamcross/internal/collab	53.061s

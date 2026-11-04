@@ -1,0 +1,88 @@
+$ tsc -b && vite build && vite build --config vite.plugin.config.ts
+vite v7.1.7 building for production...
+transforming...
+✓ 531 modules transformed.
+rendering chunks...
+computing gzip size...
+../../internal/webassets/dist/index.html                           0.78 kB │ gzip:   0.45 kB
+../../internal/webassets/dist/assets/index-9gBjuw_A.css          153.71 kB │ gzip:  27.47 kB
+../../internal/webassets/dist/assets/RVARI57O-CXmrUIiS.js          0.16 kB │ gzip:   0.15 kB
+../../internal/webassets/dist/assets/UUWF3QW5-CMQGUSNr.js          0.38 kB │ gzip:   0.29 kB
+../../internal/webassets/dist/assets/5THPTBWS-D57irc_4.js          0.48 kB │ gzip:   0.30 kB
+../../internal/webassets/dist/assets/C45CGIQ3-BV9o7tYd.js          0.49 kB │ gzip:   0.35 kB
+../../internal/webassets/dist/assets/G3MDBVQH-EkdejvdW.js          0.56 kB │ gzip:   0.34 kB
+../../internal/webassets/dist/assets/MT67ABOF-CJQsg1PH.js          0.60 kB │ gzip:   0.43 kB
+../../internal/webassets/dist/assets/DKTLEL5E-B7ILCVTH.js          0.83 kB │ gzip:   0.40 kB
+../../internal/webassets/dist/assets/XZ45GBE5-Bcm-NCR3.js          0.98 kB │ gzip:   0.59 kB
+../../internal/webassets/dist/assets/WEVWDWVA-CAkZFUsX.js          1.03 kB │ gzip:   0.52 kB
+../../internal/webassets/dist/assets/LKJHRIXP-DVG4AOpy.js          1.44 kB │ gzip:   0.80 kB
+../../internal/webassets/dist/assets/URPVP7RI-DbsbDOEx.js          1.63 kB │ gzip:   0.94 kB
+../../internal/webassets/dist/assets/7WLXJQOR-DQODvV5U.js          1.95 kB │ gzip:   0.94 kB
+../../internal/webassets/dist/assets/RAYXU6JH-CweVLxgT.js          2.12 kB │ gzip:   1.05 kB
+../../internal/webassets/dist/assets/diff-D97Zzqfu.js              2.57 kB │ gzip:   0.70 kB
+../../internal/webassets/dist/assets/FTXIJQGB-nrHdCfp7.js          2.58 kB │ gzip:   1.09 kB
+../../internal/webassets/dist/assets/json-Cp-IABpG.js              2.82 kB │ gzip:   0.78 kB
+../../internal/webassets/dist/assets/ERCAWJV4-DkIsow11.js          3.42 kB │ gzip:   1.64 kB
+../../internal/webassets/dist/assets/DEPKUAZG-DIslgOF4.js          4.11 kB │ gzip:   1.93 kB
+../../internal/webassets/dist/assets/SMACJX3U-u9PlKTSN.js          5.22 kB │ gzip:   2.55 kB
+../../internal/webassets/dist/assets/Q5MKWUPJ-C1nxkow6.js          5.44 kB │ gzip:   2.73 kB
+../../internal/webassets/dist/assets/SLQJQ33J-fsmpaYGN.js          5.86 kB │ gzip:   2.93 kB
+../../internal/webassets/dist/assets/AQYAU6FT-C4ZyV1OB.js          6.54 kB │ gzip:   3.13 kB
+../../internal/webassets/dist/assets/SQPXHXN7-CC_yyT8G.js          7.19 kB │ gzip:   3.29 kB
+../../internal/webassets/dist/assets/3FIYZQX5-DqyG_W_H.js          7.41 kB │ gzip:   3.36 kB
+../../internal/webassets/dist/assets/HSMUJAXB-D0XRcaK5.js          7.47 kB │ gzip:   3.45 kB
+../../internal/webassets/dist/assets/XZCDS5ZR-Cd4_ap4Z.js          7.68 kB │ gzip:   3.60 kB
+../../internal/webassets/dist/assets/Q6OU2FOO-BIXqq1Ek.js          8.42 kB │ gzip:   3.82 kB
+../../internal/webassets/dist/assets/2NJAKIE3-BAN1M_1c.js          9.48 kB │ gzip:   4.31 kB
+../../internal/webassets/dist/assets/yaml-Buea-lGh.js             10.51 kB │ gzip:   2.27 kB
+../../internal/webassets/dist/assets/TLESEGMY-DHgInErM.js         10.62 kB │ gzip:   4.66 kB
+../../internal/webassets/dist/assets/github-light-DAi9KRSo.js     11.18 kB │ gzip:   2.51 kB
+../../internal/webassets/dist/assets/github-dark-DHJKELXO.js      11.41 kB │ gzip:   2.55 kB
+../../internal/webassets/dist/assets/VMDAV7PL-BfDLkTzI.js         11.59 kB │ gzip:   5.16 kB
+../../internal/webassets/dist/assets/TY6HZNZX-DUlL6iuO.js         11.60 kB │ gzip:   5.38 kB
+../../internal/webassets/dist/assets/72UBVXV4-C7T0oQ5i.js         12.18 kB │ gzip:   3.14 kB
+../../internal/webassets/dist/assets/5V4EVJMI-_J2ozcQf.js         12.72 kB │ gzip:   5.57 kB
+../../internal/webassets/dist/assets/AKT2TREX-DPrdWVe_.js         13.34 kB │ gzip:   6.30 kB
+../../internal/webassets/dist/assets/5Q732YK5-CXaKROML.js         13.45 kB │ gzip:   5.88 kB
+../../internal/webassets/dist/assets/NTYWWRID-CwzzB2A3.js         13.63 kB │ gzip:   5.66 kB
+../../internal/webassets/dist/assets/6YOUGAXB-CUz1gEJK.js         14.20 kB │ gzip:   6.08 kB
+../../internal/webassets/dist/assets/KXWEGTLR-DCObdozb.js         14.86 kB │ gzip:   6.45 kB
+../../internal/webassets/dist/assets/FZR2PB2M-i3Kncyyh.js         15.32 kB │ gzip:   6.15 kB
+../../internal/webassets/dist/assets/DP25S4DQ-BYKqxMAb.js         16.86 kB │ gzip:   7.23 kB
+../../internal/webassets/dist/assets/OZRPFDKK-B7dCZXyO.js         19.30 kB │ gzip:   7.58 kB
+../../internal/webassets/dist/assets/PVBGIDP2-n2CROE3f.js         20.62 kB │ gzip:   7.82 kB
+../../internal/webassets/dist/assets/YDIWKTFA-QUEsUjFd.js         21.27 kB │ gzip:   9.02 kB
+../../internal/webassets/dist/assets/DVKLQVES-Cno93M7m.js         23.65 kB │ gzip:   9.72 kB
+../../internal/webassets/dist/assets/37YOOQAM-DPtAVLF7.js         24.52 kB │ gzip:  10.31 kB
+../../internal/webassets/dist/assets/AWEI6AL6-fAfdt6wt.js         27.49 kB │ gzip:  11.39 kB
+../../internal/webassets/dist/assets/EP4ROECE-D9qxAbMK.js         28.65 kB │ gzip:  11.30 kB
+../../internal/webassets/dist/assets/VBLLFQQR-B3yk1zgi.js         30.39 kB │ gzip:  11.69 kB
+../../internal/webassets/dist/assets/THYJHYRI-B5MSIgoB.js         31.94 kB │ gzip:  12.56 kB
+../../internal/webassets/dist/assets/BJL5GRZT-DMmFGcjr.js         33.62 kB │ gzip:  14.53 kB
+../../internal/webassets/dist/assets/SLHKDBMA-dOwwA_iA.js         34.54 kB │ gzip:  12.96 kB
+../../internal/webassets/dist/assets/lazy-CNdDvK52.js             38.94 kB │ gzip:  16.27 kB
+../../internal/webassets/dist/assets/WO3NMXBZ-BjK3RPWd.js         40.03 kB │ gzip:  15.05 kB
+../../internal/webassets/dist/assets/bash-Yzrsuije.js             41.48 kB │ gzip:   6.09 kB
+../../internal/webassets/dist/assets/YT4FQLXB-BfHIV9Sw.js         41.82 kB │ gzip:  15.91 kB
+../../internal/webassets/dist/assets/3CPRHWCR-3bCrnfs_.js         44.36 kB │ gzip:  16.44 kB
+../../internal/webassets/dist/assets/go-C27-OAKa.js               46.82 kB │ gzip:   5.18 kB
+../../internal/webassets/dist/assets/python-B6aJPvgy.js           69.95 kB │ gzip:   9.13 kB
+../../internal/webassets/dist/assets/swift-C2oV4EkX.js            87.23 kB │ gzip:  14.84 kB
+../../internal/webassets/dist/assets/syntax-CBwBU3DF.js          146.84 kB │ gzip:  48.34 kB
+../../internal/webassets/dist/assets/javascript-wDzz0qaB.js      174.83 kB │ gzip:  16.51 kB
+../../internal/webassets/dist/assets/typescript-BPQ3VLAy.js      181.08 kB │ gzip:  16.04 kB
+../../internal/webassets/dist/assets/index-D6DkgU_4.js         1,129.62 kB │ gzip: 354.07 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 2.38s
+vite v7.1.7 building for production...
+transforming...
+✓ 533 modules transformed.
+rendering chunks...
+computing gzip size...
+../../internal/mcpassets/dist/panel.css    153.58 kB │ gzip:  27.46 kB
+../../internal/mcpassets/dist/panel.js   3,564.99 kB │ gzip: 860.01 kB
+✓ built in 2.51s

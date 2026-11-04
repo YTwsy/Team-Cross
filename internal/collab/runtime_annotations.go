@@ -119,6 +119,14 @@ func (a *App) runtimeAnnotationsHTTP(w http.ResponseWriter, r *http.Request, id 
 	if !decode(w, r, &input) {
 		return
 	}
+	if input.Name == "_inflow" {
+		ctx := context.WithValue(r.Context(), runtimeAnnotationKey{}, token)
+		in := workbenchDecode[inFlowCall](input.Arguments)
+		in.Caller = input.Caller
+		out, err := a.runtimeInFlow(ctx, s, in)
+		respond(w, out, err)
+		return
+	}
 	if err := mcp.ValidateRuntimeCall(input.Name, input.Arguments); err != nil {
 		respond(w, nil, err)
 		return

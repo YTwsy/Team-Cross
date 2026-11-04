@@ -1,0 +1,169 @@
+### Page
+- Page URL: http://127.0.0.1:62991/#/collaborations/905d7b8c-20dd-4596-8e3f-4b54432cf89f
+- Page Title: Team Cross
+### Snapshot
+```yaml
+- generic [ref=e3]:
+  - link "跳到主要内容" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - main [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - link "返回协作空间" [ref=e8] [cursor=pointer]:
+          - /url: "#/"
+        - generic [ref=e12]:
+          - heading "接口超时调查 · 协作空间" [level=1] [ref=e13]
+          - generic [ref=e14]: 材料、讨论与协作会话
+        - group [ref=e15]:
+          - generic "查看共享状态详情" [ref=e16] [cursor=pointer]: 共享中
+        - button "空间成员" [ref=e19] [cursor=pointer]:
+          - generic [aria-hidden] [ref=e20]: 工
+          - generic [aria-hidden] [ref=e21]: 同
+        - button "邀请成员" [ref=e22] [cursor=pointer]
+      - generic [ref=e26]:
+        - complementary "空间功能与材料" [ref=e27]:
+          - generic [ref=e28]:
+            - link "Team Cross 首页" [ref=e29] [cursor=pointer]:
+              - /url: "#/"
+              - generic [ref=e36]: Team Cross
+            - button "收起空间侧栏" [expanded] [ref=e37] [cursor=pointer]
+          - generic [ref=e41]:
+            - button "发布会话材料" [ref=e43] [cursor=pointer]:
+              - generic [ref=e46]: 发布材料
+            - tablist "空间工作台" [ref=e47]:
+              - tab "空间概览" [active] [selected] [ref=e48] [cursor=pointer]
+              - tab "本机数字分身" [ref=e55] [cursor=pointer]
+              - tab "协作请求" [ref=e59] [cursor=pointer]:
+                - generic [ref=e245]: "2"
+              - tab "空间简报" [ref=e63] [cursor=pointer]
+              - tab "参与会话" [ref=e67] [cursor=pointer]
+            - navigation "协作会话" [ref=e73]:
+              - generic [ref=e74]:
+                - strong [ref=e75]: 协作会话
+                - generic [ref=e76]: "0"
+              - paragraph [ref=e77]: 还没有协作会话
+              - button "新增协作会话" [ref=e78] [cursor=pointer]
+            - generic [ref=e82]:
+              - generic [ref=e83]:
+                - generic [ref=e84]: 已发布材料
+                - button "搜索材料" [ref=e85] [cursor=pointer]
+              - group "筛选材料" [ref=e89]:
+                - button "全部材料" [pressed] [ref=e90] [cursor=pointer]
+                - button "最近发布" [ref=e93] [cursor=pointer]
+                - button "有评论" [ref=e97] [cursor=pointer]
+                - button "我发布的" [ref=e100] [cursor=pointer]
+                - button "已收藏" [ref=e104] [cursor=pointer]
+              - generic [ref=e107]:
+                - generic [ref=e110]: 接口超时调查 · 协作空间
+                - generic [ref=e111]: "2"
+              - navigation "材料切换" [ref=e112]:
+                - button "阅读 并发与断线复核" [ref=e113] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=e114]: 发
+                  - generic [ref=e115]:
+                    - strong [ref=e116]: 并发与断线复核
+                    - generic [ref=e117]:
+                      - text: 发起者 · Codex
+                      - generic [ref=e118]: · v1
+                - button "阅读 连接池等待与重试策略 · 复核版" [ref=e119] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=e120]: 发
+                  - generic [ref=e121]:
+                    - strong [ref=e122]: 连接池等待与重试策略 · 复核版
+                    - generic [ref=e123]:
+                      - text: 发起者 · Codex
+                      - generic [ref=e124]: · v2
+          - generic [ref=e125]:
+            - link "资源库" [ref=e126] [cursor=pointer]:
+              - /url: "#/library"
+            - link "设置与连接" [ref=e130] [cursor=pointer]:
+              - /url: "#/settings"
+            - button "专用会话 · 未启用" [ref=e246] [cursor=pointer]
+            - generic [ref=e142]: 分享与审阅
+        - tabpanel "空间概览" [ref=e318]:
+          - generic [ref=e320]:
+            - heading "空间概览" [level=2] [ref=e321]
+            - paragraph [ref=e322]: 当前议题、决定与建议、待解决事项和最近动态。
+          - region "最近动态" [ref=e323]:
+            - generic [ref=e324]:
+              - generic [ref=e325]:
+                - heading "最近动态" [level=3] [ref=e326]
+                - generic [ref=e327]: "1"
+              - generic [ref=e328]:
+                - button "查看全部动态" [ref=e329] [cursor=pointer]
+                - button "管理关注" [ref=e332] [cursor=pointer]
+            - generic [ref=e333]:
+              - button "与你有关" [ref=e334] [cursor=pointer]
+              - button "空间全部" [ref=e335] [cursor=pointer]
+            - article [ref=e337]:
+              - button "Agent 完成了答复 未读 已核对固定版本。建议补充：同一请求并发提交、收到请求后断线、晚到结果与新绑定隔离。这些建议尚未纳入成员确认的简报。 1分钟前 · 1 条未读" [ref=e342] [cursor=pointer]:
+                - generic [ref=e343]:
+                  - strong [ref=e344]: Agent
+                  - text: 完成了答复
+                  - generic "未读" [ref=e345]
+                - generic [ref=e346]: 已核对固定版本。建议补充：同一请求并发提交、收到请求后断线、晚到结果与新绑定隔离。这些建议尚未纳入成员确认的简报。
+                - generic [ref=e347]: 1分钟前 · 1 条未读
+              - button "标为已读" [ref=e349] [cursor=pointer]
+              - generic [ref=e352]: 本机尚无分身接手
+            - link "查看全局动态" [ref=e353] [cursor=pointer]:
+              - /url: "#/activity"
+          - region "协作会话" [ref=e356]:
+            - generic [ref=e357]:
+              - heading "协作会话" [level=3] [ref=e358]
+              - generic [ref=e359]: "0"
+            - generic [ref=e360]:
+              - generic [ref=e361]: 0 个正在执行
+              - generic [ref=e362]: 0 个需要处理
+              - generic [ref=e363]: 0 个已暂停
+          - generic [ref=e364]:
+            - generic [ref=e365]:
+              - generic [ref=e366]:
+                - generic [ref=e367]: 本次协作
+                - heading "确认重试、断线与并发场景中的协作行为，再决定是否进入共同执行。" [level=3] [ref=e373]
+                - generic [ref=e374]:
+                  - paragraph [ref=e378]: 已确认：当前范围已增加并发验证；继续引用原固定材料版本。
+                  - paragraph [ref=e382]: 建议：建议先核对原请求状态，再决定是否重试；还需补充分支验证。
+                  - paragraph [ref=e387]: 待解决：投递结果不明时，怎样避免启动第二轮输入？
+                - generic [ref=e388]:
+                  - generic [ref=e389]: 1分钟前
+                  - button "查看完整简报" [ref=e390] [cursor=pointer]
+              - generic [ref=e393]:
+                - heading "最近材料 2" [level=3] [ref=e395]
+                - generic [ref=e396]:
+                  - button "连接池等待与重试策略 · 复核版 v2 发起者 · Codex · 1 轮对话" [ref=e397] [cursor=pointer]:
+                    - generic [ref=e402]:
+                      - strong [ref=e403]:
+                        - text: 连接池等待与重试策略 · 复核版
+                        - generic [ref=e404]: v2
+                      - generic [ref=e405]: 发起者 · Codex · 1 轮对话
+                  - button "并发与断线复核 v1 发起者 · Codex · 1 轮对话" [ref=e408] [cursor=pointer]:
+                    - generic [ref=e413]:
+                      - strong [ref=e414]:
+                        - text: 并发与断线复核
+                        - generic [ref=e415]: v1
+                      - generic [ref=e416]: 发起者 · Codex · 1 轮对话
+            - complementary [ref=e419]:
+              - generic [ref=e420]:
+                - generic [ref=e421]: 需要你关注
+                - heading "请求已提交，等待 Agent 读取" [level=3] [ref=e425]
+                - paragraph [ref=e426]: 请复核前一条请求提出的测试缺口。
+                - button "查看请求" [ref=e427] [cursor=pointer]
+              - generic [ref=e430]:
+                - generic [ref=e431]:
+                  - heading "成员与会话" [level=3] [ref=e432]
+                  - generic [ref=e433]: "2"
+                - generic [ref=e434]:
+                  - generic [ref=e435]:
+                    - generic [aria-hidden] [ref=e436]: 工
+                    - generic [ref=e437]:
+                      - strong [ref=e438]: 工作台验证 Mac
+                      - generic [ref=e439]: 在线 · 发起者
+                      - generic [ref=e440]: 成员的分析会话 · 可以接收
+                  - generic [ref=e444]:
+                    - generic [aria-hidden] [ref=e445]: 同
+                    - generic [ref=e446]:
+                      - strong [ref=e447]: 同事 B 的 Mac
+                      - generic [ref=e448]: 在线
+                      - generic [ref=e449]: 成员的分析会话 · 可以接收
+                - paragraph [ref=e453]: 分享与审阅
+          - group [ref=e454]:
+            - generic "空间管理" [ref=e455] [cursor=pointer]
+```

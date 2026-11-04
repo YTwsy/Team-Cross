@@ -116,7 +116,7 @@ func TestTrustedRPCPreservesNativePermissionsAndWriterGate(t *testing.T) {
 	f.mu.Lock()
 	settings := f.requests["thread/settings/update"]
 	f.mu.Unlock()
-	if settings["permissions"] != ":read-only" || settings["cwd"] != s.record.ExecutionCwd || settings["threadId"] != s.record.SessionID {
+	if settings["permissions"] != ":read-only" || settings["cwd"] != nil || settings["threadId"] != s.record.SessionID {
 		t.Fatal("trusted settings were overwritten or lost session binding", settings)
 	}
 	_, err = s.RPC(ctx, firstRemote(s), "permissionProfile/list", map[string]any{"cwd": "/outside"}, "")

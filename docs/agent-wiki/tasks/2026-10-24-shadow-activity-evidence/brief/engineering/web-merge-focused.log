@@ -1,0 +1,10 @@
+
+ RUN  v3.2.4 /Users/wsy/CascadeProjects/Team Cross/.worktrees/shadow-activity/packages/web
+
+ ✓ src/test/brief-merge.test.ts (3 tests) 11ms
+ ✓ src/test/space-workbench.test.tsx (16 tests) 1722ms
+
+ Test Files  2 passed (2)
+      Tests  19 passed (19)
+   Start at  11:08:17
+   Duration  2.93s (transform 318ms, setup 294ms, collect 613ms, tests 1.73s, environment 604ms, prepare 100ms)

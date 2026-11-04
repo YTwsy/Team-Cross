@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { t, tr } from "../i18n";
 import type { LibraryReference } from "../library";
 import { relativeTime, type Collaboration } from "../types";
-import type { WorkbenchView } from "../workbench";
+import { briefStatusLabel, type WorkbenchView } from "../workbench";
+import { MemberActivity } from "./MemberActivity";
 import { agentRequestLabel } from "./AgentPairings";
 import { SpaceAvatar, spaceMembers } from "./SpaceIdentity";
 import { Icon } from "./ui";
@@ -12,7 +13,6 @@ export function SpaceOverview({
   view,
   onRead,
   onBrief,
-  onRequests,
   onRequest,
   management,
 }: {
@@ -42,9 +42,12 @@ export function SpaceOverview({
       <div className="workbench-section-heading space-overview-heading">
         <div>
           <h2>{t("空间概览")}</h2>
-          <p className="muted">{t("当前共识、待确认的问题与最近动态。")}</p>
+          <p className="muted">
+            {t("当前议题、决定与建议、待解决事项和最近动态。")}
+          </p>
         </div>
       </div>
+      <MemberActivity spaceId={c.id} onLocate={onRead} />
       <section className="space-session-overview" aria-label={t("协作会话")}>
         <div className="space-section-heading">
           <h3>{t("协作会话")}</h3>
@@ -86,15 +89,23 @@ export function SpaceOverview({
             <div className="space-decisions">
               {view?.brief.decisions.map((item, i) => (
                 <div key={i}>
-                  <Icon name="check" size={16} />
-                  <p>{item.text}</p>
+                  <Icon
+                    name={item.status === "confirmed" ? "check" : "comment"}
+                    size={16}
+                  />
+                  <p>
+                    {briefStatusLabel(item.status)}：{item.text}
+                  </p>
                 </div>
               ))}
               {view?.brief.questions.map((item, i) => (
                 <div className="space-open-question" key={i}>
-                  <Icon name="clock" size={16} />
+                  <Icon
+                    name={item.status === "resolved" ? "check" : "clock"}
+                    size={16}
+                  />
                   <p>
-                    {t("待确认")}：{item.text}
+                    {briefStatusLabel(item.status)}：{item.text}
                   </p>
                 </div>
               ))}
@@ -152,32 +163,6 @@ export function SpaceOverview({
               })}
               {!materials.length && (
                 <p className="muted">{t("还没有发布材料。")}</p>
-              )}
-            </div>
-          </section>
-          <section>
-            <div className="space-section-heading">
-              <h3>{t("最近动态")}</h3>
-              <button className="text-link" onClick={onRequests}>
-                {t("查看进展")}
-                <Icon name="arrow" size={13} />
-              </button>
-            </div>
-            <div className="space-overview-events">
-              {view?.requests.slice(0, 4).map((r) => (
-                <button key={r.id} onClick={() => onRequest(r.id)}>
-                  <SpaceAvatar name={r.actor?.name || t("成员")} />
-                  <span>
-                    <strong>{r.instruction}</strong>
-                    <small>
-                      {r.actor?.name} · {agentRequestLabel(r)}
-                    </small>
-                  </span>
-                  <time>{r.updatedAt ? relativeTime(r.updatedAt) : ""}</time>
-                </button>
-              ))}
-              {!view?.requests.length && (
-                <p className="muted">{t("还没有协作请求。")}</p>
               )}
             </div>
           </section>

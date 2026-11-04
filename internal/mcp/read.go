@@ -14,6 +14,8 @@ func readProperties() map[string]any {
 func annotationProperties() map[string]any {
 	return map[string]any{
 		"annotationId": str("已知原批注 ID 时直接读取；省略只列批注摘要，不附带引用全文和全部回复"),
+		"replyId":      str("与 annotationId 一起精确读取该回复、原讨论和直接父项，不展开其他回复"),
+		"sourceOnly":   map[string]any{"type": "boolean", "description": "只读取指定来源；未提供 replyId 时只读根讨论，不展开全部回复"},
 		"includeQuote": map[string]any{"type": "boolean", "description": "按 ID 首次读取默认 true；只核对回复状态或继续回复分页时设 false"},
 		"offset":       map[string]any{"type": "integer", "minimum": 0, "description": "无 ID 时是批注目录位置；有 ID 时是回复位置。按返回的 nextRead/nextOffset 继续。"},
 		"maxBytes":     readProperties()["maxBytes"],

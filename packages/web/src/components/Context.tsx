@@ -1,3 +1,4 @@
+import { useReaderFollow } from "../reader-follow";
 import { resourceScope } from "../execution";
 import { t, tr } from "../i18n";
 import { ResourceActions } from "../library";
@@ -41,6 +42,7 @@ import type {
 import type { AnnotationRequest } from "./Annotations";
 import {
   ReaderMessage,
+  ReaderSequence,
   ReadingLayout,
   type Annotate,
   type Discuss,
@@ -99,6 +101,12 @@ export function Context({
   const [historyItemError, setHistoryItemError] = useState("");
   const [itemLoading, setItemLoading] = useState("");
   const panel = useRef<HTMLElement>(null);
+  const follow = useReaderFollow(
+    panel,
+    `${id}:${tab}:${cursor}`,
+    tab === "history" && !cursor && !historyTurn,
+    !!activeTarget,
+  );
   const positions = useRef<Partial<Record<ContextTab, ReadingPosition>>>({});
   const restore = useRef<
     { tab: ContextTab; position: ReadingPosition } | undefined
@@ -134,16 +142,84 @@ export function Context({
     if (
       !historyView ||
       historyView.path !== contextPath ||
-      acceptNextHistory.current
+      acceptNextHistory.current ||
+      (historyView.signature !== historySignature &&
+        follow.canFollow() &&
+        (latest.sourcePageComplete || !latest.nextCursor))
     ) {
+      const scroll = follow.canFollow();
       setHistoryView({
         path: contextPath,
         data: latest,
         signature: historySignature,
       });
       acceptNextHistory.current = false;
+      if (scroll)
+        requestAnimationFrame(() => {
+          if (follow.canFollow()) follow.toEnd();
+        });
     }
-  }, [latest, contextPath, historySignature, historyView]);
+  }, [latest, contextPath, historySignature, historyView, follow.atEnd]);
+  useEffect(() => {
+    if (
+      !latest ||
+      !("thread" in latest) ||
+      !contextPath ||
+      !follow.canFollow() ||
+      cursor ||
+      historyTurn ||
+      latest.sourcePageComplete ||
+      !latest.nextCursor ||
+      (historyView?.signature === historySignature &&
+        historyView.data.sourcePageComplete)
+    )
+      return;
+    const abort = new AbortController();
+    const path = contextPath;
+    void (async () => {
+      let joined = latest;
+      const seen = new Set<string>();
+      while (
+        !joined.sourcePageComplete &&
+        joined.nextCursor &&
+        !seen.has(joined.nextCursor)
+      ) {
+        seen.add(joined.nextCursor);
+        const query = new URLSearchParams({
+          kind: "history",
+          cursor: joined.nextCursor,
+        });
+        const next = await api<History>(
+          `collaborations/${id}/context?${query}`,
+          undefined,
+          abort.signal,
+        );
+        if (next.contentHash !== latest.contentHash) return;
+        joined = {
+          ...next,
+          pageCursor: latest.pageCursor,
+          turns: latest.turns,
+          segments: mergeMaterialSegments(joined.segments, next.segments),
+        };
+      }
+      if (!abort.signal.aborted && follow.canFollow()) {
+        setHistoryView({ path, data: joined, signature: historySignature });
+        requestAnimationFrame(() => {
+          if (follow.canFollow()) follow.toEnd();
+        });
+      }
+    })().catch((e) => {
+      if (!abort.signal.aborted) setHistoryItemError(errorText(e));
+    });
+    return () => abort.abort();
+  }, [
+    latest,
+    contextPath,
+    historySignature,
+    follow.atEnd,
+    cursor,
+    historyTurn,
+  ]);
   const data =
     tab === "history" && historyView?.path === contextPath
       ? historyView.data
@@ -533,93 +609,106 @@ export function Context({
           }))}
         >
           <div className="history">
-            {segments.map((segment, index, all) => (
-              <div
-                key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
-                className="history-turn"
-                data-reader-turn={segment.turnId}
-                data-reading-key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
-              >
-                {!conversation &&
-                  (!index || all[index - 1]?.turnId !== segment.turnId) && (
-                    <div className="reader-turn-heading">
-                      {t("第")}{" "}
-                      {turns.findIndex((turn) => turn.id === segment.turnId) +
-                        1}{" "}
-                      {t("轮") + " "}
-                    </div>
-                  )}
-                {!!index &&
-                  all[index - 1]?.turnId === segment.turnId &&
-                  all[index - 1]?.itemId === segment.itemId &&
-                  all[index - 1]!.endOffset < segment.startOffset && (
-                    <p className="material-fold-gap">
-                      {t("中间已折叠")}{" "}
-                      {segment.startOffset - all[index - 1]!.endOffset}
-                      {" " + t("字") + " "}
-                    </p>
-                  )}
-                <ReaderMessage
-                  spaceId={id}
-                  source={segment.text}
-                  label={
-                    segment.type === "userMessage"
-                      ? t("用户")
-                      : segment.type === "agentMessage"
-                        ? agentName
-                        : segment.collapsed
-                          ? tr`${itemLabel(segment.type)} · 共 ${segment.length} 字 · 已显示 ${segment.endOffset - segment.startOffset} 字`
-                          : itemLabel(segment.type)
-                  }
-                  speaker={
-                    conversation &&
-                    ["userMessage", "agentMessage"].includes(segment.type)
-                      ? {
-                          name:
-                            segment.type === "userMessage"
-                              ? t("用户")
-                              : agentName,
-                          author:
-                            segment.type === "userMessage"
-                              ? t("用户")
-                              : agentName,
-                          assistant: segment.type === "agentMessage",
-                        }
-                      : undefined
-                  }
-                  notice={segment.notice}
-                  target={{
-                    kind: "history",
-                    sessionId,
-                    turnId: segment.turnId,
-                    itemId: segment.itemId,
-                    cursor: data.pageCursor,
-                    startOffset: segment.startOffset,
-                    endOffset: segment.endOffset,
-                    quote: segment.text,
-                  }}
-                  activeTarget={activeTarget}
-                  annotations={annotations}
-                  onAnnotate={onAnnotate}
-                  onDiscuss={onDiscuss}
-                  disabled={!canAnnotate}
-                  onExpand={
-                    segment.collapsed && segment.endOffset < segment.length
-                      ? () =>
-                          void readHistoryItemAt(
-                            segment.turnId,
-                            segment.itemId,
-                            segment.endOffset,
-                          )
-                      : undefined
-                  }
-                  expanding={
-                    itemLoading === `${segment.turnId}:${segment.itemId}`
-                  }
-                  shownLength={segment.endOffset}
-                />
-              </div>
-            ))}
+            <ReaderSequence segments={segments} activeTarget={activeTarget}>
+              {(segment, index, all) => (
+                <div
+                  key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
+                  className="history-turn"
+                  data-reader-turn={segment.turnId}
+                  data-reading-key={`${segment.turnId}:${segment.itemId}:${segment.startOffset}`}
+                >
+                  {!conversation &&
+                    (!index || all[index - 1]?.turnId !== segment.turnId) && (
+                      <div className="reader-turn-heading">
+                        {t("第")}{" "}
+                        {turns.findIndex((turn) => turn.id === segment.turnId) +
+                          1}{" "}
+                        {t("轮") + " "}
+                      </div>
+                    )}
+                  {!!index &&
+                    all[index - 1]?.turnId === segment.turnId &&
+                    all[index - 1]?.itemId === segment.itemId &&
+                    all[index - 1]!.endOffset < segment.startOffset && (
+                      <p className="material-fold-gap">
+                        {t("中间已折叠")}{" "}
+                        {segment.startOffset - all[index - 1]!.endOffset}
+                        {" " + t("字") + " "}
+                      </p>
+                    )}
+                  <ReaderMessage
+                    spaceId={id}
+                    source={segment.text}
+                    images={segment.attachments}
+                    streaming={
+                      !segment.status ||
+                      !["completed", "interrupted", "failed"].includes(
+                        segment.status,
+                      )
+                    }
+                    mediaResource={{
+                      path: `collaborations/${id}/context?${new URLSearchParams({ kind: "history", cursor: data.pageCursor || "", turnId: segment.turnId, itemId: segment.itemId })}`,
+                    }}
+                    itemType={segment.type}
+                    label={
+                      segment.type === "userMessage"
+                        ? t("用户")
+                        : segment.type === "agentMessage"
+                          ? agentName
+                          : segment.collapsed
+                            ? tr`${itemLabel(segment.type)} · 共 ${segment.length} 字 · 已显示 ${segment.endOffset - segment.startOffset} 字`
+                            : itemLabel(segment.type)
+                    }
+                    speaker={
+                      conversation &&
+                      ["userMessage", "agentMessage"].includes(segment.type)
+                        ? {
+                            name:
+                              segment.type === "userMessage"
+                                ? t("用户")
+                                : agentName,
+                            author:
+                              segment.type === "userMessage"
+                                ? t("用户")
+                                : agentName,
+                            assistant: segment.type === "agentMessage",
+                          }
+                        : undefined
+                    }
+                    notice={segment.notice}
+                    target={{
+                      kind: "history",
+                      sessionId,
+                      turnId: segment.turnId,
+                      itemId: segment.itemId,
+                      cursor: data.pageCursor,
+                      startOffset: segment.startOffset,
+                      endOffset: segment.endOffset,
+                      quote: segment.text,
+                    }}
+                    activeTarget={activeTarget}
+                    annotations={annotations}
+                    onAnnotate={onAnnotate}
+                    onDiscuss={onDiscuss}
+                    disabled={!canAnnotate}
+                    onExpand={
+                      segment.collapsed && segment.endOffset < segment.length
+                        ? () =>
+                            void readHistoryItemAt(
+                              segment.turnId,
+                              segment.itemId,
+                              segment.endOffset,
+                            )
+                        : undefined
+                    }
+                    expanding={
+                      itemLoading === `${segment.turnId}:${segment.itemId}`
+                    }
+                    shownLength={segment.endOffset}
+                  />
+                </div>
+              )}
+            </ReaderSequence>
           </div>
         </ReadingLayout>
       ) : (
@@ -826,7 +915,10 @@ export function Context({
             <div className="reader-update" role="status">
               <span>{t("对话有新内容，当前阅读位置已保留。")}</span>
               <button
-                className="button small"
+                type="button"
+                className="reader-icon-button"
+                aria-label={t("显示新内容")}
+                title={t("显示新内容")}
                 onClick={() => {
                   if (latest && "thread" in latest && contextPath)
                     setHistoryView({
@@ -836,10 +928,49 @@ export function Context({
                     });
                 }}
               >
-                {t("显示新内容") + " "}
+                <Icon name="refresh" size={15} />
+              </button>
+              <button
+                type="button"
+                className="reader-icon-button"
+                aria-label={t("回到最新")}
+                title={t("回到最新")}
+                onClick={() => {
+                  if (latest && "thread" in latest && contextPath)
+                    setHistoryView({
+                      path: contextPath,
+                      data: latest,
+                      signature: historySignature,
+                    });
+                  requestAnimationFrame(follow.toEnd);
+                }}
+              >
+                <Icon name="latest" size={15} />
               </button>
             </div>
           )}
+          {tab === "history" &&
+            online &&
+            !historyPending &&
+            !follow.atEnd &&
+            data && (
+              <button
+                type="button"
+                className="reader-follow-button reader-icon-button"
+                aria-label={t("回到最新")}
+                title={t("回到最新")}
+                onClick={() => {
+                  if (cursor || historyTurn) {
+                    setHistoryTurn("");
+                    setCursor("");
+                    acceptNextHistory.current = true;
+                  }
+                  requestAnimationFrame(follow.toEnd);
+                }}
+              >
+                <Icon name="latest" size={15} />
+              </button>
+            )}
           {!online ? (
             <Empty
               icon="link"
@@ -861,7 +992,10 @@ export function Context({
               <div className="context-pagination">
                 {data.nextCursor && (
                   <button
-                    className="button small"
+                    type="button"
+                    className="reader-icon-button"
+                    aria-label={data.sourcePageComplete ? t("更早对话") : t("继续读取本页")}
+                    title={data.sourcePageComplete ? t("更早对话") : t("继续读取本页")}
                     disabled={context.loading}
                     onClick={() => {
                       setHistoryTurn("");
@@ -870,9 +1004,7 @@ export function Context({
                       finishedLocation.current = false;
                     }}
                   >
-                    {data.sourcePageComplete
-                      ? t("更早对话")
-                      : t("继续读取本页")}
+                    <Icon name={data.sourcePageComplete ? "back" : "more"} size={15} />
                   </button>
                 )}
                 {data.nextCursor &&
@@ -884,7 +1016,10 @@ export function Context({
                   )}
                 {cursor && (
                   <button
-                    className="text-link small-text"
+                    type="button"
+                    className="reader-icon-button"
+                    aria-label={t("回到最近对话")}
+                    title={t("回到最近对话")}
                     onClick={() => {
                       setActiveTarget(undefined);
                       setLocationStatus("");
@@ -893,7 +1028,7 @@ export function Context({
                       setCursor("");
                     }}
                   >
-                    {t("回到最近对话") + " "}
+                    <Icon name="latest" size={15} />
                   </button>
                 )}
               </div>

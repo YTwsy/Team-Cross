@@ -1,0 +1,14 @@
+{
+  "version": "0.2.6-dev.plugin-refresh.20261022",
+  "commit": "8a5564d0971e728df973386461151380ca45fc5f",
+  "buildNumber": "174",
+  "dirty": false,
+  "architecture": "arm64",
+  "minimumMacOS": "14.0",
+  "developerIDSigned": false,
+  "notarized": false,
+  "artifacts": {
+    "teamcross-0.2.6-dev.plugin-refresh.20261022-darwin-arm64.tar.gz": "bbed07043951be669322c632d3ca0e645b1dc9e18e806784dd6f7128cf3e452c",
+    "Team-Cross-0.2.6-dev.plugin-refresh.20261022-arm64.dmg": "3937f3d1680335d7ecef3c5e0f914764da6d42ad8667dfba1b2f7e0b3390ad42"
+  }
+}
