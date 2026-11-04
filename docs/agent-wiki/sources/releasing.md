@@ -10,9 +10,9 @@
 
 ## 发布顺序与流水线
 
-发布来源为从已确认功能分支建立的 `codex/release-vX.Y.Z` 上的干净提交；正式版本和该版本的 RC 共用此发布分支。先推送发布分支，再为核对过的提交创建同版本 annotated tag。发布完成后将该发布提交合回功能分支；不为满足来源检查预先合入 `main`。先使 `YTwsy/Team-Cross` Release 产物可下载并核对校验值，再发布 `YTwsy/homebrew-teamcross` 中对应的配方。生成的下载 URL 不代表已经发布，实际状态以 GitHub 为准。本地安装测试使用临时 tap、临时 Homebrew 前缀和应用目录。
+发布来源为从开发分支 `Meta` 建立的 `codex/release-vX.Y.Z` 上的干净提交；正式版本和该版本的 RC 共用此发布分支。先推送发布分支，再为核对过的提交创建同版本 annotated tag。发布与渠道验证完成后，将同一发布分支合入 `main` 和 `Meta`，本地回到 `Meta` 继续开发；不为满足来源检查预先合入 `main`。先使 `YTwsy/Team-Cross` Release 产物可下载并核对校验值，再发布 `YTwsy/homebrew-teamcross` 中对应的配方。生成的下载 URL 不代表已经发布，实际状态以 GitHub 为准。本地安装测试使用临时 tap、临时 Homebrew 前缀和应用目录。
 
-GitHub 上的 `CI` workflow 对指向 `main` 或 `Meta` 的 PR 和 `main` push 运行 Go test/vet、相关 race test、Web check/test/build、嵌入资源一致性和 Darwin arm64 CLI 交叉编译。所有 Tailcat 联网用例默认跳过，不把公共 DERP 可用性变成普通 PR 的外部硬依赖。
+GitHub 上的 `CI` workflow 对指向 `main` 或 `Meta` 的 PR，以及这两个分支的 push 运行 Go test/vet、相关 race test、Web check/test/build、嵌入资源一致性和 Darwin arm64 CLI 交叉编译。所有 Tailcat 联网用例默认跳过，不把公共 DERP 可用性变成普通 PR 的外部硬依赖。
 
 `Unsigned macOS release` workflow 接受 `X.Y.Z` 与 `X.Y.Z-rc.N`：手动触发时从可到达对应远端发布分支 `origin/codex/release-vX.Y.Z` 的所选提交构建、验证、attest 并保存 14 天 workflow artifact，不创建 Release；推送同版本 annotated tag 时使用同一构建链，并在全部检查完成后创建不可覆盖的 GitHub Release。RC 标记为 Pre-release，正式版本标记为 Latest。tag 版本是发布版本的唯一输入，发布构建不使用 Makefile 或脚本的开发默认值。自动门槛依次包括：
 

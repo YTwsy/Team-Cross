@@ -1,6 +1,8 @@
 # Team Cross 开发指南
 
-`main` 以 Codex 原生会话协作为产品主线，当前仍处于原型阶段；Claude Code 原生 TUI 为实验性接入，边界见 [Claude 接入契约](docs/agent-wiki/sources/decisions/claude-native-tui.md)。可以重构，不维护旧 Thread、Round、Evidence、managed Bridge 或旧数据兼容性。
+日常开发以 `Meta` 为基线，功能与修复合入 `Meta`；`main` 汇入已发布版本。分支操作见 [开发与构建](docs/agent-wiki/sources/development.md#开发分支)，发布顺序见 [构建与发布](docs/agent-wiki/sources/releasing.md)。
+
+产品以 Codex 原生会话协作为主线，当前仍处于原型阶段；Claude Code 原生 TUI 为实验性接入，边界见 [Claude 接入契约](docs/agent-wiki/sources/decisions/claude-native-tui.md)。可以重构，不维护旧 Thread、Round、Evidence、managed Bridge 或旧数据兼容性。
 
 ## 进入仓库
 
