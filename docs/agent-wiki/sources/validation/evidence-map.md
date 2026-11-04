@@ -156,6 +156,8 @@ ChatGPT 云端事件已实现本地协议和隔离入口，实际宿主接收仍
 
 范围来源：[输入与共享](../decisions/input-and-sharing.md)、[安装与首次体验](../distribution-and-onboarding.md)、[构建与发布](../releasing.md)。网络路径、打包、公开发布和桌面交互分别取证。
 
+2026-11-05，本地开发版本 `0.4.1-dev.20261105`，`Meta` 干净提交 `a28e9cb`，build 234：产物、临时 DMG 安装、签名完整性和 App/Core 生命周期验证通过；按用户要求替换实际 App 后，命令入口与运行中 Core 的版本和提交一致。已启用插件同步完成但仍需宿主重载，不代表新版真实宿主面板已加载。arm64、ad-hoc 签名、未公证，未公开发布或更新 Homebrew。见[本机替换记录](../../tasks/finished_archived/2026-11-05-inflow-connections.md#后续提交与本机替换)。
+
 2026-10-22，本地顺流感知包 `0.2.6-dev.inflow.20261022`，干净提交 `cf8fc49`：DMG/CLI 校验、临时安装、图标与签名完整性、双 App 副本及隔离 Core 生命周期通过。arm64，ad-hoc 签名、未公证；未运行可选的真实插件启动同步、Homebrew 或公开安装检查。见[本地 DMG 记录](../../tasks/2026-10-21-in-flow-implementation.md#2026-10-22-本地-dmg)。
 
 | 具体路径 | 最近已知结果 | 被测代码与环境 | 证据与适用边界 |

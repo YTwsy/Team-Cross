@@ -48,3 +48,15 @@
 ## 证据边界
 
 本次验证新增关联与配置路径，不新增真实 Codex Desktop、ChatGPT 插件宿主、Claude Hook、两台 Mac、跨 NAT 或 Tailcat 验收；未替换用户安装或重启用户服务。既有真实 MCP／Hook 投递证据仍按[顺流感知证据入口](../../sources/validation/evidence-map.md#顺流感知)中各报告的版本与环境解释。
+
+## 后续提交与本机替换
+
+同日用户明确要求一起提交原有删除“专用会话”改动，并替换本机版本。两部分代码、测试、文档和嵌入资源提交到 `Meta`：`a28e9cb6a12982edea42eda9d1f55fc869f89c0a`。删除范围为旧协调角色、初始化接手流程、角色控制路由及界面，普通接收会话和请求投递保留；提交前顺带清除了插件说明中残留的角色返回描述。
+
+从该干净提交构建本地版本 `0.4.1-dev.20261105`，build `234`，arm64、macOS 14+，ad-hoc 签名、未公证。构建命令为 `python3 scripts/build-release.py --version 0.4.1-dev.20261105`；Web 重建后工作树仍干净。产物位于本地 `dist/release/0.4.1-dev.20261105/`，没有创建公开 Release 或更新 Homebrew 配方。
+
+`python3 scripts/verify-release.py dist/release/0.4.1-dev.20261105` 通过校验文件、DMG 临时安装、图标、签名完整性、CLI/App 一致、命令入口安装/移除、Core 生命周期与真实菜单栏多副本检查。该脚本的可选插件启动同步分支未运行，不把 `false` 标记写成通过。构建与验证日志为 `/private/tmp/teamcross-inflow-install-build.log`、`/private/tmp/teamcross-inflow-install-verify.log`，仅本地临时保存。
+
+已通过同卷原子交换替换 `/Applications/Team Cross.app`，旧 `0.4.1` App 保存在 `.local-backups/2026-11-05-inflow-a28e9cb/Team Cross.app`；精确核对旧菜单栏 PID 后仅重启此外壳，Core 经自身升级流程切换。替换后 App helper、`/opt/homebrew/bin/teamcross` 和运行中 Core 均报告上述版本及提交，仍使用原 `Team Cross Next` 数据目录。新菜单栏进程正常运行，验证产生的临时 App/Core 已由脚本清理。
+
+已启用的本机插件自动同步至 `0.4.1-dev.20261105`，保持原来源和 Core 绑定，实际状态为 `reload_required`。没有终止个人 Codex／ChatGPT 宿主；旧驻留 MCP 仍需用户保存草稿后退出并重开宿主，本次没有新版真实宿主面板加载回执。以上本机替换是用户后续授权的步骤，与前述开发验证未修改安装的范围分别记录。
