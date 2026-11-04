@@ -158,7 +158,7 @@ ChatGPT 云端事件已实现本地协议和隔离入口，实际宿主接收仍
 | --- | --- | --- | --- |
 | Tailcat 成员与协作数据面 | 同机实网通过，后续覆盖同链接第三位成员与交接 | 2026-09-15：`42adb81` + 当次改动；2026-09-19：`7a7f7b3` + 当次改动；macOS 14.8.5，Tailcat `v0.6.0`，模拟原生运行时 | [传输报告](../../tasks/finished_archived/tailcat-transport-2026-09-15.md)、[多人补充](../../tasks/finished_archived/space-invitations-2026-09-19.md)。不证明两台物理 Mac、跨 NAT、切网恢复或持续强制 DERP；本页尚无这些路径的通过证据入口。 |
 | 接收恢复修复 DMG、App 重复打开与 Core 复用 | 最终包的挂载/校验/图标/签名完整性、真实双 App 副本、重复打开和隔离 Core 生命周期通过 | 2026-10-05；`1297b31`，`0.2.6-dev.receiver-recovery.20261004`；macOS 14.8.5 arm64 | [产物与 App 记录](../../tasks/finished_archived/2026-10-04-receiver-deadlock.md#最终-dmg)。本地包，ad-hoc 签名、未公证；邀请由测试 helper 截获，未运行可选 App 插件同步分支，未替换用户安装或重启现场 Core。 |
-| 正式 tag 的构建、公开资产复核、Homebrew 发布 | v0.2.4 当次完整链路通过 | 2026-09-23；`f671cb4` / `v0.2.4`；托管 `macos-15` arm64 runner，公开资产及 tap 检查 | [发布报告](../../tasks/finished_archived/release-v0.2.4-2026-09-23.md)。只说明该版本当时发布与复核结果，不宣称它仍是最新版本或 Meta 新功能已发布；ad-hoc 签名不等于 Developer ID/公证，也未增加真实模型或跨机验收。 |
+| 正式 tag 的构建、公开资产复核、Homebrew 发布 | v0.4.1 完整链路与本机安装通过 | 2026-11-04；`a7e03b3` / `v0.4.1`，build 228；托管 `macos-15` arm64 runner、本机 App 及公共 tap 安装检查 | [发布与收尾记录](../../tasks/2026-11-04-release-v0.4.1.md)。包含 Homebrew 临时前缀验证修复与重跑；本地和 runner 产物分别记录。ad-hoc 签名、未公证，不扩大真实模型或跨机验收范围。 |
 
 本页只链接已定向核对的报告。需要回答未列出的路径时，按[检索规则](../../README.md#检索边界)继续查相应任务或提交/PR 中的执行说明；找到新证据后补充适用范围，不能因未命中本页就给出否定结论。
 
