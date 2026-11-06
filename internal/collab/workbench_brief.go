@@ -27,18 +27,17 @@ type BriefCommand struct {
 }
 
 type BriefResult struct {
-	SpaceID     string          `json:"spaceId"`
-	State       string          `json:"state,omitempty"`
-	RequestID   string          `json:"requestId,omitempty"`
-	Revision    int             `json:"revision"`
-	Source      SpaceSourceRef  `json:"source"`
-	Brief       *SpaceBrief     `json:"brief,omitempty"`
-	Item        *BriefItem      `json:"item,omitempty"`
-	Section     string          `json:"section,omitempty"`
-	Conflicts   []string        `json:"conflicts,omitempty"`
-	Unavailable string          `json:"unavailable,omitempty"`
-	Assistant   *SpaceAssistant `json:"assistant,omitempty"`
-	ReadBack    *BriefReadBack  `json:"readBack,omitempty"`
+	SpaceID     string         `json:"spaceId"`
+	State       string         `json:"state,omitempty"`
+	RequestID   string         `json:"requestId,omitempty"`
+	Revision    int            `json:"revision"`
+	Source      SpaceSourceRef `json:"source"`
+	Brief       *SpaceBrief    `json:"brief,omitempty"`
+	Item        *BriefItem     `json:"item,omitempty"`
+	Section     string         `json:"section,omitempty"`
+	Conflicts   []string       `json:"conflicts,omitempty"`
+	Unavailable string         `json:"unavailable,omitempty"`
+	ReadBack    *BriefReadBack `json:"readBack,omitempty"`
 }
 
 type BriefReadBack struct {
@@ -132,7 +131,7 @@ func (s *Session) readBriefLocked(in workbenchInput) (BriefResult, error) {
 	} else if revision == 0 {
 		revision = b.Brief.Revision
 	}
-	result := BriefResult{SpaceID: s.record.ID, State: state, RequestID: in.RequestID, Revision: revision, Source: SpaceSourceRef{SpaceID: s.record.ID, BriefRevision: revision, BriefItemID: in.ItemID}, Assistant: &b.Assistant}
+	result := BriefResult{SpaceID: s.record.ID, State: state, RequestID: in.RequestID, Revision: revision, Source: SpaceSourceRef{SpaceID: s.record.ID, BriefRevision: revision, BriefItemID: in.ItemID}}
 	if in.RequestID != "" {
 		result.ReadBack = &BriefReadBack{Tool: "read_space_brief", RequestID: in.RequestID}
 	}

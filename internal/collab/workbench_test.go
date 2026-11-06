@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -121,6 +120,9 @@ func TestSpaceWorkbenchThreeCoresPreserveIdentityScopeAndResults(t *testing.T) {
 	if _, err = c.workbenchCall(ctx, jc.ID, "finish", workbenchInput{RequestID: request.ID, TargetID: target.ID, State: "completed", Summary: "forged"}); err == nil {
 		t.Fatal("another member reported a result")
 	}
+	if _, err := b.finishAgentRequest(ctx, caller, request.ID, "", "completed", "unread"); err == nil {
+		t.Fatal("request completed without reading")
+	}
 	read, err := b.readAgentRequest(ctx, caller, request.ID, "", 0)
 	if err != nil {
 		t.Fatal(err)
@@ -150,11 +152,11 @@ func TestSpaceWorkbenchThreeCoresPreserveIdentityScopeAndResults(t *testing.T) {
 			}
 		}
 	}
-	// Follow-ups explicitly retain their parent; peer requests do not require an assistant.
+	// Follow-ups explicitly retain their parent without enabling shared execution.
 	follow := workbenchInput{RequestID: uuid.NewString(), TargetID: thirdTarget.ID, ParentRequestID: request.ID, Instruction: "请复核前一条建议", Intent: "analyze"}
 	wb(t, a, s.record.ID, "send", follow)
-	if s.record.ExecutionRecord != nil || s.record.Workbench.Assistant.State != "disabled" {
-		t.Fatal("peer work enabled execution/assistant")
+	if s.record.ExecutionRecord != nil {
+		t.Fatal("peer work enabled execution")
 	}
 	// Membership is rechecked on every subsequent receipt and read.
 	if err = s.RevokeMember(target.MemberID); err != nil {
@@ -171,10 +173,9 @@ func TestSpaceWorkbenchThreeCoresPreserveIdentityScopeAndResults(t *testing.T) {
 	}
 }
 
-func TestSpaceBriefCASAndAssistantLifecycle(t *testing.T) {
+func TestSpaceBriefCAS(t *testing.T) {
 	ctx := context.Background()
 	a, _, s := spaceFixture(t)
-	_, caller, target := spaceChannel(t, a, s.record.ID)
 	brief := SpaceBrief{Topic: "明确接口改造范围", Decisions: []BriefItem{{Text: "先验证兼容行为", Sources: []SpaceSourceRef{}}}, Questions: []BriefItem{{Text: "还有哪些测试缺口？", Sources: []SpaceSourceRef{}}}}
 	wb(t, a, s.record.ID, "brief", workbenchInput{Brief: brief})
 	if out, err := a.workbenchCall(ctx, s.record.ID, "brief", workbenchInput{RequestID: uuid.NewString(), Brief: brief}); err != nil || workbenchDecode[BriefResult](out).State != "conflict" {
@@ -183,71 +184,26 @@ func TestSpaceBriefCASAndAssistantLifecycle(t *testing.T) {
 	if _, err := a.workbenchCall(ctx, s.record.ID, "brief", workbenchInput{RequestID: uuid.NewString(), BaseRevision: 1, Brief: brief, Actor: SpaceActor{Kind: "session"}}); err == nil {
 		t.Fatal("accepted an incomplete runtime identity")
 	}
-	var wg sync.WaitGroup
-	results := make(chan error, 8)
-	for range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_, err := a.workbenchCall(ctx, s.record.ID, "assistant", workbenchInput{State: "initializing", TargetID: target.ID, RequestID: uuid.NewString()})
-			results <- err
-		}()
-	}
-	wg.Wait()
-	close(results)
-	success := 0
-	for err := range results {
-		if err == nil {
-			success++
-		}
-	}
-	if success != 1 {
-		t.Fatal("multiple assistant bindings", success)
-	}
-	view := workbenchDecode[WorkbenchView](wb(t, a, s.record.ID, "view", workbenchInput{}))
-	first := view.Assistant
-	if first.State != "initializing" {
-		t.Fatal(first)
-	}
-	a.pumpWorkbench(ctx)
-	if _, err := a.finishAgentRequest(ctx, caller, first.BootstrapID, "", "completed", "accepted"); err == nil {
-		t.Fatal("ready without reading")
-	}
-	read, err := a.readAgentRequest(ctx, caller, first.BootstrapID, "", 0)
+}
+
+func TestRemovedSpaceAssistantCannotBeEnabled(t *testing.T) {
+	a, _, s := spaceFixture(t)
+	_, _, target := spaceChannel(t, a, s.record.ID)
+	body, err := json.Marshal(map[string]any{"state": "initializing", "targetId": target.ID, "requestId": uuid.NewString(), "baseEpoch": 0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := workbenchDecode[struct {
-		Request SpaceRequest `json:"request"`
-	}](read).Request
-	if request.Bootstrap == nil || request.Bootstrap.Brief.Revision != 1 || request.Bootstrap.Title != s.record.Title {
-		t.Fatal(request)
+	req := httptest.NewRequest(http.MethodPost, "/api/collaborations/"+s.record.ID+"/workbench/assistant", strings.NewReader(string(body)))
+	res := httptest.NewRecorder()
+	if !a.workbenchHTTP(res, req, "collaborations/"+s.record.ID+"/workbench/assistant") || res.Code != http.StatusNotFound {
+		t.Fatal("removed local route remains available", res.Code, res.Body.String())
 	}
-	// Pause wins over the late completion; existing work remains attributed.
-	wb(t, a, s.record.ID, "assistant", workbenchInput{State: "paused", BaseEpoch: first.Epoch})
-	if _, err = a.finishAgentRequest(ctx, caller, first.BootstrapID, "", "completed", "accepted"); err != nil {
-		t.Fatal(err)
+	if _, err := a.workbenchCall(context.Background(), s.record.ID, "assistant", workbenchInput{State: "initializing", TargetID: target.ID, RequestID: uuid.NewString()}); err == nil {
+		t.Fatal("removed operation remains available to members")
 	}
-	view = workbenchDecode[WorkbenchView](wb(t, a, s.record.ID, "view", workbenchInput{}))
-	if view.Assistant.State != "paused" {
-		t.Fatal(view.Assistant)
-	}
-	second := workbenchDecode[SpaceAssistant](wb(t, a, s.record.ID, "assistant", workbenchInput{State: "initializing", BaseEpoch: view.Assistant.Epoch, TargetID: target.ID, RequestID: uuid.NewString()}))
-	a.pumpWorkbench(ctx)
-	if _, err = a.readAgentRequest(ctx, caller, second.BootstrapID, "", 0); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = a.finishAgentRequest(ctx, caller, second.BootstrapID, "", "completed", "已读取并接手"); err != nil {
-		t.Fatal(err)
-	}
-	view = workbenchDecode[WorkbenchView](wb(t, a, s.record.ID, "view", workbenchInput{}))
-	if view.Assistant.State != "ready" {
-		t.Fatal(view.Assistant)
-	}
-	wb(t, a, s.record.ID, "assistant", workbenchInput{State: "disabled", BaseEpoch: second.Epoch})
-	view = workbenchDecode[WorkbenchView](wb(t, a, s.record.ID, "view", workbenchInput{}))
-	if view.Assistant.TargetID != "" || len(view.Requests) != 2 || len(a.agentPairings()) != 1 {
-		t.Fatal(view)
+	view := workbenchDecode[WorkbenchView](wb(t, a, s.record.ID, "view", workbenchInput{}))
+	if len(view.Requests) != 0 || len(view.Targets) != 1 || len(a.agentPairings()) != 1 {
+		t.Fatal("removed operation changed ordinary conversations", view)
 	}
 }
 
@@ -285,37 +241,35 @@ func TestWorkbenchClaimNeverReplaysAndSourcesAreChecked(t *testing.T) {
 	}
 }
 
-func TestWorkbenchPauseStopsNewSessionRequestsAndExpiredQueueIsVisible(t *testing.T) {
+func TestWorkbenchSessionRequestsAndExpiredQueueIsVisible(t *testing.T) {
 	ctx := context.Background()
 	a, _, s := spaceFixture(t)
 	_, _, coordinator := spaceChannel(t, a, s.record.ID)
 	_, _, peer := spaceChannel(t, a, s.record.ID)
 	in := workbenchInput{RequestID: uuid.NewString(), TargetID: peer.ID, Instruction: "inspect", Intent: "analyze", Actor: SpaceActor{Kind: "session", Provider: coordinator.Provider, Session: coordinator.Session}}
 	wb(t, a, s.record.ID, "send", in)
-	s.mu.Lock()
-	s.record.Workbench.Assistant = SpaceAssistant{TargetID: coordinator.ID, State: "paused", Epoch: 1}
-	s.mu.Unlock()
-	// Retrying an existing ID only reads its receipt, even after a pause.
+	// Retrying an existing ID only reads its receipt.
 	wb(t, a, s.record.ID, "send", in)
 	oldID := in.RequestID
 	in.RequestID = uuid.NewString()
-	if _, err := a.workbenchCall(ctx, s.record.ID, "send", in); err == nil {
-		t.Fatal("paused coordinator dispatched new work")
-	}
+	wb(t, a, s.record.ID, "send", in)
+	wb(t, a, s.record.ID, "cancel", workbenchInput{RequestID: in.RequestID})
 	s.mu.Lock()
 	r := s.record.Workbench.Requests[oldID]
 	r.CreatedAt = time.Now().Add(-time.Minute)
 	s.record.Workbench.Requests[oldID] = r
 	s.mu.Unlock()
 	view := workbenchDecode[WorkbenchView](wb(t, a, s.record.ID, "view", workbenchInput{}))
-	if view.Requests[0].State != "failed" {
-		t.Fatal("expired queue remained pending without a receiver poll", view.Requests)
+	if len(view.Requests) != 2 {
+		t.Fatal("duplicate request was created", view.Requests)
 	}
-	role := workbenchDecode[SpaceAssistant](wb(t, a, s.record.ID, "assistant", workbenchInput{State: "initializing", BaseEpoch: 1, TargetID: coordinator.ID, RequestID: uuid.NewString()}))
-	wb(t, a, s.record.ID, "cancel", workbenchInput{RequestID: role.BootstrapID})
-	view = workbenchDecode[WorkbenchView](wb(t, a, s.record.ID, "view", workbenchInput{}))
-	if view.Assistant.State != "failed" {
-		t.Fatal("cancelled bootstrap left role initializing", view.Assistant)
+	for _, r := range view.Requests {
+		if r.ID == oldID && r.State != "failed" {
+			t.Fatal("expired queue remained pending without a receiver poll", r)
+		}
+		if r.ID == in.RequestID && r.State != "cancelled" {
+			t.Fatal("queued request was not cancelled", r)
+		}
 	}
 	s.mu.Lock()
 	s.record.State = "ended"

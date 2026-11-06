@@ -12,9 +12,13 @@
 | 分身直接答复与固定任务结果 | 发起该委托的准确会话；任务路线默认接收，沿用明确静音 |
 | 空间请求完成或失败 | 原请求中记录的同成员、同 Provider、同会话身份；人工发起的请求不猜测回传会话 |
 
-空间讨论和材料评论不自动广播给会话。[成员关注](member-activity.md)只控制人的界面提醒，不自动建立顺流接收关系，人的已读不推进此处投递版本。内容可被空间成员读取，不意味着应该附带给每个会话。个人目标以本机配对和空间目标关联核对；协作会话以原生会话身份与 executionId 核对。不得以最近会话、成员身份或目录推断。
+空间讨论和材料评论不自动广播给会话。[成员关注](member-activity.md)只控制人的界面提醒，不自动建立顺流接收关系，人的已读不推进此处投递版本。内容可被空间成员读取，不意味着应该附带给每个会话。个人目标以本机准确会话身份和空间目标关联核对；协作会话以原生会话身份与 executionId 核对。不得以最近会话、成员身份或目录推断。
 
 ## 开启与留言
+
+参与会话页提供两个无需模型轮次的开启入口：在独立 WebGUI 或插件中选择本机 Codex／Claude 会话，或在提供准确身份的插件面板点击“让当前会话接收空间更新”。前者只读核对所选原生会话，后者由 MCP 传输取得当前 Codex／ChatGPT 身份；面板正文不能指定调用者身份。两者复用本机 `linked` 关联和空间目标，直接开启顺流偏好，不核验或借用主动输入连接，不创建新会话。重复或并发操作复用同一目标，保留首次开启基线；既有主动接收能力不被降级。无法核对宿主身份时仍可选择本机会话。开启状态表示接收偏好已保存，不证明 Hook 已信任或宿主已消费更新。
+
+每位协作者在自己的 Core 加入同一空间后，为自己的本机会话开启；无需取得发起者的配对码。准确原生身份仅留在成员 Core，空间托管端只保存不透明会话指纹和目标；跨 Core 调用使用该成员的凭据，不能修改其他成员的顺流偏好。空间及成员 Core 需要可连接，成员自己的会话需已接入 Team Cross MCP，或已启用可信 UserPromptSubmit Hook。普通 MCP 只在正常 Team Cross 工具响应时附带；可信 Hook 可在下一次提交用户消息时附带，不后台唤醒。安装插件、加入空间和打开面板均不自动开启。
 
 参与会话卡片设置自己的目标；协作会话评论区由空间发起者设置。Agent 仅在用户明确要求后使用 `configure_space_inflow` 设置当前已关联会话，不能选择别人的原生会话。首次开启记录当前基线，之后仅附带新变化；关闭保留基线与投递记录，重新开启可继续提供仍可访问的变化。
 
@@ -42,6 +46,6 @@ Hook 与 MCP 共用空间内按接收对象保存的投递版本。每批最多�
 
 配置格式依据 [Codex Hooks](https://learn.chatgpt.com/docs/hooks) 与 [Claude Code Hooks](https://code.claude.com/docs/en/hooks)。实际被测范围见 [证据入口](../validation/evidence-map.md#顺流感知)，协议见 [顺流感知接口](../protocol.md#顺流感知接口)。
 
-实现入口：[Core 分发](../../../../internal/collab/inflow.go)、[作用域与传输](../../../../internal/collab/inflow_transport.go)、[MCP 输出边界](../../../../internal/mcp/inflow.go)、[Hook CLI](../../../../cmd/teamcross/inflow.go)、[界面](../../../../packages/web/src/components/InFlow.tsx)。
+实现入口：[无轮次关联](../../../../internal/collab/inflow_connections.go)、[开启界面](../../../../packages/web/src/components/InFlowConnections.tsx)、[Core 分发](../../../../internal/collab/inflow.go)、[作用域与传输](../../../../internal/collab/inflow_transport.go)、[MCP 输出边界](../../../../internal/mcp/inflow.go)、[Hook CLI](../../../../cmd/teamcross/inflow.go)、[开关与留言](../../../../packages/web/src/components/InFlow.tsx)。
 
 分身任务返回使用独立的本机路线与主机 outbox；原生会话定位留在发起 Core，不通过配对或最近会话猜测。每条返回携带原消息和准确结果来源，共用上述 MCP/Hook 预算、租约和实际写出确认。没有普通目标关联时，configure_space_inflow 只设置该空间的任务返回偏好，不扩大空间动态接收范围。待答问题的返回与失效处理尚未接通，具体保留和验证边界见[分身委托返回](local-shadows.md#委托结果返回原会话)。

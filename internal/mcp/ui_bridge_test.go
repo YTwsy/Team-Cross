@@ -18,14 +18,14 @@ func TestUIBridgeRequirementBeforeCoreAndLoadedReceipt(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, body := range []any{map[string]any{"requiredBridgeProtocol": 2}, map[string]any{"requiredBridgeProtocol": -1}, map[string]any{"requiredBridgeProtocol": 1.5}} {
+	for _, body := range []any{map[string]any{"requiredBridgeProtocol": UIBridgeProtocol + 1}, map[string]any{"requiredBridgeProtocol": -1}, map[string]any{"requiredBridgeProtocol": 1.5}} {
 		if checkUIBridgeRequirement(body) == nil {
 			t.Fatal("accepted invalid/incompatible requirement", body)
 		}
 	}
 	dir := t.TempDir()
 	var out bytes.Buffer
-	input := `{"id":1,"method":"tools/call","params":{"name":"teamcross_ui_read","arguments":{"path":"plugin/bootstrap","body":{"requiredBridgeProtocol":2}}}}` + "\n"
+	input := `{"id":1,"method":"tools/call","params":{"name":"teamcross_ui_read","arguments":{"path":"plugin/bootstrap","body":{"requiredBridgeProtocol":3}}}}` + "\n"
 	if err := ServeUI(context.Background(), dir, strings.NewReader(input), &out); err != nil {
 		t.Fatal(err)
 	}

@@ -11,7 +11,7 @@
 | Git 预览、目录创建或恢复 | 原目录分支/HEAD/暂存区/文件不变；worktree 不复制四类未提交内容；子目录映射、新会话 ID 与来源关联 |
 | 输入协调、共享或进程生命周期 | 相关 race test，以及直接连接/MCP 共用输入者、重复请求、审批、断线、结束访问和恢复 |
 | 实现下一阶段只读分享与多人空间 | 除工程门槛外，完成 [首版契约](../decisions/collaboration-spaces.md#实施顺序与首版完成标准) 的三成员、逐人撤销、范围隔离、发布版本和多人接力检查；旧双人结果不能替代 |
-| 空间请求、简报、专用角色或独立接收会话 | 三成员跨 Core 目标/身份/回执、固定引用和撤销、请求去重、关闭/重启不重放、简报 CAS、唯一角色并发、接手确认/暂停/更换及独立原生调用；见下方空间工作台门槛 |
+| 空间请求、简报或独立接收会话 | 三成员跨 Core 目标/身份/回执、固定引用和撤销、请求去重、关闭/重启不重放、简报 CAS 及独立原生调用；见下方空间工作台门槛 |
 | LAN / Tailcat 传输或邀请格式 | 邀请互斥字段、TLS pin、多人共用链接加入、成员重连、取消与资源关闭；Tailcat 另跑显式联网测试，并把同机、两台 Mac 直连和强制 DERP 分开报告 |
 | 原生协议、客户端启动或账户路由 | 除协议测试外，使用专门会话实测对应 TUI/Desktop；分别验证登录、历史、输入、审批和 A 上执行 |
 | 模型与推理设置 | 来源继承、客户端选择、失败不更新显示、通知、恢复与写入归属；真实调用仅使用 Luna |
@@ -43,6 +43,8 @@ go build -o bin/teamcross ./cmd/teamcross
 真实浏览器使用 `TEAMCROSS_READER_BROWSER_DIR=<全新目录> go test ./internal/collab -run '^TestReaderBrowserFixture$' -v -count=1 -timeout=46m` 启动隔离 Core；按输出目录 `fixture.json` 访问并检查深浅主题、中英文、宽窄窗口、图形/图片展开、批注定位与正文搜索入口移除。`POST /fixture/advance` 只在该测试服务器追加合成历史，`?done=true` 模拟完成；不调用模型，也不代表真实 Provider 输出验收。退出在目录创建 `finish` 文件并关闭本次浏览器及插件 harness。
 
 顺流感知变更运行 [Core 分发回归](../../../../internal/collab/inflow_test.go)、[MCP 输出边界](../../../../internal/mcp/inflow_test.go)、[Hook CLI](../../../../cmd/teamcross/inflow_test.go) 和 [界面交互](../../../../packages/web/src/test/inflow.test.tsx)。核对首次开启基线、准确会话/空间/成员范围、评论回复版本、本人请求结果、定向留言、跨 Core、撤销后拒绝、重启去重、并发租约及失败输出不记已投递。普通讨论和材料评论不能因可读而自动广播。
+
+免配对入口还需运行 [Core 关联与三 Core 检查](../../../../internal/collab/inflow_connections_test.go)、[插件传输身份](../../../../internal/mcp/inflow_connections_test.go) 和 [入口交互](../../../../packages/web/src/test/inflow-connections.test.tsx)，核对本机目录准确选择、宿主无轮次身份、缺失身份拒绝、正文身份注入拒绝、并发复用、主动接收不变、成员隔离及撤销。真实浏览器可用 `TEAMCROSS_INFLOW_CONNECTION_BROWSER_DIR=<全新目录> go test ./internal/collab -run '^TestInFlowConnectionsBrowserFixture$' -v -count=1 -timeout=26m` 启动生产 WebGUI 和插件面板，检查两个开启入口、配置说明及深浅主题；退出写入 fixture 目录的 `finish`。该夹具的 Core 与存储真实，原生来源和插件宿主为合成，不代替实际桌面宿主验收。旧驻留桥不能加载要求协议 2 的新面板。
 
 真实 Codex 接入使用 `scripts/verify-inflow.py --fixture-dir <全新目录> --teamcross-bin <当前二进制> --codex-bin <原生 CLI>`：脚本仅使用 `gpt-5.6-luna`，创建隔离 home/仓库/Core 和两个 fork，分别验证受限模式的一次 MCP 调用与信任模式的 UserPromptSubmit Hook。通过标准是模型返回只存在于评论中的随机标记，落盘投递版本为 1；Hook 场景不能调用 MCP。原生信任审阅只针对 fixture 创建的精确 Hook，不修改个人配置；退出关闭所建客户端和 Core。此脚本不证明 Claude、插件自动加载、Desktop 或两台 Mac。
 
@@ -135,7 +137,7 @@ fixture 使用合成原生历史，其他发布、版本、Core HTTP、存储、
 
 普通请求的 [上下文回归](../../../../internal/collab/workbench_context_test.go) 覆盖简报变化、父结果快照、同 ID 不刷新、列表不重复长快照、大小预算与成员 CAS；界面另验证来源进展跳转、结果加入草稿但不自动保存。新增空间 mention 需检查 scope、只读资源和明确连接入口，旧材料 mention 的桌面验收不能替代新增行为。
 
-[workbench_test.go](../../../../internal/collab/workbench_test.go) 覆盖同机三 Core 成员身份、明确目标关联、固定公开引用、请求/回执、撤销、简报 CAS、并发启用唯一角色、读取后接手、晚到结果、暂停阻止新请求、排队超时、取消启动、重启不重放，以及独立接收原生 ID 与绑定工具范围。相关变更运行 `internal/collab`、`internal/mcp` race 检查，并回归原有配对入口。[恢复回归](../../../../internal/collab/receiver_recovery_test.go) 另覆盖空命令表落盘、Core 重启、显式恢复后的首次投递、同请求去重、异常释放锁和控制状态有界等待；启动器回归覆盖状态超时、连接文件缺失或损坏但运行锁仍被持有时禁止重复启动。
+[workbench_test.go](../../../../internal/collab/workbench_test.go) 覆盖同机三 Core 成员身份、明确目标关联、固定公开引用、请求/回执、撤销、简报 CAS、读取后完成、排队超时、取消待投递请求、重启不重放、已删除专用角色接口拒绝访问，以及独立接收原生 ID 与绑定工具范围。相关变更运行 `internal/collab`、`internal/mcp` race 检查，并回归原有配对入口。[恢复回归](../../../../internal/collab/receiver_recovery_test.go) 另覆盖空命令表落盘、Core 重启、显式恢复后的首次投递、同请求去重、异常释放锁和控制状态有界等待；启动器回归覆盖状态超时、连接文件缺失或损坏但运行锁仍被持有时禁止重复启动。
 
 真实模型检查使用专用空目录和当前构建：
 
@@ -148,16 +150,16 @@ python3 scripts/verify-space-workbench.py \
 
 恢复相关改动追加 `--reload-failed-receivers`：在两个成员的隔离数据目录种入原生创建前失败且省略空命令表的记录，重启 Core 后核对未自动创建，再明确重试并完成首次投递、后续请求链和 CLI 状态查询。此夹具不证明原生尚未落盘的零回合会话可以在 Core 重启后恢复。
 
-脚本只用 `gpt-5.6-luna` 和隔离原生配置，启动同一台 Mac 上的三个 Core，通过真实 TLS 成员资格关联两名成员的独立接收会话。必须验证启动简报读取和接手、经明确授权的会话到会话 MCP 投递、关联请求及三个成员一致的完成回执、同 ID 去重、暂停/停用保留原生会话，且未启用共同执行。只能回应本测试精确原生会话、工具名称和请求 ID 的必要审批。模型返回摘要按明确指定的标记核对，协议完成不代表正文正确。脚本保留证据并退出自身 Core；不改写个人配置，不等价于两台 Mac 或 ChatGPT MCP Events 验证。
+脚本只用 `gpt-5.6-luna` 和隔离原生配置，启动同一台 Mac 上的三个 Core，通过真实 TLS 成员资格关联两名成员的独立接收会话。必须验证请求自带的简报快照、经明确授权的会话到会话 MCP 投递、关联请求及三个成员一致的完成回执、同 ID 去重，且未启用共同执行。只能回应本测试精确原生会话、工具名称和请求 ID 的必要审批。模型返回摘要按明确指定的标记核对，协议完成不代表正文正确。脚本保留证据并退出自身 Core；不改写个人配置，不等价于两台 Mac 或 ChatGPT MCP Events 验证。
 
-[space-workbench.test.tsx](../../../../packages/web/src/test/space-workbench.test.tsx) 验证工作台键盘导航、阅读器保留、固定引用发送、丢失响应只查同 ID、简报状态编辑和显式接手预览。真实浏览器 fixture 使用合成材料和模拟接收者，但空间存储、成员访问和 HTTP 是真实的：
+[space-workbench.test.tsx](../../../../packages/web/src/test/space-workbench.test.tsx) 验证工作台键盘导航、阅读器保留、固定引用发送、丢失响应只查同 ID、简报状态编辑、接收状态及已删除专用角色入口不再出现。真实浏览器 fixture 使用合成材料和模拟接收者，但空间存储、成员访问和 HTTP 是真实的：
 
 ```sh
 TEAMCROSS_WORKBENCH_BROWSER_DIR=/private/tmp/teamcross-space-browser-fresh \
   go test ./internal/collab -run '^TestWorkbenchBrowserFixture$' -v -count=1 -timeout=30m
 ```
 
-按 fixture 输出的 `fixture.json` 打开专用页面，检查 1440/1024/768 像素、深浅主题、中英文、材料与批注就地发起、回执/关联导航、简报保存/冲突、专用角色初始化/暂停。创建该目录的 `finish` 文件结束；不得把模拟接收截图描述为真实模型回执。前端修改仍更新嵌入资源。
+按 fixture 输出的 `fixture.json` 打开专用页面，检查 1440/1024/768 像素、深浅主题、中英文、材料与批注就地发起、回执/关联导航、简报保存/冲突、参与会话接收状态和数字分身入口。创建该目录的 `finish` 文件结束；不得把模拟接收截图描述为真实模型回执。前端修改仍更新嵌入资源。
 
 单侧栏布局另检查发布入口、搜索展开、筛选与材料切换、左栏收起、连续对话的用户与 Agent 消息、评论草稿和更多菜单。空间概览检查固定版本材料跳转及折叠管理入口；阅读底部检查处理要求与材料/批注引用进入发送表单，且未确认接收目标前没有投递。引用选择器中的预览版本不得改变已选版本。`workbench_browser_test.go` 的合成用户消息通过原生 `content` 结构读取，避免仅验证 Agent 正文；共同执行的上下文切换另由 `TestLibraryBrowserFixture` 复核。
 

@@ -16,6 +16,8 @@
 
 业务范围见 [顺流感知契约](decisions/in-flow-awareness.md)。工作台 `view` 增加 `inFlow`（接收对象到启用布尔值）和最近四十条 `notes`；目标增加 `inFlow`，与主动接收 `available` 分开。
 
+- 本机 `POST /collaborations/:spaceId/workbench/inflow-connect`：`{provider:codex|claude,sourceId,name?}`，用户从本机目录明确选择；只读核对准确原生 ID，复用关联并开启顺流，不借用主动接收或调用 `thread/start/fork/resume`、`turn/start`。返回 `{linked,inFlow,targetId,name}`，重复操作复用目标和基线。
+- 插件 app-only `teamcross_ui_write` 路由 `plugin/current-inflow`：`{spaceId,name?}`，当前身份只来自宿主传输，拒绝正文中的 Provider、原生 ID、caller 及其他额外字段。桥接至仅接受 Core Bearer 且拒绝 Origin 的 `POST /agent-current-inflow`；无轮次 Codex 身份及 ChatGPT 不透明关联键可用，缺少身份拒绝。`plugin/current-connection` 增加 `inFlow`，状态读取仍不创建关联或消费投递。新增路由要求驻留 MCP 与面板 bridge protocol 2，旧桥按原有机制要求重新加载。
 - `POST /collaborations/:spaceId/workbench/inflow-config`：`{targetId|executionId,enabled}`，二选一；成员只设置自己的关联目标，协作会话由发起者设置。
 - `POST .../workbench/inflow-note`：`{requestId,targetId,instruction}`，UUID 去重，正文 1–300 字；返回 `{id,targetId,actor,text,createdAt,deliveredAt?}`。`inflow-note-read` 按 `{requestId}` 查询同一条。
 - 留言校验未通过返回 `inflow_note_rejected`；查询不存在返回 `inflow_note_not_found`。网络失败仍视为结果不明；查询后明确重试沿用原 ID 和正文，不能自动换 ID 重发。
@@ -170,7 +172,6 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 | `GET …/workbench/brief-read?revision=&itemId=&requestId=` | 默认读取当前简报；revision 选准确历史版本，itemId 只返回该条目，requestId 核对保存命令。无效版本参数拒绝，不回退到当前正文 |
 | `POST …/workbench/brief` | `{requestId,baseRevision,brief:{topic,decisions,questions,progress}}`，以实际作者完整保存，CAS 更新；界面使用此入口 |
 | `POST …/workbench/brief-update` | `{requestId,baseRevision,topic?,changes}`，每项为 `{operation:upsert\|remove,section:decisions\|questions\|progress,itemId?,item?}`；upsert 在 item 中提供稳定 itemId，remove 在修改项提供 itemId |
-| `POST …/workbench/assistant` | `{baseEpoch,state,targetId?,requestId?}`，仅空间发起者；`state=initializing|paused|disabled`，初始化需就绪的独立目标和新的请求 ID |
 | `POST …/workbench/create-receiver` | `{requestId,name}`，在当前成员 Core 创建并关联独立 Codex 接收会话；相同 ID 不重复创建 |
 | `GET /space-receivers?spaceId=…` | 当前 Core 自己的接收会话、原生 TUI 命令、运行时确认模型及状态；含 `activeTurnId`、持久化的 `receivingPaused`、等待执行/进程退出的 `releasePending`，不通过远端返回 |
 | `GET /space-receivers/:id/events` | 当前本机接收会话事件与待回应审批 |
@@ -191,11 +192,11 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 
 共同执行目标使用 `executionId` 绑定精确会话，私人接收目标省略该字段；投递时重新检查空间成员资格和该会话输入归属。
 
-`Record.workbench` 保存 `targets`、`requests`、`brief` 和 `assistant`，最多 256 个目标、4096 条请求。目标公开随机目标 ID、成员、名称、Provider、原生身份的不可逆摘要、是否共同执行、可用性和解除关联状态，不公开私人配对 ID、原生 ID 或凭据。请求保存完整发起身份、接收目标、父请求 ID、固定引用、要求、处理方式、状态、摘要/错误以及创建、更新、读取、结束时间。父请求必须属于当前空间，关联深度不超过 16。
+`Record.workbench` 保存 `targets`、`requests` 和 `brief`，最多 256 个目标、4096 条请求。目标公开随机目标 ID、成员、名称、Provider、原生身份的不可逆摘要、是否共同执行、可用性和解除关联状态，不公开私人配对 ID、原生 ID 或凭据。请求保存完整发起身份、接收目标、父请求 ID、固定引用、要求、处理方式、状态、摘要/错误以及创建、更新、读取、结束时间。父请求必须属于当前空间，关联深度不超过 16。
 
 接收 Core 约每 2 秒报告关联目标的接收状态，租约有效期 20 秒。`queued` 最长等待 30 秒；`claim` 先持久化 `unknown` 再进行外部输入，且只能领取一次。随后 `receipt` 报告 `submitted/failed/unknown`；Agent 的 `read_agent_request` 才标为 `received`，读取后 `finish_agent_request` 才可标为 `completed/failed`。同 ID 内容不一致拒绝，已完成结果不同拒绝；原请求可查询，断线或重启不重放。空间关闭后拒绝新的发送/创建等操作，允许保留的本机结果查询和已投递结果收尾；成员凭据撤销仍优先拒绝所有远端访问。
 
-普通请求保存 `briefRevision` 与 `context:{brief,previousBriefRevision?,parent?}`；`parent` 为 `{requestId,state,instruction,summary?}` 的发送时快照。`previousBriefRevision` 按目标最近的读取时间计算，包括角色接手。列表省略 `context`；完整读取保留。创建时为读取封装和后续结果预留 16 KiB，超过读取预算的上下文在外部投递前拒绝；重复请求保持旧快照。
+普通请求保存 `briefRevision` 与 `context:{brief,previousBriefRevision?,parent?}`；`parent` 为 `{requestId,state,instruction,summary?}` 的发送时快照。`previousBriefRevision` 按目标最近一次读取请求上下文的时间计算。列表省略 `context`；完整读取保留。创建时为读取封装和后续结果预留 16 KiB，超过读取预算的上下文在外部投递前拒绝；重复请求保持旧快照。
 
 简报议题最多 2000 字，决定/问题/进展各最多 32 条、每条 2000 字，整体 JSON 最大 24 KB。条目为 `{itemId,text,status,sources,requestId?,updatedBy,updatedAt}`；实际作者与时间由 Core 写入，未变化条目保留原记录。决定状态为 proposed/confirmed/disputed，问题为 open/resolved，进展为 in_progress/completed/blocked。新决定默认 proposed，保存不自动确认全部内容；无条目状态的既有人工简报保留原确认含义。
 
@@ -204,8 +205,6 @@ Composer mentions 的查询最多 256 个 Unicode 字符；空值返回最近内
 每次更新最多 32 项修改，requestId 为稳定 UUID，内容实际改变才递增 revision；无变化仍保存命令回执。成功返回 `{state:saved,requestId,revision,source,brief,readBack:{tool:read_space_brief,requestId}}`，同一命令及作者重试取得原修订，同 ID 换内容或作者拒绝。CAS 冲突返回 `{state:conflict,revision,brief,conflicts}`，不写入；conflicts 为改变的相关条目或 `$topic/$history`，其他条目引起的全局版本冲突可为空。合并后使用新命令 ID。
 
 workbench 另存 briefHistory 和 briefCommands，当前版本之外保留最近 256 份历史快照，最多 4096 条命令回执。保存失败回滚正文、历史和回执；容量达到上限时拒绝新命令，不删去去重记录后重新执行。按 requestId 读取返回实际保存版本，必要时只返回指定条目；历史过期为 brief_revision_unavailable，条目缺失为 brief_item_missing。历史正文不可用时仍保留已保存状态，避免不明结果被误当作未执行。
-
-专用角色为 `disabled/initializing/ready/paused/failed`，启用、暂停、停用或更换时递增 `epoch`；启动请求保存 SpaceBootstrap，包含空间身份、角色版本、完整简报及条目状态、最多 16 份材料的最新固定版本目录、16 个目标、32 个待处理 ID、对应总数及规则。角色可根据当前工作直接咨询、跟进和整理简报。接手必须同时匹配当前 bootstrap ID 和 epoch，先读取再成功完成，不能由送达推断。
 
 个人 MCP 和绑定运行时都提供：`list_space_targets`、`read_space_brief`、`update_space_brief`、`list_space_requests`、`get_space_request`、`send_space_request`；分身使用同一简报业务接口。个人工具需要 spaceId，绑定运行时移除顶层选择字段并拒绝额外空间选择。请求目录每页最多 10 项，返回短预览和 nextOffset，完整正文按 ID 读取。按当前工作发起普通咨询、接续和整理简报无需逐次发送许可，保留真实身份、来源及共同执行的输入归属。简报更新回执使用 read_space_brief(requestId)，get_space_request 仅查询实际协作请求。
 

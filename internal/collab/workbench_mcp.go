@@ -128,11 +128,11 @@ func projectWorkbenchRead(name, id string, offset int, view WorkbenchView) (any,
 	case "list_space_targets":
 		return map[string]any{"spaceId": id, "targets": view.Targets}, nil
 	case "read_space_brief":
-		return map[string]any{"spaceId": id, "brief": view.Brief, "assistant": view.Assistant}, nil
+		return map[string]any{"spaceId": id, "brief": view.Brief}, nil
 	case "list_space_requests":
 		items := []map[string]any{}
 		for _, r := range view.Requests[:min(10, len(view.Requests))] {
-			items = append(items, map[string]any{"id": r.ID, "targetId": r.TargetID, "actor": r.Actor, "parentRequestId": r.ParentRequestID, "state": r.State, "instructionPreview": shortText(r.Instruction, 160), "summaryPreview": shortText(r.Summary, 200), "updatedAt": r.UpdatedAt, "bootstrap": r.Bootstrap != nil})
+			items = append(items, map[string]any{"id": r.ID, "targetId": r.TargetID, "actor": r.Actor, "parentRequestId": r.ParentRequestID, "state": r.State, "instructionPreview": shortText(r.Instruction, 160), "summaryPreview": shortText(r.Summary, 200), "updatedAt": r.UpdatedAt})
 		}
 		out := map[string]any{"spaceId": id, "requests": items, "total": view.Total, "guidance": "已省略完整引用与长正文；按请求 ID 使用 get_space_request 读取。"}
 		if offset+len(items) < view.Total {

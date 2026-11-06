@@ -175,9 +175,8 @@ func (b Backend) readMention(ctx context.Context, uri string, ref mentionReferen
 			return nil, err
 		}
 		var view struct {
-			SpaceID   string          `json:"spaceId"`
-			Brief     json.RawMessage `json:"brief"`
-			Assistant json.RawMessage `json:"assistant"`
+			SpaceID string          `json:"spaceId"`
+			Brief   json.RawMessage `json:"brief"`
 		}
 		if err := json.Unmarshal(data, &view); err != nil {
 			return nil, err

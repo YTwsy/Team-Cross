@@ -13,10 +13,11 @@ flowchart LR
 ```
 
 会话起点、接收用途与执行权限是不同维度。已有、新建和 fork 描述上下文来源；接收会话
-描述请求目标，专用会话描述可选协调角色。参与讨论与共同操作执行现场分别管理。
+描述请求目标，数字分身提供空间内持续共享的聊天与后台任务。参与讨论与共同操作执行现场分别管理。
 
 - 查询定位、设计原因与总体范围 → [项目简报](../../sources/project-brief.md)。
 - 查询对象定义、会话用途及原生术语 → [核心词汇](../../sources/product-core-and-glossary.md)。
 - 查询用户如何分享、讨论与操作 → [产品流程](../../sources/product-flows.md)。
-- 查询空间组织与专用角色 → [空间契约](../../sources/decisions/collaboration-spaces.md) / [空间工作台](../../sources/decisions/space-workbench.md)。
+- 查询空间组织与参与会话 → [空间契约](../../sources/decisions/collaboration-spaces.md) / [空间工作台](../../sources/decisions/space-workbench.md)。
+- 查询数字分身的共享聊天、记忆与后台任务 → [本机数字分身](../../sources/decisions/local-shadows.md)。
 - 查询 fork、执行目录与保留规则 → [目录与生命周期](../../sources/decisions/workspace-and-lifecycle.md)。

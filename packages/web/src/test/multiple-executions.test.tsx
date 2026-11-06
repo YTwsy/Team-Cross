@@ -79,7 +79,6 @@ beforeEach(() => {
           requests: [],
           total: 0,
           brief: { revision: 0, topic: "", decisions: [], questions: [] },
-          assistant: { epoch: 0, state: "disabled" },
         });
       return json(base);
     }),

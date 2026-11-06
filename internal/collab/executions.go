@@ -104,9 +104,6 @@ func recoverRecord(r *Record) {
 				r.Workbench.Requests[id] = request
 			}
 		}
-		if r.Workbench.Assistant.State == "initializing" {
-			r.Workbench.Assistant.State = "failed"
-		}
 	}
 }
 

@@ -16,6 +16,8 @@
 
 ## 顺流感知
 
+2026-11-05，`Meta` / `d440c57f` 加当次未提交改动：本机列表明确选择与插件准确当前身份两个无模型轮次开启入口已实现。全量 Go、vet、相关 race、Web 273 项测试、1428 条翻译及两套嵌入资源构建通过；最后局部调整的 27 项 Web 回归与相关 Go race 通过。单 Mac 三 Core loopback TLS 覆盖本人目标隔离和撤销；production UI 加真实 Core 的浏览器检查覆盖 1440/1024/768、中英和深浅主题，以及宿主无 `ui/message` 时直接开启。原生目录和插件宿主身份为合成，未扩大真实客户端、Hook 或跨 Mac 验收。记录见[无模型轮次顺流关联](../../tasks/finished_archived/2026-11-05-inflow-connections.md)。
+
 2026-10-22，顺流感知分支的参与会话反馈修复：原生标题、旧占位补全、插件精确关联状态、并发连接去重、面板资源缓存键的 Go/Web 回归通过。production 面板加真实 Core 的隔离浏览器检查通过，宿主桥与身份为合成夹具，不扩大真实 Codex/Cloud 验收范围。记录见[参与会话反馈修复](../../tasks/2026-10-21-in-flow-implementation.md#2026-10-22-参与会话反馈修复)。
 
 2026-10-21，`4d33a78` 基线上的 `codex/in-flow-awareness` 第一版实现。工程回归覆盖四类分发规则、明确开启基线、跨 Core 目标与成员隔离、绑定接收器空间限制、撤销、并发租约、磁盘重载和输出失败；Web 184 项测试、1067 条翻译检查与两套嵌入资源构建通过。真实浏览器在 1265×712 下核对个人目标开关、他人成员只读、保存留言后的待投递状态，以及中文浅色和英文深色显示。
@@ -87,6 +89,8 @@
 
 范围来源：[接收会话配对](../decisions/agent-pairing.md)、[空间工作台](../decisions/space-workbench.md)。下表按实际被测操作记录范围；会话创建方式用于复现场景，不划分原生投递能力。
 
+专用会话协调角色已由[本机数字分身](../decisions/local-shadows.md)替代并移除。下表历史记录中的启动简报接手、角色暂停/停用及三条请求链仅说明当时版本；当前普通请求和独立接收会话按[空间工作台门槛](test-gates.md#空间工作台)验证，旧角色证据不适用于数字分身。
+
 | 具体路径 | 最近已知结果 | 被测代码与环境 | 证据与适用边界 |
 | --- | --- | --- | --- |
 | 个人 Desktop 会话绑定与独立接收生命周期 | 审批同步、精确停止、安全释放与同 ID 接回通过；个人 Desktop 独立 STDIO 主动推送仍未接入 | 2026-10-05；Meta `910e07b` + `codex/receiver-handoff` 实现；单 Mac、Codex `0.160.0`、隔离 Luna 会话 | [交接回归](../../tasks/finished_archived/2026-10-05-receiver-handoff.md)、[早先调查](../../tasks/finished_archived/2026-10-05-receiver-lifecycle-validation.md#执行结果)。两个独立真实 app-server 验证持锁拒绝、续写历史接回及模型实际使用前轮标记；Desktop 打开仅核对系统参数，不证明个人 Desktop UI 完整往返、列表刷新或 `agents` 的 `x`。 |
@@ -152,13 +156,15 @@ ChatGPT 云端事件已实现本地协议和隔离入口，实际宿主接收仍
 
 范围来源：[输入与共享](../decisions/input-and-sharing.md)、[安装与首次体验](../distribution-and-onboarding.md)、[构建与发布](../releasing.md)。网络路径、打包、公开发布和桌面交互分别取证。
 
+2026-11-05，本地开发版本 `0.4.1-dev.20261105`，`Meta` 干净提交 `a28e9cb`，build 234：产物、临时 DMG 安装、签名完整性和 App/Core 生命周期验证通过；按用户要求替换实际 App 后，命令入口与运行中 Core 的版本和提交一致。已启用插件同步完成但仍需宿主重载，不代表新版真实宿主面板已加载。arm64、ad-hoc 签名、未公证，未公开发布或更新 Homebrew。见[本机替换记录](../../tasks/finished_archived/2026-11-05-inflow-connections.md#后续提交与本机替换)。
+
 2026-10-22，本地顺流感知包 `0.2.6-dev.inflow.20261022`，干净提交 `cf8fc49`：DMG/CLI 校验、临时安装、图标与签名完整性、双 App 副本及隔离 Core 生命周期通过。arm64，ad-hoc 签名、未公证；未运行可选的真实插件启动同步、Homebrew 或公开安装检查。见[本地 DMG 记录](../../tasks/2026-10-21-in-flow-implementation.md#2026-10-22-本地-dmg)。
 
 | 具体路径 | 最近已知结果 | 被测代码与环境 | 证据与适用边界 |
 | --- | --- | --- | --- |
 | Tailcat 成员与协作数据面 | 同机实网通过，后续覆盖同链接第三位成员与交接 | 2026-09-15：`42adb81` + 当次改动；2026-09-19：`7a7f7b3` + 当次改动；macOS 14.8.5，Tailcat `v0.6.0`，模拟原生运行时 | [传输报告](../../tasks/finished_archived/tailcat-transport-2026-09-15.md)、[多人补充](../../tasks/finished_archived/space-invitations-2026-09-19.md)。不证明两台物理 Mac、跨 NAT、切网恢复或持续强制 DERP；本页尚无这些路径的通过证据入口。 |
 | 接收恢复修复 DMG、App 重复打开与 Core 复用 | 最终包的挂载/校验/图标/签名完整性、真实双 App 副本、重复打开和隔离 Core 生命周期通过 | 2026-10-05；`1297b31`，`0.2.6-dev.receiver-recovery.20261004`；macOS 14.8.5 arm64 | [产物与 App 记录](../../tasks/finished_archived/2026-10-04-receiver-deadlock.md#最终-dmg)。本地包，ad-hoc 签名、未公证；邀请由测试 helper 截获，未运行可选 App 插件同步分支，未替换用户安装或重启现场 Core。 |
-| 正式 tag 的构建、公开资产复核、Homebrew 发布 | v0.2.4 当次完整链路通过 | 2026-09-23；`f671cb4` / `v0.2.4`；托管 `macos-15` arm64 runner，公开资产及 tap 检查 | [发布报告](../../tasks/finished_archived/release-v0.2.4-2026-09-23.md)。只说明该版本当时发布与复核结果，不宣称它仍是最新版本或 Meta 新功能已发布；ad-hoc 签名不等于 Developer ID/公证，也未增加真实模型或跨机验收。 |
+| 正式 tag 的构建、公开资产复核、Homebrew 发布 | v0.4.1 完整链路与本机安装通过 | 2026-11-04；`a7e03b3` / `v0.4.1`，build 228；托管 `macos-15` arm64 runner、本机 App 及公共 tap 安装检查 | [发布与收尾记录](../../tasks/2026-11-04-release-v0.4.1.md)。包含 Homebrew 临时前缀验证修复与重跑；本地和 runner 产物分别记录。ad-hoc 签名、未公证，不扩大真实模型或跨机验收范围。 |
 
 本页只链接已定向核对的报告。需要回答未列出的路径时，按[检索规则](../../README.md#检索边界)继续查相应任务或提交/PR 中的执行说明；找到新证据后补充适用范围，不能因未命中本页就给出否定结论。
 
